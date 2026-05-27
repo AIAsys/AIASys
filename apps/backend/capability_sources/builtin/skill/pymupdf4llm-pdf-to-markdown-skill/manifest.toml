@@ -1,0 +1,13 @@
+capability_id = "pymupdf4llm-pdf-to-markdown-skill"
+kind = "skill_pack"
+display_name = "PDF 转 Markdown"
+description = """将 PDF 文件转换为 Markdown，供 AI Agent 阅读。适用于需要
+阅读论文、文档或任何 PDF 内容并提取文本进行分析的任务。
+涵盖 pymupdf4llm 转换、图表处理以及批量处理。
+设计为自主研究工作流中论文下载与 Agent 阅读之间的桥梁。"""
+version = "1.0.0"
+author = "AIASys"
+dependencies = []
+min_platform_version = "0.1.0"
+
+[config_schema]

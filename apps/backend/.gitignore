@@ -1,0 +1,44 @@
+# Runtime data
+data/
+workspaces/
+logs/
+tmp/
+example_datas/
+.skills/
+
+# Configuration (use config.example.json as template)
+config.json
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test artifacts
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Vendor packages (if managed separately)
+vendor/*/dist/
+vendor/*/build/
+
+# Skill 本地配置（含密钥，不提交）
+apps/backend/skills/store/**/config.json

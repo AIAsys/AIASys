@@ -1,0 +1,61 @@
+{
+  "name": "aiasys-desktop",
+  "private": true,
+  "version": "0.2.10",
+  "description": "Electron desktop shell for AIASys",
+  "author": "AIASys",
+  "main": "src/main.cjs",
+  "scripts": {
+    "dev": "node ./scripts/launch.cjs dev",
+    "start": "node ./scripts/launch.cjs preview",
+    "build:web": "npm --prefix ../web run build",
+    "prepare:runtime": "node ./scripts/prepare-runtime.cjs",
+    "dist:linux:dir": "npm run build:web && npm run prepare:runtime && electron-builder --linux dir",
+    "dist:win": "npm run build:web && npm run prepare:runtime && electron-builder --win",
+    "dist:mac": "npm run build:web && npm run prepare:runtime && electron-builder --mac"
+  },
+  "devDependencies": {
+    "electron": "41.2.0",
+    "electron-builder": "26.0.12"
+  },
+  "build": {
+    "appId": "com.aiasys.desktop",
+    "productName": "AIASys Desktop",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "src/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": ".dist/web",
+        "to": "web"
+      },
+      {
+        "from": ".dist/backend",
+        "to": "backend"
+      }
+    ],
+    "linux": {
+      "target": [
+        "dir"
+      ],
+      "category": "Development"
+    },
+    "win": {
+      "target": [
+        "nsis",
+        "zip"
+      ]
+    },
+    "mac": {
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "category": "public.app-category.developer-tools"
+    }
+  }
+}

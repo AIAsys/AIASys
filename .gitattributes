@@ -1,0 +1,11 @@
+# 自动处理换行符
+* text=auto
+
+# Shell 脚本使用 LF 换行符
+*.sh text eol=lf
+
+# PowerShell 脚本使用 CRLF 换行符
+*.ps1 text eol=crlf
+
+# 确保脚本可执行（在支持的环境中）
+scripts/*.sh eol=lf

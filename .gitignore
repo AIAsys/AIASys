@@ -1,0 +1,148 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+.venv
+
+# IDE
+.vscode/
+
+# Environment files
+.env
+.env.local
+
+# Root-local/private files
+/.env.example
+/.mcp.json
+/.mcp.example.json
+/apps/artifacts/
+/apps/web/artifacts/
+/.acp_agent/
+/.agents/mcp.local.json
+
+# OS files
+.DS_Store
+
+# Logs
+*.log
+.logs/
+
+# Local directories
+/tests_local
+uv.toml
+.memo/
+.entire
+.temp/
+.codex
+.agent/
+.playwright-mcp/
+.gemini/
+.opencode/
+.qwen/
+.agents/context/
+.agents/**/.git/
+# Local task-session artifacts
+.agents/task-sessions/active/
+.agents/task-sessions/archive/
+.agents/task-sessions/completed/
+.agents/task-sessions/handoffs/
+test-results/
+
+# Node.js
+node_modules/
+static/
+
+# Backend
+# Config file contains secrets
+apps/backend/config.json
+# Data directories
+apps/backend/data/
+apps/backend/logs/
+apps/backend/workspaces/
+apps/backend/scripts/archive/
+apps/backend/app/agents/**/.temp/
+
+# Runtime databases
+apps/backend/app/*.db
+apps/backend/app/*.db-shm
+apps/backend/app/*.db-wal
+
+# Deploy secrets
+infra/deploy/.env
+
+# Archive (large files)
+/archive/*
+!/archive/01-vendor-and-upstream/
+/archive/01-vendor-and-upstream/*
+!/archive/01-vendor-and-upstream/kimi-cli-source/
+!/archive/01-vendor-and-upstream/kimi-cli-source/**
+!/archive/design/
+!/archive/design/**
+!/archive/mcps/
+!/archive/mcps/**
+!/archive/docs-legacy-2026-04-12/
+!/archive/docs-legacy-2026-04-12/**
+!/archive/deepscientist-skills.md
+!/archive/deepscientist-skills/
+!/archive/deepscientist-skills/**
+
+# Frontend runtime artifacts
+apps/web/.vite/
+apps/web/playwright-report/
+apps/web/test-results/
+apps/desktop/.dist/
+
+# Root-level fallback: any artifact dir at repo root should be ignored
+/artifacts/
+.agents/skill-development/
+.tmp/
+.playwright-cli/
+docs/superpowers/
+/.codex-runs/
+
+# 运行时目录，不提交到远程
+/.agents/
+/.playwright/
+/design-draft/**
+
+# 前端截图验证产物
+apps/design-draft/
+
+# AI 工具本地配置（不纳入项目）
+.claude/
+
+# Editor swap/backup files
+*.swp
+*.swo
+*~
+*.bak
+*.tmp
+*.orig
+
+# Windows
+Thumbs.db
+
+# Python tool caches
+.mypy_cache/
+.ruff_cache/
+.dmypy.json
+.pytype/
+.hypothesis/
+
+# Coverage
+htmlcov/
+.coverage
+coverage.xml
+
+# 本地开发文件，保留但不提交
+test-results/
+.pytest_cache/
+.playwright/
+.ruff_cache/
+.python-version
+lefthook.yml
+.gitleaks.toml
+

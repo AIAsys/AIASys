@@ -1,0 +1,12 @@
+capability_id = "pdf-translate-skill"
+kind = "skill_pack"
+display_name = "PDF2ZH 翻译 Skill"
+description = """基于 pdf2zh 提供当前工作区 PDF 的保版式翻译能力，输出单语和双语两份 PDF。
+当用户需要将英文/外文 PDF 翻译为中文且保留原排版时使用。
+支持 google（免费）、openai、gemini 三种翻译服务。"""
+version = "1.0.0"
+author = "AIASys"
+dependencies = []
+min_platform_version = "0.1.0"
+
+[config_schema]

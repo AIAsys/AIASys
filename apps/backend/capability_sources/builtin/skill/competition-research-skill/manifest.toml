@@ -1,0 +1,11 @@
+capability_id = "competition-research-skill"
+kind = "skill_pack"
+display_name = "竞赛研究 Skill"
+description = """竞赛场景的单分支研究与实验闭环入口：项目初始化、AGENTS.md 维护、文献检索、论文摄入、单环境串行实验循环，以及知识图谱、HTML 看板与 ECharts 可视化分层管理。
+适用于用户提供竞赛题目、数据或历史实验材料，希望 Agent 在已准备或已绑定的运行环境中建立 baseline 并持续优化一条实验线的场景。"""
+version = "1.0.0"
+author = "AIASys"
+dependencies = []
+min_platform_version = "0.1.0"
+
+[config_schema]

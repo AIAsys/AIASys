@@ -1,0 +1,12 @@
+capability_id = "aiasys-platform-skill"
+kind = "skill_pack"
+display_name = "AIASys Platform Guide"
+description = """AIASys 工作平台的完整使用指南。覆盖核心概念、Agent 工具目录、Auto Task 配合模式、
+UV 运行环境、Docker 沙盒资源、环境变量、多维数据表、Skill 协作方式。
+当 Agent 需要了解 AIASys 平台能力、选择工具、或配合 Auto Task 工作时使用。"""
+version = "1.0.0"
+author = "AIASys"
+dependencies = []
+min_platform_version = "0.1.0"
+
+[config_schema]
