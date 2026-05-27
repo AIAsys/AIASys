@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 import re
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 from pydantic import BaseModel
 
@@ -229,9 +229,7 @@ class CreateKnowledgeGraph(AiasysTool):
             existed = graph_path.exists()
             if existed and not params.overwrite:
                 return ToolResult(
-                    content=(
-                        f"知识图谱已存在：{graph_id}。" "如需覆盖，请显式传入 overwrite=true。"
-                    ),
+                    content=(f"知识图谱已存在：{graph_id}。如需覆盖，请显式传入 overwrite=true。"),
                     is_error=True,
                 )
             if existed and params.overwrite:
@@ -794,7 +792,7 @@ class GetCommunityReport(AiasysTool):
         except RuntimeError as exc:
             logger.error("生成知识图谱社区报告失败: %s", exc, exc_info=True)
             return ToolResult(
-                content=("生成知识图谱社区报告失败: " f"{exc}"),
+                content=(f"生成知识图谱社区报告失败: {exc}"),
                 is_error=True,
             )
         except Exception as exc:

@@ -13,7 +13,7 @@ import os
 import time
 from abc import ABC, abstractmethod
 from functools import wraps
-from typing import Any, List, Optional
+from typing import List, Optional
 
 import httpx
 

@@ -15,7 +15,7 @@ from pydantic import BaseModel
 from app.core.agent_tool import AiasysTool
 from app.core.tool_result import ToolResult
 
-from .graphrag_models import GraphUploadExtractionMode, UploadDocumentsToGraphParams
+from .graphrag_models import UploadDocumentsToGraphParams
 from .knowledge_tool import _resolve_upload_file_path
 
 logger = logging.getLogger(__name__)

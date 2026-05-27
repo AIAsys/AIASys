@@ -1024,7 +1024,7 @@ class MemoryPipelineService:
             ).strip()
             if len(new_text) > max_memory_size:
                 logger.warning(
-                    "Memory Stage 2 拒绝追加到全局 MEMORY.md: " "追加后大小 %d 超过限制 %d",
+                    "Memory Stage 2 拒绝追加到全局 MEMORY.md: 追加后大小 %d 超过限制 %d",
                     len(new_text),
                     max_memory_size,
                 )
@@ -1058,7 +1058,7 @@ class MemoryPipelineService:
             ).strip()
             if len(new_text) > max_workspace_memory_size:
                 logger.warning(
-                    "Memory Stage 2 拒绝追加到 workspace memory: " "追加后大小 %d 超过限制 %d",
+                    "Memory Stage 2 拒绝追加到 workspace memory: 追加后大小 %d 超过限制 %d",
                     len(new_text),
                     max_workspace_memory_size,
                 )

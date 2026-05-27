@@ -9,8 +9,6 @@ from typing import Any, Optional
 
 from app.services.memory import SessionDB
 
-from ._common import _utcnow_iso
-
 logger = logging.getLogger(__name__)
 
 

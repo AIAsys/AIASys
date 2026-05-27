@@ -25,7 +25,6 @@ from app.services.agent_config import AgentMode, get_agent_config_service
 from app.services.history import current_env_id
 from app.services.llm.llm_config_service import get_llm_config_service
 from app.services.memory import (
-    invalidate_resolver_cache,
     persist_memory_preview_snapshot,
     resolve_session_memory_preview,
 )
@@ -162,7 +161,9 @@ class SessionMixin:
         collaboration_policy_payload = (
             collaboration_policy.model_dump()
             if hasattr(collaboration_policy, "model_dump")
-            else collaboration_policy if isinstance(collaboration_policy, dict) else None
+            else collaboration_policy
+            if isinstance(collaboration_policy, dict)
+            else None
         )
         try:
             workspace_id_for_policy = (

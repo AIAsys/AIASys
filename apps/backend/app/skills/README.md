@@ -29,7 +29,6 @@ apps/backend/
 需要特别区分：
 
 - `apps/backend/skills/builtin/` 是用户运行时可安装的 builtin Skill 目录
-- `.agents/skills/` 是 AIASys 协作/开发 skill 仓库，不属于运行时 Skill 市场来源
 
 ## 当前运行时语义
 

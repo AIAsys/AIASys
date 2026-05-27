@@ -9,7 +9,6 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.agents.tools.notebook_utils import (
-    build_text_preview,
     default_notebook,
     ensure_notebook_shape,
     load_notebook,

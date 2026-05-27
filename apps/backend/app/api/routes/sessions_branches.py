@@ -223,7 +223,7 @@ async def create_session(request: CreateSessionRequest, user: UserInfo = Depends
             message_count=metadata.message_count,
             code_timeout=metadata.code_timeout,
         )
-    except ValueError as e:
+    except ValueError:
         raise HTTPException(status_code=400, detail="Operation failed")
     except Exception as e:
         logger.error(f"创建会话失败: {e}")

@@ -1,7 +1,7 @@
 {
   "name": "aiasys-desktop",
   "private": true,
-  "version": "0.2.10",
+  "version": "0.3.9",
   "description": "Electron desktop shell for AIASys",
   "author": "AIASys",
   "main": "src/main.cjs",

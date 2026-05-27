@@ -635,7 +635,6 @@ class WorkspaceRegistryService:
         # 确保工作区目录存在，以便应用模板文件
         workspace_dir.mkdir(parents=True, exist_ok=True)
         try:
-
             now = _now_iso()
             normalized_runtime_binding = _normalize_workspace_runtime_binding(
                 runtime_binding

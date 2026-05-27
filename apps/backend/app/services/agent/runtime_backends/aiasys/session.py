@@ -5,7 +5,6 @@ import hashlib
 import json
 import logging
 import threading
-import time
 import tomllib
 from pathlib import Path
 from typing import Any
@@ -23,7 +22,7 @@ from app.services.session.constants import (
     HISTORY_SNAPSHOT_FILE_NAME,
 )
 
-from ..base import AgentRuntimeEvent, RuntimeSessionCreateSpec, ToolStreamEvent
+from ..base import RuntimeSessionCreateSpec
 from .llm_clients.message_protocol import InternalMessage
 from .session_budget import SessionBudgetMixin
 from .session_compaction import SessionCompactionMixin
@@ -88,7 +87,9 @@ class AiasysRuntimeSession(
 
         # context.jsonl 路径，与 get_session_history() 读取路径保持一致
         _work_dir_path = Path(str(self._spec.work_dir))
-        self._context_file = _work_dir_path / ".aiasys" / "session" / self.session_id / "context.jsonl"
+        self._context_file = (
+            _work_dir_path / ".aiasys" / "session" / self.session_id / "context.jsonl"
+        )
 
         # 从 metadata.json 恢复上次 LLM 返回的精确 context_tokens，
         # 避免 session 激活初期显示启发式估算值（与精确值差距大导致跳动）。
@@ -369,9 +370,9 @@ class AiasysRuntimeSession(
         if self._spec.memory_enabled:
             try:
                 from app.services.agent.mixins.context import (
-                    build_memory_context_text,
                     build_memory_tool_developer_instructions,
                 )
+
                 work_dir = Path(str(self._spec.work_dir))
                 logger.info(f"[MEMORY DEBUG] work_dir={work_dir}, parent={work_dir.parent.name}")
                 memory_instructions = build_memory_tool_developer_instructions(
@@ -422,7 +423,11 @@ class AiasysRuntimeSession(
     def _load_persisted_messages(self) -> list[InternalMessage]:
         session_dir = Path(str(self._spec.work_dir))
         history_path = (
-            session_dir / ".aiasys" / "session" / ACTIVE_SESSION_STATE_DIR_NAME / HISTORY_SNAPSHOT_FILE_NAME
+            session_dir
+            / ".aiasys"
+            / "session"
+            / ACTIVE_SESSION_STATE_DIR_NAME
+            / HISTORY_SNAPSHOT_FILE_NAME
         )
         if not history_path.exists():
             return []

@@ -397,7 +397,9 @@ async def get_workspace_resource_verification(
             status=(
                 "passed"
                 if not failed_graph_health
-                else "warning" if passed_graph_health else "failed"
+                else "warning"
+                if passed_graph_health
+                else "failed"
             ),
             summary=f"{len(passed_graph_health)}/{len(available_graph_ids)} 个图谱健康检查通过",
             detail=("部分图谱健康检查失败。" if failed_graph_health else None),
@@ -406,7 +408,9 @@ async def get_workspace_resource_verification(
             status=(
                 "passed"
                 if not failed_graph_smoke
-                else "warning" if passed_graph_smoke else "failed"
+                else "warning"
+                if passed_graph_smoke
+                else "failed"
             ),
             summary=f"{len(passed_graph_smoke)}/{len(available_graph_ids)} 个图谱通过最小搜索探针",
             detail=("部分图谱未通过最小搜索探针。" if failed_graph_smoke else None),
@@ -569,7 +573,9 @@ async def get_workspace_resource_verification(
                 status=(
                     "passed"
                     if not failed_db_health
-                    else "warning" if passed_db_health else "failed"
+                    else "warning"
+                    if passed_db_health
+                    else "failed"
                 ),
                 summary=f"{len(passed_db_health)}/{len(db_test_results)} 个数据库连接测试通过",
                 detail=None if not failed_db_health else "部分数据库连接测试失败。",

@@ -151,9 +151,7 @@ def _is_pruned_workspace_path(relative_path: str) -> bool:
     return False
 
 
-def _should_skip_workspace_file(
-    relative_path: str, file_path: Path, patterns: list[str]
-) -> bool:
+def _should_skip_workspace_file(relative_path: str, file_path: Path, patterns: list[str]) -> bool:
     parts = Path(relative_path).parts
     if not parts:
         return True

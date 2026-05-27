@@ -135,7 +135,7 @@ def resolve_agent_system_default_paths(
     prompt_path = DATA_ANALYSIS_BASELINE.prompt_template_path
     if effective_sandbox_mode != "local":
         logger.warning(
-            "当前主线不再使用 sandbox 专属 Agent YAML，" "sandbox_mode=%s 使用本地主线 preset",
+            "当前主线不再使用 sandbox 专属 Agent YAML，sandbox_mode=%s 使用本地主线 preset",
             effective_sandbox_mode,
         )
     return get_local_system_preset_virtual_path(profile_basename), prompt_path
@@ -718,10 +718,10 @@ async def build_dynamic_agent_manifest(
         merged_config = None
 
     # 获取 workspace 根目录用于加载工作区级 agent.md
-    workspace_dir: Path | None = None
+    _workspace_dir: Path | None = None
     try:
         if workspace_registry is not None and workspace_id is not None:
-            workspace_dir = workspace_registry.get_workspace_root(user_id, workspace_id)
+            _workspace_dir = workspace_registry.get_workspace_root(user_id, workspace_id)
     except Exception:
         logger.debug("获取 workspace 根目录失败，跳过工作区规范: user=%s", user_id)
 

@@ -12,7 +12,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from .tool_registry import NON_DEFERRED_TOOL_NAMES, ToolRegistry
+from .tool_registry import ToolRegistry
 from .tool_strategy import ToolStrategy
 
 logger = logging.getLogger(__name__)

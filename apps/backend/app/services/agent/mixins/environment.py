@@ -4,7 +4,6 @@
 负责解析会话环境 ID、代码超时、运行时环境变量等配置
 """
 
-import json
 import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Optional

@@ -11,7 +11,6 @@ MCP 管理数据模型
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field

@@ -21,7 +21,6 @@ from typing import Any
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 from app.services.terminal.pty_manager import (
-    PtyManager,
     PtyUnsupportedError,
     get_pty_manager,
 )
@@ -114,9 +113,7 @@ async def terminal_websocket(websocket: WebSocket, user_id: str, session_id: str
         try:
             merged = b"".join(chunks)
             text = merged.decode("utf-8", errors="replace")
-            await websocket.send_json(
-                {"type": "output", "terminal_id": tid, "data": text}
-            )
+            await websocket.send_json({"type": "output", "terminal_id": tid, "data": text})
         except Exception as exc:
             logger.debug("发送终端输出失败: %s", exc)
 
@@ -129,9 +126,11 @@ async def terminal_websocket(websocket: WebSocket, user_id: str, session_id: str
             _output_buffers[tid].append(data)
             # 如果该 terminal 还没有排期的 flush，延迟 16ms 后批量发送
             if tid not in _flush_tasks or _flush_tasks[tid] is None or _flush_tasks[tid].done():
+
                 async def _delayed_flush() -> None:
                     await asyncio.sleep(0.016)  # ~60fps 批量窗口
                     await _flush_output_buffer(tid)
+
                 _t = asyncio.create_task(_delayed_flush())
                 _t.add_done_callback(_log_task_exception)
                 _flush_tasks[tid] = _t
@@ -337,7 +336,7 @@ async def terminal_websocket(websocket: WebSocket, user_id: str, session_id: str
 
     except WebSocketDisconnect:
         logger.info("终端 WebSocket 断开: user_id=%s session_id=%s", user_id, session_id)
-    except Exception as exc:
+    except Exception:
         logger.exception("终端 WebSocket 异常: user_id=%s session_id=%s", user_id, session_id)
     finally:
         await cleanup_connection()

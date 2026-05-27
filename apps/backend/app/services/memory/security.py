@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 # ---------- Invisible Unicode ----------
 _INVISIBLE_UNICODE_PATTERN = re.compile(
-    "[\u200b\u200c\u200d\u2060\ufeff" "\u202a\u202b\u202c\u202d\u202e]"
+    "[\u200b\u200c\u200d\u2060\ufeff\u202a\u202b\u202c\u202d\u202e]"
 )
 
 # ---------- Prompt Injection ----------

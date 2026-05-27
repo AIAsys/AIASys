@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import logging
-import time
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 from uuid import uuid4
@@ -208,11 +207,11 @@ class ClawDingTalkQrLoginMixin:
             self._delete_qr_login_record(user_id, flow_id)
             raise ValueError("钉钉扫码登录流程缺少设备码，请重新开始")
 
-        expires_in = int(flow_record.get("expires_in") or 300)
+        _expires_in = int(flow_record.get("expires_in") or 300)
 
         try:
             result = await self._dingtalk_poll_once(device_code=device_code)
-        except RuntimeError as exc:
+        except RuntimeError:
             self._delete_qr_login_record(user_id, flow_id)
             raise
 

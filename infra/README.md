@@ -30,7 +30,7 @@ infra/
 
 ## docker/
 
-本地开发用 PostgreSQL 容器，通过 `manage.sh` 管理（位于 `infra/docker/postgres/`，部署和本地开发共用同一份脚本）。
+本地开发用 PostgreSQL 容器，通过 `docker compose` 管理。
 
 **AIASys 系统不依赖 PostgreSQL。** 系统内置 SQLite 和 DuckDB，开箱即用。这个 PostgreSQL 容器仅用于验证系统接入外部数据库的能力（数据库连接器功能测试），不是系统运行的必要组件。
 
@@ -51,13 +51,3 @@ infra/
 | demo | writer | writer | 读写权限验证 |
 
 连接信息：Host `127.0.0.1`，Port `5433`，默认数据库 `demo`。
-
-使用方式：
-
-```bash
-cd infra/docker/postgres
-chmod +x manage.sh   # 首次使用需加执行权限
-./manage.sh start    # 启动 PostgreSQL
-./manage.sh status   # 查看状态
-./manage.sh stop     # 停止
-```

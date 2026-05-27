@@ -992,7 +992,7 @@ class AgentConfigService:
         content = user_prompt[match.end() :]
 
         # 查找目标 section
-        section_pattern = rf"(^|\n)(#{1,6}\s*{re.escape(section_name)}.*?)(\n|$)"
+        section_pattern = rf"(^|\n)(#{1, 6}\s*{re.escape(section_name)}.*?)(\n|$)"
         section_match = re.search(section_pattern, base_prompt, re.IGNORECASE)
 
         if not section_match:

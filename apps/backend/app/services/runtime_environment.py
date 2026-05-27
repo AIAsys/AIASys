@@ -11,7 +11,10 @@ import subprocess
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from app.services.workspace_registry import WorkspaceRegistryService
 
 from app.core.config import WORKSPACE_DIR
 from app.models.runtime_environment import (

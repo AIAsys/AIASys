@@ -24,6 +24,7 @@ from app.agents.tools.notebook_utils import (
 )
 from app.models.notebook import (
     NotebookArtifactSummaryResponse,
+    NotebookCellInput,
     NotebookCellResponse,
     NotebookDocumentResponse,
     NotebookExecutionRecordResponse,
@@ -34,6 +35,7 @@ from app.models.notebook import (
     NotebookRuntimeStateResponse,
     NotebookRuntimeSummaryResponse,
     NotebookSearchMatchResponse,
+    NotebookSearchRequest,
     NotebookStateResponse,
 )
 from app.services.history import (

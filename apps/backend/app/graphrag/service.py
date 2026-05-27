@@ -8,7 +8,6 @@ from typing import Any, Dict, List, Optional
 
 from app.document_extraction import get_document_extraction_service
 
-from .core import SQLiteGraphStore
 from .core.community_detection import CommunityDetector, CommunityReporter
 from .core.entity_extractor import EntityExtractor
 from .core.entity_resolution import EntityResolver
@@ -107,7 +106,7 @@ class GraphRAGService:
         """确保 LLM 已初始化（同步检查）"""
         if not self._llm_initialized:
             raise RuntimeError(
-                "LLM client not initialized. " "Please call await service._init_llm() first."
+                "LLM client not initialized. Please call await service._init_llm() first."
             )
         if self.extractor is None:
             raise RuntimeError(

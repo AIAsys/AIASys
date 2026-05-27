@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import difflib
 import logging
-from collections.abc import Callable, Sequence
+from collections.abc import Callable
 from typing import Any, ClassVar
 
 from app.core.agent_tool import AiasysTool
@@ -298,7 +298,7 @@ class ToolSearchTool(AiasysTool):
 
         if not found_names:
             return ToolResult(
-                content=f"None of the requested tools were found. Use 'list_tools' or 'search_tools' to discover available tools.",
+                content="None of the requested tools were found. Use 'list_tools' or 'search_tools' to discover available tools.",
             )
 
         self._notify_results(found_names)

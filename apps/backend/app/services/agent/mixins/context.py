@@ -8,7 +8,7 @@ import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from app.agents.tools.ask_user import AskUserStore, AskUser
+from app.agents.tools.ask_user import AskUser, AskUserStore
 from app.core.config import WORKSPACE_DIR, get_user_global_workspace_dir
 from app.services.agent.agent_instructions import load_agent_instructions
 from app.services.history import (
@@ -67,7 +67,7 @@ def build_memory_tool_developer_instructions(
     """
     try:
         session_dir = Path(work_dir)
-        user_id = session_dir.parent.name
+        _user_id = session_dir.parent.name
 
         from app.services.memory.resolver import (
             _get_memory_summary_path_if_exists,

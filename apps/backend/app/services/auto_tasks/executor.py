@@ -8,7 +8,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import json
 import logging
 from datetime import datetime
@@ -17,7 +16,6 @@ from uuid import uuid4
 
 from app.services.auto_tasks.models import (
     AutoTask,
-    AutoTaskTriggerType,
     TaskCategory,
     TaskStatus,
 )

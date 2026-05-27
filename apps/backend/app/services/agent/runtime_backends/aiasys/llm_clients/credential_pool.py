@@ -91,6 +91,8 @@ class CredentialPool:
     def _ensure_lock(self):
         """延迟初始化 asyncio.Lock，确保在事件循环中创建。"""
         if self._lock is None:
+            import asyncio
+
             self._lock = asyncio.Lock()
 
     async def get_next(self) -> PooledCredential | None:

@@ -186,7 +186,6 @@ async def import_external_mcp_market_item(
 ) -> ImportExternalMCPResponse:
     """将外部 MCP 市场条目导入到当前用户的 MCP 配置中。"""
     external_market_service = get_external_mcp_market_service()
-    config_service = get_mcp_config_service()
     try:
         imported_servers = await external_market_service.build_import_configs(
             source_id=request.source_id,

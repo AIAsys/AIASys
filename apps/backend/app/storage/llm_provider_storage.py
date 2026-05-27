@@ -348,7 +348,7 @@ class LLMProviderStorage:
         }
         self._save_config(user_id, config)
 
-        logger.info(f"初始化空 LLM 配置")
+        logger.info("初始化空 LLM 配置")
 
     def get_model_defaults(self, user_id: str) -> Dict[str, Any]:
         """获取默认 chat / embedding 模型配置。"""

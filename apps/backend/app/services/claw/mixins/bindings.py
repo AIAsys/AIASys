@@ -5,9 +5,12 @@ from __future__ import annotations
 import json
 import logging
 from datetime import timedelta
-from typing import Any, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
 from app.models.claw import ClawLinkStatus, SessionClawBinding, SessionClawBindingRequest
+
+if TYPE_CHECKING:
+    from app.models.claw import ChannelBindingItem
 
 from ._common import _utcnow_iso
 

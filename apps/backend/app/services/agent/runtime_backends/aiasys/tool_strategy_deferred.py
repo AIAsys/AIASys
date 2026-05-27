@@ -9,7 +9,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from .tool_registry import NON_DEFERRED_TOOL_NAMES, ToolRegistry
+from .tool_registry import ToolRegistry
 from .tool_strategy import ToolStrategy
 
 logger = logging.getLogger(__name__)
@@ -152,7 +152,7 @@ class DeferredToolStrategy(ToolStrategy):
             desc = fn.get("description", "")[:200]
             tool_catalog.append(f"{name}: {desc}")
 
-        catalog_text = "\n".join(tool_catalog)
+        _catalog_text = "\n".join(tool_catalog)
         return {
             "type": "function",
             "function": {

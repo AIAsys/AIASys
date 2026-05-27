@@ -5,21 +5,17 @@
 确保服务已启动：
 ```bash
 # 1. 后端服务（SQLite 主库，无需 PostgreSQL）
-cd /home/ke/projects/AIASys/apps/backend
+cd apps/backend
 .venv/bin/uvicorn app.main:app --reload
 
 # 2. Redis（可选，用于缓存）
-cd /home/ke/projects/AIASys/infra/docker/redis
-docker compose up -d
-
-# 3. 验证 Redis
 redis-cli -h localhost -p 6379 ping
 # 预期输出: PONG
 ```
 
 ## 2. 配置环境变量
 
-在 `apps/backend/.env` 中添加：
+在项目配置中添加 Redis 连接信息：
 ```bash
 # Redis
 REDIS_HOST=localhost
@@ -130,5 +126,4 @@ app/graphrag/
 
 ## 参考文档
 
-- [产品需求入口](../../../../.agents/skills/aiasys-product-requirements/references/current-product-prd.md)
-- [系统设计入口](../../../../.agents/skills/aiasys-system-design/references/current-system-architecture.md)
+- 产品需求与系统设计详见项目内部协作文档

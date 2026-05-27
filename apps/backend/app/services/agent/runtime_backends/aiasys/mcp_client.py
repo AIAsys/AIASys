@@ -80,14 +80,13 @@ class MCPClient:
         except BaseExceptionGroup as exc:
             await self.close()
             raise RuntimeError(
-                f"MCP server '{self._server_name}' 连接失败: " f"{_summarize_base_exception(exc)}"
+                f"MCP server '{self._server_name}' 连接失败: {_summarize_base_exception(exc)}"
             ) from exc
         except asyncio.CancelledError as exc:
             await self.close()
             if _is_sdk_cancel_scope_error(exc):
                 raise RuntimeError(
-                    f"MCP server '{self._server_name}' 连接失败: "
-                    f"{_summarize_base_exception(exc)}"
+                    f"MCP server '{self._server_name}' 连接失败: {_summarize_base_exception(exc)}"
                 ) from exc
             raise
         except Exception:

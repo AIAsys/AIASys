@@ -327,7 +327,7 @@ async def create_model(
             dimension = await service.probe_embedding_dimension(
                 user_id, request.provider, request.model
             )
-        except ValueError as e:
+        except ValueError:
             raise HTTPException(
                 status_code=400,
                 detail="Dimension not specified and auto-detection failed, please set it manually",
@@ -378,7 +378,7 @@ async def update_model(
                 updates["dimension"] = await service.probe_embedding_dimension(
                     user_id, provider_id, model_name
                 )
-            except ValueError as e:
+            except ValueError:
                 raise HTTPException(
                     status_code=400,
                     detail="Dimension not specified and auto-detection failed, please set it manually",

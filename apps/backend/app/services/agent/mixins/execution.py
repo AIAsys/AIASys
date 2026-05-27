@@ -625,8 +625,6 @@ class ExecutionMixin:
             user_id,
             model_id,
             session_id,
-            thinking_enabled=thinking_enabled,
-            thinking_effort=thinking_effort,
         )
         session_key = get_session_key(user_id, session_id)
 
@@ -804,10 +802,9 @@ class ExecutionMixin:
                                     and event.get("content_type") == "think"
                                 ):
                                     reasoning_outputs.append(event.get("think", ""))
-                                if event.get(
-                                    "type"
-                                ) == "worker.lifecycle.changed" and _is_terminal_host_lifecycle_event(
-                                    event
+                                if (
+                                    event.get("type") == "worker.lifecycle.changed"
+                                    and _is_terminal_host_lifecycle_event(event)
                                 ):
                                     host_terminal_event_emitted = True
                                 if (
@@ -1273,10 +1270,9 @@ class ExecutionMixin:
                                                         )
                                                     except asyncio.QueueEmpty:
                                                         break
-                                            if _bg_event.get(
-                                                "type"
-                                            ) == "worker.lifecycle.changed" and _is_terminal_host_lifecycle_event(
-                                                _bg_event
+                                            if (
+                                                _bg_event.get("type") == "worker.lifecycle.changed"
+                                                and _is_terminal_host_lifecycle_event(_bg_event)
                                             ):
                                                 _bg_host_terminal = True
                                             if (
@@ -1552,10 +1548,9 @@ class ExecutionMixin:
                                             yield monitor_queue.get_nowait()
                                         except asyncio.QueueEmpty:
                                             break
-                                if event.get(
-                                    "type"
-                                ) == "worker.lifecycle.changed" and _is_terminal_host_lifecycle_event(
-                                    event
+                                if (
+                                    event.get("type") == "worker.lifecycle.changed"
+                                    and _is_terminal_host_lifecycle_event(event)
                                 ):
                                     host_terminal_event_emitted = True
                                 if (

@@ -14,7 +14,7 @@
 {
   "status": "ok",
   "app": "AIASys",
-  "version": "0.2.10",
+  "version": "0.3.9",
   "auth_mode": "local"
 }
 ```

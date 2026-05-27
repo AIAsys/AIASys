@@ -340,7 +340,7 @@ class MonitorService:
             session.process = process
             session.stdout_f = stdout_f
             session.stderr_f = stderr_f
-        except Exception as exc:
+        except Exception:
             if stdout_f:
                 stdout_f.close()
             if stderr_f:
@@ -401,7 +401,7 @@ class MonitorService:
                 session.exit_code = exit_code
                 session.status = "completed" if exit_code == 0 else "error"
 
-        except Exception as exc:
+        except Exception:
             logger.exception("Monitor wait_task 异常: id=%s", session.id)
             session.status = "error"
             session.exit_code = -1

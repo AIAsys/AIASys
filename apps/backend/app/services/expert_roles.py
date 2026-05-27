@@ -507,7 +507,7 @@ def compute_expert_catalog_fingerprint(profile_path: Path) -> str:
 def resolve_workspace_profile_path(user_id: str, workspace_id: str) -> Path:
     from app.services.agent.config import resolve_agent_system_default_paths
 
-    workspace = get_workspace_registry_service().get_workspace(
+    _workspace = get_workspace_registry_service().get_workspace(
         user_id,
         workspace_id,
         include_conversations=False,
@@ -680,7 +680,7 @@ def get_global_collaboration_policy(
     )
     selectable_roles = [role for role in available_roles if role.host_selectable]
     available_role_ids = [role.role_id for role in selectable_roles]
-    default_role_ids = [role.role_id for role in selectable_roles if role.default_enabled]
+    _default_role_ids = [role.role_id for role in selectable_roles if role.default_enabled]
     available_role_tool_ids = {role.role_id: list(role.tool_ids) for role in selectable_roles}
 
     from app.services.agent.subagent_catalog import (

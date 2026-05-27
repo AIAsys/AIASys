@@ -4,10 +4,8 @@
 
 它不替代：
 
-- `design/` 的当前产品、前端、后端和测试验收设计
 - `DESIGN.md` 的视觉设计基线
 - `archive/docs-legacy-2026-04-12/docs/` 下保留的历史产品 / 实现状态材料
-- `.agents/skills/` 和 `AGENTS.md` 里的 Agent 执行约束
 
 ## 记录范围
 

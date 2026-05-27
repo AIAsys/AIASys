@@ -217,4 +217,3 @@ AIASYS_FRONTEND_PORT=13010 ./dev.sh
 - 分析工作区：`http://localhost:13000/analysis`
 
 分析工作区是当前主界面，左侧 Activity Bar 提供文件管理、数据查询、自动化任务等功能，右侧聊天侧栏用于与 Agent 对话和查看执行上下文。
-��，右侧聊天侧栏用于与 Agent 对话和查看执行上下文。

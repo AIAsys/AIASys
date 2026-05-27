@@ -1,0 +1,31 @@
+# Lefthook pre-commit hooks configuration
+# https://github.com/evilmartians/lefthook
+#
+# 安装：cd apps/web && npx lefthook install
+# 手动运行：cd apps/web && npx lefthook run pre-commit
+#
+# 注意：{staged_files} 返回的是相对于仓库根目录的路径（如 apps/backend/app/foo.py），
+# 而后端命令需要在 apps/backend/ 下运行，所以需要去掉 "apps/backend/" 前缀。
+
+pre-commit:
+  parallel: true
+  commands:
+    # --- Frontend ---
+    frontend-lint:
+      glob: "apps/web/src/**/*.{ts,tsx,js,jsx}"
+      run: cd apps/web && npx eslint {staged_files}
+
+    frontend-type-check:
+      glob: "apps/web/src/**/*.{ts,tsx}"
+      run: cd apps/web && npx tsc --noEmit
+
+    # --- Backend ---
+    # 用 shell 参数替换去掉 apps/backend/ 前缀，因为命令在 apps/backend/ 下执行
+    backend-ruff:
+      glob: "apps/backend/app/**/*.py"
+      run: cd apps/backend && files=$(echo "{staged_files}" | sed 's|apps/backend/||g') && [ -n "$files" ] && uv run ruff check $files && uv run ruff format --check $files || true
+
+    # --- EditorConfig ---
+    editorconfig:
+      glob: "*"
+      run: npx editorconfig-checker -exclude '\\.git|node_modules|\\.venv|dist|\\.pytest_cache|\\.ruff_cache' {staged_files} || true

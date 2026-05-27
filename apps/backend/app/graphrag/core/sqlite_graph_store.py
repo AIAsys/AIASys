@@ -15,7 +15,9 @@ from typing import Any, Dict, List, Optional
 
 import networkx as nx
 
-from app.core.config import get_user_global_resources_dir  # 保留用于 _legacy_db_path_for 和 _scan_graph_dirs 兼容旧数据扫描
+from app.core.config import (
+    get_user_global_resources_dir,  # 保留用于 _legacy_db_path_for 和 _scan_graph_dirs 兼容旧数据扫描
+)
 
 from ..models.entity import Entity
 from ..models.relation import Relation

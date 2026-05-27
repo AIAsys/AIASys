@@ -288,7 +288,7 @@ def safe_url_for_log(url: str, max_len: int = 80) -> str:
         return safe
     if max_len <= 3:
         return "." * max_len
-    return f"{safe[:max_len - 3]}..."
+    return f"{safe[: max_len - 3]}..."
 
 
 async def _ssrf_redirect_guard(response):
@@ -362,9 +362,7 @@ def cache_image_from_bytes(data: bytes, ext: str = ".jpg") -> str:
     """
     if not _looks_like_image(data):
         snippet = data[:80].decode("utf-8", errors="replace")
-        raise ValueError(
-            f"Refusing to cache non-image data as {ext} " f"(starts with: {snippet!r})"
-        )
+        raise ValueError(f"Refusing to cache non-image data as {ext} (starts with: {snippet!r})")
     cache_dir = get_image_cache_dir()
     filename = f"img_{uuid.uuid4().hex[:12]}{ext}"
     filepath = cache_dir / filename
