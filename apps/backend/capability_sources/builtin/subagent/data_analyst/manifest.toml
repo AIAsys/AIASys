@@ -1,0 +1,75 @@
+capability_id = "data_analyst"
+kind = "subagent"
+display_name = "数据分析专家"
+description = "负责执行数据分析、代码实验、notebook 操作、数据可视化和数据库查询的专业协作节点。"
+version = "1.0.0"
+author = "AIASys"
+dependencies = []
+min_platform_version = "0.1.0"
+tools = [
+    "app.agents.tools.read_media_tool:ReadMediaFile",
+    "app.agents.tools.notebook_session_tool:ListSessionNotebooks",
+    "app.agents.tools.notebook_file_tool:ReadNotebook",
+    "app.agents.tools.notebook_session_tool:ReadNotebookOutputs",
+    "app.agents.tools.notebook_tool:ManageNotebook",
+    "app.agents.tools.notebook_file_tool:EditNotebookFile",
+    "app.agents.tools.code_execution_tool:RunCode",
+    "app.agents.tools.code_execution_tool:ListKernelEnvsTool",
+    "app.agents.tools.code_execution_tool:RegisterKernelEnvTool",
+    "app.agents.tools.code_execution_tool:RemoveKernelEnvTool",
+    "app.agents.tools.file_tools:ReadFile",
+    "app.agents.tools.file_tools:WriteFile",
+    "app.agents.tools.file_tools:StrReplaceFile",
+    "app.agents.tools.env_vars_tool:ListEnvVars",
+    "app.agents.tools.env_vars_tool:GetEnvVar",
+    "app.agents.tools.env_vars_tool:SetEnvVar",
+    "app.agents.tools.env_vars_tool:DeleteEnvVar",
+    "app.agents.tools.runtime_environment_tool:RuntimeEnvironment",
+    "app.agents.tools.shell_tool:Shell",
+    "app.agents.tools.graphrag_tool:SearchKnowledgeGraphEntities",
+    "app.agents.tools.graphrag_tool:GetKnowledgeGraphEntityDetail",
+    "app.agents.tools.graphrag_tool:ListKnowledgeGraphs",
+    "app.agents.tools.graphrag_tool:CreateKnowledgeGraph",
+    "app.agents.tools.graphrag_tool:DeleteKnowledgeGraph",
+    "app.agents.tools.graphrag_tool:CreateGraphEntity",
+    "app.agents.tools.graphrag_tool:UpdateGraphEntity",
+    "app.agents.tools.graphrag_tool:DeleteGraphEntity",
+    "app.agents.tools.graphrag_tool:CreateGraphRelation",
+    "app.agents.tools.graphrag_tool:QueryEntityRelations",
+    "app.agents.tools.graphrag_tool:GetCommunityReport",
+    "app.agents.tools.graphrag_tool:UploadDocumentsToGraph",
+    "app.agents.tools.knowledge_tool:KnowledgeBaseQuery",
+    "app.agents.tools.knowledge_tool:ListKnowledgeBases",
+    "app.agents.tools.knowledge_tool:CreateKnowledgeBase",
+    "app.agents.tools.knowledge_tool:UpdateKnowledgeBase",
+    "app.agents.tools.knowledge_tool:UploadDocumentsToKnowledgeBase",
+    "app.agents.tools.knowledge_tool:ListKnowledgeBaseDocuments",
+    "app.agents.tools.knowledge_tool:DeleteDocumentsFromKnowledgeBase",
+    "app.agents.tools.knowledge_tool:DeleteKnowledgeBase",
+    "app.agents.tools.data_table_tool:CreateDataTable",
+    "app.agents.tools.data_table_tool:ReadDataTableSchema",
+    "app.agents.tools.data_table_tool:ReadDataTableRecords",
+    "app.agents.tools.data_table_tool:InsertDataTableRecords",
+    "app.agents.tools.data_table_tool:UpdateDataTableRecord",
+    "app.agents.tools.data_table_tool:DeleteDataTableRecord",
+    "app.agents.tools.data_table_tool:AddDataTableColumn",
+    "app.agents.tools.data_table_tool:UpdateDataTableColumn",
+    "app.agents.tools.data_table_tool:RemoveDataTableColumn",
+    "app.agents.tools.canvas_tool:ReadCanvas",
+    "app.agents.tools.canvas_tool:WriteCanvas",
+    "app.agents.tools.canvas_tool:BatchCanvasOperations",
+    "app.agents.tools.skill_tools:ListSkills",
+    "app.agents.tools.skill_tools:LoadSkill",
+    "app.agents.tools.skill_tools:SearchStoreSkills",
+    "app.agents.tools.skill_tools:EnableSkill",
+    "app.agents.tools.skill_tools:DisableSkill",
+    "app.agents.tools.database_query_tool:DatabaseQuery",
+    "app.agents.tools.database_query_tool:ListDatabaseConnectors",
+    "app.agents.tools.database_query_tool:ListDatabaseTables",
+    "app.agents.tools.database_query_tool:DescribeDatabaseTable",
+]
+
+[config_schema.model]
+type = "string"
+default = "kimi-kimi-for-coding"
+description = "使用的模型"

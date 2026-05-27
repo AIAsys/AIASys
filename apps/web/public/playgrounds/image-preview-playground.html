@@ -1,0 +1,2448 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AIASys Playground | 图片预览交互实验台</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --paper: #f6f0e8;
+        --paper-strong: #fffaf2;
+        --ink: #16202e;
+        --ink-soft: rgba(22, 32, 46, 0.72);
+        --line: rgba(22, 32, 46, 0.12);
+        --line-strong: rgba(22, 32, 46, 0.22);
+        --accent: #1c56d8;
+        --accent-soft: rgba(28, 86, 216, 0.12);
+        --mint: #c7f1d7;
+        --peach: #ffd8b0;
+        --rose: #f7cadb;
+        --shadow-xl: 0 28px 80px rgba(30, 41, 59, 0.16);
+        --shadow-lg: 0 18px 50px rgba(30, 41, 59, 0.12);
+        --shadow-md: 0 10px 28px rgba(30, 41, 59, 0.1);
+        --radius-xl: 28px;
+        --radius-lg: 22px;
+        --radius-md: 18px;
+        --radius-sm: 14px;
+        --display-font:
+          "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia,
+          serif;
+        --body-font:
+          "Noto Sans SC", "PingFang SC", "Microsoft YaHei", "Segoe UI",
+          sans-serif;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        margin: 0;
+        min-height: 100%;
+        background:
+          radial-gradient(circle at top left, rgba(255, 255, 255, 0.72), transparent 36%),
+          radial-gradient(circle at top right, rgba(28, 86, 216, 0.08), transparent 34%),
+          linear-gradient(180deg, #fbf6ef 0%, #f3ecdf 100%);
+        color: var(--ink);
+        font-family: var(--body-font);
+      }
+
+      body {
+        padding: 28px;
+      }
+
+      button,
+      input,
+      textarea {
+        font: inherit;
+      }
+
+      button {
+        cursor: pointer;
+      }
+
+      .page-shell {
+        max-width: 1540px;
+        margin: 0 auto;
+      }
+
+      .hero {
+        position: relative;
+        overflow: hidden;
+        display: grid;
+        grid-template-columns: minmax(0, 1.4fr) minmax(320px, 0.9fr);
+        gap: 22px;
+        padding: 28px;
+        border: 1px solid rgba(22, 32, 46, 0.08);
+        border-radius: 34px;
+        background:
+          linear-gradient(135deg, rgba(255, 255, 255, 0.86), rgba(255, 251, 245, 0.8)),
+          linear-gradient(120deg, rgba(28, 86, 216, 0.08), transparent 46%);
+        box-shadow: var(--shadow-xl);
+      }
+
+      .hero::after {
+        content: "";
+        position: absolute;
+        inset: auto -5% -28% auto;
+        width: 340px;
+        height: 340px;
+        border-radius: 999px;
+        background: radial-gradient(circle, rgba(28, 86, 216, 0.16), transparent 62%);
+        pointer-events: none;
+      }
+
+      .eyebrow {
+        margin: 0 0 12px;
+        font-size: 12px;
+        letter-spacing: 0.28em;
+        text-transform: uppercase;
+        color: rgba(28, 86, 216, 0.76);
+      }
+
+      .hero h1 {
+        margin: 0;
+        max-width: 13ch;
+        font-family: var(--display-font);
+        font-size: clamp(2.7rem, 4vw, 4.7rem);
+        line-height: 0.92;
+        letter-spacing: -0.04em;
+      }
+
+      .hero p {
+        margin: 16px 0 0;
+        max-width: 64ch;
+        font-size: 15px;
+        line-height: 1.7;
+        color: var(--ink-soft);
+      }
+
+      .hero-points,
+      .fit-pills,
+      .sample-tabs,
+      .hero-chips,
+      .tags {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+      }
+
+      .hero-points {
+        margin-top: 20px;
+      }
+
+      .hero-chip,
+      .fit-pill,
+      .tag,
+      .status-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        min-height: 34px;
+        padding: 0 14px;
+        border: 1px solid rgba(22, 32, 46, 0.09);
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.75);
+        color: rgba(22, 32, 46, 0.8);
+        font-size: 12px;
+        line-height: 1;
+      }
+
+      .hero-card {
+        position: relative;
+        display: grid;
+        gap: 14px;
+        align-content: start;
+        padding: 18px;
+        border: 1px solid rgba(22, 32, 46, 0.08);
+        border-radius: 26px;
+        background:
+          linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(255, 250, 246, 0.78));
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.92);
+      }
+
+      .hero-card-top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 14px;
+      }
+
+      .hero-card-top img {
+        width: 34px;
+        height: 34px;
+      }
+
+      .hero-card-top .label {
+        font-size: 11px;
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+        color: rgba(22, 32, 46, 0.5);
+      }
+
+      .hero-card h2 {
+        margin: 0;
+        font-family: var(--display-font);
+        font-size: 1.65rem;
+        letter-spacing: -0.03em;
+      }
+
+      .hero-preview {
+        overflow: hidden;
+        border-radius: 22px;
+        border: 1px solid rgba(22, 32, 46, 0.09);
+        background: rgba(255, 255, 255, 0.7);
+        box-shadow: var(--shadow-md);
+      }
+
+      .hero-preview img {
+        display: block;
+        width: 100%;
+        aspect-ratio: 1.28 / 1;
+        object-fit: cover;
+      }
+
+      .hero-card small {
+        display: block;
+        color: rgba(22, 32, 46, 0.58);
+        line-height: 1.6;
+      }
+
+      .sample-bar {
+        margin-top: 20px;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 18px;
+        padding: 18px 20px;
+        border-radius: 24px;
+        border: 1px solid rgba(22, 32, 46, 0.08);
+        background: rgba(255, 255, 255, 0.72);
+        box-shadow: var(--shadow-md);
+      }
+
+      .sample-bar .bar-copy {
+        display: grid;
+        gap: 6px;
+      }
+
+      .sample-bar .bar-copy h3,
+      .rail-panel h3,
+      .strategy-card h2 {
+        margin: 0;
+      }
+
+      .sample-bar .bar-copy p,
+      .rail-panel p,
+      .strategy-meta p,
+      .strategy-summary,
+      .summary-list,
+      .points li,
+      .mini-note,
+      .sheet-copy p,
+      .modal-caption,
+      .workbench-note {
+        color: var(--ink-soft);
+      }
+
+      .sample-tabs {
+        align-items: center;
+      }
+
+      .sample-tab {
+        position: relative;
+        display: inline-grid;
+        gap: 3px;
+        min-width: 170px;
+        padding: 12px 14px;
+        border: 1px solid rgba(22, 32, 46, 0.1);
+        border-radius: 18px;
+        background: rgba(255, 255, 255, 0.76);
+        color: inherit;
+        text-align: left;
+        transition:
+          transform 180ms ease,
+          border-color 180ms ease,
+          background-color 180ms ease,
+          box-shadow 180ms ease;
+      }
+
+      .sample-tab:hover,
+      .strategy-button:hover,
+      .toolbar-button:hover,
+      .icon-button:hover,
+      .sheet-button:hover,
+      .note-button:hover,
+      .peek-close:hover {
+        transform: translateY(-1px);
+      }
+
+      .sample-tab.is-active {
+        border-color: rgba(28, 86, 216, 0.34);
+        background: linear-gradient(180deg, rgba(28, 86, 216, 0.12), rgba(255, 255, 255, 0.92));
+        box-shadow: 0 14px 32px rgba(28, 86, 216, 0.14);
+      }
+
+      .sample-tab strong {
+        font-size: 14px;
+      }
+
+      .sample-tab span {
+        font-size: 12px;
+        color: rgba(22, 32, 46, 0.64);
+      }
+
+      .route-hint {
+        padding: 8px 12px;
+        border-radius: 14px;
+        background: rgba(22, 32, 46, 0.05);
+        font-size: 12px;
+        color: rgba(22, 32, 46, 0.58);
+      }
+
+      .layout-grid {
+        margin-top: 20px;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 370px;
+        gap: 20px;
+        align-items: start;
+      }
+
+      .strategy-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 18px;
+      }
+
+      .strategy-card,
+      .rail-panel {
+        position: relative;
+        overflow: hidden;
+        padding: 22px;
+        border-radius: var(--radius-xl);
+        border: 1px solid rgba(22, 32, 46, 0.08);
+        background:
+          linear-gradient(180deg, rgba(255, 255, 255, 0.84), rgba(255, 250, 243, 0.76));
+        box-shadow: var(--shadow-lg);
+      }
+
+      .strategy-card::before,
+      .rail-panel::before {
+        content: "";
+        position: absolute;
+        inset: 0 auto auto 0;
+        width: 100%;
+        height: 1px;
+        background: linear-gradient(90deg, rgba(255, 255, 255, 0.95), transparent 70%);
+      }
+
+      .strategy-top {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 14px;
+      }
+
+      .strategy-index {
+        margin: 0 0 8px;
+        font-size: 12px;
+        letter-spacing: 0.24em;
+        text-transform: uppercase;
+        color: rgba(28, 86, 216, 0.78);
+      }
+
+      .strategy-card h2 {
+        font-family: var(--display-font);
+        font-size: 1.65rem;
+        letter-spacing: -0.04em;
+      }
+
+      .strategy-summary {
+        margin: 12px 0 0;
+        font-size: 14px;
+        line-height: 1.7;
+      }
+
+      .fit-pills {
+        margin-top: 16px;
+      }
+
+      .fit-pill.is-aiasys {
+        background: rgba(28, 86, 216, 0.1);
+        border-color: rgba(28, 86, 216, 0.15);
+        color: rgba(28, 86, 216, 0.9);
+      }
+
+      .fit-pill.is-soft {
+        background: rgba(22, 32, 46, 0.04);
+      }
+
+      .demo-surface {
+        margin-top: 18px;
+        padding: 14px;
+        border-radius: 24px;
+        border: 1px solid rgba(22, 32, 46, 0.08);
+        background:
+          linear-gradient(180deg, rgba(247, 244, 238, 0.9), rgba(255, 255, 255, 0.74));
+      }
+
+      .demo-surface[data-tone="mint"] {
+        background:
+          linear-gradient(180deg, rgba(225, 246, 233, 0.92), rgba(255, 255, 255, 0.75));
+      }
+
+      .demo-surface[data-tone="peach"] {
+        background:
+          linear-gradient(180deg, rgba(255, 239, 221, 0.92), rgba(255, 255, 255, 0.75));
+      }
+
+      .demo-surface[data-tone="rose"] {
+        background:
+          linear-gradient(180deg, rgba(251, 230, 238, 0.92), rgba(255, 255, 255, 0.75));
+      }
+
+      .thumb-frame,
+      .inline-stage,
+      .peek-pop,
+      .lens-shell,
+      .workbench-preview {
+        border-radius: 22px;
+      }
+
+      .thumb-frame {
+        position: relative;
+        overflow: hidden;
+        border: 1px solid rgba(22, 32, 46, 0.09);
+        background: rgba(255, 255, 255, 0.84);
+        box-shadow: 0 12px 26px rgba(22, 32, 46, 0.09);
+      }
+
+      .thumb-button,
+      .workbench-trigger,
+      .peek-trigger {
+        position: relative;
+        overflow: hidden;
+        display: block;
+        width: 100%;
+        padding: 0;
+        border: 0;
+        background: transparent;
+      }
+
+      .thumb-button img,
+      .workbench-trigger img,
+      .peek-trigger img,
+      .inline-stage img,
+      .peek-pop img,
+      .workbench-preview img,
+      .sheet-image img,
+      .modal-image {
+        display: block;
+        width: 100%;
+        height: auto;
+      }
+
+      .thumb-button img,
+      .workbench-trigger img,
+      .peek-trigger img {
+        aspect-ratio: 1.5 / 1;
+        object-fit: cover;
+      }
+
+      .thumb-overlay,
+      .peek-label,
+      .stage-tag,
+      .lens-hint {
+        position: absolute;
+        left: 14px;
+        bottom: 14px;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 12px;
+        border-radius: 999px;
+        background: rgba(18, 25, 38, 0.74);
+        color: rgba(255, 255, 255, 0.94);
+        font-size: 12px;
+        backdrop-filter: blur(14px);
+      }
+
+      .mini-strip {
+        margin-top: 12px;
+        display: flex;
+        gap: 10px;
+      }
+
+      .mini-strip img {
+        flex: 1;
+        min-width: 0;
+        aspect-ratio: 1.1 / 1;
+        object-fit: cover;
+        border-radius: 16px;
+        border: 1px solid rgba(22, 32, 46, 0.08);
+      }
+
+      .mini-note {
+        margin-top: 10px;
+        font-size: 12px;
+        line-height: 1.6;
+      }
+
+      .inline-stage {
+        max-height: 0;
+        margin-top: 0;
+        overflow: hidden;
+        opacity: 0;
+        border: 1px solid transparent;
+        background: rgba(255, 255, 255, 0.82);
+        transition:
+          max-height 280ms ease,
+          margin-top 220ms ease,
+          opacity 180ms ease,
+          border-color 180ms ease;
+      }
+
+      .inline-stage.is-open {
+        max-height: 420px;
+        margin-top: 14px;
+        opacity: 1;
+        border-color: rgba(22, 32, 46, 0.08);
+      }
+
+      .inline-stage-head,
+      .peek-head,
+      .sheet-head,
+      .workbench-head,
+      .note-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+      }
+
+      .inline-stage-copy,
+      .peek-body,
+      .sheet-copy,
+      .workbench-body {
+        padding: 14px;
+      }
+
+      .inline-stage-copy strong,
+      .peek-body strong,
+      .sheet-copy strong,
+      .workbench-body strong {
+        display: block;
+        margin-bottom: 8px;
+        font-size: 13px;
+      }
+
+      .peek-zone {
+        position: relative;
+      }
+
+      .peek-pop {
+        position: absolute;
+        inset: auto 0 calc(100% + 12px) auto;
+        width: min(320px, calc(100vw - 90px));
+        overflow: hidden;
+        border: 1px solid rgba(22, 32, 46, 0.12);
+        background: rgba(255, 255, 255, 0.96);
+        box-shadow: 0 28px 56px rgba(18, 25, 38, 0.18);
+        opacity: 0;
+        transform: translateY(10px);
+        pointer-events: none;
+        transition:
+          opacity 180ms ease,
+          transform 220ms ease;
+      }
+
+      .peek-pop.is-open {
+        opacity: 1;
+        transform: translateY(0);
+        pointer-events: auto;
+      }
+
+      .peek-pop img {
+        aspect-ratio: 1.28 / 1;
+        object-fit: cover;
+      }
+
+      .peek-close,
+      .icon-button,
+      .toolbar-button,
+      .sheet-button,
+      .note-button {
+        border: 1px solid rgba(22, 32, 46, 0.1);
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.84);
+        color: inherit;
+        transition:
+          transform 180ms ease,
+          border-color 180ms ease,
+          background-color 180ms ease;
+      }
+
+      .peek-close,
+      .icon-button {
+        display: inline-grid;
+        place-items: center;
+        width: 36px;
+        height: 36px;
+      }
+
+      .toolbar-button,
+      .sheet-button,
+      .note-button {
+        min-height: 38px;
+        padding: 0 15px;
+      }
+
+      .toolbar-button.is-selected {
+        background: linear-gradient(180deg, rgba(28, 86, 216, 0.12), rgba(255, 255, 255, 0.94));
+        border-color: rgba(28, 86, 216, 0.24);
+        color: rgba(28, 86, 216, 0.94);
+      }
+
+      .sheet-button.is-primary,
+      .note-button.is-primary,
+      .strategy-button.is-like,
+      .sample-tab.is-active {
+        border-color: rgba(28, 86, 216, 0.24);
+      }
+
+      .sheet-button.is-primary,
+      .note-button.is-primary {
+        background: linear-gradient(180deg, rgba(28, 86, 216, 0.12), rgba(255, 255, 255, 0.94));
+        color: rgba(28, 86, 216, 0.96);
+      }
+
+      .lens-layout {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 170px;
+        gap: 12px;
+        align-items: start;
+      }
+
+      .lens-shell {
+        position: relative;
+        overflow: hidden;
+        border: 1px solid rgba(22, 32, 46, 0.1);
+        background: rgba(255, 255, 255, 0.88);
+      }
+
+      .lens-shell img {
+        display: block;
+        width: 100%;
+        aspect-ratio: 1.42 / 1;
+        object-fit: cover;
+      }
+
+      .lens {
+        position: absolute;
+        width: 112px;
+        height: 112px;
+        border-radius: 24px;
+        border: 1px solid rgba(255, 255, 255, 0.9);
+        background-repeat: no-repeat;
+        box-shadow:
+          0 10px 26px rgba(18, 25, 38, 0.18),
+          inset 0 0 0 1px rgba(22, 32, 46, 0.12);
+        opacity: 0;
+        pointer-events: none;
+      }
+
+      .lens.is-visible {
+        opacity: 1;
+      }
+
+      .zoom-panel {
+        overflow: hidden;
+        min-height: 170px;
+        border: 1px solid rgba(22, 32, 46, 0.1);
+        border-radius: 20px;
+        background:
+          linear-gradient(180deg, rgba(22, 32, 46, 0.04), rgba(255, 255, 255, 0.84));
+      }
+
+      .zoom-panel .zoom-view {
+        height: 170px;
+        background-repeat: no-repeat;
+        background-position: center;
+        background-size: cover;
+      }
+
+      .zoom-panel .zoom-copy {
+        padding: 12px 14px;
+        border-top: 1px solid rgba(22, 32, 46, 0.08);
+        font-size: 12px;
+        line-height: 1.6;
+      }
+
+      .points {
+        margin: 16px 0 0;
+        padding-left: 18px;
+        display: grid;
+        gap: 8px;
+        font-size: 13px;
+        line-height: 1.7;
+      }
+
+      .rating-row {
+        margin-top: 18px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+      }
+
+      .strategy-button {
+        min-height: 38px;
+        padding: 0 14px;
+        border: 1px solid rgba(22, 32, 46, 0.1);
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.84);
+        color: rgba(22, 32, 46, 0.74);
+        transition:
+          transform 180ms ease,
+          border-color 180ms ease,
+          background-color 180ms ease,
+          color 180ms ease;
+      }
+
+      .strategy-button.is-selected {
+        background: rgba(28, 86, 216, 0.1);
+        border-color: rgba(28, 86, 216, 0.24);
+        color: rgba(28, 86, 216, 0.94);
+      }
+
+      .strategy-button[data-value="reject"].is-selected {
+        background: rgba(224, 82, 59, 0.12);
+        border-color: rgba(224, 82, 59, 0.24);
+        color: rgba(176, 57, 39, 0.94);
+      }
+
+      .rail-stack {
+        position: sticky;
+        top: 18px;
+        display: grid;
+        gap: 18px;
+      }
+
+      .rail-panel h3 {
+        font-family: var(--display-font);
+        font-size: 1.55rem;
+        letter-spacing: -0.03em;
+      }
+
+      .workbench-preview {
+        position: relative;
+        overflow: hidden;
+        margin-top: 16px;
+        border: 1px solid rgba(22, 32, 46, 0.1);
+        background: rgba(255, 255, 255, 0.84);
+        box-shadow: var(--shadow-md);
+      }
+
+      .workbench-preview img {
+        aspect-ratio: 1.28 / 1;
+        object-fit: cover;
+      }
+
+      .stage-tag {
+        right: 14px;
+        left: auto;
+        bottom: auto;
+        top: 14px;
+        background: rgba(255, 250, 242, 0.9);
+        color: rgba(22, 32, 46, 0.82);
+      }
+
+      .workbench-body {
+        padding: 16px 0 2px;
+      }
+
+      .status-row,
+      .note-actions,
+      .sheet-actions,
+      .modal-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+      }
+
+      .status-row {
+        margin-top: 14px;
+      }
+
+      .status-chip {
+        background: rgba(255, 255, 255, 0.78);
+      }
+
+      .summary-list {
+        margin: 14px 0 0;
+        padding-left: 18px;
+        display: grid;
+        gap: 8px;
+        font-size: 13px;
+        line-height: 1.65;
+      }
+
+      .summary-empty {
+        margin-top: 14px;
+        padding: 14px 16px;
+        border-radius: 18px;
+        background: rgba(22, 32, 46, 0.04);
+        color: rgba(22, 32, 46, 0.56);
+        font-size: 13px;
+        line-height: 1.65;
+      }
+
+      .notes-box {
+        width: 100%;
+        min-height: 116px;
+        margin-top: 14px;
+        padding: 14px 16px;
+        resize: vertical;
+        border: 1px solid rgba(22, 32, 46, 0.1);
+        border-radius: 18px;
+        background: rgba(255, 255, 255, 0.82);
+        color: inherit;
+        line-height: 1.7;
+      }
+
+      .note-actions {
+        margin-top: 12px;
+      }
+
+      .overlay {
+        position: fixed;
+        inset: 0;
+        display: grid;
+        align-items: stretch;
+        justify-items: stretch;
+        padding: 18px;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 220ms ease;
+        z-index: 100;
+      }
+
+      .overlay.is-open {
+        opacity: 1;
+        pointer-events: auto;
+      }
+
+      #modalOverlay[data-backdrop="soft"] {
+        background: rgba(18, 25, 38, 0.34);
+        backdrop-filter: blur(16px);
+      }
+
+      #modalOverlay[data-backdrop="dark"] {
+        background: rgba(9, 14, 24, 0.62);
+        backdrop-filter: blur(18px);
+      }
+
+      #modalOverlay[data-backdrop="black"] {
+        background: rgba(0, 0, 0, 0.84);
+        backdrop-filter: blur(10px);
+      }
+
+      #sheetOverlay {
+        background: rgba(18, 25, 38, 0.34);
+        backdrop-filter: blur(16px);
+      }
+
+      .modal-shell {
+        position: relative;
+        display: grid;
+        grid-template-rows: auto 1fr auto;
+        gap: 16px;
+        width: min(1120px, calc(100vw - 48px));
+        height: min(88vh, 920px);
+        margin: auto;
+        padding: 18px;
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        border-radius: 30px;
+        background:
+          linear-gradient(180deg, rgba(255, 253, 250, 0.9), rgba(247, 242, 234, 0.86));
+        box-shadow: 0 30px 90px rgba(18, 25, 38, 0.28);
+      }
+
+      .modal-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+      }
+
+      .modal-meta {
+        display: grid;
+        gap: 6px;
+      }
+
+      .modal-meta .kicker {
+        font-size: 11px;
+        letter-spacing: 0.22em;
+        text-transform: uppercase;
+        color: rgba(22, 32, 46, 0.5);
+      }
+
+      .modal-meta strong {
+        font-family: var(--display-font);
+        font-size: 1.6rem;
+        letter-spacing: -0.04em;
+      }
+
+      .modal-status {
+        max-width: 42ch;
+      }
+
+      .modal-stage {
+        position: relative;
+        overflow: hidden;
+        display: grid;
+        place-items: center;
+        border-radius: 26px;
+        background: rgba(255, 255, 255, 0.78);
+        border: 1px solid rgba(22, 32, 46, 0.08);
+      }
+
+      .modal-stage img {
+        width: min(100%, 1000px);
+        max-height: calc(100% - 20px);
+        object-fit: contain;
+        border-radius: 22px;
+        box-shadow: 0 24px 70px rgba(18, 25, 38, 0.16);
+      }
+
+      .modal-stage::after {
+        content: "双击切换适屏 / 原始比例";
+        position: absolute;
+        left: 18px;
+        bottom: 18px;
+        padding: 8px 12px;
+        border-radius: 999px;
+        background: rgba(18, 25, 38, 0.64);
+        color: rgba(255, 255, 255, 0.94);
+        font-size: 12px;
+        backdrop-filter: blur(12px);
+        pointer-events: none;
+      }
+
+      .modal-shell[data-zoom="original"] .modal-stage {
+        overflow: auto;
+        align-items: start;
+        justify-items: start;
+        padding: 18px;
+      }
+
+      .modal-shell[data-zoom="original"] .modal-stage img {
+        width: auto;
+        max-width: none;
+        max-height: none;
+      }
+
+      .modal-nav {
+        position: absolute;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 48px;
+        height: 48px;
+        border: 1px solid rgba(22, 32, 46, 0.1);
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.88);
+        box-shadow: 0 12px 32px rgba(18, 25, 38, 0.16);
+      }
+
+      .modal-nav.prev {
+        left: 18px;
+      }
+
+      .modal-nav.next {
+        right: 18px;
+      }
+
+      .modal-footer {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 14px;
+      }
+
+      .modal-footer-copy {
+        display: grid;
+        gap: 10px;
+      }
+
+      .modal-caption {
+        max-width: 55ch;
+        font-size: 13px;
+        line-height: 1.7;
+      }
+
+      .modal-shortcuts {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .modal-toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 10px;
+      }
+
+      .toolbar-group {
+        display: inline-flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        padding: 6px;
+        border: 1px solid rgba(22, 32, 46, 0.08);
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.58);
+      }
+
+      .modal-shell:fullscreen,
+      .modal-shell.is-faux-fullscreen {
+        width: 100vw;
+        height: 100vh;
+        margin: 0;
+        padding: 22px;
+        border-radius: 0;
+        border: 0;
+      }
+
+      .modal-shell:fullscreen .modal-stage,
+      .modal-shell.is-faux-fullscreen .modal-stage {
+        min-height: 0;
+      }
+
+      .sheet-shell {
+        justify-self: end;
+        display: grid;
+        grid-template-rows: auto 1fr auto;
+        gap: 16px;
+        width: min(520px, calc(100vw - 36px));
+        height: min(100%, calc(100vh - 36px));
+        padding: 20px;
+        border-radius: 32px;
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        background:
+          linear-gradient(180deg, rgba(255, 253, 250, 0.93), rgba(247, 243, 236, 0.9));
+        box-shadow: 0 32px 90px rgba(18, 25, 38, 0.26);
+        transform: translateX(24px);
+        transition: transform 220ms ease;
+      }
+
+      .overlay.is-open .sheet-shell {
+        transform: translateX(0);
+      }
+
+      .sheet-image {
+        overflow: hidden;
+        border-radius: 24px;
+        border: 1px solid rgba(22, 32, 46, 0.09);
+        background: rgba(255, 255, 255, 0.86);
+      }
+
+      .sheet-image img {
+        aspect-ratio: 1.15 / 1;
+        object-fit: cover;
+      }
+
+      .sheet-copy {
+        padding: 0;
+      }
+
+      .sheet-copy p,
+      .workbench-note,
+      .route-hint,
+      .zoom-copy,
+      .mini-note {
+        margin: 0;
+        font-size: 13px;
+        line-height: 1.7;
+      }
+
+      .kbd {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 28px;
+        height: 28px;
+        padding: 0 9px;
+        border-radius: 10px;
+        border: 1px solid rgba(22, 32, 46, 0.1);
+        background: rgba(255, 255, 255, 0.9);
+        font-size: 12px;
+      }
+
+      .visually-hidden {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border: 0;
+      }
+
+      @media (max-width: 1180px) {
+        .layout-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .rail-stack {
+          position: static;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+      }
+
+      @media (max-width: 960px) {
+        body {
+          padding: 16px;
+        }
+
+        .hero,
+        .strategy-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .sample-bar {
+          align-items: start;
+        }
+
+        .rail-stack,
+        .lens-layout {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      @media (max-width: 640px) {
+        .modal-shell,
+        .sheet-shell {
+          width: 100%;
+          height: 100%;
+          border-radius: 24px;
+        }
+
+        .modal-nav {
+          width: 42px;
+          height: 42px;
+        }
+
+        .modal-footer {
+          flex-direction: column;
+          align-items: stretch;
+        }
+
+        .modal-toolbar {
+          justify-content: flex-start;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="page-shell">
+      <section class="hero">
+        <div>
+          <p class="eyebrow">AIASys / Image Interaction Playground</p>
+          <h1>图片点击放大交互实验台</h1>
+          <p>
+            这不是正式实现，只是给你快速对照不同交互语气的实验页。页面里用同一组样例图模拟
+            “聊天图片 / 工作区文件 / Notebook 输出” 三类场景，重点比较三个维度：
+            会不会把人一下拽出上下文、看细节效率高不高、以及它更像“附件”还是“工作对象”。
+          </p>
+
+          <div class="hero-points">
+            <span class="hero-chip">先比较上下文跳出程度</span>
+            <span class="hero-chip">再看二次操作成本</span>
+            <span class="hero-chip">最后判断是否符合 AIASys 语义</span>
+          </div>
+        </div>
+
+        <div class="hero-card">
+          <div class="hero-card-top">
+            <div>
+              <div class="label">Current sample</div>
+              <h2 id="heroSampleTitle">工作区截图样例</h2>
+            </div>
+            <img src="/aisi-mark.png" alt="AIASys mark" />
+          </div>
+
+          <div class="hero-preview">
+            <img id="heroSampleImage" alt="当前样例图" />
+          </div>
+
+          <small id="heroSampleCaption">
+            用于测试高信息密度截图在不同点击放大交互下的观感。
+          </small>
+        </div>
+      </section>
+
+      <section class="sample-bar">
+        <div class="bar-copy">
+          <h3>切换样例</h3>
+          <p>
+            不同样例会影响你对交互的判断。高密度截图、图表和 Notebook 输出，对“放大”的耐受度并不一样。
+          </p>
+        </div>
+        <div class="sample-tabs" id="sampleTabs" aria-label="样例切换"></div>
+        <div class="route-hint">
+          当前文件：<code>/playgrounds/image-preview-playground.html</code>
+        </div>
+      </section>
+
+      <section class="layout-grid">
+        <div class="strategy-grid" id="strategyGrid"></div>
+
+        <aside class="rail-stack">
+          <section class="rail-panel">
+            <div class="workbench-head">
+              <div>
+                <h3>主画布模拟</h3>
+                <p class="workbench-note">
+                  这个区域模拟“图片被打开到 AIASys 中间主画布”时的感受。它会保留当前对象，而不是弹层一闪而过。
+                </p>
+              </div>
+              <span class="status-chip">Workspace-first</span>
+            </div>
+
+            <div class="workbench-preview">
+              <span class="stage-tag">当前对象</span>
+              <img id="workbenchImage" alt="主画布图片预览" />
+            </div>
+
+            <div class="workbench-body">
+              <strong id="workbenchTitle">工作区截图样例</strong>
+              <p id="workbenchCaption" class="workbench-note">
+                用于测试高信息密度截图在不同点击放大交互下的观感。
+              </p>
+
+              <div class="status-row">
+                <span class="status-chip">对象持久</span>
+                <span class="status-chip">保留上下文</span>
+                <span class="status-chip">适合 artifact</span>
+              </div>
+            </div>
+          </section>
+
+          <section class="rail-panel">
+            <div class="note-head">
+              <div>
+                <h3>你的偏好记录</h3>
+                <p class="workbench-note">
+                  每张策略卡底部都可以点“喜欢 / 一般 / 不喜欢”。这里会自动汇总，并保存在本机浏览器里。
+                </p>
+              </div>
+              <button type="button" class="note-button" id="clearRatingsButton">
+                清空评分
+              </button>
+            </div>
+
+            <div id="ratingsSummary"></div>
+
+            <label class="visually-hidden" for="notesBox">补充备注</label>
+            <textarea
+              id="notesBox"
+              class="notes-box"
+              placeholder="可以顺手记下：哪一种最不打断上下文、哪一种最适合文件树、哪一种最像 AIASys 的工作区语义。"
+            ></textarea>
+
+            <div class="note-actions">
+              <button type="button" class="note-button is-primary" id="copyNotesButton">
+                复制备注
+              </button>
+              <button type="button" class="note-button" id="clearNotesButton">
+                清空备注
+              </button>
+            </div>
+          </section>
+        </aside>
+      </section>
+    </main>
+
+    <div class="overlay" id="modalOverlay" aria-hidden="true" data-backdrop="soft">
+      <div
+        class="modal-shell"
+        id="modalShell"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="modalTitle"
+        data-zoom="fit"
+      >
+        <div class="modal-head">
+          <div class="modal-meta">
+            <span class="kicker">Quiet modal</span>
+            <strong id="modalTitle">净图浮层</strong>
+            <span id="modalCounter" class="route-hint">1 / 3</span>
+            <span id="modalStatus" class="route-hint modal-status">
+              适屏查看 · 柔和幕布 · 浮层模式
+            </span>
+          </div>
+
+          <div class="modal-actions">
+            <span class="kbd">Esc</span>
+            <button
+              type="button"
+              class="toolbar-button"
+              id="modalFullscreenButton"
+              data-toggle-fullscreen
+            >
+              进入全屏
+            </button>
+            <button type="button" class="icon-button" data-close-modal aria-label="关闭">
+              ×
+            </button>
+          </div>
+        </div>
+
+        <div class="modal-stage" id="modalStage">
+          <button type="button" class="modal-nav prev" id="modalPrev" aria-label="上一张">
+            ←
+          </button>
+          <img id="modalImage" class="modal-image" alt="净图浮层图片" />
+          <button type="button" class="modal-nav next" id="modalNext" aria-label="下一张">
+            →
+          </button>
+        </div>
+
+        <div class="modal-footer">
+          <div class="modal-footer-copy">
+            <p id="modalCaption" class="modal-caption">
+              用尽量少的 chrome 看图。单图时它最像“轻 viewer”，多图时再让左右切换出现。
+            </p>
+            <div class="modal-shortcuts">
+              <span class="kbd">←</span>
+              <span class="kbd">→</span>
+              <span class="kbd">F</span>
+              <span class="kbd">0</span>
+              <span class="kbd">1</span>
+              <span class="kbd">B</span>
+            </div>
+          </div>
+
+          <div class="modal-toolbar">
+            <div class="toolbar-group">
+              <button
+                type="button"
+                class="toolbar-button"
+                data-modal-zoom="fit"
+                id="modalFitButton"
+              >
+                适屏
+              </button>
+              <button
+                type="button"
+                class="toolbar-button"
+                data-modal-zoom="original"
+                id="modalOriginalButton"
+              >
+                原始比例
+              </button>
+            </div>
+
+            <div class="toolbar-group">
+              <button
+                type="button"
+                class="toolbar-button"
+                data-modal-backdrop="soft"
+                id="modalBackdropSoftButton"
+              >
+                柔和
+              </button>
+              <button
+                type="button"
+                class="toolbar-button"
+                data-modal-backdrop="dark"
+                id="modalBackdropDarkButton"
+              >
+                深色
+              </button>
+              <button
+                type="button"
+                class="toolbar-button"
+                data-modal-backdrop="black"
+                id="modalBackdropBlackButton"
+              >
+                纯黑
+              </button>
+            </div>
+
+            <button type="button" class="toolbar-button" data-close-modal>关闭</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="overlay" id="sheetOverlay" aria-hidden="true">
+      <div class="sheet-shell" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
+        <div class="sheet-head">
+          <div>
+            <div class="kicker">Side sheet</div>
+            <h2 id="sheetTitle">侧抽屉预览</h2>
+          </div>
+          <button type="button" class="icon-button" data-close-sheet aria-label="关闭">
+            ×
+          </button>
+        </div>
+
+        <div class="sheet-image">
+          <img id="sheetImage" alt="侧抽屉图片预览" />
+        </div>
+
+        <div class="sheet-copy">
+          <strong id="sheetSampleTitle">工作区截图样例</strong>
+          <p id="sheetCaption">
+            这个模式适合边看图边保留页面结构，但仍然会产生一次明显的区域切换。
+          </p>
+
+          <div class="tags" style="margin-top: 14px">
+            <span class="tag">适合对照文本</span>
+            <span class="tag">中等打断</span>
+            <span class="tag">不抢主画布</span>
+          </div>
+        </div>
+
+        <div class="sheet-actions">
+          <button type="button" class="sheet-button is-primary" id="sheetSendWorkbench">
+            送到主画布
+          </button>
+          <button type="button" class="sheet-button" data-close-sheet>
+            关闭抽屉
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const STORAGE_RATINGS = "aiasys-image-preview-playground-ratings";
+      const STORAGE_NOTES = "aiasys-image-preview-playground-notes";
+
+      const samples = [
+        {
+          id: "workspace-shot",
+          title: "工作区截图样例",
+          short: "工作区截图",
+          caption: "高信息密度截图，最容易暴露“全屏太重”或“缩放太猛”的问题。",
+          tags: ["高密度", "UI 截图", "容易打断"],
+          src: makeSvgData({
+            title: "Workspace Board",
+            subtitle: "Branch / Files / Assistant",
+            palette: ["#fcfaf6", "#dae8ff", "#bfe7cf", "#f8d3c2", "#1c56d8"],
+            motif: "workspace",
+          }),
+        },
+        {
+          id: "chart-output",
+          title: "图表输出样例",
+          short: "图表输出",
+          caption: "适合测试“看细节”效率，尤其是轴标签、图例和折线交叉点。",
+          tags: ["细节检查", "图表", "放大诉求更强"],
+          src: makeSvgData({
+            title: "Chart Output",
+            subtitle: "Model drift / Segment split",
+            palette: ["#fffaf4", "#ffe3bd", "#ffd2d9", "#bfdcff", "#0e233d"],
+            motif: "chart",
+          }),
+        },
+        {
+          id: "notebook-output",
+          title: "Notebook 输出样例",
+          short: "Notebook 输出",
+          caption: "输出结果通常和上下文文本一起读，所以更适合先保留上下文，再决定要不要进深层查看。",
+          tags: ["Notebook", "上下文共读", "不宜过猛"],
+          src: makeSvgData({
+            title: "Notebook Output",
+            subtitle: "cell / markdown / result image",
+            palette: ["#fffdf8", "#d7f3e0", "#dce9ff", "#f8d5e3", "#12253d"],
+            motif: "notebook",
+          }),
+        },
+      ];
+
+      const strategies = [
+        {
+          id: "quiet-modal",
+          name: "净图浮层",
+          tone: "mint",
+          summary: "最接近现状，但把“相册味”压下去：单图时几乎只剩下看图本身。",
+          pills: ["聊天图", "单图友好", "低改动", "可作为过渡方案"],
+          points: [
+            "优点：学习成本最低，现有 lightbox 可以直接瘦身演进。",
+            "优点：适合零散图片，不需要引入新的页面结构。",
+            "代价：一点击仍然会脱离上下文，对工作区文件不够“对象化”。",
+          ],
+        },
+        {
+          id: "inline-expand",
+          name: "原位展开",
+          tone: "rose",
+          summary: "先在原位置放大，保留前后文；只有用户再进一步要求时才进入更深层查看。",
+          pills: ["聊天图", "Notebook", "保留上下文", "适合结果块"],
+          points: [
+            "优点：阅读链不断，特别适合边看图边看旁边文字。",
+            "优点：第一击的动作很轻，不会像全屏那样突然。",
+            "代价：大图空间受容器限制，不适合特别宽的大型截图。",
+          ],
+        },
+        {
+          id: "peek-card",
+          name: "轻量 Peek 卡片",
+          tone: "peach",
+          summary: "更像“先瞥一眼”。适合文件树小缩略图或消息里的小图快看，不值得直接全屏。",
+          pills: ["文件树", "小图快看", "低承诺", "确认式查看"],
+          points: [
+            "优点：适合 32px 到 80px 的缩略图，不会因为一个小图直接把页面盖住。",
+            "优点：可以保留下载、原图、送到主画布等动作。",
+            "代价：不适合长时间看图，更多是“确认”而不是“阅读”。",
+          ],
+        },
+        {
+          id: "side-sheet",
+          name: "侧抽屉预览",
+          tone: "mint",
+          summary: "用一个局部容器接住查看动作，比全屏轻，但依然给用户一个明确的“预览区”。",
+          pills: ["对照文本", "中等打断", "适合说明型图片", "不抢主画布"],
+          points: [
+            "优点：可以一边看图一边保留页面主体结构。",
+            "优点：适合评论、元信息、下载按钮一起出现。",
+            "代价：如果右侧本来就承接协作上下文，抽屉很容易跟右栏抢语义。",
+          ],
+        },
+        {
+          id: "workbench",
+          name: "主画布接管",
+          tone: "peach",
+          summary: "把图片当工作对象，而不是附件。更符合 AIASys 的工作区语义，适合 artifact 与文件。",
+          pills: ["AIASys 更契合", "工作区文件", "对象持久", "主推荐方向"],
+          points: [
+            "优点：图片不再是一闪而过的弹层，而是进入中间工作区持续存在。",
+            "优点：最容易和后续标注、对照、版本切换串起来。",
+            "代价：实现上不是单纯 viewer，要考虑主画布对象与右栏协作关系。",
+          ],
+        },
+        {
+          id: "magnifier",
+          name: "局部放大镜",
+          tone: "rose",
+          summary: "不改变页面层级，只提高细节检查能力。适合图表、截图、标注、像素级对照。",
+          pills: ["细节检查", "图表标签", "截图核对", "局部增强"],
+          points: [
+            "优点：用户还留在当前页面里，不需要切层。",
+            "优点：看小文字和边缘细节很有效。",
+            "代价：更像辅助能力，不适合作为所有图片的默认主交互。",
+          ],
+        },
+      ];
+
+      const state = {
+        sampleId: samples[0].id,
+        workbenchSampleId: samples[0].id,
+        ratings: safeParse(localStorage.getItem(STORAGE_RATINGS), {}),
+        notes: localStorage.getItem(STORAGE_NOTES) || "",
+        modalIndex: 0,
+        modalZoomMode: "fit",
+        modalBackdrop: "soft",
+        modalIsFullscreen: false,
+        peekOpenId: null,
+        sheetSampleId: samples[0].id,
+      };
+
+      const refs = {
+        sampleTabs: document.getElementById("sampleTabs"),
+        strategyGrid: document.getElementById("strategyGrid"),
+        heroSampleTitle: document.getElementById("heroSampleTitle"),
+        heroSampleImage: document.getElementById("heroSampleImage"),
+        heroSampleCaption: document.getElementById("heroSampleCaption"),
+        workbenchImage: document.getElementById("workbenchImage"),
+        workbenchTitle: document.getElementById("workbenchTitle"),
+        workbenchCaption: document.getElementById("workbenchCaption"),
+        ratingsSummary: document.getElementById("ratingsSummary"),
+        notesBox: document.getElementById("notesBox"),
+        modalOverlay: document.getElementById("modalOverlay"),
+        modalShell: document.getElementById("modalShell"),
+        modalStage: document.getElementById("modalStage"),
+        modalImage: document.getElementById("modalImage"),
+        modalTitle: document.getElementById("modalTitle"),
+        modalCounter: document.getElementById("modalCounter"),
+        modalStatus: document.getElementById("modalStatus"),
+        modalCaption: document.getElementById("modalCaption"),
+        modalPrev: document.getElementById("modalPrev"),
+        modalNext: document.getElementById("modalNext"),
+        modalFullscreenButton: document.getElementById("modalFullscreenButton"),
+        modalFitButton: document.getElementById("modalFitButton"),
+        modalOriginalButton: document.getElementById("modalOriginalButton"),
+        modalBackdropSoftButton: document.getElementById("modalBackdropSoftButton"),
+        modalBackdropDarkButton: document.getElementById("modalBackdropDarkButton"),
+        modalBackdropBlackButton: document.getElementById("modalBackdropBlackButton"),
+        sheetOverlay: document.getElementById("sheetOverlay"),
+        sheetImage: document.getElementById("sheetImage"),
+        sheetSampleTitle: document.getElementById("sheetSampleTitle"),
+        sheetCaption: document.getElementById("sheetCaption"),
+        sheetSendWorkbench: document.getElementById("sheetSendWorkbench"),
+        clearRatingsButton: document.getElementById("clearRatingsButton"),
+        clearNotesButton: document.getElementById("clearNotesButton"),
+        copyNotesButton: document.getElementById("copyNotesButton"),
+      };
+
+      init();
+
+      function init() {
+        refs.notesBox.value = state.notes;
+        renderSampleTabs();
+        renderHeroSample();
+        renderStrategies();
+        renderWorkbench();
+        renderRatingsSummary();
+        bindGlobalEvents();
+      }
+
+      function renderSampleTabs() {
+        refs.sampleTabs.innerHTML = samples
+          .map((sample) => {
+            const isActive = sample.id === state.sampleId;
+            return `
+              <button
+                type="button"
+                class="sample-tab ${isActive ? "is-active" : ""}"
+                data-action="switch-sample"
+                data-sample-id="${sample.id}"
+              >
+                <strong>${sample.short}</strong>
+                <span>${sample.tags.join(" · ")}</span>
+              </button>
+            `;
+          })
+          .join("");
+      }
+
+      function renderHeroSample() {
+        const sample = getSample(state.sampleId);
+        refs.heroSampleTitle.textContent = sample.title;
+        refs.heroSampleImage.src = sample.src;
+        refs.heroSampleCaption.textContent = sample.caption;
+      }
+
+      function renderStrategies() {
+        const sample = getSample(state.sampleId);
+        refs.strategyGrid.innerHTML = strategies
+          .map((strategy, index) => renderStrategyCard(strategy, index, sample))
+          .join("");
+
+        bindMagnifiers();
+      }
+
+      function renderStrategyCard(strategy, index, sample) {
+        const rating = state.ratings[strategy.id] || "";
+        return `
+          <article class="strategy-card" data-strategy-id="${strategy.id}">
+            <div class="strategy-top">
+              <div class="strategy-meta">
+                <p class="strategy-index">${String(index + 1).padStart(2, "0")}</p>
+                <h2>${strategy.name}</h2>
+                <p class="strategy-summary">${strategy.summary}</p>
+              </div>
+              <span class="fit-pill ${strategy.id === "workbench" ? "is-aiasys" : "is-soft"}">
+                ${strategy.id === "workbench" ? "AIASys 更契合" : "可单独试验"}
+              </span>
+            </div>
+
+            <div class="fit-pills">
+              ${strategy.pills.map((pill) => `<span class="fit-pill">${pill}</span>`).join("")}
+            </div>
+
+            <div class="demo-surface" data-tone="${strategy.tone}">
+              ${renderStrategyDemo(strategy.id, sample)}
+            </div>
+
+            <ul class="points">
+              ${strategy.points.map((point) => `<li>${point}</li>`).join("")}
+            </ul>
+
+            <div class="rating-row">
+              ${renderRatingButton(strategy.id, "like", "喜欢", rating)}
+              ${renderRatingButton(strategy.id, "neutral", "一般", rating)}
+              ${renderRatingButton(strategy.id, "reject", "不喜欢", rating)}
+            </div>
+          </article>
+        `;
+      }
+
+      function renderRatingButton(strategyId, value, label, current) {
+        return `
+          <button
+            type="button"
+            class="strategy-button ${current === value ? "is-selected" : ""}"
+            data-action="rate"
+            data-strategy-id="${strategyId}"
+            data-value="${value}"
+          >
+            ${label}
+          </button>
+        `;
+      }
+
+      function renderStrategyDemo(strategyId, sample) {
+        switch (strategyId) {
+          case "quiet-modal":
+            return `
+              <div class="thumb-frame">
+                <button
+                  type="button"
+                  class="thumb-button"
+                  data-action="open-modal"
+                  data-sample-id="${sample.id}"
+                >
+                  <img src="${sample.src}" alt="${sample.title}" />
+                  <span class="thumb-overlay">点击进入更安静的全屏查看</span>
+                </button>
+              </div>
+
+              <div class="mini-strip">
+                ${samples
+                  .map(
+                    (item) =>
+                      `<img src="${item.src}" alt="${item.short}" loading="lazy" />`,
+                  )
+                  .join("")}
+              </div>
+              <p class="mini-note">
+                多图时仍然支持前后切换，但交互目标是“看图”，不是“逛相册”。
+              </p>
+            `;
+
+          case "inline-expand":
+            return `
+              <div class="thumb-frame">
+                <button
+                  type="button"
+                  class="thumb-button"
+                  data-action="toggle-inline"
+                >
+                  <img src="${sample.src}" alt="${sample.title}" />
+                  <span class="thumb-overlay">点击在当前位置展开</span>
+                </button>
+              </div>
+
+              <div class="inline-stage">
+                <div class="inline-stage-copy">
+                  <div class="inline-stage-head">
+                    <strong>展开后仍保留原上下文</strong>
+                    <button type="button" class="peek-close" data-action="toggle-inline">×</button>
+                  </div>
+                  <img src="${sample.src}" alt="${sample.title}" />
+                  <p class="mini-note">
+                    这一步只把图片拉大，并不强制用户进入另一个层级。很适合结果块、聊天图和 Notebook 输出。
+                  </p>
+                </div>
+              </div>
+            `;
+
+          case "peek-card":
+            return `
+              <div class="peek-zone">
+                <div class="thumb-frame">
+                  <button
+                    type="button"
+                    class="peek-trigger"
+                    data-action="toggle-peek"
+                  >
+                    <img src="${sample.src}" alt="${sample.title}" />
+                    <span class="peek-label">点击先快看，不急着全屏</span>
+                  </button>
+                </div>
+
+                <div class="peek-pop">
+                  <img src="${sample.src}" alt="${sample.title}" />
+                  <div class="peek-body">
+                    <div class="peek-head">
+                      <strong>${sample.short}</strong>
+                      <button type="button" class="peek-close" data-action="toggle-peek">×</button>
+                    </div>
+                    <p class="mini-note">
+                      适合文件树里的缩略图、结果列表里的小图、“先确认一下是不是这张”的场景。
+                    </p>
+                  </div>
+                </div>
+              </div>
+            `;
+
+          case "side-sheet":
+            return `
+              <div class="thumb-frame">
+                <button
+                  type="button"
+                  class="thumb-button"
+                  data-action="open-sheet"
+                  data-sample-id="${sample.id}"
+                >
+                  <img src="${sample.src}" alt="${sample.title}" />
+                  <span class="thumb-overlay">点击从右侧拉出预览</span>
+                </button>
+              </div>
+              <p class="mini-note">
+                你可以把它理解成“先开一个局部查看区”，而不是马上把整个页面交给图片。
+              </p>
+            `;
+
+          case "workbench":
+            return `
+              <div class="thumb-frame">
+                <button
+                  type="button"
+                  class="workbench-trigger"
+                  data-action="send-workbench"
+                  data-sample-id="${sample.id}"
+                >
+                  <img src="${sample.src}" alt="${sample.title}" />
+                  <span class="thumb-overlay">点击送到右侧主画布模拟区</span>
+                </button>
+              </div>
+              <p class="mini-note">
+                更像“打开文件/打开 artifact”，而不是“临时弹出看一下”。适合 AIASys 的 workspace-primary 语义。
+              </p>
+            `;
+
+          case "magnifier":
+            return `
+              <div class="lens-layout">
+                <div class="lens-shell" data-role="lens-shell">
+                  <img
+                    src="${sample.src}"
+                    alt="${sample.title}"
+                    data-role="lens-image"
+                    draggable="false"
+                  />
+                  <div class="lens-hint">移动鼠标看局部细节</div>
+                  <div class="lens" data-role="lens"></div>
+                </div>
+
+                <div class="zoom-panel">
+                  <div class="zoom-view" data-role="zoom-view"></div>
+                  <div class="zoom-copy">
+                    它不改变页面层级，只额外增强“检查细节”的能力。
+                  </div>
+                </div>
+              </div>
+            `;
+
+          default:
+            return "";
+        }
+      }
+
+      function bindGlobalEvents() {
+        refs.sampleTabs.addEventListener("click", handleSampleTabClick);
+        refs.strategyGrid.addEventListener("click", handleStrategyGridClick);
+        refs.modalPrev.addEventListener("click", () => stepModal(-1));
+        refs.modalNext.addEventListener("click", () => stepModal(1));
+        refs.modalStage.addEventListener("dblclick", () => {
+          toggleModalZoomMode();
+        });
+        refs.sheetSendWorkbench.addEventListener("click", () => {
+          sendToWorkbench(state.sheetSampleId);
+          closeSheet();
+        });
+        refs.clearRatingsButton.addEventListener("click", clearRatings);
+        refs.clearNotesButton.addEventListener("click", clearNotes);
+        refs.copyNotesButton.addEventListener("click", copyNotes);
+        refs.notesBox.addEventListener("input", handleNotesInput);
+
+        refs.modalOverlay.addEventListener("click", (event) => {
+          if (event.target === refs.modalOverlay) {
+            void closeModal();
+            return;
+          }
+
+          const zoomButton = event.target.closest("[data-modal-zoom]");
+          if (zoomButton) {
+            setModalZoomMode(zoomButton.dataset.modalZoom);
+            return;
+          }
+
+          const backdropButton = event.target.closest("[data-modal-backdrop]");
+          if (backdropButton) {
+            setModalBackdrop(backdropButton.dataset.modalBackdrop);
+            return;
+          }
+
+          if (event.target.closest("[data-toggle-fullscreen]")) {
+            void toggleModalFullscreen();
+            return;
+          }
+
+          if (event.target.closest("[data-close-modal]")) {
+            void closeModal();
+          }
+        });
+
+        refs.sheetOverlay.addEventListener("click", (event) => {
+          if (event.target === refs.sheetOverlay || event.target.closest("[data-close-sheet]")) {
+            closeSheet();
+          }
+        });
+
+        document.addEventListener("click", handleDocumentClick);
+        document.addEventListener("keydown", handleKeyDown);
+        document.addEventListener("fullscreenchange", syncModalFullscreenState);
+      }
+
+      function handleSampleTabClick(event) {
+        const button = event.target.closest("[data-action='switch-sample']");
+        if (!button) return;
+
+        state.sampleId = button.dataset.sampleId;
+        renderSampleTabs();
+        renderHeroSample();
+        renderStrategies();
+      }
+
+      function handleStrategyGridClick(event) {
+        const button = event.target.closest("[data-action]");
+        if (!button) return;
+
+        const action = button.dataset.action;
+        const card = button.closest(".strategy-card");
+
+        switch (action) {
+          case "open-modal":
+            openModalBySample(button.dataset.sampleId || state.sampleId);
+            break;
+          case "toggle-inline":
+            toggleInline(card);
+            break;
+          case "toggle-peek":
+            togglePeek(card);
+            break;
+          case "open-sheet":
+            openSheet(button.dataset.sampleId || state.sampleId);
+            break;
+          case "send-workbench":
+            sendToWorkbench(button.dataset.sampleId || state.sampleId);
+            break;
+          case "rate":
+            updateRating(button.dataset.strategyId, button.dataset.value);
+            break;
+          default:
+            break;
+        }
+      }
+
+      function handleDocumentClick(event) {
+        if (!event.target.closest(".peek-zone")) {
+          refs.strategyGrid
+            .querySelectorAll(".peek-pop.is-open")
+            .forEach((node) => node.classList.remove("is-open"));
+        }
+      }
+
+      function handleKeyDown(event) {
+        if (event.key === "Escape") {
+          if (state.modalIsFullscreen) {
+            void exitModalFullscreen();
+          } else {
+            void closeModal();
+          }
+          closeSheet();
+          refs.strategyGrid
+            .querySelectorAll(".peek-pop.is-open")
+            .forEach((node) => node.classList.remove("is-open"));
+          return;
+        }
+
+        if (refs.modalOverlay.classList.contains("is-open")) {
+          if (event.key === "ArrowLeft") {
+            stepModal(-1);
+          } else if (event.key === "ArrowRight") {
+            stepModal(1);
+          } else if (event.key === "f" || event.key === "F") {
+            event.preventDefault();
+            void toggleModalFullscreen();
+          } else if (event.key === "0") {
+            event.preventDefault();
+            setModalZoomMode("fit");
+          } else if (event.key === "1") {
+            event.preventDefault();
+            setModalZoomMode("original");
+          } else if (event.key === "b" || event.key === "B") {
+            event.preventDefault();
+            cycleModalBackdrop();
+          }
+        }
+      }
+
+      function toggleInline(card) {
+        if (!card) return;
+        const panel = card.querySelector(".inline-stage");
+        if (!panel) return;
+        panel.classList.toggle("is-open");
+      }
+
+      function togglePeek(card) {
+        if (!card) return;
+        const panel = card.querySelector(".peek-pop");
+        if (!panel) return;
+
+        const currentlyOpen = refs.strategyGrid.querySelectorAll(".peek-pop.is-open");
+        currentlyOpen.forEach((node) => {
+          if (node !== panel) node.classList.remove("is-open");
+        });
+
+        panel.classList.toggle("is-open");
+      }
+
+      function openModalBySample(sampleId) {
+        state.modalIndex = clampIndex(
+          samples.findIndex((sample) => sample.id === sampleId),
+          samples.length,
+        );
+        renderModal();
+        refs.modalOverlay.classList.add("is-open");
+        refs.modalOverlay.setAttribute("aria-hidden", "false");
+      }
+
+      async function closeModal() {
+        await exitModalFullscreen();
+        refs.modalOverlay.classList.remove("is-open");
+        refs.modalOverlay.setAttribute("aria-hidden", "true");
+      }
+
+      function stepModal(direction) {
+        state.modalIndex = (state.modalIndex + direction + samples.length) % samples.length;
+        renderModal();
+      }
+
+      function renderModal() {
+        const sample = samples[state.modalIndex];
+        refs.modalImage.src = sample.src;
+        refs.modalTitle.textContent = sample.title;
+        refs.modalCounter.textContent = `${state.modalIndex + 1} / ${samples.length}`;
+        refs.modalCaption.textContent =
+          "这个版本故意把 chrome 降到最低，但额外补了全屏、适屏/原始比例、幕布层级切换，方便你判断真正不喜欢的是哪一层。";
+        renderModalControls();
+      }
+
+      function renderModalControls() {
+        refs.modalOverlay.dataset.backdrop = state.modalBackdrop;
+        refs.modalShell.dataset.zoom = state.modalZoomMode;
+        refs.modalStatus.textContent = [
+          labelForZoomMode(state.modalZoomMode),
+          labelForBackdrop(state.modalBackdrop),
+          state.modalIsFullscreen ? "全屏模式" : "浮层模式",
+        ].join(" · ");
+
+        refs.modalFullscreenButton.textContent = state.modalIsFullscreen
+          ? "退出全屏"
+          : "进入全屏";
+
+        toggleButtonSelected(refs.modalFitButton, state.modalZoomMode === "fit");
+        toggleButtonSelected(refs.modalOriginalButton, state.modalZoomMode === "original");
+        toggleButtonSelected(refs.modalBackdropSoftButton, state.modalBackdrop === "soft");
+        toggleButtonSelected(refs.modalBackdropDarkButton, state.modalBackdrop === "dark");
+        toggleButtonSelected(refs.modalBackdropBlackButton, state.modalBackdrop === "black");
+      }
+
+      function toggleButtonSelected(node, selected) {
+        if (!node) return;
+        node.classList.toggle("is-selected", selected);
+      }
+
+      function setModalZoomMode(mode) {
+        if (mode !== "fit" && mode !== "original") return;
+        state.modalZoomMode = mode;
+        renderModalControls();
+      }
+
+      function toggleModalZoomMode() {
+        setModalZoomMode(state.modalZoomMode === "fit" ? "original" : "fit");
+      }
+
+      function setModalBackdrop(mode) {
+        if (!["soft", "dark", "black"].includes(mode)) return;
+        state.modalBackdrop = mode;
+        renderModalControls();
+      }
+
+      function cycleModalBackdrop() {
+        const modes = ["soft", "dark", "black"];
+        const currentIndex = modes.indexOf(state.modalBackdrop);
+        const nextMode = modes[(currentIndex + 1 + modes.length) % modes.length];
+        setModalBackdrop(nextMode);
+      }
+
+      async function toggleModalFullscreen() {
+        if (state.modalIsFullscreen) {
+          await exitModalFullscreen();
+          return;
+        }
+
+        if (refs.modalShell.requestFullscreen) {
+          try {
+            await refs.modalShell.requestFullscreen();
+            state.modalIsFullscreen = true;
+            renderModalControls();
+          } catch {
+            refs.modalShell.classList.add("is-faux-fullscreen");
+            state.modalIsFullscreen = true;
+            renderModalControls();
+          }
+          return;
+        }
+
+        refs.modalShell.classList.add("is-faux-fullscreen");
+        state.modalIsFullscreen = true;
+        renderModalControls();
+      }
+
+      async function exitModalFullscreen() {
+        refs.modalShell.classList.remove("is-faux-fullscreen");
+
+        if (document.fullscreenElement === refs.modalShell && document.exitFullscreen) {
+          try {
+            await document.exitFullscreen();
+            state.modalIsFullscreen = false;
+            renderModalControls();
+          } catch {
+            state.modalIsFullscreen = false;
+            renderModalControls();
+          }
+          return;
+        }
+
+        if (state.modalIsFullscreen) {
+          state.modalIsFullscreen = false;
+          renderModalControls();
+        }
+      }
+
+      function syncModalFullscreenState() {
+        const nextIsFullscreen =
+          document.fullscreenElement === refs.modalShell ||
+          refs.modalShell.classList.contains("is-faux-fullscreen");
+
+        if (state.modalIsFullscreen !== nextIsFullscreen) {
+          state.modalIsFullscreen = nextIsFullscreen;
+          renderModalControls();
+        }
+      }
+
+      function openSheet(sampleId) {
+        const sample = getSample(sampleId);
+        state.sheetSampleId = sample.id;
+        refs.sheetImage.src = sample.src;
+        refs.sheetSampleTitle.textContent = sample.title;
+        refs.sheetCaption.textContent =
+          sample.caption + " 这种方式比全屏轻，但仍然是一次明确的区域切换。";
+        refs.sheetOverlay.classList.add("is-open");
+        refs.sheetOverlay.setAttribute("aria-hidden", "false");
+      }
+
+      function closeSheet() {
+        refs.sheetOverlay.classList.remove("is-open");
+        refs.sheetOverlay.setAttribute("aria-hidden", "true");
+      }
+
+      function sendToWorkbench(sampleId) {
+        state.workbenchSampleId = sampleId;
+        renderWorkbench();
+      }
+
+      function renderWorkbench() {
+        const sample = getSample(state.workbenchSampleId);
+        refs.workbenchImage.src = sample.src;
+        refs.workbenchTitle.textContent = sample.title;
+        refs.workbenchCaption.textContent =
+          sample.caption + " 如果这一步是默认动作，图片就更像工作对象而不是附件。";
+      }
+
+      function updateRating(strategyId, value) {
+        state.ratings[strategyId] = value;
+        localStorage.setItem(STORAGE_RATINGS, JSON.stringify(state.ratings));
+        renderStrategies();
+        renderRatingsSummary();
+      }
+
+      function renderRatingsSummary() {
+        const selected = strategies.filter((strategy) => state.ratings[strategy.id]);
+        if (selected.length === 0) {
+          refs.ratingsSummary.innerHTML = `
+            <div class="summary-empty">
+              还没有评分。你可以先从“主画布接管”“原位展开”“净图浮层”三种开始点，通常会很快看出偏好差异。
+            </div>
+          `;
+          return;
+        }
+
+        refs.ratingsSummary.innerHTML = `
+          <ul class="summary-list">
+            ${selected
+              .map((strategy) => {
+                return `<li>${strategy.name}：${labelForRating(state.ratings[strategy.id])}</li>`;
+              })
+              .join("")}
+          </ul>
+        `;
+      }
+
+      function clearRatings() {
+        state.ratings = {};
+        localStorage.removeItem(STORAGE_RATINGS);
+        renderStrategies();
+        renderRatingsSummary();
+      }
+
+      function handleNotesInput(event) {
+        state.notes = event.target.value;
+        localStorage.setItem(STORAGE_NOTES, state.notes);
+      }
+
+      function clearNotes() {
+        state.notes = "";
+        refs.notesBox.value = "";
+        localStorage.removeItem(STORAGE_NOTES);
+      }
+
+      async function copyNotes() {
+        const ratingSummary = strategies
+          .filter((strategy) => state.ratings[strategy.id])
+          .map((strategy) => `- ${strategy.name}: ${labelForRating(state.ratings[strategy.id])}`)
+          .join("\n");
+        const payload = [
+          "图片交互偏好记录",
+          "",
+          ratingSummary || "- 暂无评分",
+          "",
+          state.notes ? `补充备注:\n${state.notes}` : "补充备注:\n- 暂无",
+        ].join("\n");
+
+        try {
+          await navigator.clipboard.writeText(payload);
+          refs.copyNotesButton.textContent = "已复制";
+          window.setTimeout(() => {
+            refs.copyNotesButton.textContent = "复制备注";
+          }, 1200);
+        } catch (error) {
+          refs.copyNotesButton.textContent = "复制失败";
+          window.setTimeout(() => {
+            refs.copyNotesButton.textContent = "复制备注";
+          }, 1200);
+        }
+      }
+
+      function bindMagnifiers() {
+        const shells = refs.strategyGrid.querySelectorAll("[data-role='lens-shell']");
+        shells.forEach((shell) => {
+          const image = shell.querySelector("[data-role='lens-image']");
+          const lens = shell.querySelector("[data-role='lens']");
+          const zoomView = shell.closest(".lens-layout").querySelector("[data-role='zoom-view']");
+          if (!image || !lens || !zoomView) return;
+
+          const updateZoom = (clientX, clientY) => {
+            const rect = image.getBoundingClientRect();
+            const x = clamp(clientX - rect.left, 0, rect.width);
+            const y = clamp(clientY - rect.top, 0, rect.height);
+            const lensWidth = lens.offsetWidth;
+            const lensHeight = lens.offsetHeight;
+            const left = clamp(x - lensWidth / 2, 0, rect.width - lensWidth);
+            const top = clamp(y - lensHeight / 2, 0, rect.height - lensHeight);
+
+            lens.style.left = `${left}px`;
+            lens.style.top = `${top}px`;
+            lens.classList.add("is-visible");
+
+            const scale = 2.4;
+            const bgWidth = rect.width * scale;
+            const bgHeight = rect.height * scale;
+            const bgX = -(x * scale - zoomView.clientWidth / 2);
+            const bgY = -(y * scale - zoomView.clientHeight / 2);
+
+            lens.style.backgroundImage = `url("${image.src}")`;
+            lens.style.backgroundSize = `${bgWidth}px ${bgHeight}px`;
+            lens.style.backgroundPosition = `${bgX}px ${bgY}px`;
+
+            zoomView.style.backgroundImage = `url("${image.src}")`;
+            zoomView.style.backgroundSize = `${bgWidth}px ${bgHeight}px`;
+            zoomView.style.backgroundPosition = `${bgX}px ${bgY}px`;
+          };
+
+          shell.addEventListener("mousemove", (event) => {
+            updateZoom(event.clientX, event.clientY);
+          });
+
+          shell.addEventListener("mouseenter", (event) => {
+            updateZoom(event.clientX, event.clientY);
+          });
+
+          shell.addEventListener("mouseleave", () => {
+            lens.classList.remove("is-visible");
+            zoomView.style.backgroundPosition = "center";
+          });
+        });
+      }
+
+      function getSample(sampleId) {
+        return samples.find((sample) => sample.id === sampleId) || samples[0];
+      }
+
+      function labelForRating(value) {
+        switch (value) {
+          case "like":
+            return "喜欢";
+          case "neutral":
+            return "一般";
+          case "reject":
+            return "不喜欢";
+          default:
+            return "未评价";
+        }
+      }
+
+      function labelForZoomMode(value) {
+        switch (value) {
+          case "original":
+            return "原始比例";
+          case "fit":
+          default:
+            return "适屏查看";
+        }
+      }
+
+      function labelForBackdrop(value) {
+        switch (value) {
+          case "dark":
+            return "深色幕布";
+          case "black":
+            return "纯黑背景";
+          case "soft":
+          default:
+            return "柔和幕布";
+        }
+      }
+
+      function safeParse(raw, fallback) {
+        try {
+          return raw ? JSON.parse(raw) : fallback;
+        } catch {
+          return fallback;
+        }
+      }
+
+      function clamp(value, min, max) {
+        return Math.min(Math.max(value, min), max);
+      }
+
+      function clampIndex(index, size) {
+        if (size <= 0) return 0;
+        return Math.min(Math.max(index, 0), size - 1);
+      }
+
+      function makeSvgData({ title, subtitle, palette, motif }) {
+        const [base, accentA, accentB, accentC, ink] = palette;
+
+        const content =
+          motif === "chart"
+            ? `
+              <rect x="46" y="54" width="1108" height="650" rx="34" fill="white" fill-opacity="0.94" />
+              <rect x="84" y="108" width="226" height="94" rx="22" fill="${accentA}" fill-opacity="0.55" />
+              <rect x="334" y="108" width="226" height="94" rx="22" fill="${accentB}" fill-opacity="0.6" />
+              <rect x="584" y="108" width="226" height="94" rx="22" fill="${accentC}" fill-opacity="0.58" />
+              <rect x="834" y="108" width="282" height="94" rx="22" fill="${base}" stroke="${ink}" stroke-opacity="0.15" />
+              <rect x="84" y="238" width="1032" height="418" rx="30" fill="#ffffff" stroke="${ink}" stroke-opacity="0.09" />
+              <line x1="158" y1="590" x2="158" y2="302" stroke="${ink}" stroke-opacity="0.18" stroke-width="3" />
+              <line x1="158" y1="590" x2="1028" y2="590" stroke="${ink}" stroke-opacity="0.18" stroke-width="3" />
+              <polyline points="178,540 302,476 426,492 550,386 674,334 798,356 922,258 1028,280" fill="none" stroke="${accentA}" stroke-width="11" stroke-linecap="round" stroke-linejoin="round" />
+              <polyline points="178,566 302,522 426,448 550,474 674,430 798,322 922,348 1028,306" fill="none" stroke="${accentB}" stroke-width="11" stroke-linecap="round" stroke-linejoin="round" />
+              <polyline points="178,516 302,496 426,530 550,456 674,370 798,390 922,312 1028,220" fill="none" stroke="${accentC}" stroke-width="11" stroke-linecap="round" stroke-linejoin="round" />
+              <g fill="${ink}" fill-opacity="0.55" font-size="26" font-family="Arial, sans-serif">
+                <text x="144" y="632">Q1</text>
+                <text x="368" y="632">Q2</text>
+                <text x="592" y="632">Q3</text>
+                <text x="816" y="632">Q4</text>
+              </g>
+            `
+            : motif === "notebook"
+              ? `
+                <rect x="44" y="52" width="1112" height="654" rx="34" fill="white" fill-opacity="0.94" />
+                <rect x="84" y="98" width="250" height="84" rx="22" fill="${accentA}" fill-opacity="0.52" />
+                <rect x="356" y="98" width="352" height="84" rx="22" fill="${accentB}" fill-opacity="0.5" />
+                <rect x="730" y="98" width="386" height="84" rx="22" fill="${accentC}" fill-opacity="0.5" />
+                <rect x="84" y="214" width="680" height="174" rx="28" fill="#ffffff" stroke="${ink}" stroke-opacity="0.1" />
+                <rect x="804" y="214" width="312" height="174" rx="28" fill="${base}" stroke="${ink}" stroke-opacity="0.08" />
+                <rect x="84" y="418" width="1032" height="238" rx="32" fill="#ffffff" stroke="${ink}" stroke-opacity="0.08" />
+                <rect x="118" y="250" width="86" height="20" rx="10" fill="${accentA}" fill-opacity="0.78" />
+                <rect x="118" y="294" width="578" height="16" rx="8" fill="${ink}" fill-opacity="0.12" />
+                <rect x="118" y="330" width="498" height="16" rx="8" fill="${ink}" fill-opacity="0.12" />
+                <rect x="838" y="246" width="244" height="18" rx="9" fill="${ink}" fill-opacity="0.12" />
+                <rect x="838" y="286" width="206" height="18" rx="9" fill="${ink}" fill-opacity="0.12" />
+                <rect x="838" y="326" width="226" height="18" rx="9" fill="${ink}" fill-opacity="0.12" />
+                <rect x="124" y="456" width="408" height="170" rx="26" fill="${accentA}" fill-opacity="0.34" />
+                <rect x="564" y="456" width="520" height="170" rx="26" fill="${accentB}" fill-opacity="0.3" />
+                <circle cx="248" cy="542" r="58" fill="${accentC}" fill-opacity="0.65" />
+                <path d="M600 590 C652 500 728 492 792 548 S928 618 1006 510" fill="none" stroke="${ink}" stroke-width="10" stroke-linecap="round" />
+              `
+              : `
+                <rect x="42" y="48" width="1116" height="660" rx="34" fill="white" fill-opacity="0.94" />
+                <rect x="82" y="92" width="240" height="570" rx="28" fill="${base}" stroke="${ink}" stroke-opacity="0.08" />
+                <rect x="350" y="92" width="520" height="570" rx="28" fill="#ffffff" stroke="${ink}" stroke-opacity="0.08" />
+                <rect x="898" y="92" width="220" height="570" rx="28" fill="${accentA}" fill-opacity="0.28" stroke="${ink}" stroke-opacity="0.08" />
+                <rect x="114" y="136" width="176" height="28" rx="14" fill="${accentB}" fill-opacity="0.74" />
+                <rect x="114" y="188" width="148" height="18" rx="9" fill="${ink}" fill-opacity="0.12" />
+                <rect x="114" y="228" width="164" height="18" rx="9" fill="${ink}" fill-opacity="0.12" />
+                <rect x="114" y="268" width="132" height="18" rx="9" fill="${ink}" fill-opacity="0.12" />
+                <rect x="386" y="134" width="202" height="72" rx="24" fill="${accentA}" fill-opacity="0.5" />
+                <rect x="610" y="134" width="224" height="72" rx="24" fill="${accentC}" fill-opacity="0.48" />
+                <rect x="386" y="236" width="448" height="212" rx="28" fill="${base}" stroke="${ink}" stroke-opacity="0.08" />
+                <rect x="386" y="478" width="448" height="148" rx="26" fill="${accentB}" fill-opacity="0.22" />
+                <rect x="932" y="136" width="154" height="16" rx="8" fill="${ink}" fill-opacity="0.12" />
+                <rect x="932" y="178" width="126" height="16" rx="8" fill="${ink}" fill-opacity="0.12" />
+                <rect x="932" y="220" width="146" height="16" rx="8" fill="${ink}" fill-opacity="0.12" />
+                <rect x="932" y="282" width="152" height="132" rx="22" fill="#ffffff" fill-opacity="0.82" />
+                <rect x="932" y="444" width="152" height="132" rx="22" fill="#ffffff" fill-opacity="0.82" />
+                <circle cx="530" cy="342" r="76" fill="${accentA}" fill-opacity="0.42" />
+                <path d="M612 392 C646 330 712 308 784 352" fill="none" stroke="${ink}" stroke-opacity="0.65" stroke-width="10" stroke-linecap="round" />
+              `;
+
+        const svg = `
+          <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="780" viewBox="0 0 1200 780">
+            <defs>
+              <linearGradient id="bg" x1="0%" x2="100%" y1="0%" y2="100%">
+                <stop offset="0%" stop-color="${base}" />
+                <stop offset="100%" stop-color="#f7f0e6" />
+              </linearGradient>
+            </defs>
+
+            <rect width="1200" height="780" rx="42" fill="url(#bg)" />
+            <circle cx="1060" cy="120" r="150" fill="${accentA}" fill-opacity="0.18" />
+            <circle cx="164" cy="674" r="128" fill="${accentB}" fill-opacity="0.16" />
+            <text x="84" y="68" fill="${ink}" fill-opacity="0.92" font-family="Arial, sans-serif" font-size="34" font-weight="700">
+              ${escapeXml(title)}
+            </text>
+            <text x="84" y="110" fill="${ink}" fill-opacity="0.56" font-family="Arial, sans-serif" font-size="18">
+              ${escapeXml(subtitle)}
+            </text>
+            ${content}
+          </svg>
+        `.trim();
+
+        return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+      }
+
+      function escapeXml(value) {
+        return value
+          .replaceAll("&", "&amp;")
+          .replaceAll("<", "&lt;")
+          .replaceAll(">", "&gt;")
+          .replaceAll('"', "&quot;")
+          .replaceAll("'", "&apos;");
+      }
+    </script>
+  </body>
+</html>

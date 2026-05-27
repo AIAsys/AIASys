@@ -1,0 +1,11 @@
+capability_id = "competition-parallel-research-skill"
+kind = "skill_pack"
+display_name = "竞赛并行研究编排 Skill"
+description = """为竞赛项目编排多分支、多环境、多 AutoTask lane 的并行探索：拆分方向、分配 env_id、控制并发、避免输出冲突，并汇总各 lane 结果。
+适用于用户明确希望同时探索 LightGBM、XGBoost、Transformer 等多条路线，且每条路线可能绑定不同运行环境的场景。"""
+version = "1.0.0"
+author = "AIASys"
+dependencies = []
+min_platform_version = "0.1.0"
+
+[config_schema]

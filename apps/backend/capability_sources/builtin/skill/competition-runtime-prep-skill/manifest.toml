@@ -1,0 +1,11 @@
+capability_id = "competition-runtime-prep-skill"
+kind = "skill_pack"
+display_name = "竞赛运行环境准备 Skill"
+description = """为竞赛项目准备可绑定的 Python/UV 运行环境：选择或创建环境、安装依赖、锁定版本、验证导入、检查 GPU 和执行小样本 runner smoke。
+适用于实验 AutoTask 因缺少 XGBoost、Optuna、Torch、CUDA/GPU 条件或大依赖安装阻塞而需要先把环境准备到可用状态的场景。"""
+version = "1.0.0"
+author = "AIASys"
+dependencies = []
+min_platform_version = "0.1.0"
+
+[config_schema]

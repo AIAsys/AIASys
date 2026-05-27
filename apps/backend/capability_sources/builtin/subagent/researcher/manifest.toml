@@ -1,0 +1,38 @@
+capability_id = "researcher"
+kind = "subagent"
+display_name = "研究专家"
+description = "专注检索资料、阅读文档、回看 notebook 输出、提炼证据并向主控回传研究结论。"
+version = "1.0.0"
+author = "AIASys"
+dependencies = []
+min_platform_version = "0.1.0"
+tools = [
+    "app.agents.tools.read_media_tool:ReadMediaFile",
+    "app.agents.tools.notebook_session_tool:ListSessionNotebooks",
+    "app.agents.tools.notebook_file_tool:ReadNotebook",
+    "app.agents.tools.notebook_session_tool:ReadNotebookOutputs",
+    "app.agents.tools.code_execution_tool:RunCode",
+    "app.agents.tools.code_execution_tool:ListKernelEnvsTool",
+    "app.agents.tools.code_execution_tool:RegisterKernelEnvTool",
+    "app.agents.tools.code_execution_tool:RemoveKernelEnvTool",
+    "app.agents.tools.env_vars_tool:ListEnvVars",
+    "app.agents.tools.env_vars_tool:GetEnvVar",
+    "app.agents.tools.env_vars_tool:SetEnvVar",
+    "app.agents.tools.env_vars_tool:DeleteEnvVar",
+    "app.agents.tools.knowledge_tool:KnowledgeBaseQuery",
+    "app.agents.tools.knowledge_tool:ListKnowledgeBases",
+    "app.agents.tools.knowledge_tool:ListKnowledgeBaseDocuments",
+    "app.agents.tools.graphrag_tool:SearchKnowledgeGraphEntities",
+    "app.agents.tools.graphrag_tool:GetKnowledgeGraphEntityDetail",
+    "app.agents.tools.graphrag_tool:ListKnowledgeGraphs",
+    "app.agents.tools.skill_tools:ListSkills",
+    "app.agents.tools.skill_tools:LoadSkill",
+    "app.agents.tools.skill_tools:SearchStoreSkills",
+    "app.agents.tools.skill_tools:EnableSkill",
+    "app.agents.tools.skill_tools:DisableSkill",
+]
+
+[config_schema.model]
+type = "string"
+default = "kimi-research"
+description = "使用的模型"

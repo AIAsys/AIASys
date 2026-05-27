@@ -1,0 +1,33 @@
+{
+  "version": "1.0.0",
+  "environments": [
+    {
+      "id": "python-data-analysis",
+      "name": "Python 数据分析",
+      "description": "专为数据分析优化的环境，预装 pandas、numpy、matplotlib 等核心库，适合数据清洗、探索性分析和可视化",
+      "version": "1.0.0",
+      "category": "data_analysis",
+      "source": "official",
+      "status": "active",
+      "image": "aiasys/python-data-analysis:1.0.0",
+      "resources": {
+        "min_memory_mb": 512,
+        "recommended_memory_mb": 2048,
+        "min_cpu_cores": 0.5
+      },
+      "icon": "",
+      "color": "#3b82f6",
+      "tags": ["数据分析", "pandas", "可视化", "基础"],
+      "main_dependencies": [
+        "pandas>=2.0.0",
+        "numpy>=1.24.0",
+        "matplotlib>=3.7.0",
+        "seaborn>=0.12.0",
+        "scipy>=1.10.0",
+        "openpyxl>=3.1.0",
+        "pyarrow>=12.0.0"
+      ],
+      "template_code": "import pandas as pd\nimport numpy as np\nimport matplotlib.pyplot as plt\nimport seaborn as sns\n\n# 设置中文显示\nplt.rcParams['font.sans-serif'] = ['Noto Sans CJK SC']\nplt.rcParams['axes.unicode_minus'] = False\n\n# 读取数据示例\n# df = pd.read_csv('/workspace/data.csv')\n# print(df.head())\n# print(df.describe())"
+    }
+  ]
+}

@@ -1,0 +1,42 @@
+# AIASys 用户级配置模板
+# 路径: global_workspace/.aiasys/config.toml
+#
+# 本文件由系统自动创建。修改后无需重启，配置即时生效。
+
+[llm]
+# 默认对话模型 ID，空字符串表示使用系统 fallback
+default_model = ""
+
+# 任务级模型映射（可选）
+# task_models = { memory = "", compaction = "" }
+
+[memory]
+# memory 总开关，false 时关闭所有 memory 功能（工具注册、prompt 注入、pipeline 调度）
+# enabled = true
+
+# memory pipeline 专用模型，空字符串表示复用 default_model
+# model = ""
+
+# Stage 1 配置
+# stage1_max_records = 20
+# stage1_max_chars = 12000
+# stage1_summary_tokens = 1800
+# stage1_retention_days = 30
+
+# Stage 2 配置
+# stage2_max_input_chars = 24000
+# stage2_max_tokens = 2400
+
+# 容量控制
+# max_stage1_outputs = 128
+# max_snapshots = 50
+# max_memory_versions = 20
+
+# 容量限制（字符数）
+# max_memory_size = 10000
+# max_summary_size = 3000
+# max_workspace_memory_size = 5000
+
+[compaction]
+# 工具输出截断长度（字符数），0 表示使用系统默认值
+# tool_snip_max_chars = 0
