@@ -2,11 +2,8 @@
 
 from __future__ import annotations
 
-import json
 import logging
-from typing import Any, Optional
-
-from ._common import _utcnow_iso
+from typing import Any
 
 logger = logging.getLogger(__name__)
 

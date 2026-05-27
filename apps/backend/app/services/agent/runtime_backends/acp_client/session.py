@@ -17,7 +17,6 @@ from collections.abc import AsyncGenerator
 from pathlib import Path
 from typing import Any
 
-from app.core.tool_result import ToolResult
 from app.services.agent.runtime_backends.base import (
     AgentRuntimeEvent,
     RuntimeSessionCreateSpec,

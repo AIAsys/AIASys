@@ -7,7 +7,6 @@ import logging
 import mimetypes
 import os
 import re
-from typing import Optional
 
 from app.models.claw import ClawAttachmentSummary, ClawDispatchResult, ClawOutboundPreview
 

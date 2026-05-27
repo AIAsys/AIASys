@@ -304,7 +304,7 @@ def insert_data_table_records(
             placeholders = ", ".join(["?"] * len(columns))
             values = [record_id, now, now] + list(clean_record.values())
 
-            sql = f'INSERT INTO records ({", ".join(columns)}) VALUES ({placeholders})'
+            sql = f"INSERT INTO records ({', '.join(columns)}) VALUES ({placeholders})"
             conn.execute(sql, values)
             inserted_ids.append(record_id)
 

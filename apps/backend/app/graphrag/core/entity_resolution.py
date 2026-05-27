@@ -136,7 +136,7 @@ class EntityResolver:
         questions = []
         for i, (e1, e2) in enumerate(candidates[:10]):  # 限制批量大小
             questions.append(
-                f"Question {i+1}: Is '{e1.name}' (description: {e1.description[:50]}) "
+                f"Question {i + 1}: Is '{e1.name}' (description: {e1.description[:50]}) "
                 f"and '{e2.name}' (description: {e2.description[:50]}) the same {entity_type}?"
             )
 

@@ -1,6 +1,6 @@
 [project]
 name = "aiasys-backend"
-version = "0.2.10"
+version = "0.3.9"
 description = "AIASys agent backend"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -85,6 +85,7 @@ all = [
 ]
 [dependency-groups]
 dev = [
+    "ruff>=0.11.0",
     "black>=24.0.0",
     "isort>=5.13.0",
     "pylint>=3.0.0",
@@ -102,6 +103,23 @@ default = true
 url = "https://mirrors.aliyun.com/pypi/simple/"
 
 # Tool configurations
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = [
+    "F",   # pyflakes (undefined names, unused imports, etc.)
+    "I",   # isort (import order)
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["app"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
 [tool.black]
 line-length = 100
 
@@ -111,6 +129,7 @@ line_length = 100
 
 [tool.mypy]
 python_version = "3.12"
+explicit_package_bases = true
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = false

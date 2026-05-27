@@ -8,94 +8,30 @@ import json
 import logging
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Literal, Optional
+from typing import Any, Optional
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
-from pydantic import BaseModel, Field
+from fastapi import APIRouter, Depends, HTTPException
 
-from app.core.auth import get_current_user, require_auth, require_role
+from app.core.auth import require_auth
 from app.core.config import WORKSPACE_DIR
-from app.models.llm_selection import (
-    SessionLLMSelectionResponse,
-    UpdateScopedModelSelectionRequest,
-)
 from app.models.session import (
-    MessageContent,
-    RecoveryPolicy,
     SessionMetadata,
-    SessionReferenceItem,
-    SessionReferenceResolveRequest,
-    SessionReferenceResolveResponse,
-    SessionReferenceSearchResponse,
-    SessionSettingsSummaryResponse,
 )
-from app.models.task_profile import TaskExecutionPolicy
 from app.models.user import UserInfo
 from app.services.agent import agent_service
 from app.services.agent.compaction import estimate_text_tokens
-from app.services.expert_roles import get_session_expert_policy
 from app.services.export import (
-    SessionExportNotFoundError,
-    SessionExportScope,
     SessionExportService,
 )
-from app.services.history import (
-    current_env_id,
-    current_session_id,
-    current_workspace,
-)
-from app.services.history.session_execution_journal import SessionExecutionJournal
 from app.services.llm.llm_config_service import get_llm_config_service
 from app.services.llm.model_selection_service import get_model_selection_service
-from app.services.runtime.session_runtime_state import (
-    build_session_runtime_summary,
-)
-from app.services.runtime_tooling import canonicalize_runtime_tool_name
 from app.services.session import SessionManager
-from app.services.session.config_projection import (
-    build_runtime_config_projection,
-    ensure_workspace_layout,
-)
 from app.services.workspace_registry import get_workspace_registry_service
 
-from .sessions_helpers import (
-    _build_archived_conversation_batches,
-    _build_session_status_payload,
-    _build_subagent_role_projection,
-    _compute_recovery_policy_editability,
-    _count_visible_workspace_files,
-    _filter_visible_history_messages,
-    _is_system_reminder_message,
-    _materialize_subagent_ownership,
-    _normalize_requested_expert_role_ids,
-    _normalize_requested_expert_role_tool_ids,
-    _requires_risk_acknowledgement,
-    _resolve_manual_replay_records,
-    _resolve_user_id,
-    _validate_selected_sequences,
-)
 from .sessions_models import (
     BudgetResponse,
-    CreateSessionRequest,
-    GlobalMonitorInfoResponse,
-    GlobalMonitorListResponse,
-    GlobalMonitorSummaryResponse,
-    ManualReplayRequest,
-    MessageRequest,
-    MonitorDetailResponse,
-    MonitorInfoResponse,
-    MonitorListResponse,
-    MonitorSegment,
-    MonitorSegmentsResponse,
-    MonitorSpawnRequest,
-    MonitorSpawnResponse,
-    RewriteMessageRequest,
-    SessionResponse,
     SetSessionBudgetRequest,
     TokenStatsResponse,
-    UpdateRecoveryPolicyRequest,
-    UpdateTaskProfileRequest,
-    UpdateTitleRequest,
 )
 
 logger = logging.getLogger(__name__)

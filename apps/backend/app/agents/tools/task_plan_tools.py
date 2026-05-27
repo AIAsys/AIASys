@@ -118,7 +118,7 @@ class ExitPlanModeParams(BaseModel):
 class TaskCreateTool(AiasysTool):
     name: ClassVar[str] = "task_create"
     description: ClassVar[str] = (
-        "创建当前会话的结构化任务。适合复杂需求拆分。" "每项需要 id、content，可选 dependencies。"
+        "创建当前会话的结构化任务。适合复杂需求拆分。每项需要 id、content，可选 dependencies。"
     )
     params: ClassVar[type[BaseModel]] = TaskCreateParams
 

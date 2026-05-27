@@ -250,10 +250,10 @@ class CommunityReporter:
 
         prompt = f"""You are an expert community analyst. Summarize the following community in the knowledge graph.
 
-Community ID: {community_summary['community_id']}
-Size: {community_summary['size']} entities
+Community ID: {community_summary["community_id"]}
+Size: {community_summary["size"]} entities
 Entity Types: {entity_types}
-Key Entities: {', '.join(community_summary['key_entities'])}
+Key Entities: {", ".join(community_summary["key_entities"])}
 
 Relationships within this community:
 {chr(10).join(relations[:20])}

@@ -82,8 +82,7 @@ def _resolve_acp_launcher(command: str, args: list[str]) -> tuple[str, list[str]
         return normalized_command, list(args or _COPILOT_ACP_ARGS)
 
     raise ValueError(
-        "当前 AIASys ACP 入口仅支持 Codex ACP ('codex' / 'codex-acp') "
-        "与 Copilot ACP ('copilot')。"
+        "当前 AIASys ACP 入口仅支持 Codex ACP ('codex' / 'codex-acp') 与 Copilot ACP ('copilot')。"
     )
 
 

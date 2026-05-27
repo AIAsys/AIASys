@@ -261,7 +261,7 @@ def get_graphrag_service(
 
     # 未传 db_path 时，默认使用全局 system.db
     if not db_path:
-        db_path = f"/global/graphs/system.db"
+        db_path = "/global/graphs/system.db"
 
     resolved_db_path = _resolve_db_path(effective_user_id, db_path, workspace_id)
     if not resolved_db_path or not resolved_db_path.exists():

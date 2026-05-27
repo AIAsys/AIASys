@@ -42,8 +42,7 @@ def _load_config() -> Dict[str, Any]:
 
     if not config_path.exists():
         raise FileNotFoundError(
-            f"配置文件不存在: {config_path}\n"
-            "请复制 config.example.json 为 config.json 并填写配置"
+            f"配置文件不存在: {config_path}\n请复制 config.example.json 为 config.json 并填写配置"
         )
 
     with open(config_path, "r", encoding="utf-8") as f:

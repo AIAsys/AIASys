@@ -59,9 +59,9 @@ if TYPE_CHECKING:
         DeleteKnowledgeGraph,
         GetCommunityReport,
         GetKnowledgeGraphEntityDetail,
-        SearchKnowledgeGraphEntities,
         ListKnowledgeGraphs,
         QueryEntityRelations,
+        SearchKnowledgeGraphEntities,
         UpdateGraphEntity,
         UploadDocumentsToGraph,
         get_graphrag_service_for_tools,
@@ -97,7 +97,6 @@ if TYPE_CHECKING:
     from .task_plan_tools import (
         EnterPlanModeTool,
         ExitPlanModeTool,
-        SetTodoList,
         TaskCreateTool,
         TaskListTool,
         TaskUpdateTool,

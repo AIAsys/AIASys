@@ -60,7 +60,7 @@ def create_llm_client(
         else str(_get_provider_attr(provider, "api_key") or "").strip()
     )
     base_url = str(_get_provider_attr(provider, "base_url") or "").strip() or None
-    region = str(_get_provider_attr(provider, "region") or "").strip() or None
+    _region = str(_get_provider_attr(provider, "region") or "").strip() or None
     reasoning_key = _get_provider_attr(provider, "reasoning_key")
     reasoning_format = _get_provider_attr(provider, "reasoning_format")
 

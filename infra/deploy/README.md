@@ -68,7 +68,7 @@ DEPLOY_TARGET=prod ./infra/deploy/deploy_init.sh
 - 如发布包已包含本地预构建的前端 `dist`，远端会自动跳过前端 `npm` 安装与 `npm run build`
 - `deploy_update.sh` 会校验 `package-lock.json` 哈希；依赖未变化时自动跳过远端 `npm ci`
 - 渲染并覆盖 `Nginx` 站点配置，将 `80` 端口统一反代到前后端
-- 先清理同名 PM2 旧进程，再使用 `pm2 start ecosystem.config.cjs --update-env` 启动前后端服务
+- 先清理同名 PM2 旧进程，再使用 `pm2 start ecosystem.config.cjs --update-env`（需自行准备 PM2 配置文件） 启动前后端服务
 - 自动执行本机烟测：`/health`、`/api/graph/health`、`/`
 
 ### 3. 后续更新
@@ -90,7 +90,7 @@ DEPLOY_TARGET=prod ./infra/deploy/deploy_update.sh
 - 如发布包已包含本地预构建的前端 `dist`，远端会自动跳过前端 `npm` 安装与 `npm run build`
 - 若前端依赖哈希未变化且远端已有 `node_modules`，会直接跳过 `npm ci`
 - 同步并重载 `Nginx` 反向代理配置
-- 先清理同名 PM2 旧进程，再用 `pm2 start ecosystem.config.cjs --update-env` 以最新路径与环境重建服务
+- 先清理同名 PM2 旧进程，再用 `pm2 start ecosystem.config.cjs --update-env`（需自行准备 PM2 配置文件） 以最新路径与环境重建服务
 - 自动执行本机烟测：`/health`、`/api/graph/health`、`/`
 
 ### 4. 检查服务器状态
@@ -175,18 +175,11 @@ pm2 restart all
 
 # 停止服务
 pm2 stop all
-
-# PostgreSQL 管理
-cd infra/docker/postgres
-./manage.sh status
-./manage.sh stop
-./manage.sh start
 ```
 
 说明：
 
-- 本地 `./dev.sh` 启动应用数据库时，调用的也是同一份 `infra/docker/postgres/manage.sh`。
-- 因此手动运维路径必须与该脚本保持一致，不能再写旧的 `infra/postgres`。
+- PostgreSQL 容器通过 `docker compose` 管理，详见 `infra/docker/postgres/README.md`。
 
 ## 目录结构
 

@@ -22,8 +22,6 @@ from .models import SkillInfo, SkillMetaInfo, SkillOperationResult
 
 logger = logging.getLogger(__name__)
 from .skill_discovery import (
-    ENTRY_FILE_NAME,
-    VERSIONS_DIR_NAME,
     _find_entry_file,
     _is_safe_name,
     _list_skill_packages,

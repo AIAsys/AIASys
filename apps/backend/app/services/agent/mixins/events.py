@@ -102,12 +102,8 @@ class EventMixin:
                 else tool_call_id
             ),
             agent_id=(str(event.get("agent_id")) if event.get("agent_id") else None),
-            subagent_type=(
-                str(event.get("subagent_type")) if event.get("subagent_type") else None
-            ),
-            subagent_name=(
-                str(event.get("subagent_name")) if event.get("subagent_name") else None
-            ),
+            subagent_type=(str(event.get("subagent_type")) if event.get("subagent_type") else None),
+            subagent_name=(str(event.get("subagent_name")) if event.get("subagent_name") else None),
         )
 
     def _convert_to_event(
@@ -249,7 +245,7 @@ class EventMixin:
             payload: dict[str, Any] = {}
             if item.text:
                 try:
-                    payload = json.loads(item.text)
+                    payload = json.loads(item.text)  # noqa: F823
                 except json.JSONDecodeError:
                     payload = {}
             return {
@@ -311,17 +307,13 @@ class EventMixin:
                 "tool_call_id": getattr(item, "id", str(uuid.uuid4())),
                 "tool_name": (getattr(func, "name", None) if func is not None else None)
                 or "unknown",
-                "arguments_text": (
-                    getattr(func, "arguments", None) if func is not None else None
-                ),
+                "arguments_text": (getattr(func, "arguments", None) if func is not None else None),
                 "arguments_parts": [],
             }
             return events
 
         runtime_event = (
-            item
-            if isinstance(item, AgentRuntimeEvent)
-            else self._coerce_runtime_event(item, state)
+            item if isinstance(item, AgentRuntimeEvent) else self._coerce_runtime_event(item, state)
         )
         if runtime_event is None:
             return events
@@ -340,26 +332,19 @@ class EventMixin:
             if tool_call_id:
                 state["tool_call_map"][tool_call_id] = tool_name
                 if is_subagent_dispatch_tool_name(tool_name):
-                    subagent_name = (
-                        str(runtime_event.subagent_name or "").strip() or None
-                    )
+                    subagent_name = str(runtime_event.subagent_name or "").strip() or None
                     if subagent_name is None:
                         subagent_name = extract_subagent_display_name(
                             tool_name,
                             runtime_event.arguments or {},
                         )
-                    subagent_type = (
-                        str(runtime_event.subagent_type or "").strip() or None
-                    )
-                    raw_subagent_type = (runtime_event.arguments or {}).get(
-                        "subagent_type"
-                    )
+                    subagent_type = str(runtime_event.subagent_type or "").strip() or None
+                    raw_subagent_type = (runtime_event.arguments or {}).get("subagent_type")
                     if subagent_type is None and isinstance(raw_subagent_type, str):
                         subagent_type = raw_subagent_type.strip() or None
                     state["task_call_map"][tool_call_id] = {
                         "tool_call_id": tool_call_id,
-                        "parent_tool_call_id": runtime_event.parent_tool_call_id
-                        or tool_call_id,
+                        "parent_tool_call_id": runtime_event.parent_tool_call_id or tool_call_id,
                         "subagent_name": subagent_name,
                         "subagent_type": subagent_type,
                         "agent_id": runtime_event.agent_id,
@@ -449,10 +434,7 @@ class EventMixin:
         tool_name = project_runtime_tool_event_name(raw_tool_name) or "unknown"
         subagent_name = extract_subagent_display_name(raw_tool_name, arguments)
         requested_subagent_type = arguments.get("subagent_type")
-        if (
-            not isinstance(requested_subagent_type, str)
-            or not requested_subagent_type.strip()
-        ):
+        if not isinstance(requested_subagent_type, str) or not requested_subagent_type.strip():
             requested_subagent_type = None
         is_dispatch_tool = is_subagent_dispatch_tool_name(raw_tool_name)
 
@@ -581,9 +563,7 @@ class EventMixin:
         state: dict[str, Any],
     ) -> AgentRuntimeEvent | None:
         parent_tool_call_id = getattr(msg, "parent_tool_call_id", None)
-        task_tool_call_id = parent_tool_call_id or getattr(
-            msg, "task_tool_call_id", None
-        )
+        task_tool_call_id = parent_tool_call_id or getattr(msg, "task_tool_call_id", None)
         task_context = None
         if task_tool_call_id and task_tool_call_id in state["task_call_map"]:
             task_context = state["task_call_map"][task_tool_call_id]
@@ -680,9 +660,7 @@ class EventMixin:
         if _is_tool_call(event):
             func = getattr(event, "function", None)
             tool_call_id = getattr(event, "id", str(uuid.uuid4()))
-            raw_tool_name = (
-                getattr(func, "name", None) if func is not None else None
-            ) or "unknown"
+            raw_tool_name = (getattr(func, "name", None) if func is not None else None) or "unknown"
             tool_name = project_runtime_tool_event_name(raw_tool_name) or "unknown"
             if task_context is not None:
                 task_context.setdefault("tool_call_map", {})[tool_call_id] = tool_name
@@ -712,9 +690,7 @@ class EventMixin:
                 return_value = getattr(event, "return_value", None)
                 if hasattr(return_value, "output") and getattr(return_value, "output"):
                     content = return_value.output
-                elif hasattr(return_value, "message") and getattr(
-                    return_value, "message"
-                ):
+                elif hasattr(return_value, "message") and getattr(return_value, "message"):
                     content = return_value.message
 
             return AgentRuntimeEvent(
@@ -734,9 +710,7 @@ class EventMixin:
             token_usage = getattr(event, "token_usage", None)
             return AgentRuntimeEvent(
                 kind="token_usage",
-                input_tokens=(
-                    getattr(token_usage, "input_other", 0) if token_usage else 0
-                ),
+                input_tokens=(getattr(token_usage, "input_other", 0) if token_usage else 0),
                 output_tokens=getattr(token_usage, "output", 0) if token_usage else 0,
             )
 
@@ -765,11 +739,7 @@ def _is_think_part(item: Any) -> bool:
 
 
 def _is_tool_call(item: Any) -> bool:
-    return (
-        _class_name(item) == "ToolCall"
-        and hasattr(item, "id")
-        and hasattr(item, "function")
-    )
+    return _class_name(item) == "ToolCall" and hasattr(item, "id") and hasattr(item, "function")
 
 
 def _is_tool_call_part(item: Any) -> bool:

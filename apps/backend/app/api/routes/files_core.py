@@ -105,9 +105,9 @@ async def upload_file(
             "uploaded_by": current_user.user_id,
         }
 
-    except ValueError as e:
+    except ValueError:
         raise HTTPException(status_code=400, detail="Operation failed")
-    except PermissionError as e:
+    except PermissionError:
         raise HTTPException(status_code=403, detail="Operation failed")
     except Exception as e:
         logger.error(f"上传失败: {e}")

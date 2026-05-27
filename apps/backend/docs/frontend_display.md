@@ -644,7 +644,3 @@ async function replayExecution(sessionId: string) {
   }
 }
 ```
-实时效果
-  }
-}
-```

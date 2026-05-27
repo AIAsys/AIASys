@@ -8,7 +8,7 @@ from app.agents.tools.ask_user.models import (
     AskUserStore,
     AskUserType,
 )
-from app.agents.tools.ask_user.tool import AskUserParams, AskUser, get_ask_user_tool
+from app.agents.tools.ask_user.tool import AskUser, AskUserParams, get_ask_user_tool
 
 __all__ = [
     "AskUserType",

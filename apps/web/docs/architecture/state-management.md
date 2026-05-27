@@ -17,8 +17,6 @@
 
 - `useAgentStream.ts`
   Agent 流式执行封装
-- `useAgentStream.ts`
-  Agent 流式执行封装
 - `useMultiTaskEventStream.ts`
   任务事件与执行流状态
 - `useExecutionHistory.ts`

@@ -23,9 +23,7 @@ def _load_skip_this_tool() -> type[Exception]:
 
 def _render_capability_section(capabilities: set[str]) -> str:
     if "image_in" in capabilities and "video_in" in capabilities:
-        return (
-            "**Capabilities**\n" "- This tool supports image and video files for the current model."
-        )
+        return "**Capabilities**\n- This tool supports image and video files for the current model."
     if "image_in" in capabilities:
         return (
             "**Capabilities**\n"
@@ -38,7 +36,7 @@ def _render_capability_section(capabilities: set[str]) -> str:
             "- This tool supports video files for the current model.\n"
             "- Image files are not supported by the current model."
         )
-    return "**Capabilities**\n" "- The current model does not support image or video input."
+    return "**Capabilities**\n- The current model does not support image or video input."
 
 
 def _load_desc_text(capabilities: set[str]) -> str:
@@ -272,12 +270,11 @@ class ReadMediaFile(AiasysTool):
             )
 
         data = host_path.read_bytes()
-        image_size: tuple[int, int] | None = None
 
         if file_type.kind == "image":
             data_url = _to_data_url(file_type.mime_type, data)
             wrapped = _wrap_media_payload("image", data_url, visible_path)
-            image_size = _extract_image_size(data)
+            _image_size = _extract_image_size(data)
         else:
             data_url = _to_data_url(file_type.mime_type, data)
             wrapped = _wrap_media_payload("video", data_url, visible_path)
@@ -287,17 +284,17 @@ class ReadMediaFile(AiasysTool):
     @staticmethod
     def _build_expected_error(exc: Exception) -> ToolResult:
         if isinstance(exc, ValueError):
-            brief = "Invalid path"
+            _brief = "Invalid path"
         elif isinstance(exc, PermissionError):
-            brief = "Permission denied"
+            _brief = "Permission denied"
         elif isinstance(exc, FileNotFoundError):
-            brief = "File not found"
+            _brief = "File not found"
         elif isinstance(exc, IsADirectoryError):
-            brief = "Invalid path"
+            _brief = "Invalid path"
         elif isinstance(exc, RuntimeError):
-            brief = "Workspace unavailable"
+            _brief = "Workspace unavailable"
         else:
-            brief = "Failed to read file"
+            _brief = "Failed to read file"
         return ToolResult(content=str(exc), is_error=True)
 
     @override

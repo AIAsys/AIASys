@@ -119,4 +119,3 @@ apps/backend/
 
 - `apps/backend/docs/README.md`
 - 根目录开发入口：`dev.sh`（聚合 `check/setup/start/start-local/restart/restart-local/stop/status/logs`）
-- 根协作规则：`.agents/skills/.ai-rules/SKILL.md`

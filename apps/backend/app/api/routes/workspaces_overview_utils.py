@@ -454,7 +454,7 @@ async def _build_workspace_overview(
             enabled_role_ids=enabled_role_ids,
             status="ready" if role_ids else "empty",
         )
-    except Exception as exc:
+    except Exception:
         expert_status = WorkspaceOverviewExperts(
             status="unavailable",
             detail="Operation failed",

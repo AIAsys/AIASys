@@ -1,0 +1,40 @@
+# EditorConfig is a standard way to define coding styles across editors and IDEs.
+# https://editorconfig.org
+
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+indent_style = space
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+# Python: 4-space indentation (PEP 8)
+[*.py]
+indent_size = 4
+
+# Frontend (TypeScript, JavaScript, JSON, CSS, HTML, YAML): 2-space indentation
+[*.{ts,tsx,js,jsx,json,css,html,md,yaml,yml}]
+indent_size = 2
+
+# Makefile: tabs are required
+[Makefile]
+indent_style = tab
+indent_size = 4
+
+# Markdown: trailing whitespace is sometimes intentional (e.g. line breaks)
+[*.md]
+trim_trailing_whitespace = false
+
+# Shell scripts
+[*.{sh,bash}]
+indent_size = 2
+
+# TOML config
+[*.toml]
+indent_size = 2
+
+# dotfiles
+[.{editorconfig,gitignore,gitattributes,env*}]
+indent_size = 2

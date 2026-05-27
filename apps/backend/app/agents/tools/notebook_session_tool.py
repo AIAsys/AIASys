@@ -23,7 +23,6 @@ from app.agents.tools.notebook_utils import (
     ensure_notebook_shape,
     load_notebook,
     resolve_notebook_targets,
-    resolve_session_root_from_context,
     resolve_workspace_root_from_context,
     source_to_text,
     summarize_cells,

@@ -13,6 +13,7 @@ import logging
 import shutil
 from datetime import datetime, timedelta
 from pathlib import Path
+from typing import Any
 
 from croniter import croniter
 from filelock import FileLock
@@ -87,7 +88,14 @@ def _parse_datetime(value: str | None) -> datetime | None:
 
 
 def _auto_tasks_dir(user_id: str, workspace_id: str) -> Path:
-    return Path(WORKSPACE_DIR) / user_id / workspace_id / ".aiasys" / "workspace" / _AUTO_TASKS_DIR_NAME
+    return (
+        Path(WORKSPACE_DIR)
+        / user_id
+        / workspace_id
+        / ".aiasys"
+        / "workspace"
+        / _AUTO_TASKS_DIR_NAME
+    )
 
 
 def _tasks_file(user_id: str, workspace_id: str) -> Path:
@@ -300,7 +308,9 @@ class AutoTaskStore:
                 if workspace_dir.name.startswith(".") or not workspace_dir.is_dir():
                     continue
                 workspace_id = workspace_dir.name
-                tasks_path = workspace_dir / ".aiasys" / "workspace" / _AUTO_TASKS_DIR_NAME / "tasks.json"
+                tasks_path = (
+                    workspace_dir / ".aiasys" / "workspace" / _AUTO_TASKS_DIR_NAME / "tasks.json"
+                )
                 if not tasks_path.exists():
                     continue
                 if not (workspace_dir / ".aiasys" / "workspace" / "workspace.json").exists():

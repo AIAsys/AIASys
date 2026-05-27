@@ -8,7 +8,6 @@ from app.core.config import (
     GLOBAL_RESOURCE_SCAN_LIMIT,
     RESOURCE_PROMPT_ITEM_LIMIT,
     WORKSPACE_DIR,
-    get_user_global_resources_dir,
     get_user_global_workspace_dir,
 )
 from app.knowledge import get_sqlite_kb_service

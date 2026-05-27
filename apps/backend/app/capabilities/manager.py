@@ -259,7 +259,6 @@ class CapabilityManager:
         target_path = self._resolve_target_path(workspace_path, scope)
         declarations = self._read_declarations(target_path)
         results: dict[str, HealthStatus] = {}
-        ctx = CapabilityProviderContext(scope=scope)
         for cap_id, decl in declarations.items():
             if not decl.enabled:
                 continue

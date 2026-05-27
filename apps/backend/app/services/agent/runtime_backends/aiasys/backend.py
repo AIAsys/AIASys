@@ -154,7 +154,7 @@ def _instantiate_tool(
     if isinstance(tool, AiasysTool):
         return tool
     raise TypeError(
-        f"Tool {tool_path} is not an AiasysTool instance. " f"Got {type(tool).__name__} instead."
+        f"Tool {tool_path} is not an AiasysTool instance. Got {type(tool).__name__} instead."
     )
 
 
@@ -240,7 +240,7 @@ class AiasysRuntimeBackend:
         if provider_entry is None:
             raise ValueError("未找到可用的 LLM provider 配置")
 
-        protocol = str(
+        _protocol = str(
             _read_config_value(provider_entry, "protocol")
             or _read_config_value(provider_entry, "type")
             or "openai_chat_completions"

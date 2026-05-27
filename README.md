@@ -441,6 +441,8 @@ MCP 市场和 Skill 市场的生态决定了系统能力没有固定上限。新
 
 普通办公人群用 AIASys 处理日常工作：接入 Office MCP 之后，Agent 可以直接读写 PPT、Excel、Word 文件，"把这个 Excel 的销售数据整理成一张汇总表，再生成一份 PPT，第一页放总览，后面按品类拆"，一句话搞定。接入飞书或企业微信的 MCP 后，可以通过聊天工具远程给 Agent 派任务、收通知。接浏览器控制的 MCP 后，Agent 自己上网查资料、填表单、采集数据。
 
+MCP 市场和 Skill 市场的生态决定了系统能力没有固定上限。新的 MCP Server 接入新的数据源和工具，新的 Skill 注入新的领域 know-how。上面的场景只是当前能力的一个截面。
+
 ---
 
 ## 技术栈和项目结构
@@ -478,7 +480,6 @@ AIASys/
 │   │       └── hooks/
 │   └── desktop/              # Electron 桌面壳
 ├── docs/                     # 用户文档
-├── .agents/                  # AI 协作配置（Skill 定义、MCP 配置、任务会话）
 ├── infra/                    # Docker + Nginx 部署
 └── scripts/                  # 项目级工具脚本
 ```

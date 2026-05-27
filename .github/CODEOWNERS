@@ -1,0 +1,14 @@
+# AIASys CODEOWNERS
+# 代码审查自动指派规则。当 PR 涉及指定路径时，自动请求对应 Owner 审查。
+# 文档：https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# 全局默认 Owner（后端核心）
+* @li-xiu-qi
+
+# 前端相关
+apps/web/ @li-xiu-qi
+apps/desktop/ @li-xiu-qi
+
+# CI / 部署 / 基础设施
+.github/ @li-xiu-qi
+infra/ @li-xiu-qi

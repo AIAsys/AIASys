@@ -7,7 +7,10 @@ import re
 import shlex
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from app.services.workspace_registry import WorkspaceRegistryService
 
 from app.core.config import WORKSPACE_DIR
 from app.models.container_resource import (

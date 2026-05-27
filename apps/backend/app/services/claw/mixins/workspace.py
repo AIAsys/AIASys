@@ -7,7 +7,6 @@ import mimetypes
 import re
 import shutil
 from pathlib import Path
-from typing import Any
 
 from app.models.claw import ClawAttachmentSummary
 

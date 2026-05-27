@@ -497,8 +497,7 @@ def load_gateway_config() -> GatewayConfig:
                     gw_data["quick_commands"] = qc
                 else:
                     logger.warning(
-                        "Ignoring invalid quick_commands in config.yaml "
-                        "(expected mapping, got %s)",
+                        "Ignoring invalid quick_commands in config.yaml (expected mapping, got %s)",
                         type(qc).__name__,
                     )
 
@@ -771,7 +770,7 @@ def _validate_gateway_config(config: "GatewayConfig") -> None:
         env_name = _token_env_names.get(platform)
         if env_name and pconfig.token is not None and not pconfig.token.strip():
             logger.warning(
-                "%s is enabled but %s is empty. " "The adapter will likely fail to connect.",
+                "%s is enabled but %s is empty. The adapter will likely fail to connect.",
                 platform.value,
                 env_name,
             )
@@ -1074,9 +1073,9 @@ def _apply_env_overrides(config: GatewayConfig) -> None:
             config.platforms[Platform.FEISHU].extra["encrypt_key"] = feishu_encrypt_key
         feishu_verification_token = os.getenv("FEISHU_VERIFICATION_TOKEN", "")
         if feishu_verification_token:
-            config.platforms[Platform.FEISHU].extra[
-                "verification_token"
-            ] = feishu_verification_token
+            config.platforms[Platform.FEISHU].extra["verification_token"] = (
+                feishu_verification_token
+            )
         feishu_home = os.getenv("FEISHU_HOME_CHANNEL")
         if feishu_home:
             config.platforms[Platform.FEISHU].home_channel = HomeChannel(

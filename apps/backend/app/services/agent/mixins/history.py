@@ -186,7 +186,9 @@ class HistoryMixin:
             # 使用标准 Path 而不是 WorkspacePath，避免异步 exists() 问题
             from pathlib import Path as StdPath
 
-            session_file = StdPath(str(work_dir)) / ".aiasys" / "session" / session_id / "context.jsonl"
+            session_file = (
+                StdPath(str(work_dir)) / ".aiasys" / "session" / session_id / "context.jsonl"
+            )
             session_dir = session_file.parent
 
             history = []

@@ -336,7 +336,7 @@ class UpdateAutoTask(AiasysTool):
 
     name = "UpdateAutoTask"
     description = (
-        "修改已有自动任务的触发配置、目标指令、续推设置或停止条件。" "至少提供一个需要更新的字段。"
+        "修改已有自动任务的触发配置、目标指令、续推设置或停止条件。至少提供一个需要更新的字段。"
     )
     parameters = {
         "type": "object",

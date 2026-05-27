@@ -8,7 +8,6 @@ import logging
 from pathlib import Path
 from typing import Any, Optional
 
-from app.core.config import WORKSPACE_DIR
 from app.core.encryption import EncryptionError, encryption_service
 from app.services.memory.constants import MEMORY_DIR_NAME
 from app.services.workspace_registry import get_workspace_registry_service
@@ -34,7 +33,9 @@ class ClawStorageMixin:
         return self._get_user_root(user_id) / ".config" / _CLAW_CONFIG_FILE
 
     def _get_session_binding_path(self, user_id: str, session_id: str) -> Path:
-        return self._get_user_root(user_id) / session_id / ".aiasys" / "session" / _CLAW_BINDING_FILE
+        return (
+            self._get_user_root(user_id) / session_id / ".aiasys" / "session" / _CLAW_BINDING_FILE
+        )
 
     def _get_user_hermes_home(self, user_id: str) -> Path:
         path = self._get_user_root(user_id) / ".claw" / "hermes-home"

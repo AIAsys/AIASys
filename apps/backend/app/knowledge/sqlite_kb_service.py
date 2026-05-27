@@ -123,6 +123,7 @@ class SQLiteKBService:
     def _legacy_db_path(user_id: str, kb_id: str) -> Path:
         """旧版全局资源路径，用于兼容旧数据。"""
         from app.core.config import get_user_global_resources_dir
+
         return get_user_global_resources_dir(user_id) / "knowledge" / f"{kb_id}.db"
 
     @staticmethod
@@ -148,10 +149,14 @@ class SQLiteKBService:
         from app.core.database import db_session as _db_session
 
         with _db_session() as db:
-            kb = db.query(KnowledgeBaseORM).filter(
-                KnowledgeBaseORM.id == kb_id,
-                KnowledgeBaseORM.user_id == user_id,
-            ).first()
+            kb = (
+                db.query(KnowledgeBaseORM)
+                .filter(
+                    KnowledgeBaseORM.id == kb_id,
+                    KnowledgeBaseORM.user_id == user_id,
+                )
+                .first()
+            )
 
         if kb is not None:
             scope = getattr(kb, "scope", None)
@@ -210,6 +215,7 @@ class SQLiteKBService:
             # 解析 workspace_root：未传时 fallback 到旧全局路径（API 直接调用场景）
             if workspace_root is None:
                 from app.core.config import get_user_global_workspace_dir
+
                 workspace_root = get_user_global_workspace_dir(user_id)
                 scope = "global"
 
@@ -917,7 +923,9 @@ class SQLiteKBService:
             search_mode=(
                 search_mode.value
                 if isinstance(search_mode, SearchMode)
-                else str(search_mode) if search_mode is not None else None
+                else str(search_mode)
+                if search_mode is not None
+                else None
             ),
             embedding_model=embedding_model,
             chunk_size=chunk_size,

@@ -10,7 +10,6 @@ from pydantic import BaseModel, Field, field_validator
 from app.core.auth import require_auth
 from app.core.config import WORKSPACE_DIR
 from app.core.templates import (
-    apply_template_to_workspace,
     build_template_payload,
     delete_user_template,
     export_workspace_as_template,

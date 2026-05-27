@@ -59,14 +59,14 @@ jobs:
       - name: Install dependencies
         run: uv sync --frozen
 
-      - name: Black format check
-        run: uv run black --check app/
-
-      - name: isort check
-        run: uv run isort --check app/
+      - name: Ruff format check
+        run: uv run ruff format --check app/
 
       - name: Pylint check
         run: uv run pylint --disable=R,C app/
+
+      - name: Type check (mypy, warn-only)
+        run: uv run mypy app/ || true
 
       - name: Run tests
         run: uv run pytest -v

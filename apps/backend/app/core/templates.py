@@ -300,7 +300,7 @@ def list_workspace_templates(
 
     templates = list(by_id.values())
     # 空白模板始终排在最前面
-    templates.sort(key=lambda t: ("" if t.template_id == "blank-workspace" else t.name))
+    templates.sort(key=lambda t: "" if t.template_id == "blank-workspace" else t.name)
     return templates
 
 

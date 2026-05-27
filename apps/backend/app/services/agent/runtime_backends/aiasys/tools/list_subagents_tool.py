@@ -6,7 +6,6 @@ AIASys 子 Agent 目录查询工具 (ListSubagentsTool)。
 
 from __future__ import annotations
 
-import json
 import logging
 from typing import Any
 
@@ -41,7 +40,7 @@ class ListSubagentsTool(AiasysTool):
     """查询当前可派发的协作专家目录。"""
 
     name = "ListSubagents"
-    description = "列出当前可派发的协作专家目录。" "参数: scope(过滤作用域, 可选)"
+    description = "列出当前可派发的协作专家目录。参数: scope(过滤作用域, 可选)"
     parameters = _LIST_PARAMETERS
 
     async def invoke(

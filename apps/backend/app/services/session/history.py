@@ -20,7 +20,12 @@ class HistoryMixin:
             HISTORY_SNAPSHOT_FILE_NAME,
         )
 
-        return session_dir / ".aiasys/session" / ACTIVE_SESSION_STATE_DIR_NAME / HISTORY_SNAPSHOT_FILE_NAME
+        return (
+            session_dir
+            / ".aiasys/session"
+            / ACTIVE_SESSION_STATE_DIR_NAME
+            / HISTORY_SNAPSHOT_FILE_NAME
+        )
 
     def _read_history_snapshot(self, session_dir: Path) -> list[dict]:
         """读取当前历史快照信封格式。"""

@@ -39,7 +39,7 @@ class DeleteSubagentTool(AiasysTool):
     """删除子 Agent（专家）。"""
 
     name = "DeleteSubagent"
-    description = "删除子 Agent（专家）。" "支持删除全局、工作区级专家。" "参数: name(必填), scope"
+    description = "删除子 Agent（专家）。支持删除全局、工作区级专家。参数: name(必填), scope"
     parameters = _DELETE_PARAMETERS
 
     async def invoke(

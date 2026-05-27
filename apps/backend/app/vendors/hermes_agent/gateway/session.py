@@ -51,15 +51,15 @@ def _hash_chat_id(value: str) -> str:
     colon = value.find(":")
     if colon > 0:
         prefix = value[:colon]
-        return f"{prefix}:{_hash_id(value[colon + 1:])}"
+        return f"{prefix}:{_hash_id(value[colon + 1 :])}"
     return _hash_id(value)
 
 
-from .config import SessionResetPolicy  # noqa: F401 — re-exported via gateway/__init__.py
 from .config import (
     GatewayConfig,
     HomeChannel,
     Platform,
+    SessionResetPolicy,  # noqa: F401 — re-exported via gateway/__init__.py
 )
 
 

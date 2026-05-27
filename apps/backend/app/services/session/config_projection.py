@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
-from app.core.config import WORKSPACE_DIR, get_user_global_config_dir
+from app.core.config import get_user_global_config_dir
 from app.models.task_profile import build_task_profile_summary
 from app.services.agent_config import AgentMode, get_agent_config_service
 from app.services.memory import resolve_session_memory_preview
@@ -15,7 +15,9 @@ from app.skills import get_skill_manager
 
 CONFIG_DIR_RELATIVE_PATH = Path(".aiasys")
 DATABASE_MOUNT_RELATIVE_PATH = CONFIG_DIR_RELATIVE_PATH / "database-mounts.json"
-RUNTIME_CONFIG_STATE_RELATIVE_PATH = Path(".aiasys/session") / "config" / "runtime-config-state.json"
+RUNTIME_CONFIG_STATE_RELATIVE_PATH = (
+    Path(".aiasys/session") / "config" / "runtime-config-state.json"
+)
 _STATE_UNSET = object()
 
 

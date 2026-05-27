@@ -1084,19 +1084,19 @@ class FeishuAdapter(BasePlatformAdapter):
         self._dedup_state_path = get_hermes_home() / "feishu_seen_message_ids.json"
         self._dedup_lock = threading.Lock()
         self._sender_name_cache: Dict[str, tuple[str, float]] = {}  # sender_id → (name, expire_at)
-        self._webhook_rate_counts: Dict[str, tuple[int, float]] = (
-            {}
-        )  # rate_key → (count, window_start)
-        self._webhook_anomaly_counts: Dict[str, tuple[int, str, float]] = (
-            {}
-        )  # ip → (count, last_status, first_seen)
+        self._webhook_rate_counts: Dict[
+            str, tuple[int, float]
+        ] = {}  # rate_key → (count, window_start)
+        self._webhook_anomaly_counts: Dict[
+            str, tuple[int, str, float]
+        ] = {}  # ip → (count, last_status, first_seen)
         self._card_action_tokens: Dict[str, float] = {}  # token → first_seen_time
-        self._chat_locks: Dict[str, asyncio.Lock] = (
-            {}
-        )  # chat_id → lock (per-chat serial processing)
-        self._sent_message_ids_to_chat: Dict[str, str] = (
-            {}
-        )  # message_id → chat_id (for reaction routing)
+        self._chat_locks: Dict[
+            str, asyncio.Lock
+        ] = {}  # chat_id → lock (per-chat serial processing)
+        self._sent_message_ids_to_chat: Dict[
+            str, str
+        ] = {}  # message_id → chat_id (for reaction routing)
         self._sent_message_id_order: List[str] = []  # LRU order for _sent_message_ids_to_chat
         self._chat_info_cache: Dict[str, Dict[str, Any]] = {}
         self._message_text_cache: Dict[str, Optional[str]] = {}

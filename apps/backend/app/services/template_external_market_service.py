@@ -12,7 +12,6 @@ from pathlib import Path
 from typing import Any
 
 from app.core.templates import (
-    _TEMPLATES_DIR,
     _get_user_templates_dir,
     _is_safe_template_id,
     _list_template_dirs,

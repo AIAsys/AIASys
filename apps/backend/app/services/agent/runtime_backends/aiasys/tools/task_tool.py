@@ -9,7 +9,6 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import time
 import tomllib
 import uuid
 from collections.abc import AsyncGenerator
@@ -538,8 +537,7 @@ class TaskTool(AiasysTool):
         if not registered:
             yield ToolResult(
                 content=(
-                    f"当前会话协作节点并发数已达到上限 {max_threads}，"
-                    "请等待已有节点完成后再派发。"
+                    f"当前会话协作节点并发数已达到上限 {max_threads}，请等待已有节点完成后再派发。"
                 ),
                 is_error=True,
             )

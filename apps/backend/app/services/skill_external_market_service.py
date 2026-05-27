@@ -7,14 +7,12 @@ AIASys 自己的"外部 Skill 市场"供给层。
 
 from __future__ import annotations
 
-import asyncio
 import hashlib
 import logging
 import os
 import re
 import shutil
 import tempfile
-import time
 import zipfile
 from collections import OrderedDict
 from io import BytesIO
@@ -987,7 +985,7 @@ class AIASysBuiltinSkillAdapter(ExternalSkillMarketAdapter):
         )
 
     async def get_item_detail(self, item_id: str) -> ExternalSkillMarketDetailResponse:
-        from app.skills.skill_discovery import _find_entry_file, _is_safe_name, _parse_skill_info
+        from app.skills.skill_discovery import _is_safe_name, _parse_skill_info
 
         if not _is_safe_name(item_id):
             raise ValueError(f"无效的 Skill 名称: {item_id}")

@@ -20,7 +20,6 @@ from app.agents.tools.notebook_utils import (
     find_cell_index,
     load_notebook,
     resolve_notebook_targets,
-    resolve_session_root_from_context,
     resolve_workspace_root_from_context,
     sanitize_notebook_for_agent,
     source_to_text,
