@@ -1,0 +1,16 @@
+-- AIASys PostgreSQL 初始化脚本
+CREATE USER smoke WITH PASSWORD 'smoke';
+CREATE DATABASE smoke_db OWNER smoke;
+GRANT ALL PRIVILEGES ON DATABASE smoke_db TO smoke;
+
+CREATE USER demo WITH PASSWORD 'demo';
+CREATE DATABASE demo OWNER demo;
+GRANT ALL PRIVILEGES ON DATABASE demo TO demo;
+
+CREATE USER readonly WITH PASSWORD 'readonly';
+GRANT CONNECT ON DATABASE demo TO readonly;
+
+CREATE USER writer WITH PASSWORD 'writer';
+GRANT CONNECT ON DATABASE demo TO writer;
+
+GRANT CONNECT ON DATABASE acceptance_external_connector TO smoke;

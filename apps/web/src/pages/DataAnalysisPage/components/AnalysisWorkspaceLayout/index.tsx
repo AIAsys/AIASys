@@ -1,0 +1,260 @@
+import { lazy, Suspense, useCallback, useEffect, useState } from "react";
+import { updateTaskWorkspace } from "@/lib/api/workspaces";
+import { DesignSidebar } from "@/components/layout/DesignSidebar";
+import { MainContent } from "./MainContent";
+import { WorkspaceDeleteDialog } from "./components/WorkspaceDeleteDialog";
+import { WorkspaceGlobalDialogs } from "./components/WorkspaceGlobalDialogs";
+import { useAnalysisRouteSync } from "./hooks/useAnalysisRouteSync";
+import { useSidebarTabRequest } from "./hooks/useSidebarTabRequest";
+import { useWorkspaceLifecycleActions } from "./hooks/useWorkspaceLifecycleActions";
+import type { AnalysisWorkspaceLayoutProps } from "./types";
+
+import { useAuthContext } from "@/contexts/AuthContext";
+
+export type { AnalysisWorkspaceLayoutProps } from "./types";
+
+const LazyGlobalSettingsDialog = lazy(() =>
+  import("@/components/settings/global-settings").then((module) => ({
+    default: module.GlobalSettingsDialog,
+  })),
+);
+
+
+
+export function AnalysisWorkspaceLayout({
+  apiBaseUrl,
+  executor,
+  workspaces,
+  isLoadingWorkspaces,
+  currentWorkspaceId,
+  currentWorkspace,
+  loadWorkspaces,
+  runtimeControls,
+  sessionLifecycle,
+  userModels,
+  selectedModelId,
+  effectiveModelDisplayName,
+  onSelectModel,
+  thinkingEnabled,
+  thinkingEffort,
+  setThinkingEnabled,
+  setThinkingEffort,
+  selectedModelSupportsThinking,
+  hasMessagesForMcp,
+  hasMCPConfig,
+  onDeleteSession,
+  onOpenDatabaseConnectionsDialog,
+  onCreateDatabaseConnectionDialog,
+  onOpenKnowledgeBaseDialog,
+  onOpenKnowledgeGraphDialog,
+  onOpenLLMConfigDialog,
+  onOpenToolConfig,
+  onViewToolDetails,
+}: AnalysisWorkspaceLayoutProps) {
+  const leaveProjectWorkspace = useCallback(() => {}, []);
+
+  const { activeTabRequest, requestSidebarTab } = useSidebarTabRequest(currentWorkspaceId);
+
+  const { navigateToWorkspaceConversation } = useAnalysisRouteSync({
+    currentWorkspace,
+    currentWorkspaceId,
+    executor,
+    isLoadingWorkspaces,
+    leaveProjectWorkspace,
+    workspaces,
+  });
+
+  const {
+    deleteWorkspaceError,
+    handleDeleteAllWorkspaces,
+    handleDeleteConversation,
+    handleDeleteSelectedWorkspaces,
+    handleDeleteWorkspace,
+    handleForkConversation,
+    handleNewSession,
+    handleNewTask,
+    handleRenameConversation,
+    handleSessionSelect,
+    handleBulkDeleteDialogOpenChange,
+    handleWorkspaceDeleteDialogOpenChange,
+    handleWorkspaceSelect,
+    bulkDeletePendingIds,
+    isDeletingWorkspace,
+    workspacePendingDeletion,
+    confirmDeleteAllWorkspaces,
+    confirmDeleteWorkspace,
+  } = useWorkspaceLifecycleActions({
+    apiBaseUrl,
+    currentWorkspace,
+    currentWorkspaceId,
+    executor,
+    leaveProjectWorkspace,
+    loadWorkspaces,
+    navigateToWorkspaceConversation,
+    onDeleteSession,
+    runtimeControls,
+    workspaces,
+  });
+
+  const [isChannelOpen, setIsChannelOpen] = useState(false);
+  const [isGlobalSettingsOpen, setIsGlobalSettingsOpen] = useState(false);
+  const [globalSettingsSection, setGlobalSettingsSection] = useState<import("@/components/settings/global-settings").SettingsSection>("capabilities");
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === ",") {
+        e.preventDefault();
+        const last = localStorage.getItem("aiasys:last-settings-section") as import("@/components/settings/global-settings").SettingsSection | null;
+        setGlobalSettingsSection(last ?? "capabilities");
+        setIsGlobalSettingsOpen(true);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
+
+  const { user } = useAuthContext();
+
+  const handleOpenAutoTaskManagement = () => handleOpenGlobalSettings("auto-tasks");
+  const handleOpenChannelSettings = () => setIsChannelOpen(true);
+  const handleOpenGlobalSettings = (section: import("@/components/settings/global-settings").SettingsSection) => {
+    setGlobalSettingsSection(section);
+    setIsGlobalSettingsOpen(true);
+  };
+  const handleOpenExecutionResources = () => handleOpenGlobalSettings("execution-resources");
+  const handleOpenWorkspaceSettings = handleOpenExecutionResources;
+  const handleOpenChannel = useCallback(() => {
+    setIsChannelOpen(true);
+  }, []);
+
+  const handleUpdateWorkspace = useCallback(
+    async (
+      workspaceId: string,
+      patch: { title?: string; description?: string | null },
+    ) => {
+      await updateTaskWorkspace(workspaceId, {
+        ...patch,
+        description: patch.description ?? undefined,
+      });
+      await loadWorkspaces();
+    },
+    [loadWorkspaces],
+  );
+
+
+
+  const sessionTitle =
+    sessionLifecycle.effectiveSessionStatus?.title ||
+    executor.conversations?.find(
+      (session) => session.session_id === executor.sessionId,
+    )?.title ||
+    null;
+  const isDeletingCurrentWorkspace = Boolean(
+    workspacePendingDeletion &&
+    workspacePendingDeletion.workspaceId === currentWorkspaceId,
+  );
+
+  return (
+    <>
+      <DesignSidebar
+        collapsed={executor.sidebarMode === "collapsed"}
+        workspaces={workspaces}
+        currentWorkspaceId={currentWorkspaceId}
+        isLoadingHistory={executor.isLoadingHistory || isLoadingWorkspaces}
+        onWorkspaceSelect={handleWorkspaceSelect}
+        onDeleteWorkspace={handleDeleteWorkspace}
+        onDeleteAllWorkspaces={handleDeleteAllWorkspaces}
+        onDeleteSelectedWorkspaces={handleDeleteSelectedWorkspaces}
+        onNewTask={handleNewTask}
+        onUpdateWorkspace={handleUpdateWorkspace}
+        onOpenGlobalSettings={handleOpenGlobalSettings}
+        onOpenChannel={handleOpenChannel}
+        onOpenChannelSettings={handleOpenChannelSettings}
+        onClose={() => executor.setSidebarMode("collapsed")}
+        onExpand={() => executor.setSidebarMode("expanded")}
+      />
+
+      <WorkspaceDeleteDialog
+        open={Boolean(workspacePendingDeletion)}
+        workspaceTitle={workspacePendingDeletion?.title ?? null}
+        isCurrentWorkspace={isDeletingCurrentWorkspace}
+        deleteWorkspaceError={deleteWorkspaceError}
+        isDeletingWorkspace={isDeletingWorkspace}
+        onOpenChange={handleWorkspaceDeleteDialogOpenChange}
+        onConfirmDelete={confirmDeleteWorkspace}
+      />
+
+      <WorkspaceDeleteDialog
+        open={Boolean(bulkDeletePendingIds)}
+        isCurrentWorkspace={false}
+        isBulkDelete
+        workspaceCount={bulkDeletePendingIds?.length ?? 0}
+        deleteWorkspaceError={deleteWorkspaceError}
+        isDeletingWorkspace={isDeletingWorkspace}
+        onOpenChange={handleBulkDeleteDialogOpenChange}
+        onConfirmDelete={confirmDeleteAllWorkspaces}
+      />
+
+      <MainContent
+        executor={executor}
+        runtimeControls={runtimeControls}
+        sessionLifecycle={sessionLifecycle}
+        workspaces={workspaces}
+        isLoadingWorkspaces={isLoadingWorkspaces}
+        userModels={userModels}
+        selectedModelId={selectedModelId}
+        effectiveModelDisplayName={effectiveModelDisplayName}
+        onSelectModel={onSelectModel}
+        thinkingEnabled={thinkingEnabled}
+        thinkingEffort={thinkingEffort}
+        setThinkingEnabled={setThinkingEnabled}
+        setThinkingEffort={setThinkingEffort}
+        selectedModelSupportsThinking={selectedModelSupportsThinking}
+        hasMessagesForMcp={hasMessagesForMcp}
+        hasMCPConfig={hasMCPConfig}
+        onOpenDatabaseConnectionsDialog={onOpenDatabaseConnectionsDialog}
+        onCreateDatabaseConnectionDialog={onCreateDatabaseConnectionDialog}
+        onOpenKnowledgeBaseDialog={onOpenKnowledgeBaseDialog}
+        onOpenKnowledgeGraphDialog={onOpenKnowledgeGraphDialog}
+        onOpenLLMConfigDialog={onOpenLLMConfigDialog}
+        onOpenToolConfig={onOpenToolConfig}
+        onViewToolDetails={onViewToolDetails}
+        sessionTitle={sessionTitle}
+        currentWorkspace={currentWorkspace}
+        onOpenGlobalAutoTask={handleOpenAutoTaskManagement}
+        onOpenWorkspaceSettings={handleOpenWorkspaceSettings}
+        onSelectWorkspace={handleWorkspaceSelect}
+        onSelectConversation={handleSessionSelect}
+        onNewConversation={handleNewSession}
+        onNewWorkspace={handleNewTask}
+        onForkConversation={handleForkConversation}
+        onRenameConversation={handleRenameConversation}
+        onDeleteConversation={handleDeleteConversation}
+        activeTabRequest={activeTabRequest}
+        requestSidebarTab={requestSidebarTab}
+      />
+
+      <WorkspaceGlobalDialogs
+        isChannelOpen={isChannelOpen}
+        onChannelOpenChange={setIsChannelOpen}
+        currentSessionId={executor.sessionId ?? null}
+        workspaces={workspaces}
+      />
+
+      <Suspense fallback={null}>
+        <LazyGlobalSettingsDialog
+          open={isGlobalSettingsOpen}
+          onOpenChange={setIsGlobalSettingsOpen}
+          initialSection={globalSettingsSection}
+          workspaceId={currentWorkspaceId ?? null}
+          workspaceTitle={currentWorkspace?.title ?? null}
+          userId={user?.id}
+          workspaces={workspaces}
+          availableModels={userModels}
+        />
+      </Suspense>
+
+    </>
+  );
+}

@@ -1,0 +1,8 @@
+[scenes.analysis]
+path = "./analysis/scene.toml"
+enabled = true
+
+# research 已合并为统一主控 + research-enhancement Skill
+# [scenes.research]
+# path = "./research/scene.toml"
+# enabled = false

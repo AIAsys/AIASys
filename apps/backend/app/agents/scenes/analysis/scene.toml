@@ -1,0 +1,17 @@
+scene_id = "analysis"
+display_name = "通用工作区"
+description = "面向任务执行、代码实验、数据分析、工作区视图维护与资源利用的通用工作场景"
+category = "通用任务"
+icon = "chart"
+tags = ["任务执行", "代码执行", "文件操作", "数据分析"]
+config_path = "local_sandbox_agent_config/data_analysis.preset"
+prompt_path = "local_sandbox_agent_config/general_host_prompt.md"
+agent_type = "analysis"
+requires_runtime = true
+permissions_summary = ["notebook_read", "workspace_view", "knowledge", "memory", "database"]
+
+[subagent_roles]
+data_analyst = { display_name = "数据分析专家", description = "擅长数据分析、代码实验、notebook 操作、数据可视化与数据库查询" }
+coder = { display_name = "代码专家", description = "擅长代码分析、实现方案梳理与修改建议输出" }
+researcher = { display_name = "研究专家", description = "擅长资料检索、文档阅读与证据归纳" }
+reviewer = { display_name = "审查专家", description = "擅长结果核对、差异比对与风险归纳" }

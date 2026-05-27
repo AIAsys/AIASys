@@ -1,0 +1,14 @@
+capability_id = "skill-creator-skill"
+kind = "skill_pack"
+display_name = "Skill 开发工作台"
+description = """创建和优化 AIASys 系统内置 Skill。当用户需要从零创建新 skill、
+改进现有 skill 的 SKILL.md 或脚本、或优化 skill 的 description 触发准确率时使用。
+涵盖 skill 结构设计、编写规范、验证方法和迭代优化流程。
+提供原生开发工具（skill_dev.py、trigger_test.py、improve_desc.py 等），
+支持版本管理、触发测试和自动优化，无需外部 CLI 工具。"""
+version = "1.0.0"
+author = "AIASys"
+dependencies = []
+min_platform_version = "0.1.0"
+
+[config_schema]

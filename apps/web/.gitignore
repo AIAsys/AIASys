@@ -1,0 +1,43 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# env files
+.env
+
+# Temporary artifacts and verification outputs
+# All temporary screenshots, console logs, and test artifacts
+# should go to ../../design-draft/archive/ instead
+.playwright-cli/
+artifacts/
+test-results/
+playwright-report/
+.vite/
+.pytest_cache/
+
+# One-off scripts for local verification/smoke testing.
+# If a script has lasting value, move it to apps/web/scripts/committed/
+# or to the project-level scripts/ directory.
+scripts/*.mjs
+scripts/*.py

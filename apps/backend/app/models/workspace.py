@@ -1,0 +1,461 @@
+"""
+任务工作区与对话投影模型
+"""
+
+from __future__ import annotations
+
+from typing import Any, Literal, Optional
+
+from pydantic import BaseModel, Field
+
+from app.models.session import ExecutionRecord, RecoveryPolicy
+from app.models.task_profile import TaskExecutionPolicy
+
+
+class WorkspaceRuntimeBinding(BaseModel):
+    sandbox_mode: Optional[str] = Field(
+        default=None,
+        description="工作区默认执行方式；为空表示当前任务未绑定 Python/沙盒环境",
+    )
+    env_id: Optional[str] = Field(
+        default=None,
+        description="工作区默认执行环境 ID；为空表示当前任务不带 Python 环境",
+    )
+    env_vars: Optional[dict[str, str]] = Field(
+        default=None,
+        description="注入到执行环境的环境变量（Shell / Python Kernel / Notebook）",
+    )
+
+
+class CreateWorkspaceRequest(BaseModel):
+    workspace_id: Optional[str] = Field(default=None, description="工作区 ID；为空时自动生成")
+    title: str = Field(default="新任务", description="工作区标题")
+    description: Optional[str] = Field(default=None, description="工作区描述")
+    workspace_kind: Literal["task", "claw"] = Field(
+        default="task",
+        description="工作区类型：task（普通任务）、claw（远程会话）",
+    )
+    execution_policy: Optional[TaskExecutionPolicy] = Field(
+        default=None,
+        description="工作区默认运行行为策略；为空时使用系统默认值",
+    )
+    initial_conversation_id: Optional[str] = Field(
+        default=None,
+        description="首个对话 ID；为空时自动生成",
+    )
+    initial_conversation_title: str = Field(
+        default="新对话",
+        description="首个对话标题",
+    )
+    recovery_policy: Optional[RecoveryPolicy] = Field(
+        default=None,
+        description="执行恢复策略",
+    )
+    code_timeout: Optional[int] = Field(
+        default=None,
+        description="代码执行超时（秒）",
+    )
+    runtime_binding: Optional[WorkspaceRuntimeBinding] = Field(
+        default=None,
+        description="工作区默认执行绑定；为空表示新工作区不绑定 Python/沙盒环境，显式传入 workspace-default 时才创建并绑定 Python 环境",
+    )
+    template_id: Optional[str] = Field(
+        default=None,
+        description="模板 ID；选择模板后工作区将预置模板内容",
+    )
+    install_capabilities: Optional[list[str]] = Field(
+        default=None,
+        description="创建时自动安装的能力 ID 列表（统一能力层）；为 None 时按模板 recommended_capabilities 全装",
+    )
+    template_files: Optional[list[str]] = Field(
+        default=None,
+        description="从模板导入时只导入指定的文件路径列表；为 None 时导入模板全部文件",
+    )
+
+
+class UpdateWorkspaceRequest(BaseModel):
+    title: Optional[str] = Field(default=None, description="工作区标题")
+    description: Optional[str] = Field(default=None, description="工作区描述")
+    execution_policy: Optional[TaskExecutionPolicy] = Field(
+        default=None,
+        description="工作区默认运行行为策略",
+    )
+    runtime_binding: Optional[WorkspaceRuntimeBinding] = Field(
+        default=None,
+        description="工作区默认执行绑定",
+    )
+
+
+class CreateConversationRequest(BaseModel):
+    conversation_id: Optional[str] = Field(default=None, description="对话 ID；为空时自动生成")
+    title: str = Field(default="新对话", description="对话标题")
+    execution_policy: Optional[TaskExecutionPolicy] = Field(
+        default=None,
+        description="当前会话运行行为策略；为空时继承工作区默认",
+    )
+    branched_from_conversation_id: Optional[str] = Field(
+        default=None,
+        description="来源对话 ID；为空表示新空对话",
+    )
+    recovery_policy: Optional[RecoveryPolicy] = Field(
+        default=None,
+        description="执行恢复策略",
+    )
+    code_timeout: Optional[int] = Field(
+        default=None,
+        description="代码执行超时（秒）",
+    )
+
+
+class WorkspaceConversationSummary(BaseModel):
+    workspace_id: str
+    conversation_id: str
+    session_id: str
+    title: str
+    created_at: str
+    updated_at: str
+    execution_policy: TaskExecutionPolicy = Field(default_factory=TaskExecutionPolicy)
+    message_count: int = 0
+    status: str = "draft"
+    branched_from_conversation_id: Optional[str] = None
+    last_execution_status: Optional[str] = None
+    last_execution_record_id: Optional[str] = None
+    execution_record_count: int = 0
+    source: Optional[str] = None
+    conversation_type: Optional[str] = None
+    bound_host_session_id: Optional[str] = None
+    auto_task_id: Optional[str] = None
+    automation_continuation_id: Optional[str] = None
+    automation_continuation_target_kind: Optional[str] = None
+
+
+class WorkspaceSummary(BaseModel):
+    workspace_id: str
+    title: str
+    description: Optional[str] = None
+    created_at: str
+    updated_at: str
+    workspace_kind: Literal["task", "claw"] = "task"
+    execution_policy: TaskExecutionPolicy = Field(default_factory=TaskExecutionPolicy)
+    runtime_binding: WorkspaceRuntimeBinding = Field(
+        default_factory=WorkspaceRuntimeBinding,
+    )
+    status: str = "active"
+    current_conversation_id: Optional[str] = None
+    conversation_count: int = 0
+    current_conversation: Optional[WorkspaceConversationSummary] = None
+
+
+class WorkspaceListItemResponse(WorkspaceSummary):
+    conversations: list[WorkspaceConversationSummary] = Field(default_factory=list)
+
+
+class WorkspaceDetailResponse(WorkspaceListItemResponse):
+    warnings: list[str] = Field(
+        default_factory=list, description="工作区创建或初始化时的非致命警告信息"
+    )
+
+
+class WorkspaceListResponse(BaseModel):
+    workspaces: list[WorkspaceListItemResponse]
+    total: int
+
+
+class WorkspaceOverviewWorkspace(BaseModel):
+    workspace_id: str
+    title: str
+    description: Optional[str] = None
+    created_at: str
+    updated_at: str
+    status: str = "active"
+    workspace_kind: Literal["task", "claw"] = "task"
+    execution_policy: TaskExecutionPolicy = Field(default_factory=TaskExecutionPolicy)
+    runtime_binding: WorkspaceRuntimeBinding = Field(default_factory=WorkspaceRuntimeBinding)
+    current_conversation_id: Optional[str] = None
+    conversation_count: int = 0
+
+
+class WorkspaceOverviewSession(BaseModel):
+    workspace_id: str
+    conversation_id: str
+    session_id: str
+    title: str
+    created_at: str
+    updated_at: str
+    status: str = "draft"
+    execution_policy: TaskExecutionPolicy = Field(default_factory=TaskExecutionPolicy)
+    message_count: int = 0
+    execution_record_count: int = 0
+    last_execution_status: Optional[str] = None
+    last_execution_record_id: Optional[str] = None
+    source: Optional[str] = None
+    conversation_type: Optional[str] = None
+    bound_host_session_id: Optional[str] = None
+    is_current: bool = False
+
+
+class WorkspaceOverviewRuntime(BaseModel):
+    session_id: Optional[str] = None
+    env_id: Optional[str] = None
+    sandbox_mode: Optional[str] = None
+    last_runtime_state: Optional[str] = None
+    runtime_busy: bool = False
+    can_start_runtime: bool = False
+    can_stop_runtime: bool = False
+    runtime_control_reason: Optional[str] = None
+    runtime_summary: dict[str, Any] = Field(default_factory=dict)
+
+
+class WorkspaceOverviewConfig(BaseModel):
+    config_sync_state: Literal["aligned", "pending", "unknown"] = "unknown"
+    agent_config_effect: Literal["next_run_only"] = "next_run_only"
+    task_profile_effect: Literal["next_run_only"] = "next_run_only"
+    memory_effect: Literal["next_run_only"] = "next_run_only"
+    can_edit_agent_config_now: bool = False
+    can_edit_task_profile_now: bool = False
+    rebuild_required: bool = False
+    rebuild_required_reasons: list[str] = Field(default_factory=list)
+    current_agent_config_version: Optional[str] = None
+    applied_agent_config_version: Optional[str] = None
+    pending_agent_config_version: Optional[str] = None
+    current_capability_snapshot_version: Optional[str] = None
+    applied_capability_snapshot_version: Optional[str] = None
+    pending_capability_snapshot_version: Optional[str] = None
+    config_state_updated_at: Optional[str] = None
+    projection: dict[str, Any] = Field(default_factory=dict)
+
+
+class WorkspaceOverviewResourceBucket(BaseModel):
+    resource_key: Literal["mcp", "knowledge_base", "knowledge_graph", "database", "file"]
+    display_name: str
+    status: Literal["ready", "empty", "not_verified", "degraded", "unavailable"] = "empty"
+    user_asset_count: int = 0
+    workspace_default_count: int = 0
+    session_attached_count: int = 0
+    runtime_available_count: int = 0
+    configured: bool = False
+    mounted: bool = False
+    verified: bool = False
+    available: bool = False
+    stale: bool = False
+    primary_action: Optional[str] = None
+    disabled_reason: Optional[str] = None
+    next_check_hint: Optional[str] = None
+    ids: list[str] = Field(default_factory=list)
+    detail: Optional[str] = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class WorkspaceOverviewVerificationSummary(BaseModel):
+    status: Literal["not_verified", "passed", "warning", "failed", "unknown"] = "not_verified"
+    checked_at: Optional[str] = None
+    resource_count: int = 0
+    failed_count: int = 0
+    warning_count: int = 0
+
+
+class WorkspaceOverviewResources(BaseModel):
+    mcp: WorkspaceOverviewResourceBucket
+    knowledge_base: WorkspaceOverviewResourceBucket
+    knowledge_graph: WorkspaceOverviewResourceBucket
+    database: WorkspaceOverviewResourceBucket
+    file: WorkspaceOverviewResourceBucket
+    verification: WorkspaceOverviewVerificationSummary = Field(
+        default_factory=WorkspaceOverviewVerificationSummary
+    )
+
+
+class WorkspaceOverviewExperts(BaseModel):
+    profile_name: Optional[str] = None
+    available_role_count: int = 0
+    enabled_role_count: int = 0
+    enabled_role_ids: list[str] = Field(default_factory=list)
+    policy_effect: Literal["next_run_only"] = "next_run_only"
+    status: Literal["ready", "empty", "unavailable"] = "empty"
+    detail: Optional[str] = None
+
+
+class WorkspaceOverviewArtifacts(BaseModel):
+    workspace_file_count: int = 0
+    artifact_file_count: int = 0
+    execution_record_count: int = 0
+    last_execution_status: Optional[str] = None
+    last_execution_record_id: Optional[str] = None
+
+
+class WorkspaceOverviewMemory(BaseModel):
+    effect: Literal["next_run_only"] = "next_run_only"
+    has_memory: bool = False
+    document_count: int = 0
+    version: Optional[str] = None
+    snapshot_hash: Optional[str] = None
+    pending_snapshot_version: Optional[str] = None
+    preview: dict[str, Any] = Field(default_factory=dict)
+
+
+class WorkspaceOverviewResponse(BaseModel):
+    generated_at: str
+    workspace: WorkspaceOverviewWorkspace
+    current_session: Optional[WorkspaceOverviewSession] = None
+    sessions: list[WorkspaceOverviewSession] = Field(default_factory=list)
+    runtime: WorkspaceOverviewRuntime = Field(default_factory=WorkspaceOverviewRuntime)
+    config: WorkspaceOverviewConfig = Field(default_factory=WorkspaceOverviewConfig)
+    resources: WorkspaceOverviewResources
+    experts: WorkspaceOverviewExperts = Field(default_factory=WorkspaceOverviewExperts)
+    artifacts: WorkspaceOverviewArtifacts = Field(default_factory=WorkspaceOverviewArtifacts)
+    memory: WorkspaceOverviewMemory = Field(default_factory=WorkspaceOverviewMemory)
+
+
+class WorkspaceResourceLayerSummaryResponse(BaseModel):
+    workspace_id: str
+    session_id: Optional[str] = None
+    generated_at: str
+    resources: WorkspaceOverviewResources
+
+
+class DeleteWorkspaceResponse(BaseModel):
+    success: bool = True
+    workspace_id: str
+
+
+class ResourceVerificationCheck(BaseModel):
+    status: Literal["passed", "failed", "warning", "skipped", "unknown"] = "unknown"
+    summary: str
+    detail: Optional[str] = None
+    duration_ms: Optional[int] = None
+    error_code: Optional[str] = None
+
+
+class ResourceVerificationItem(BaseModel):
+    resource_key: Literal["mcp", "knowledge_base", "knowledge_graph", "database", "file"]
+    display_name: str
+    scope: Literal["task", "catalog", "system"] = "task"
+    session_id: Optional[str] = None
+    mounted: bool = False
+    mounted_summary: str
+    health: ResourceVerificationCheck
+    smoke: ResourceVerificationCheck
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class WorkspaceResourceVerificationResponse(BaseModel):
+    workspace_id: str
+    checked_at: str
+    session_id: Optional[str] = None
+    resources: list[ResourceVerificationItem] = Field(default_factory=list)
+    verification_source: Literal["cache", "computed"] = "computed"
+    cache_hit: bool = False
+
+
+class WorkspaceMountedKnowledgeBaseSummary(BaseModel):
+    id: str
+    name: str
+    document_count: int = 0
+    mounted: bool = False
+
+
+class WorkspaceKnowledgeBaseMountRequest(BaseModel):
+    knowledge_base_ids: list[str] = Field(default_factory=list)
+
+
+class WorkspaceKnowledgeBaseMountResponse(BaseModel):
+    workspace_id: str
+    knowledge_base_ids: list[str] = Field(default_factory=list)
+    mounted_knowledge_bases: list[WorkspaceMountedKnowledgeBaseSummary] = Field(
+        default_factory=list
+    )
+    available_knowledge_bases: list[WorkspaceMountedKnowledgeBaseSummary] = Field(
+        default_factory=list
+    )
+    missing_knowledge_base_ids: list[str] = Field(default_factory=list)
+
+
+class WorkspaceMountedDatabaseConnectorSummary(BaseModel):
+    connector_id: str
+    name: str
+    db_type: str
+    readonly: bool = True
+    mounted: bool = False
+    last_test_status: str = "untested"
+    connection_summary: Optional[str] = None
+
+
+class WorkspaceDatabaseMountRequest(BaseModel):
+    connector_ids: list[str] = Field(default_factory=list)
+
+
+class WorkspaceDatabaseMountResponse(BaseModel):
+    workspace_id: str
+    connector_ids: list[str] = Field(default_factory=list)
+    mounted_database_connectors: list[WorkspaceMountedDatabaseConnectorSummary] = Field(
+        default_factory=list
+    )
+    available_database_connectors: list[WorkspaceMountedDatabaseConnectorSummary] = Field(
+        default_factory=list
+    )
+    missing_connector_ids: list[str] = Field(default_factory=list)
+
+
+class ConversationListResponse(BaseModel):
+    workspace_id: str
+    conversations: list[WorkspaceConversationSummary]
+    total: int
+
+
+class ConversationRunsResponse(BaseModel):
+    workspace_id: str
+    conversation_id: str
+    runs: list[ExecutionRecord]
+    total: int
+
+
+class WorkspaceConversationRuntimeSummary(BaseModel):
+    workspace_id: str
+    conversation_id: str
+    session_id: str
+    title: str
+    updated_at: str
+    source: Optional[str] = None
+    conversation_type: Optional[str] = None
+    bound_host_session_id: Optional[str] = None
+    execution_policy: TaskExecutionPolicy = Field(default_factory=TaskExecutionPolicy)
+    status: str = "draft"
+    message_count: int = 0
+    execution_record_count: int = 0
+    last_runtime_state: Optional[str] = None
+    runtime_summary: dict[str, Any] = Field(default_factory=dict)
+    can_start_runtime: bool = False
+    can_stop_runtime: bool = False
+    runtime_control_reason: Optional[str] = None
+    is_current: bool = False
+
+
+class ConversationRuntimeListResponse(BaseModel):
+    workspace_id: str
+    current_conversation_id: Optional[str] = None
+    conversation_runtimes: list[WorkspaceConversationRuntimeSummary] = Field(default_factory=list)
+    total: int
+
+
+class ConversationRuntimeActionResponse(BaseModel):
+    success: bool = True
+    action: Literal["start", "stop"]
+    message: Optional[str] = None
+    workspace_id: str
+    conversation_id: str
+    session_id: str
+    runtime: WorkspaceConversationRuntimeSummary
+
+
+class OrphanConversationCleanupCandidate(BaseModel):
+    session_id: str
+    path: str
+    reason: str
+
+
+class OrphanConversationCleanupResponse(BaseModel):
+    user_id: str
+    dry_run: bool
+    deleted_count: int
+    deleted_session_ids: list[str] = Field(default_factory=list)
+    candidates: list[OrphanConversationCleanupCandidate] = Field(default_factory=list)
