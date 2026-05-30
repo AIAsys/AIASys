@@ -49,7 +49,7 @@ from app.services.runtime.notebook_activity import _NOTEBOOK_LOCKS
 from app.services.runtime.session_runtime_state import build_session_runtime_summary
 from app.services.workspace_registry import get_workspace_registry_service
 
-from .files import (
+from .files_utils import (
     _get_logical_workspace_root,
     _get_notebook_edit_lock_reason,
     _get_work_dir,

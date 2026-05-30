@@ -11,9 +11,37 @@ from __future__ import annotations
 from fastapi import APIRouter
 
 # Re-export endpoints from sub-modules
+from app.api.routes.files_core import (  # noqa: E402, F401
+    copy_file,
+    create_file,
+    delete_file,
+    download_file,
+    export_markdown_document,
+    export_workspace,
+    get_csv_preview,
+    get_file_content,
+    list_all_files,
+    move_file,
+    update_csv_preview,
+    update_file_content,
+    upload_file,
+)
 
 # Re-export utilities so tests and other consumers can still access them
 # from app.api.routes.files directly.
+from app.api.routes.files_utils import (  # noqa: E402, F401
+    CsvPageUpdateRequest,
+    CsvPreviewResponse,
+    FileContentRequest,
+    FileCopyRequest,
+    FileCopyResponse,
+    FileCreateRequest,
+    FileCreateResponse,
+    FileInfo,
+    FileListResponse,
+    FileMoveRequest,
+    FileMoveResponse,
+)
 
 router = APIRouter(prefix="/files", tags=["files"])
 
