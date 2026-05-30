@@ -156,9 +156,14 @@ jobs:
         id: version
         run: |
           VERSION=$(node -p "require('./apps/desktop/package.json').version")
-          SHORT_SHA=$(git rev-parse --short HEAD)
-          TAG="v${VERSION}-beta.${SHORT_SHA}"
+          # 查询该版本已有的 beta tag 数量，自动递增序号
+          EXISTING=$(gh release list --limit 100 --json tagName --jq ".[].tagName" 2>/dev/null | grep "^v${VERSION}-beta\." | wc -l)
+          N=$((EXISTING + 1))
+          TAG="v${VERSION}-beta.${N}"
           echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "Beta number: ${N}"
+        env:
+          GH_TOKEN: ${{ github.token }}
 
       - name: Create GitHub Pre-release
         uses: softprops/action-gh-release@v2
