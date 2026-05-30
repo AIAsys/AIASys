@@ -13,9 +13,9 @@
     "dist:linux:dir": "npm run build:web && npm run prepare:runtime && electron-builder --linux dir",
     "dist:win": "npm run build:web && npm run prepare:runtime && electron-builder --win",
     "dist:mac": "npm run build:web && npm run prepare:runtime && electron-builder --mac",
-    "dist:ci:linux": "npm run prepare:runtime && electron-builder --linux dir",
-    "dist:ci:win": "npm run prepare:runtime && electron-builder --win",
-    "dist:ci:mac": "npm run prepare:runtime && electron-builder --mac"
+    "dist:ci:linux": "npm run prepare:runtime && electron-builder --linux AppImage --publish=never",
+    "dist:ci:win": "npm run prepare:runtime && electron-builder --win nsis zip --publish=never",
+    "dist:ci:mac": "npm run prepare:runtime && electron-builder --mac dmg zip --publish=never"
   },
   "devDependencies": {
     "electron": "41.2.0",
@@ -43,7 +43,8 @@
     ],
     "linux": {
       "target": [
-        "dir"
+        "dir",
+        "AppImage"
       ],
       "category": "Development"
     },
