@@ -37,6 +37,8 @@ uv.toml
 .entire
 .temp/
 .codex
+.kimi-code/
+.kimi/
 .agent/
 .playwright-mcp/
 .gemini/
