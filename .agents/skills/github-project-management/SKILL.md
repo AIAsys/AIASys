@@ -865,6 +865,46 @@ main 维护者: dev → main (PR) → main 上打 tag → 正式 Release
 - 创建没有对应 tag 的 Release
 - 在 dev 上创建正式 Release（dev 上的 release 必须标记为 pre-release）
 
+### CI 自动 Beta Release 策略
+
+`ci-desktop.yml` 在 push to `dev` 时自动构建三平台桌面版并发布 pre-release。以下规则避免版本混乱：
+
+**触发条件：**
+- 仅当 `apps/desktop/**`、`apps/backend/**`、`apps/web/**`、`.github/workflows/ci-desktop.yml` 变更时触发
+- 纯文档（`docs/`）、skill（`.agents/skills/`）、配置（`.gitignore`）变更**不会**触发
+
+**版本号模型：**
+
+```
+package.json version = 0.3.9        ← 产品稳定版本号（三端一致）
+                                   ↓
+Beta tag = v0.3.9-beta.{N}        ← N 为递增序号（从 1 开始，不是 commit SHA）
+                                   ↓
+正式 release tag = v0.3.9         ← dev → main 合入后由 main 维护者发布
+```
+
+**关键规则：**
+
+| 规则 | 说明 |
+|------|------|
+| `package.json` version 只在正式 release 前 bump | Beta 期间不动版本号，靠 beta 序号区分 |
+| Beta tag 格式 | `v{VERSION}-beta.{N}`，N 自动递增（查询已有 tag 数量） |
+| 同一 base version 的 beta 可以覆盖 | `v0.3.9-beta.1` → `v0.3.9-beta.2` → ...，直到 `v0.3.9` 正式发布 |
+| 正式发布后 bump 版本 | 如 `v0.3.9` → `v0.3.10`，下一轮 beta 从 `v0.3.10-beta.1` 开始 |
+| 非代码变更不触发构建 | 改 README、skill、changelog 等不产生新 beta |
+
+**完整生命周期示例：**
+
+```
+v0.3.9-beta.1 → v0.3.9-beta.2 → v0.3.9-beta.3 → v0.3.9 (正式)
+                                                        ↓
+                                                v0.3.10-beta.1 → ...
+```
+
+**手动发布：**
+- `workflow_dispatch` 不受 paths 限制，随时可手动触发构建
+- 可用于验证 CI 配置或紧急发布
+
 ---
 
 ## Worktree 工作流（高级）
