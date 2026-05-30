@@ -301,6 +301,14 @@ mv .agents/task-sessions/active/<filename>.md .agents/task-sessions/completed/
     └── archive-old-sessions.sh
 ```
 
+### 提交规则
+
+**Task Session 是个人工作记录，不应提交到远程仓库。**
+
+`.gitignore` 已排除 `active/`、`paused/`、`completed/`、`archive/`、`handoffs/` 等运行时目录。唯一允许提交的是 `scripts/` 管理脚本和 `TEMPLATE.md` 模板（项目共享）。
+
+AI Agent 在 commit 时**不得**将 `.agents/task-sessions/` 下的 session 文件（含 README.md）加入暂存区。如果发现已提交，应立即 revert。
+
 ---
 
 ## 快速参考
