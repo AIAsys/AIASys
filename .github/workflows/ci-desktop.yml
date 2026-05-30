@@ -54,7 +54,7 @@ jobs:
             target: linux
             script: dist:ci:linux
             artifact-name: desktop-linux
-            artifact-path: apps/desktop/dist/linux-unpacked/
+            artifact-path: apps/desktop/dist/*.AppImage
           - os: macos-latest
             target: mac
             script: dist:ci:mac
@@ -163,6 +163,8 @@ jobs:
           prerelease: true
           generate_release_notes: true
           files: |
-            release-artifacts/linux/**/*
-            release-artifacts/mac/**/*
-            release-artifacts/win/**/*
+            release-artifacts/linux/*.AppImage
+            release-artifacts/mac/*.dmg
+            release-artifacts/mac/*.zip
+            release-artifacts/win/*.exe
+            release-artifacts/win/*.zip
