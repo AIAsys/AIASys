@@ -94,7 +94,12 @@ class AskUserStore:
         user_id: str,
     ) -> asyncio.Future:
         """创建新的请求，返回 Future 用于等待"""
-        future = asyncio.get_event_loop().create_future()
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+        future = loop.create_future()
         self._requests[request.request_id] = AskUserPendingItem(
             request=request,
             session_id=session_id,
