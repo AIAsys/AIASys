@@ -3,6 +3,11 @@ name: Desktop Build & Pre-release
 on:
   push:
     branches: [dev]
+    paths:
+      - 'apps/desktop/**'
+      - 'apps/backend/**'
+      - 'apps/web/**'
+      - '.github/workflows/ci-desktop.yml'
   workflow_dispatch:
     inputs:
       release_type:
