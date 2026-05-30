@@ -204,7 +204,6 @@ async def test_compute_agent_config_version_tracks_soul_and_project_profile(
     assert workspace.current_conversation is not None
     session_dir = tmp_path / CURRENT_USER.user_id / "soul-version-session"
 
-    monkeypatch.setattr(config_projection_module, "WORKSPACE_DIR", tmp_path)
     monkeypatch.setattr(
         config_projection_module,
         "get_agent_config_service",
@@ -813,7 +812,6 @@ async def test_compute_agent_config_version_tracks_subagent_visibility_policy(
         / "local_sandbox_agent_config"
         / "general_host_prompt.md"
     )
-    monkeypatch.setattr(config_projection_module, "WORKSPACE_DIR", tmp_path)
     monkeypatch.setattr(subagent_catalog_module, "WORKSPACE_DIR", tmp_path)
     monkeypatch.setattr(
         config_projection_module,
