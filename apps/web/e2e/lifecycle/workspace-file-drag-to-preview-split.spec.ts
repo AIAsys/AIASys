@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
 import {
   createWorkspace,
@@ -42,7 +42,7 @@ interface DispatchFileDropOptions {
  * DataTransfer-backed DragEvents.
  */
 async function dragFileToLeaf(
-  page: any,
+  page: Page,
   options: DispatchFileDropOptions,
 ) {
   await page.evaluate(
