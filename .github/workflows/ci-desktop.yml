@@ -44,6 +44,7 @@ jobs:
   build-desktop:
     needs: build-web
     strategy:
+      fail-fast: false
       matrix:
         include:
           - os: ubuntu-latest
@@ -114,7 +115,9 @@ jobs:
 
   publish-beta:
     needs: build-desktop
-    if: github.ref == 'refs/heads/dev'
+    if: |
+      always() &&
+      github.ref == 'refs/heads/dev'
     runs-on: ubuntu-latest
 
     steps:
@@ -125,18 +128,21 @@ jobs:
         with:
           name: desktop-linux
           path: release-artifacts/linux/
+        continue-on-error: true
 
       - name: Download macOS artifact
         uses: actions/download-artifact@v4
         with:
           name: desktop-mac
           path: release-artifacts/mac/
+        continue-on-error: true
 
       - name: Download Windows artifact
         uses: actions/download-artifact@v4
         with:
           name: desktop-win
           path: release-artifacts/win/
+        continue-on-error: true
 
       - name: Generate version tag
         id: version
