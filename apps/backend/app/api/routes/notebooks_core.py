@@ -34,7 +34,7 @@ from app.models.notebook import (
 from app.models.user import UserInfo
 from app.services.diff_service import diff_service
 
-from .files import (
+from .files_utils import (
     _check_user_access,
     _get_notebook_edit_lock_reason,
     _iter_visible_workspace_files,
