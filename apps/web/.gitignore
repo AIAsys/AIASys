@@ -30,7 +30,7 @@ dist-ssr
 # All temporary screenshots, console logs, and test artifacts
 # should go to ../../design-draft/archive/ instead
 .playwright-cli/
-artifacts/
+/artifacts/
 test-results/
 playwright-report/
 .vite/
