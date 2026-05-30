@@ -3,7 +3,7 @@
  * Used to notify execution tree refresh when Sub Agent events arrive
  */
 
-type EventCallback = (data?: any) => void;
+type EventCallback = (data?: unknown) => void;
 
 class EventBus {
   private events: Map<string, EventCallback[]> = new Map();
@@ -26,7 +26,7 @@ class EventBus {
     };
   }
 
-  emit(event: string, data?: any): void {
+  emit(event: string, data?: unknown): void {
     const callbacks = this.events.get(event);
     if (callbacks) {
       callbacks.forEach((callback) => {

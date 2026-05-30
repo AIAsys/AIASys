@@ -3,7 +3,7 @@ import { WorkspaceAutoTaskPanel } from "@/components/layout/WorkspaceSidebar/Wor
 import { useAuthContext } from "@/contexts/AuthContext";
 import { TopBar } from "../TopBar";
 import type { MainContentProps } from "./types";
-import { Suspense, lazy, useEffect, useState } from "react";
+import { Suspense, lazy, useCallback, useEffect, useState } from "react";
 import { usePaneTree } from "./usePaneTree";
 import { PaneRenderer } from "./PaneRenderer";
 import { reorderTabs } from "./paneTree";
@@ -104,10 +104,10 @@ export function MainContent({
     handleEditFileInMainCanvas,
   } = usePaneTree(executorSessionId, token, currentWorkspaceId);
 
-  const openSubagentDock = () => {
+  const openSubagentDock = useCallback(() => {
     setConversationDockOpen(true);
     setConversationDockClosedByUser(false);
-  };
+  }, [setConversationDockOpen, setConversationDockClosedByUser]);
 
   const focusCurrentSessionInput = async (options?: {
     targetSessionId?: string | null;
@@ -129,7 +129,7 @@ export function MainContent({
 
   useEffect(() => {
     resetPaneTree();
-  }, [executorSessionId]);
+  }, [executorSessionId, resetPaneTree]);
 
   // Ctrl+` 切换到侧边栏终端 Tab
   useEffect(() => {
@@ -159,7 +159,7 @@ export function MainContent({
       return;
     }
 
-  }, [activeTabRequest, currentWorkspaceId]);
+  }, [activeTabRequest, currentWorkspaceId, openSubagentDock]);
 
   useEffect(() => {
     if (!currentWorkspaceId || isConversationDockClosedByUser) {

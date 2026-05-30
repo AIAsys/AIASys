@@ -356,7 +356,7 @@ export function useWorkspaceLifecycleActions({
         setIsDeletingWorkspace(false);
       }
     })();
-  }, [apiBaseUrl, bulkDeletePendingIds, loadWorkspaces, runtimeControls]);
+  }, [apiBaseUrl, bulkDeletePendingIds, executor, loadWorkspaces, runtimeControls, workspaces]);
 
   const handleForkConversation = useCallback(
     (sourceConversationId: string) => {

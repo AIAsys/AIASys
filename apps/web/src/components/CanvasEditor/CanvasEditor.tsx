@@ -236,9 +236,10 @@ export const CanvasEditor: React.FC<CanvasEditorProps> = ({
 
   // Cleanup save timer on unmount
   useEffect(() => {
+    const timer = saveTimerRef.current;
     return () => {
-      if (saveTimerRef.current !== null) {
-        window.clearTimeout(saveTimerRef.current);
+      if (timer !== null) {
+        window.clearTimeout(timer);
       }
     };
   }, []);

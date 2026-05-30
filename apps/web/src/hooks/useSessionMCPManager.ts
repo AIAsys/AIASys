@@ -154,7 +154,7 @@ export function useSessionMCPManager(
     } finally {
       safeSet(setStoreLoading, false);
     }
-  }, [enabled]);
+  }, [enabled, safeSet]);
 
   // 加载工作区启用（三层合并后的生效配置）
   const loadWorkspace = useCallback(async () => {
@@ -173,7 +173,7 @@ export function useSessionMCPManager(
     } finally {
       safeSet(setWorkspaceLoading, false);
     }
-  }, [enabled, workspaceId]);
+  }, [enabled, workspaceId, safeSet]);
 
   // 加载仅工作区配置中的 server
   const loadWorkspaceOnly = useCallback(async () => {
@@ -192,7 +192,7 @@ export function useSessionMCPManager(
     } finally {
       safeSet(setWorkspaceOnlyLoading, false);
     }
-  }, [enabled, workspaceId]);
+  }, [enabled, workspaceId, safeSet]);
 
   // 初始加载
   useEffect(() => {
@@ -339,7 +339,7 @@ export function useSessionMCPManager(
         return false;
       }
     },
-    [workspaceId]
+    [workspaceId, safeSet]
   );
 
   return {

@@ -458,7 +458,7 @@ export function ContainerResourcesPanel({
   useEffect(() => {
     if (!open) return;
     void loadResources();
-  }, [loadResources, open]);
+  }, [loadResources]);
 
   const handleStart = useCallback(
     async (id: string) => {

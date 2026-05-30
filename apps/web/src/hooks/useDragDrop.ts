@@ -60,7 +60,7 @@ export function useDragDrop(onDropCallback: (files: FileList) => void): UseDragD
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
       onDropCallback(e.dataTransfer.files);
     }
-  }, [onDropCallback]);
+  }, [onDropCallback, isDragging]);
 
   return {
     isDragging,

@@ -25,7 +25,10 @@ export function EnvVarsPanel({
   onSaved,
   variant = "compact",
 }: EnvVarsPanelProps) {
-  const workspaceEnvVars = workspaceSummary?.runtime_binding?.env_vars ?? {};
+  const workspaceEnvVars = useMemo(
+    () => workspaceSummary?.runtime_binding?.env_vars ?? {},
+    [workspaceSummary?.runtime_binding?.env_vars],
+  );
   const workspaceId = workspaceSummary?.workspace_id;
 
   const [globalEnvVars, setGlobalEnvVars] = useState<Record<string, string>>({});
@@ -123,7 +126,7 @@ export function EnvVarsPanel({
     save(updated);
     setEditingKey(null);
     setEditValue("");
-  }, [editingKey, editValue, workspaceEnvVars, save]);
+  }, [editingKey, editValue, workspaceEnvVars, save, workspaceId]);
 
   const cancelEdit = useCallback(() => {
     setEditingKey(null);

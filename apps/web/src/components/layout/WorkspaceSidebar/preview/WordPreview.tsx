@@ -117,11 +117,13 @@ export function WordPreview({ url, downloadUrl, fileName }: WordPreviewProps) {
 
     void loadDocument();
 
+    const body = bodyRef.current;
+    const style = styleRef.current;
     return () => {
       cancelled = true;
       controller.abort();
-      bodyRef.current?.replaceChildren();
-      styleRef.current?.replaceChildren();
+      body?.replaceChildren();
+      style?.replaceChildren();
     };
   }, [fileName, url]);
 

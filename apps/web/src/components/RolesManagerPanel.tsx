@@ -125,7 +125,7 @@ export function RolesManagerPanel({
         setLoading(false);
       }
     }
-  }, [canManage, resolvedWorkspaceId, roleFilter, scope]);
+  }, [canManage, resolvedWorkspaceId, roleFilter, scope, isMarket]);
 
   useEffect(() => {
     void load();
@@ -145,7 +145,7 @@ export function RolesManagerPanel({
     } catch (err) {
       console.error("获取协作专家详情失败:", err);
     }
-  }, [canManage, isMarket, readOnly, resolvedWorkspaceId, scope]);
+  }, [canManage, readOnly, resolvedWorkspaceId, scope]);
 
   const handlePreview = useCallback(async (role: RoleItem) => {
     const requestId = detailRequestRef.current + 1;
@@ -208,7 +208,7 @@ export function RolesManagerPanel({
       ),
     );
     await load(false);
-  }, [canManage, isMarket, load, readOnly, resolvedWorkspaceId, scope]);
+  }, [canManage, load, readOnly, resolvedWorkspaceId, scope]);
 
   const handleDefaultEnabledChange = useCallback(async (
     role: RoleItem,
@@ -258,7 +258,7 @@ export function RolesManagerPanel({
       console.error("保存协作专家默认启用失败:", err);
       alert("保存默认启用失败");
     }
-  }, [canManage, isMarket, readOnly, resolvedWorkspaceId, scope]);
+  }, [canManage, readOnly, resolvedWorkspaceId, scope]);
 
   const handleEnableDefault = useCallback(async (role: RoleItem) => {
     if (!canManage) return;

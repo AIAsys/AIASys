@@ -74,7 +74,7 @@ interface UseExecutionSubmitProps {
   showSuccess: (msg: string) => void;
   clearFiles: () => void;
   onAskUserRequest?: (request: AskUserRequest, sessionId: string) => void;
-  onSubAgentEvent?: (event: any) => void;
+  onSubAgentEvent?: (event: unknown) => void;
   apiBaseUrl: string;
   /** 权威 activeSessionId ref — 用于判断 onFinish/onError 是否来自活跃 session */
   activeSessionIdRef: { readonly current: string };
@@ -373,7 +373,6 @@ export function useExecutionSubmit(props: UseExecutionSubmitProps) {
     getSessionSlot,
     clearFiles,
     syncExecutionHistory,
-    onSubAgentEvent,
     activeSessionIdRef,
     onTokenUsageShouldRefresh,
   ]);

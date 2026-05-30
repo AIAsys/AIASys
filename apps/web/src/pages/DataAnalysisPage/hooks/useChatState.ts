@@ -99,7 +99,7 @@ export function useChatState(): UseChatStateReturn {
         chatMapRef.current.set(sessionId, updater(current));
       }
     },
-    [],
+    [setChatItems],
   );
 
   const addUserMessage = useCallback(
@@ -120,7 +120,7 @@ export function useChatState(): UseChatStateReturn {
       ]);
       return id;
     },
-    [],
+    [setChatItems],
   );
 
   const addAiMessage = useCallback(
@@ -145,7 +145,7 @@ export function useChatState(): UseChatStateReturn {
         ];
       });
     },
-    [],
+    [setChatItems],
   );
 
   const updateAiMessage = useCallback(
@@ -156,14 +156,14 @@ export function useChatState(): UseChatStateReturn {
         ),
       );
     },
-    [],
+    [setChatItems],
   );
 
   const clearChat = useCallback(() => {
     setChatItems([]);
     setInputValue("");
     pendingAiMsgRef.current = null;
-  }, []);
+  }, [setChatItems]);
 
   return {
     chatItems: chatItemsState,

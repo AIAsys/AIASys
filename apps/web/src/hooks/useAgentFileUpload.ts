@@ -405,7 +405,7 @@ export function useAgentFileUpload(options: UseAgentFileUploadOptions = {}) {
       if (!filename || !sessionId || !workspaceId) return;
 
       // 乐观更新前保存旧状态
-      let previousFiles: typeof state.files = [];
+      let previousFiles: UploadedFile[] = [];
       setState((prev) => {
         previousFiles = prev.files;
         return {

@@ -222,7 +222,7 @@ export function FileHistoryDialog({
     } finally {
       setIsRestoring(false);
     }
-  }, [fileName, headers, loadEntries, onRestored, scope, selectedEntry, workspaceId]);
+  }, [headers, loadEntries, onRestored, scope, selectedEntry, workspaceId]);
 
   return (
     <>

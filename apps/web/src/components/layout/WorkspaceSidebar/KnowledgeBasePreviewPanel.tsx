@@ -408,7 +408,7 @@ export function KnowledgeBasePreviewPanel({
         event.target.value = "";
       }
     },
-    [canUseKnowledgeBase, isUploading, knowledgeBase?.config_issue, knowledgeBaseId, onRefresh, refreshKnowledgeBase],
+    [canUseKnowledgeBase, isUploading, knowledgeBase?.config_issue, knowledgeBase?.default_extraction_mode, knowledgeBaseId, onRefresh, refreshKnowledgeBase],
   );
 
   // 原始数据 Tab：加载表列表

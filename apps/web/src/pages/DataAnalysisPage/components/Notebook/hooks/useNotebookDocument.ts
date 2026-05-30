@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   clearNotebookOutputs,
@@ -85,7 +85,7 @@ export function useNotebookDocument({
     onRefreshSessionStatus?.();
   }
 
-  function replaceDocument(document: NotebookDocument): void {
+  const replaceDocument = useCallback((document: NotebookDocument): void => {
     const cloned = cloneNotebookDocument(document);
     setWorkbenchSnapshot(null);
     setSavedDocument(cloned);
@@ -93,13 +93,13 @@ export function useNotebookDocument({
     setRuntimeState(null);
     setExternalUpdateDetected(false);
     fileMtimeRef.current = workspaceFileEntry?.mtime ?? null;
-  }
+  }, [workspaceFileEntry?.mtime]);
 
-  function replaceWorkbenchSnapshot(snapshot: NotebookWorkbenchSnapshot): void {
+  const replaceWorkbenchSnapshot = useCallback((snapshot: NotebookWorkbenchSnapshot): void => {
     replaceDocument(snapshot.document);
     setWorkbenchSnapshot(snapshot);
     setRuntimeState(snapshot.runtime_state);
-  }
+  }, [replaceDocument]);
 
   function patchNotebookState(
     nextState: NotebookDocument["state"],
@@ -112,7 +112,7 @@ export function useNotebookDocument({
     }
   }
 
-  async function loadDocument(silent = false): Promise<void> {
+  const loadDocument = useCallback(async (silent = false): Promise<void> => {
     if (!sessionId) {
       setError("当前缺少会话上下文，无法打开 notebook。");
       setIsLoading(false);
@@ -141,11 +141,11 @@ export function useNotebookDocument({
     } finally {
       setIsLoading(false);
     }
-  }
+  }, [sessionId, notebookPath, replaceDocument, replaceWorkbenchSnapshot]);
 
   useEffect(() => {
     void loadDocument();
-  }, [notebookPath, sessionId]);
+  }, [loadDocument]);
 
   useEffect(() => {
     const nextMtime = workspaceFileEntry?.mtime ?? null;
@@ -157,9 +157,9 @@ export function useNotebookDocument({
       return;
     }
     void loadDocument(true);
-  }, [workspaceFileEntry?.mtime, savedDocument, isDirty, isRunning]);
+  }, [workspaceFileEntry?.mtime, savedDocument, isDirty, isRunning, loadDocument]);
 
-  async function refreshRuntimeState(): Promise<NotebookRuntimeStateResponse | null> {
+  const refreshRuntimeState = useCallback(async (): Promise<NotebookRuntimeStateResponse | null> => {
     if (!sessionId || !draftDocument) {
       return null;
     }
@@ -169,14 +169,14 @@ export function useNotebookDocument({
     );
     setRuntimeState(nextRuntimeState);
     return nextRuntimeState;
-  }
+  }, [sessionId, draftDocument]);
 
   useEffect(() => {
     if (!draftDocument || !sessionId) {
       return;
     }
     void refreshRuntimeState();
-  }, [draftDocument?.notebook_path, sessionId]);
+  }, [draftDocument, sessionId, refreshRuntimeState]);
 
   async function saveDocument(): Promise<boolean> {
     if (!sessionId || !draftDocument) {

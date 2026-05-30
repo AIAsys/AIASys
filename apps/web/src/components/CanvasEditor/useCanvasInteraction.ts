@@ -396,7 +396,6 @@ export function useCanvasInteraction(options: UseCanvasInteractionOptions) {
     [
       getCanvas,
       isSpacePanning,
-      recordHistorySnapshot,
       selectedNodeIds,
       setIsDraggingNode,
       setSelectedEdgeId,
@@ -436,7 +435,7 @@ export function useCanvasInteraction(options: UseCanvasInteractionOptions) {
         historyRecorded: false,
       };
     },
-    [getCanvas, recordHistorySnapshot, setSelectedEdgeId, setSelectedNodeId],
+    [getCanvas, setSelectedEdgeId, setSelectedNodeId],
   );
 
   const handleConnectionHandlePointerDown = useCallback(
