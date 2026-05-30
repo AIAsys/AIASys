@@ -143,7 +143,7 @@ coverage.xml
 
 .gitleaks.toml
 
-# AI 协作入口文件（各 CLI 统一索引到 AGENTS.md，本地保留不提交）
+# 个人 AI 协作入口文件（本地保留不提交）
 CLAUDE.md
 GEMINI.md
 AGENTS.md
