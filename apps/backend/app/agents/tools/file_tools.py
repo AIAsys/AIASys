@@ -31,6 +31,10 @@ def _truncate_line(line: str, max_len: int = MAX_LINE_LENGTH) -> str:
 
 
 # 延迟导入避免循环引用
+from .file_tools_read import (  # noqa: E402, F401
+    ReadFile,
+    ReadFileParams,
+)
 from .file_tools_write import (  # noqa: E402, F401
     FileEdit,
     StrReplaceFile,

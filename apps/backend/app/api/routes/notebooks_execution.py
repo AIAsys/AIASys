@@ -40,7 +40,7 @@ from app.models.notebook import (
 from app.models.user import UserInfo
 from app.services.runtime.notebook_activity import get_notebook_lock, get_notebook_session_lock
 
-from .files import (
+from .files_utils import (
     _check_user_access,
     _get_logical_workspace_root,
     _get_notebook_edit_lock_reason,
