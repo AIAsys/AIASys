@@ -483,7 +483,7 @@ export function GlobalAutoTaskDialog({
         }
         return (left.next_run_at || "9999").localeCompare(right.next_run_at || "9999");
       });
-  }, [deferredSearchQuery, statusFilter, tasks, workspaceFilter]);
+  }, [deferredSearchQuery, statusFilter, tasks, workspaceFilter, categoryFilter]);
 
   const workspaceSummaries = useMemo(() => {
     return [...(summary?.workspaces ?? [])].sort((left, right) => {

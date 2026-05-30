@@ -109,7 +109,7 @@ export function SidebarProvider({
   onNewConversation: _onNewConversation,
   defaultActiveTab = "artifacts",
 }: SidebarProviderProps) {
-  const taskList = taskListProp ?? [];
+  const taskList = useMemo(() => taskListProp ?? [], [taskListProp]);
   void _pendingUploadedFiles;
   void _onUploadFiles;
   void _onOpenKnowledgeBaseDialog;

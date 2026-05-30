@@ -98,12 +98,11 @@ function DataAnalysisPageContent({
     return () => {
       window.removeEventListener("popstate", syncRouteState);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
     controller.overlayState.syncRouteOverlay(routeOverlay);
-  }, [controller.overlayState.syncRouteOverlay, routeOverlay]);
+  }, [controller.overlayState, controller.overlayState.syncRouteOverlay, routeOverlay]);
 
   return (
     <div className="flex h-screen w-full bg-muted overflow-hidden font-sans text-muted-foreground relative">

@@ -271,7 +271,7 @@ export function GraphPreviewPanel({
     } finally {
       setLoadingStats(false);
     }
-  }, [kgId, node.meta?.workspace_id]);
+  }, [kgId, node.meta?.workspace_id, dbPath]);
 
   const handleLoadVisualization = useCallback(async () => {
     if (!kgId || isLoadingVisualization) {
@@ -297,7 +297,7 @@ export function GraphPreviewPanel({
     } finally {
       setIsLoadingVisualization(false);
     }
-  }, [isLoadingVisualization, kgId, node.meta?.workspace_id]);
+  }, [isLoadingVisualization, kgId, node.meta?.workspace_id, dbPath]);
 
   const handleSaveNode = useCallback(async () => {
     if (!selectedGraphNode || !kgId || isSavingNode) {
@@ -353,6 +353,7 @@ export function GraphPreviewPanel({
     editNodeDescription,
     editNodeProperties,
     node.meta?.workspace_id,
+    dbPath,
   ]);
 
   const handleStartCreateNode = useCallback(() => {
@@ -465,6 +466,7 @@ export function GraphPreviewPanel({
     newNodeName,
     newNodeType,
     node.meta?.workspace_id,
+    dbPath,
   ]);
 
   const handleCreateRelation = useCallback(async () => {
@@ -555,7 +557,7 @@ export function GraphPreviewPanel({
     node.meta?.workspace_id,
     selectedGraphNode,
     selectedConnectTarget,
-    visualization,
+    dbPath,
   ]);
 
   const handleDeleteSelectedNode = useCallback(async () => {
@@ -615,6 +617,7 @@ export function GraphPreviewPanel({
     kgId,
     node.meta?.workspace_id,
     selectedGraphNode,
+    dbPath,
   ]);
 
   useEffect(() => {
@@ -665,6 +668,7 @@ export function GraphPreviewPanel({
     kgId,
     node.meta?.workspace_id,
     selectedGraphNode,
+    dbPath,
   ]);
 
   // 可视化 Tab 自动加载
@@ -714,7 +718,7 @@ export function GraphPreviewPanel({
     return () => {
       cancelled = true;
     };
-  }, [activeTab, kgId, node.meta?.workspace_id]);
+  }, [activeTab, kgId, node.meta?.workspace_id, dbPath]);
 
   const handleRunRawQuery = useCallback(async () => {
     if (!kgId || !rawSql.trim() || rawRunning) {
@@ -737,7 +741,7 @@ export function GraphPreviewPanel({
     } finally {
       setRawRunning(false);
     }
-  }, [kgId, rawSql, rawRunning, node.meta?.workspace_id]);
+  }, [kgId, rawSql, rawRunning, node.meta?.workspace_id, dbPath]);
 
   const handleQuery = useCallback(async () => {
     const trimmed = question.trim();
@@ -765,7 +769,7 @@ export function GraphPreviewPanel({
     } finally {
       setIsQuerying(false);
     }
-  }, [isQuerying, kgId, question]);
+  }, [isQuerying, kgId, question, dbPath, node.meta?.workspace_id]);
 
   const handleUploadChange = useCallback(
     async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -798,7 +802,7 @@ export function GraphPreviewPanel({
         event.target.value = "";
       }
     },
-    [isUploading, kgId, node.meta?.workspace_id],
+    [isUploading, kgId, node.meta?.workspace_id, dbPath],
   );
 
   const tabs: { id: GraphTab; label: string; icon: React.ReactNode }[] = [

@@ -232,7 +232,7 @@ export function WorkspaceContextPanel({
     syncLayoutWidth();
     window.addEventListener("resize", syncLayoutWidth);
     return () => window.removeEventListener("resize", syncLayoutWidth);
-  }, [layoutMode]);
+  }, [layoutMode, setIsActivitySidebarCollapsed]);
 
   useEffect(() => {
     if (!isActivitySidebarResizing) {
@@ -300,7 +300,7 @@ export function WorkspaceContextPanel({
         setIsActivitySidebarCollapsed(false);
       }
     },
-    [onExecutionTreeActivated, layoutMode, onOpenTerminalTab],
+    [onExecutionTreeActivated, layoutMode, onOpenTerminalTab, setIsActivitySidebarCollapsed],
   );
 
   const handleActivitySidebarResizeStart = useCallback(
@@ -314,7 +314,7 @@ export function WorkspaceContextPanel({
 
   const toggleActivitySidebar = useCallback(() => {
     setIsActivitySidebarCollapsed((current) => !current);
-  }, []);
+  }, [setIsActivitySidebarCollapsed]);
 
   // Header 派生数据统一用 useMemo 缓存，避免 sidebar resize / activeView 变化时重复计算
   const headerData = useMemo(() => {

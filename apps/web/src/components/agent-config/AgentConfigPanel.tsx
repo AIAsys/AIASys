@@ -354,7 +354,7 @@ export default function AgentConfigPanel({
     } finally {
       setIsLoading(false);
     }
-  }, [activeTab, sessionId, showTaskModelsSection, workspaceId]);
+  }, [activeTab, sessionId, showError, showTaskModelsSection, workspaceId]);
 
   const loadSystemConfig = useCallback(async () => {
     if (!isAdmin || isSessionScope) {
@@ -367,7 +367,7 @@ export default function AgentConfigPanel({
       showError("加载系统基线失败");
       console.error(error);
     }
-  }, [activeTab, isAdmin, isSessionScope]);
+  }, [activeTab, isAdmin, isSessionScope, showError]);
 
   useEffect(() => {
     void loadConfig();

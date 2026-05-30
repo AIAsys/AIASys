@@ -92,13 +92,13 @@ export function AgentExecutionView({
         <div className="rounded-xl border border-border bg-muted/20 px-3 py-2">
           <div className="text-[11px] text-muted-foreground">节点路径</div>
           <div className="mt-1 break-all font-mono text-foreground">
-            {subagent.agent_path || subagent.meta?.agent_path || subagent.id}
+            {subagent.agent_path || (subagent.meta.agent_path as string | undefined) || subagent.id}
           </div>
         </div>
         <div className="rounded-xl border border-border bg-muted/20 px-3 py-2">
           <div className="text-[11px] text-muted-foreground">父级</div>
           <div className="mt-1 break-all font-mono text-foreground">
-            {subagent.parent_agent_id || subagent.meta?.parent_agent_id || "主控"}
+            {subagent.parent_agent_id || (subagent.meta.parent_agent_id as string | undefined) || "主控"}
           </div>
         </div>
       </div>
@@ -110,19 +110,22 @@ export function AgentExecutionView({
         </div>
         <div className="mt-2 max-h-72 space-y-2 overflow-y-auto pr-1">
           {subagent.context.length > 0 ? (
-            subagent.context.map((message, index) => (
-              <div
-                key={`${message.role ?? "msg"}-${index}-${String(message.content ?? "").slice(0, 16)}`}
-                className="rounded-xl border border-border bg-muted/20 px-3 py-2"
-              >
-                <div className="text-[11px] font-medium text-muted-foreground">
-                  {formatRole(message.role)}
+            subagent.context.map((message: unknown, index) => {
+              const msg = message as Record<string, unknown>;
+              return (
+                <div
+                  key={`${(msg.role as string | undefined) ?? "msg"}-${index}-${String((msg.content as string | undefined) ?? "").slice(0, 16)}`}
+                  className="rounded-xl border border-border bg-muted/20 px-3 py-2"
+                >
+                  <div className="text-[11px] font-medium text-muted-foreground">
+                    {formatRole(msg.role as string | undefined)}
+                  </div>
+                  <pre className="mt-1 whitespace-pre-wrap break-words font-sans text-xs leading-5 text-foreground">
+                    {toDisplayText(msg.content || msg.tool_calls || msg)}
+                  </pre>
                 </div>
-                <pre className="mt-1 whitespace-pre-wrap break-words font-sans text-xs leading-5 text-foreground">
-                  {toDisplayText(message.content || message.tool_calls || message)}
-                </pre>
-              </div>
-            ))
+              );
+            })
           ) : (
             <div className="rounded-xl border border-dashed border-border bg-muted/10 px-3 py-4 text-center text-xs text-muted-foreground">
               暂无可读取的对话记录
@@ -145,7 +148,7 @@ export function AgentExecutionView({
               >
                 <div className="flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
                   <span>{event.type === "tool_call" ? "调用" : "结果"}</span>
-                  <span className="font-mono">{event.tool_name || event.tool_call_id || "unknown"}</span>
+                  <span className="font-mono">{(event.tool_name as string | undefined) || (event.tool_call_id as string | undefined) || "unknown"}</span>
                 </div>
                 <pre className="mt-1 max-h-24 overflow-auto whitespace-pre-wrap break-words font-mono text-[11px] leading-5 text-foreground">
                   {toDisplayText(event.arguments || event.content || event)}

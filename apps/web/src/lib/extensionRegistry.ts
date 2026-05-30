@@ -13,6 +13,7 @@ import type { HookContribution, ToolContribution } from "@/types/extension";
 
 export interface PreviewContribution {
   kind: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- 预览组件 props 类型各异，无法统一约束
   component: ComponentType<any>;
   label?: string;
 }
@@ -30,6 +31,7 @@ class ExtensionRegistry {
 
   registerPreview(
     kind: string,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- 预览组件 props 类型各异
     component: ComponentType<any>,
     label?: string,
   ): void {

@@ -256,7 +256,6 @@ export function useDataAnalysisOverlayState(): UseDataAnalysisOverlayStateReturn
     setShowAgentConfigDialogState(false);
     setDefaultDatabaseResourceDialogAction("manage");
   }, [
-    openDatabaseConnectionsDialog,
     openKnowledgeBaseDialog,
     openKnowledgeGraphDialog,
   ]);

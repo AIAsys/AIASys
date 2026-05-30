@@ -169,8 +169,9 @@ export function useEditableFile(
 
     void doLoad();
 
+    const ref = loadingRef.current;
     return () => {
-      loadingRef.current.delete(requestKey);
+      ref.delete(requestKey);
       controller.abort();
     };
   }, [fileName, sessionId, workspaceId, loadContent, onDirtyChange]);

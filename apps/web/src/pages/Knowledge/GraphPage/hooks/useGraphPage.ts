@@ -166,7 +166,7 @@ export function useGraphPage(
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [graphragApi]);
+  }, [graphragApi, llmStatus]);
 
   // 加载社区数据
   useEffect(() => {

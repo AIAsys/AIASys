@@ -404,7 +404,7 @@ export function useChannelSessionDock({
       default:
         return "未绑定";
     }
-  }, [binding?.link_status]);
+  }, [binding?.link_status, binding?.chat_id]);
 
   return {
     platforms,

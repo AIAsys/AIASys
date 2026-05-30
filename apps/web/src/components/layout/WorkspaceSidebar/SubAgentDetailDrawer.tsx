@@ -189,13 +189,14 @@ function buildDispatchMessages(subagent: SubAgentDetail | null): DispatchMessage
 
   const contextMessages: DispatchMessage[] = [];
   (subagent.context ?? []).forEach((msg, idx) => {
-    if (msg?.role !== "user") return;
-    const content = normalizeContextContent(msg?.content).trim();
+    const m = msg as Record<string, unknown> | null | undefined;
+    if (m?.role !== "user") return;
+    const content = normalizeContextContent(m?.content as string).trim();
     if (!content) return;
     contextMessages.push({
       id: `dispatch-context-${idx}`,
       content,
-      timestamp: typeof msg?.timestamp === "string" ? msg.timestamp : null,
+      timestamp: typeof m?.timestamp === "string" ? (m.timestamp as string) : null,
     });
   });
 
@@ -205,9 +206,11 @@ function buildDispatchMessages(subagent: SubAgentDetail | null): DispatchMessage
 
   const roleLabel = subagent.role_summary?.display_name || subagent.subagent_type || "协作节点";
   const taskDescription = subagent.description?.trim();
+  const metaRecord = subagent.meta as Record<string, unknown>;
+  const launchSpec = metaRecord.launch_spec as Record<string, unknown> | undefined;
   const effectiveModel =
-    typeof subagent.meta?.launch_spec?.effective_model === "string"
-      ? subagent.meta.launch_spec.effective_model
+    typeof launchSpec?.effective_model === "string"
+      ? launchSpec.effective_model as string
       : null;
 
   let content = `派发 ${roleLabel} 执行当前子任务。`;
@@ -410,7 +413,7 @@ export function SubAgentDetailDrawer({
   const expertRoleLabel = getExpertRoleLabel(subagent);
   const parentToolCallId = subagent?.parent_tool_call_id || subagent?.ownership?.parent_tool_call_id;
   const createdAtLabel = subagent?.created_at
-    || (subagent?.meta?.created_at ? new Date(subagent.meta.created_at * 1000).toISOString() : null);
+    || ((subagent?.meta as Record<string, unknown>)?.created_at ? new Date(((subagent?.meta as Record<string, unknown>).created_at as number) * 1000).toISOString() : null);
   
   const handleStop = async () => {
     if (!onStop) return;

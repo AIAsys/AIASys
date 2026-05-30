@@ -825,15 +825,6 @@ export const FileTreeView: React.FC<FileTreeViewProps> = ({
   const filesRef = useRef(files);
   filesRef.current = files;
 
-  const imageFilesKey = useMemo(() => {
-    if (!files) return "";
-    return files
-      .filter((f) => isImageFile(f.name))
-      .map((f) => f.name)
-      .sort()
-      .join("\x00");
-  }, [files]);
-
   const imageSlides = useMemo<readonly FileTreeImageSlide[]>(() => {
     if (!sessionId) return [];
     const userId = getCurrentUserId();
@@ -844,7 +835,7 @@ export const FileTreeView: React.FC<FileTreeViewProps> = ({
         if (token) url = appendAccessToken(url, token);
         return { src: url, alt: file.name, thumbnail: url };
       });
-  }, [imageFilesKey, sessionId, token]);
+  }, [sessionId, token]);
 
   const imageIndexMap = useMemo(
     () => new Map(imageSlides.map((slide, index) => [slide.alt || slide.src, index])),

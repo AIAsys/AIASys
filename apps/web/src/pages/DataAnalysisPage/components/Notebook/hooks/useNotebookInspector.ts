@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import {
   diffNotebookVersions,
@@ -41,7 +41,7 @@ export function useNotebookInspector({
   const [diffChanges, setDiffChanges] = useState<NotebookDiffCellChange[]>([]);
   const [diffMetadataChanged, setDiffMetadataChanged] = useState(false);
 
-  async function loadInspectorData(tab: NotebookInspectorTab): Promise<void> {
+  const loadInspectorData = useCallback(async (tab: NotebookInspectorTab): Promise<void> => {
     if (!sessionId || !notebookPath) {
       return;
     }
@@ -84,14 +84,14 @@ export function useNotebookInspector({
     } finally {
       setInspectorLoading(false);
     }
-  }
+  }, [sessionId, notebookPath]);
 
   useEffect(() => {
     if (!sessionId || !notebookPath || !inspectorTab || inspectorTab === "search") {
       return;
     }
     void loadInspectorData(inspectorTab);
-  }, [inspectorTab, lastExecutionRecordId, notebookPath, refreshVersion, sessionId]);
+  }, [inspectorTab, lastExecutionRecordId, notebookPath, refreshVersion, sessionId, loadInspectorData]);
 
   async function refreshInspectorData(): Promise<void> {
     if (!inspectorTab) {

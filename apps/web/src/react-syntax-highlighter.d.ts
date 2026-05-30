@@ -1,68 +1,69 @@
 declare module "react-syntax-highlighter/dist/esm/prism-light" {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- 第三方库类型不完整
   const Prism: any;
   export default Prism;
 }
 
 declare module "react-syntax-highlighter/dist/esm/languages/prism/bash" {
-  const bash: any;
+  const bash: Record<string, unknown>;
   export default bash;
 }
 
 declare module "react-syntax-highlighter/dist/esm/languages/prism/css" {
-  const css: any;
+  const css: Record<string, unknown>;
   export default css;
 }
 
 declare module "react-syntax-highlighter/dist/esm/languages/prism/javascript" {
-  const javascript: any;
+  const javascript: Record<string, unknown>;
   export default javascript;
 }
 
 declare module "react-syntax-highlighter/dist/esm/languages/prism/json" {
-  const json: any;
+  const json: Record<string, unknown>;
   export default json;
 }
 
 declare module "react-syntax-highlighter/dist/esm/languages/prism/jsx" {
-  const jsx: any;
+  const jsx: Record<string, unknown>;
   export default jsx;
 }
 
 declare module "react-syntax-highlighter/dist/esm/languages/prism/markdown" {
-  const markdown: any;
+  const markdown: Record<string, unknown>;
   export default markdown;
 }
 
 declare module "react-syntax-highlighter/dist/esm/languages/prism/markup" {
-  const markup: any;
+  const markup: Record<string, unknown>;
   export default markup;
 }
 
 declare module "react-syntax-highlighter/dist/esm/languages/prism/python" {
-  const python: any;
+  const python: Record<string, unknown>;
   export default python;
 }
 
 declare module "react-syntax-highlighter/dist/esm/languages/prism/sql" {
-  const sql: any;
+  const sql: Record<string, unknown>;
   export default sql;
 }
 
 declare module "react-syntax-highlighter/dist/esm/languages/prism/tsx" {
-  const tsx: any;
+  const tsx: Record<string, unknown>;
   export default tsx;
 }
 
 declare module "react-syntax-highlighter/dist/esm/languages/prism/typescript" {
-  const typescript: any;
+  const typescript: Record<string, unknown>;
   export default typescript;
 }
 
 declare module "react-syntax-highlighter/dist/esm/languages/prism/yaml" {
-  const yaml: any;
+  const yaml: Record<string, unknown>;
   export default yaml;
 }
 
 declare module "react-syntax-highlighter/dist/esm/styles/prism" {
-  export const vscDarkPlus: any;
+  export const vscDarkPlus: Record<string, unknown>;
 }

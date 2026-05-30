@@ -535,8 +535,7 @@ export function useCodeExecutor({
     await sessionOrchestrator.loadConversations();
   }, [
     clearContextMarkerContent,
-    sessionOrchestrator.sessionId,
-    sessionOrchestrator.loadConversations,
+    sessionOrchestrator,
     resetAgentStream,
     updateChatItemsForSession,
   ]);
