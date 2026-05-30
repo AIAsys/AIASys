@@ -1,0 +1,13 @@
+{
+  "source_type": "github",
+  "source_url": "https://github.com/chiroro-jr/pencil-design-skill",
+  "downloaded_at": "2026-04-10",
+  "local_version": "main",
+  "upstream_version": "main",
+  "last_check": "2026-04-10",
+  "license": "See source repo",
+  "language": "en",
+  "tags": ["pencil", "design", "ui", "pen", "mcp", "react", "tailwind", "shadcn"],
+  "notes": "skills.sh 高安装量 (831) 的 Pencil.dev 设计 skill，专注 .pen 文件设计与设计转代码",
+  "category": "设计工具"
+}

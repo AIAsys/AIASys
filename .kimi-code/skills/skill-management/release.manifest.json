@@ -1,0 +1,12 @@
+{
+  "note": "skill-management 发布清单：包含体系规范文档和目录标准",
+  "include": [
+    "SKILL.md",
+    "README.md"
+  ],
+  "exclude": [
+    ".git/**",
+    ".runtime/**",
+    "release.manifest.json"
+  ]
+}

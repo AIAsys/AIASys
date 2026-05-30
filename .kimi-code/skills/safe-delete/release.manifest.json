@@ -1,0 +1,14 @@
+{
+  "note": "safe-delete 正式区同步 skill 文档与 PowerShell 脚本。",
+  "include": [
+    "SKILL.md",
+    "README.md",
+    "scripts/**"
+  ],
+  "exclude": [
+    ".git/**",
+    ".runtime/**",
+    "versions/**",
+    "release.manifest.json"
+  ]
+}
