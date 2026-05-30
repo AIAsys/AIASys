@@ -142,7 +142,7 @@ test-results/
 .pytest_cache/
 .playwright/
 .ruff_cache/
-.python-version
+
 .gitleaks.toml
 
 # AI 协作入口文件（各 CLI 统一索引到 AGENTS.md，本地保留不提交）
