@@ -20,8 +20,9 @@ wheels/
 /.mcp.example.json
 /apps/artifacts/
 /apps/web/artifacts/
-/.acp_agent/
-/.agents/mcp.local.json
+/tests_local
+uv.toml
+test-results/
 
 # OS files
 .DS_Store
@@ -29,29 +30,6 @@ wheels/
 # Logs
 *.log
 .logs/
-
-# Local directories
-/tests_local
-uv.toml
-.memo/
-.entire
-.temp/
-.codex
-.kimi-code/
-.kimi/
-.agent/
-.playwright-mcp/
-.gemini/
-.opencode/
-.qwen/
-.agents/context/
-.agents/**/.git/
-# Local task-session artifacts
-.agents/task-sessions/active/
-.agents/task-sessions/archive/
-.agents/task-sessions/completed/
-.agents/task-sessions/handoffs/
-test-results/
 
 # Node.js
 node_modules/
@@ -99,22 +77,42 @@ apps/desktop/.dist/
 
 # Root-level fallback: any artifact dir at repo root should be ignored
 /artifacts/
-.agents/skill-development/
 .tmp/
-.playwright-cli/
 docs/superpowers/
-/.codex-runs/
 
-# 运行时目录，不提交到远程
-/.agents/
+# 个人 AI 交互配置（不纳入项目）
+/.claude/
+/.codex/
+/.codex-runs/
+/.kimi/
+/.kimi-code/
+/.gemini/
+/.opencode/
+/.qwen/
 /.playwright/
+/.playwright-cli/
+/.playwright-mcp/
+/.agent/
+/.memo/
+/.entire
+/.temp/
+/.acp_agent/
+
+# 个人运行时产物（.agents 子目录中仅排除运行时内容，skills 和 MEMORY.md 是项目共享的）
+/.agents/context/
+/.agents/task-sessions/active/
+/.agents/task-sessions/archive/
+/.agents/task-sessions/completed/
+/.agents/task-sessions/handoffs/
+/.agents/mcp.local.json
+/.agents/skill-development/
+/.agents/**/.git/
+
+# 设计草稿（不纳入项目）
 /design-draft/**
 
 # 前端截图验证产物
 apps/design-draft/
-
-# AI 工具本地配置（不纳入项目）
-.claude/
 
 # Editor swap/backup files
 *.swp
@@ -140,9 +138,7 @@ htmlcov/
 coverage.xml
 
 # 本地开发文件，保留但不提交
-test-results/
 .pytest_cache/
-.playwright/
 .ruff_cache/
 
 .gitleaks.toml
