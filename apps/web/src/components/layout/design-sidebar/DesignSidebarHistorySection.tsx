@@ -3,6 +3,7 @@ import {
   FolderOpen,
   History,
   Loader2,
+  MessageSquare,
   MoreHorizontal,
   Pencil,
   Search,
@@ -59,18 +60,44 @@ interface DesignSidebarHistorySectionProps {
   exportingSessionId?: string | null;
 }
 
+function toMillis(value?: string | null): number {
+  if (!value) {
+    return 0;
+  }
+  const parsed = Date.parse(value);
+  return Number.isNaN(parsed) ? 0 : parsed;
+}
+
+function formatConversationTimestamp(value?: string | null): string {
+  if (!value) {
+    return "未知";
+  }
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return "未知";
+  }
+  return parsed.toLocaleString("zh-CN", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+}
+
 export function DesignSidebarHistorySection({
-  sessions: _sessions,
+  sessions,
   workspaces = [],
   filteredWorkspaces = [],
-  filteredSessions: _filteredSessions,
+  filteredSessions,
   currentWorkspaceId,
-  currentSessionId: _currentSessionId,
+  currentSessionId,
   isLoadingHistory,
   searchQuery,
   onSearchQueryChange,
   onClearSearch,
-  onSessionSelect: _onSessionSelect,
+  onSessionSelect,
   onDeleteSession: _onDeleteSession,
   onForkConversation: _onForkConversation,
   onWorkspaceSelect,
@@ -92,6 +119,10 @@ export function DesignSidebarHistorySection({
 
   const hasSearchQuery = searchQuery.trim().length > 0;
   const displayedWorkspaces = hasSearchQuery ? filteredWorkspaces : workspaces;
+  const displayedSessions = hasSearchQuery ? filteredSessions : sessions;
+  const sortedSessions = [...displayedSessions].sort((left, right) => {
+    return toMillis(right.updated_at) - toMillis(left.updated_at);
+  });
   const shouldShowWorkspaceLoadingState =
     isLoadingHistory &&
     workspaces.length === 0 &&
@@ -156,6 +187,64 @@ export function DesignSidebarHistorySection({
 
   return (
     <div className="px-4 flex-1 overflow-y-auto">
+      {/* 对话列表 */}
+      {!hasSearchQuery && (
+        <>
+          <div className="flex items-center justify-between mb-3 text-muted-foreground font-medium">
+            <span className="text-xs">对话</span>
+            <MessageSquare className="w-4 h-4" />
+          </div>
+          <div className="space-y-1 text-foreground mb-4">
+            {sortedSessions.length === 0 ? (
+              <div className="text-muted-foreground text-xs italic py-2">
+                {isLoadingHistory ? "正在加载对话..." : "暂无对话"}
+              </div>
+            ) : (
+              sortedSessions.map((session) => {
+                const isCurrentSession = session.session_id === currentSessionId;
+                return (
+                  <button
+                    key={session.session_id}
+                    type="button"
+                    onClick={() => onSessionSelect?.(session.session_id)}
+                    className={`group w-full rounded-xl border px-3 py-2.5 text-left transition-colors ${
+                      isCurrentSession
+                        ? "border-border bg-background shadow-sm"
+                        : "border-transparent bg-background/70 hover:border-border hover:bg-background"
+                    }`}
+                  >
+                    <div className="flex items-start gap-2">
+                      <div
+                        className={`mt-0.5 rounded-md p-1.5 ${
+                          isCurrentSession
+                            ? "bg-muted-foreground/10 text-muted-foreground"
+                            : "bg-muted text-muted-foreground"
+                        }`}
+                      >
+                        <MessageSquare className="h-3 w-3" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div
+                          className="truncate text-sm font-medium text-foreground"
+                          title={session.title || "未命名对话"}
+                        >
+                          {session.title || "未命名对话"}
+                        </div>
+                        <div className="mt-1 text-[11px] text-muted-foreground">
+                          最近使用 {formatConversationTimestamp(session.updated_at)}
+                          {" · "}
+                          {session.message_count ?? 0} 条消息
+                        </div>
+                      </div>
+                    </div>
+                  </button>
+                );
+              })
+            )}
+          </div>
+        </>
+      )}
+
       {isMultiSelectMode ? (
         <div className="flex items-center justify-end mb-3 gap-2">
           <button
