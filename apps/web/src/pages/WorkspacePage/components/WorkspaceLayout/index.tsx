@@ -161,8 +161,11 @@ export function WorkspaceLayout({
         collapsed={executor.sidebarMode === "collapsed"}
         workspaces={workspaces}
         currentWorkspaceId={currentWorkspaceId}
+        sessions={executor.conversations ?? []}
+        currentSessionId={executor.sessionId ?? undefined}
         isLoadingHistory={executor.isLoadingHistory || isLoadingWorkspaces}
         onWorkspaceSelect={handleWorkspaceSelect}
+        onSessionSelect={handleSessionSelect}
         onDeleteWorkspace={handleDeleteWorkspace}
         onDeleteAllWorkspaces={handleDeleteAllWorkspaces}
         onDeleteSelectedWorkspaces={handleDeleteSelectedWorkspaces}
