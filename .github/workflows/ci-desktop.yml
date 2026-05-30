@@ -12,6 +12,9 @@ on:
         options: [beta, stable]
         default: beta
 
+permissions:
+  contents: write
+
 jobs:
   build-web:
     runs-on: ubuntu-latest
