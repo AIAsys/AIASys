@@ -1,0 +1,137 @@
+# MCP 与 Skill 市场
+
+> 当前版本: v0.3.9
+
+本文档说明 MCP（Model Context Protocol）和 Skill 的概念、管理和使用方式。
+
+## MCP 概念
+
+MCP 是 Model Context Protocol 的缩写，用于扩展系统的能力边界。通过接入 MCP Server，Agent 可以获得与外部系统交互的能力，如操作 Office 文档、发送 IM 消息、控制浏览器等。
+
+MCP Server 是独立运行的服务进程，Agent 通过标准协议与它们通信。一个 MCP Server 可以提供多个工具，Agent 按需调用。
+
+## MCP 管理
+
+MCP Server 按来源分为三类：
+
+### 系统 MCP
+
+系统内置的 MCP Server，随 AIASys 一起部署，不可删除。系统 MCP 提供基础的平台能力。
+
+### 自定义 MCP
+
+用户自行添加的 MCP Server。支持两种传输方式：
+
+- **STDIO**：通过标准输入输出与本地进程通信。配置时指定启动命令和参数
+- **HTTP**：通过 HTTP 请求与远程服务通信。配置时指定 URL 和认证头
+
+### 外部市场
+
+从外部 MCP 市场导入的 Server 配置。导入后作为自定义 MCP 管理，可以修改配置参数。
+
+## MCP 配置
+
+添加自定义 MCP Server 的步骤：
+
+1. 点击左侧 Activity Bar 的"能力管理"图标
+2. 在面板中选择"MCP 管理"分类
+3. 点击"添加 Server"
+4. 填写配置：
+
+   - **名称**：Server 的标识名称，工作区内唯一
+   - **传输方式**：选择 STDIO 或 HTTP
+   - **STDIO 配置**：填写启动命令和参数
+   - **HTTP 配置**：填写请求 URL 和认证头
+
+5. 点击"测试连接"验证配置是否正确
+6. 连接成功后点击"保存"
+
+## MCP 验证
+
+添加 MCP Server 时，系统会对 STDIO 配置进行安全校验，防止命令注入攻击：
+
+- 禁止在命令参数中使用管道符、重定向符
+- 禁止使用命令替换语法（反引号、`$()`）
+- 禁止使用环境变量展开
+
+如果配置未通过安全校验，系统会拒绝保存并提示具体的违规项。
+
+## 会话级 MCP
+
+每个会话可以独立配置 MCP Server 的启用状态。在会话设置中，可以为当前会话选择性地启用或禁用某些 MCP Server。
+
+会话级配置优先级高于工作区配置。如果某个 Server 在工作区中启用但在会话中禁用，当前会话的 Agent 不会调用该 Server 的工具。
+
+## Skill 概念
+
+Skill 是特定领域的 SOP（标准操作流程）和脚本包。每个 Skill 封装了一套完成特定任务的方法、提示词和工具组合。
+
+Skill 按需安装，不占用上下文。只有被激活时，Skill 的提示词和工具才会注入 Agent 的上下文中。未安装的 Skill 对 Agent 完全不可见。
+
+## Skill 市场
+
+Skill 市场是浏览、搜索、安装和卸载 Skill 的入口。
+
+### 浏览与搜索
+
+在"能力管理"面板中选择"Skill 市场"分类，可以看到所有可用的 Skill。每个 Skill 卡片显示：
+
+- 名称和简要描述
+- 标签（系统内置 / 外部市场）
+- 当前状态（未安装 / 已安装）
+
+支持按名称和标签搜索过滤。
+
+### 安装
+
+点击 Skill 卡片上的"安装"按钮。安装过程是将 Skill 从源仓库复制到当前工作区的 `.aiasys/skills/` 目录。安装后生成 `.aiasys-skill-meta.json` 元数据文件，记录来源和版本指纹。
+
+### 卸载
+
+点击已安装 Skill 卡片上的"卸载"按钮。卸载只删除工作区中的 Skill 副本，源仓库中的 Skill 不受影响。卸载后可随时重新安装。
+
+### Skill 架构
+
+Skill 采用全局源仓库 + 工作区副本的两层架构：
+
+| 层级 | 路径 | 作用 |
+|------|------|------|
+| 内置源 | `apps/backend/skills/builtin/` | 系统预装，不可删除 |
+| 用户源 | `apps/backend/skills/store/` | 外部市场导入，可从全局仓库删除 |
+| 工作区副本 | `{ws}/.aiasys/skills/` | 安装后实际运行的位置 |
+| 全局副本 | `global_workspace/.aiasys/skills/` | 全局启用后跨工作区共享 |
+
+## 内置 Skill 清单
+
+| Skill | 说明 |
+|-------|------|
+| aiasys-platform-skill | 平台操作与运行环境管理 |
+| competition-research-skill | 竞赛场景完整工作流（文献检索、论文摄入、实验循环） |
+| competition-parallel-research-skill | 竞赛并行研究执行 |
+| competition-runtime-prep-skill | 竞赛运行环境准备 |
+| skill-creator-skill | Skill 开发工作台（结构、测试、打包、部署） |
+| arxiv-search-skill | arXiv 论文搜索与下载 |
+| pdf-translate-skill | PDF 保版式翻译 |
+| pymupdf4llm-pdf-to-markdown-skill | PDF 转 Markdown 供 Agent 阅读 |
+| paddleocr-skill | PaddleOCR 文档提取 |
+| aiasys-canvas-skill | AIASys Canvas 对象编辑 |
+| aiasys-memory-organizer-skill | Memory 整理与 consolidation |
+| uv-runtime-skill | 当前工作区 UV/Python 运行环境管理 |
+
+## 访问入口
+
+点击左侧 Activity Bar 的"能力管理"图标，面板中分为两个主分类：
+
+- **MCP 管理**：查看、添加、编辑、测试 MCP Server
+- **Skill 市场**：浏览、搜索、安装、卸载 Skill
+
+## Agent 自主管理
+
+Agent 具备自主管理 MCP 和 Skill 的能力。Agent 可以：
+
+- 搜索市场中的 Skill，根据任务需要推荐安装
+- 安装和配置 Skill
+- 添加和测试 MCP Server 连接
+- 在会话中启用或禁用 MCP Server
+
+Agent 的所有管理操作都会记录在执行流中，用户可以随时查看和撤销。
