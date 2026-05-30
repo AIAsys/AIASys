@@ -120,7 +120,7 @@ export function CapabilityListPanel({
       }
     }
     setLoading(false);
-  }, [workspaceId, isGlobal]);
+  }, [workspaceId, isGlobal, isWorkspaceConfig]);
 
   useEffect(() => {
     void load();

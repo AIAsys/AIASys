@@ -1,4 +1,4 @@
-import { useDeferredValue, useEffect, useMemo, useState } from "react";
+import { useCallback, useDeferredValue, useEffect, useMemo, useState } from "react";
 import { AlertTriangle, Loader2, RefreshCw, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -55,7 +55,7 @@ export function EntityBrowserPanel({
   const [listError, setListError] = useState<string | null>(null);
   const [detailError, setDetailError] = useState<string | null>(null);
 
-  async function loadEntityTypes() {
+  const loadEntityTypes = useCallback(async () => {
     try {
       const stats = await graphragApi.getStatistics();
       const nextTypes = Array.from(
@@ -65,7 +65,7 @@ export function EntityBrowserPanel({
     } catch {
       setEntityTypes([]);
     }
-  }
+  }, [graphragApi]);
 
   async function loadEntities(silent = false) {
     if (silent) {
@@ -92,7 +92,7 @@ export function EntityBrowserPanel({
 
   useEffect(() => {
     void loadEntityTypes();
-  }, [graphragApi]);
+  }, [loadEntityTypes]);
 
   useEffect(() => {
     let cancelled = false;

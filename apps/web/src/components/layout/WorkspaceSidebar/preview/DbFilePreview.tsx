@@ -139,7 +139,7 @@ export const DbFilePreview: React.FC<DbFilePreviewProps> = ({
     } finally {
       setIsQuerying(false);
     }
-  }, [sessionId, fileName, sql, isQuerying, currentPage, pageSize, scope]);
+  }, [sessionId, fileName, sql, isQuerying, pageSize, scope]);
 
   const buildPaginatedSql = useCallback((tableName: string, page: number, size: number) => {
     const offset = (page - 1) * size;

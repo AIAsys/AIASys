@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { ChevronDown } from "lucide-react";
 import {
   Collapsible,
@@ -59,13 +59,13 @@ export function SessionLifecycleDialogs({
   const conversationScrollRef = useRef<HTMLDivElement | null>(null);
   const executionScrollRef = useRef<HTMLDivElement | null>(null);
 
-  function focusActiveScrollRegion() {
+  const focusActiveScrollRegion = useCallback(() => {
     const target =
       recordsDialogTab === "execution"
         ? executionScrollRef.current
         : conversationScrollRef.current;
     target?.focus({ preventScroll: true });
-  }
+  }, [recordsDialogTab]);
 
   useEffect(() => {
     if (!isExecutionRecordsDialogOpen) {
@@ -79,7 +79,7 @@ export function SessionLifecycleDialogs({
     return () => {
       window.cancelAnimationFrame(frameId);
     };
-  }, [isExecutionRecordsDialogOpen, recordsDialogTab]);
+  }, [isExecutionRecordsDialogOpen, recordsDialogTab, focusActiveScrollRegion]);
 
   return (
     <>

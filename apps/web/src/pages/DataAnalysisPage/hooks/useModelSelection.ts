@@ -189,7 +189,7 @@ export function useModelSelection(
         saveThinkingConfig(activeSessionId, false, thinkingEffort);
       }
     }
-  }, [selectedModelSupportsThinking, selectedModelId]);
+  }, [selectedModelSupportsThinking, selectedModelId, activeSessionId, thinkingEffort, thinkingEnabled]);
 
   const setActiveSessionId = useCallback((sessionId?: string) => {
     setActiveSessionIdState(sessionId);

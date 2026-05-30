@@ -228,7 +228,7 @@ export function KnowledgeBaseMarket({
     if (visibleKnowledgeBaseIds.includes(selectedKB.id)) return;
     setSelectedKB(null);
     setDocuments([]);
-  }, [selectedKB?.id, visibleKnowledgeBaseIds]);
+  }, [selectedKB, selectedKB?.id, visibleKnowledgeBaseIds]);
 
   useEffect(() => {
     if (!isCreateOpen) return;

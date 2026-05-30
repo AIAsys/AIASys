@@ -150,7 +150,7 @@ export function useSkills(): UseSkillsReturn {
     } finally {
       safeSet(setIsLoading, false);
     }
-  }, []);
+  }, [safeSet]);
 
   /**
    * 加载当前工作区已启用 Skills 列表
@@ -178,7 +178,7 @@ export function useSkills(): UseSkillsReturn {
     } finally {
       safeSet(setIsLoading, false);
     }
-  }, []);
+  }, [safeSet]);
 
   /**
    * 加载我的默认已启用 Skills 列表
@@ -207,7 +207,7 @@ export function useSkills(): UseSkillsReturn {
     } finally {
       safeSet(setIsLoading, false);
     }
-  }, []);
+  }, [safeSet]);
 
   /**
    * 加载 Skill 市场视图数据，合并 Skill 仓库、我的默认启用和工作区已启用状态。
@@ -259,7 +259,7 @@ export function useSkills(): UseSkillsReturn {
     } finally {
       safeSet(setIsLoading, false);
     }
-  }, []);
+  }, [safeSet]);
 
   /**
    * 启用 Skill（复制到工作区）
@@ -297,7 +297,7 @@ export function useSkills(): UseSkillsReturn {
         safeSet(setIsLoading, false);
       }
     },
-    [loadEnabledSkills, loadStoreSkills],
+    [loadEnabledSkills, loadStoreSkills, safeSet],
   );
 
   /**
@@ -333,7 +333,7 @@ export function useSkills(): UseSkillsReturn {
         safeSet(setIsLoading, false);
       }
     },
-    [loadEnabledSkills, loadStoreSkills],
+    [loadEnabledSkills, loadStoreSkills, safeSet],
   );
 
   /**
@@ -371,7 +371,7 @@ export function useSkills(): UseSkillsReturn {
         safeSet(setIsLoading, false);
       }
     },
-    [loadEnabledSkills, loadStoreSkills],
+    [loadEnabledSkills, loadStoreSkills, safeSet],
   );
 
   /**
@@ -412,7 +412,7 @@ export function useSkills(): UseSkillsReturn {
         safeSet(setIsLoading, false);
       }
     },
-    [loadGlobalSkills, loadStoreSkills],
+    [loadGlobalSkills, loadStoreSkills, safeSet],
   );
 
   /**
@@ -452,7 +452,7 @@ export function useSkills(): UseSkillsReturn {
         safeSet(setIsLoading, false);
       }
     },
-    [loadGlobalSkills, loadStoreSkills],
+    [loadGlobalSkills, loadStoreSkills, safeSet],
   );
 
   /**
@@ -489,7 +489,7 @@ export function useSkills(): UseSkillsReturn {
         safeSet(setIsLoading, false);
       }
     },
-    [loadStoreSkills],
+    [loadStoreSkills, safeSet],
   );
 
   /**
@@ -521,7 +521,7 @@ export function useSkills(): UseSkillsReturn {
         safeSet(setIsLoading, false);
       }
     },
-    [loadStoreSkills],
+    [loadStoreSkills, safeSet],
   );
 
   /**
@@ -543,7 +543,7 @@ export function useSkills(): UseSkillsReturn {
         return null;
       }
     },
-    [],
+    [safeSet],
   );
 
   /**
@@ -565,7 +565,7 @@ export function useSkills(): UseSkillsReturn {
         return null;
       }
     },
-    [],
+    [safeSet],
   );
 
   return {

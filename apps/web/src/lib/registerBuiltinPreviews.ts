@@ -5,7 +5,7 @@
  * 外部扩展可在此之后追加注册新的预览类型。
  */
 
-import { lazy } from "react";
+import { lazy, type ComponentType } from "react";
 import { extensionRegistry } from "./extensionRegistry";
 
 const LazyKnowledgeBasePreviewPanel = lazy(() =>
@@ -44,9 +44,9 @@ export function ensureBuiltinPreviewsRegistered(): void {
   if (_initialized) return;
   _initialized = true;
 
-  extensionRegistry.registerPreview("knowledge", LazyKnowledgeBasePreviewPanel, "知识库");
-  extensionRegistry.registerPreview("database", LazyDatabasePreviewPanel, "数据库");
-  extensionRegistry.registerPreview("graph", LazyGraphPreviewPanel, "知识图谱");
-  extensionRegistry.registerPreview("memory", LazyMemoryPreviewPanel, "记忆");
-  extensionRegistry.registerPreview("data_table", LazyDataTablePreviewPanel, "数据表");
+  extensionRegistry.registerPreview("knowledge", LazyKnowledgeBasePreviewPanel as unknown as ComponentType<Record<string, unknown>>, "知识库");
+  extensionRegistry.registerPreview("database", LazyDatabasePreviewPanel as unknown as ComponentType<Record<string, unknown>>, "数据库");
+  extensionRegistry.registerPreview("graph", LazyGraphPreviewPanel as unknown as ComponentType<Record<string, unknown>>, "知识图谱");
+  extensionRegistry.registerPreview("memory", LazyMemoryPreviewPanel as unknown as ComponentType<Record<string, unknown>>, "记忆");
+  extensionRegistry.registerPreview("data_table", LazyDataTablePreviewPanel as unknown as ComponentType<Record<string, unknown>>, "数据表");
 }

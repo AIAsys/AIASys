@@ -171,7 +171,7 @@ export function useDataAnalysisPageController({
         )
       );
     };
-  }, [executor.updateSessionChatItems, sessionId]);
+  }, [executor, executor.updateSessionChatItems, sessionId]);
 
   const {
     workspaces,

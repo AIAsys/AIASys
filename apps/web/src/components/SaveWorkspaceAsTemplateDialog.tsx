@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   Loader2,
   LayoutTemplate,
@@ -114,7 +114,7 @@ export function SaveWorkspaceAsTemplateDialog({
     if (!isOpen) return;
     // 重置所有表单和状态，避免上次操作的残留
     setWorkspaceFiles([]);
-    setName(workspaceTitle || "");
+    setName(workspaceTitleRef.current || "");
     setDescription("");
     setCategory("自定义");
     setIcon("file-plus");
@@ -136,6 +136,10 @@ export function SaveWorkspaceAsTemplateDialog({
         setIsLoadingFiles(false);
       });
   }, [isOpen, workspaceId]);
+
+  // 使用 ref 存储 workspaceTitle，避免作为 useEffect 依赖
+  const workspaceTitleRef = useRef(workspaceTitle);
+  workspaceTitleRef.current = workspaceTitle;
 
   useEffect(() => {
     if (workspaceFiles.length === 0) return;

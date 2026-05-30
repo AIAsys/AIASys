@@ -201,7 +201,7 @@ export interface ExecutionTree {
 export interface ExecutionEvent {
   type: string;
   timestamp?: number;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 // Sub Agent 完整详情
@@ -227,9 +227,9 @@ export interface SubAgentDetail {
   duration_ms?: number;
   created_at?: string | null;
   updated_at?: string | null;
-  meta: Record<string, any>;
+  meta: Record<string, unknown>;
   events: ExecutionEvent[];
-  context: any[];
+  context: unknown[];
   output_files: Array<{
     name: string;
     path: string;
@@ -259,9 +259,9 @@ export interface UseExecutionTreeReturn {
   retrySubAgent: (agentId: string) => Promise<boolean>;
 
   // 实时更新
-  onSubAgentEvent: (event: any) => void;
-  onAgentSubAgentEvent: (event: any) => void;
-  onCodeExecutionEvent: (event: any) => void;
+  onSubAgentEvent: (event: unknown) => void;
+  onAgentSubAgentEvent: (event: unknown) => void;
+  onCodeExecutionEvent: (event: unknown) => void;
 }
 
 export interface UseExecutionTreeOptions {
@@ -364,8 +364,8 @@ export function useExecutionTree(
     }
   }, [enabled, userId, sessionId]);
 
-  // 加载代码执行记录（已有��据时静默刷新）
-  const refreshCodeExecutionRecords = async () => {
+  // 加载代码执行记录（已有数据时静默刷新）
+  const refreshCodeExecutionRecords = useCallback(async () => {
     if (!enabled || !loadCodeExecutionRecords || !userId || !sessionId) {
       return;
     }
@@ -385,7 +385,7 @@ export function useExecutionTree(
     } finally {
       setIsLoadingCodeRecords(false);
     }
-  };
+  }, [enabled, loadCodeExecutionRecords, userId, sessionId]);
 
   // 选择 Sub Agent（加载详情）
   const selectSubAgentAbortRef = useRef<AbortController | null>(null);
@@ -472,11 +472,12 @@ export function useExecutionTree(
   };
 
   // 处理实时 Sub Agent 事件（来自 SSE）
-  const onSubAgentEvent = (event: any) => {
-    if (!event || typeof event !== "object") return;
+  const onSubAgentEvent = useCallback((event: unknown) => {
+    if (!event || typeof event !== "object" || event === null) return;
+    const e = event as Record<string, unknown>;
 
-    const eventType = event.type;
-    const agentId = event.agent_id || event.subagent_name;
+    const eventType = e.type as string | undefined;
+    const agentId = (e.agent_id as string) || (e.subagent_name as string);
 
     // 更新执行树中的 Sub Agent 状态
     setExecutionTree((prev) => {
@@ -493,11 +494,11 @@ export function useExecutionTree(
 
         // 根据事件类型更新状态
         if (eventType === "worker.lifecycle.changed") {
-          subagent.status = normalizeExecutionStatus(event.status || subagent.status);
+          subagent.status = normalizeExecutionStatus((e.status as string) || subagent.status);
         } else if (eventType === "step_begin") {
           subagent.progress = {
             ...subagent.progress,
-            current_step: event.step_n || subagent.progress.current_step + 1,
+            current_step: (e.step_n as number) || subagent.progress.current_step + 1,
           };
         } else if (eventType === "tool_call") {
           subagent.progress = {
@@ -520,16 +521,16 @@ export function useExecutionTree(
         return {
           ...prev,
           status: eventType === "worker.lifecycle.changed"
-            ? normalizeExecutionStatus(event.status || prev.status)
+            ? normalizeExecutionStatus((e.status as string) || prev.status)
             : prev.status,
-          events: [...prev.events, event],
+          events: [...prev.events, e as ExecutionEvent],
         };
       });
     }
-  };
+  }, []);
 
   // SubAgent 生命周期变化只需要刷新 tree，本地代码执行记录已走事件增量更新。
-  const triggerTreeRefresh = (delayMs = 500) => {
+  const triggerTreeRefresh = useCallback((delayMs = 500) => {
     if (pendingTreeRefreshRef.current) {
       clearTimeout(pendingTreeRefreshRef.current);
     }
@@ -537,48 +538,43 @@ export function useExecutionTree(
       void refreshTree();
       pendingTreeRefreshRef.current = null;
     }, delayMs);
-  };
-
-  const refreshAll = async () => {
-    const tasks: Array<Promise<void>> = [refreshTree()];
-
-    if (loadCodeExecutionRecords) {
-      tasks.push(refreshCodeExecutionRecords());
-    }
-
-    await Promise.all(tasks);
-  };
+  }, [refreshTree]);
 
   // 仅在流开始/结束等关键节点做一次全量对账。
-  const triggerFullRefresh = (delayMs = 500) => {
+  const triggerFullRefresh = useCallback((delayMs = 500) => {
     if (pendingFullRefreshRef.current) {
       clearTimeout(pendingFullRefreshRef.current);
     }
     pendingFullRefreshRef.current = setTimeout(() => {
-      void refreshAll();
+      const tasks: Array<Promise<void>> = [refreshTree()];
+      if (loadCodeExecutionRecords) {
+        tasks.push(refreshCodeExecutionRecords());
+      }
+      void Promise.all(tasks);
       pendingFullRefreshRef.current = null;
     }, delayMs);
-  };
+  }, [refreshTree, loadCodeExecutionRecords, refreshCodeExecutionRecords]);
 
   // 处理代码执行事件（从流中实时提取）
-  const onCodeExecutionEvent = (event: any) => {
-    if (!loadCodeExecutionRecords || !event || typeof event !== "object") return;
+  const onCodeExecutionEvent = useCallback((event: unknown) => {
+    if (!loadCodeExecutionRecords || !event || typeof event !== "object" || event === null) return;
+    const e = event as Record<string, unknown>;
     
-    const eventType = event.type;
+    const eventType = e.type as string | undefined;
     
     // 处理 Host 或 SubAgent 的代码执行事件
     if (eventType === "subagent_event" || eventType === "tool_call" || eventType === "tool_result") {
-      const payload = event.payload || event;
-      const payloadType = payload.type;
+      const payload = (e.payload as Record<string, unknown>) || e;
+      const payloadType = payload.type as string | undefined;
       
       // 工具调用开始 - 创建执行记录
       if (payloadType === "subagent_tool_call" || eventType === "tool_call") {
-        const args = payload.arguments || payload.tool_params || {};
-        const seed = getExecutionRecordSeed(payload.tool_name, args);
+        const args = (payload.arguments || payload.tool_params || {}) as Record<string, unknown>;
+        const seed = getExecutionRecordSeed(payload.tool_name as string, args);
         if (!seed) return;
 
         setCodeExecutionRecords((prev) => {
-          const recordId = payload.tool_call_id || `exec-${Date.now()}`;
+          const recordId = (payload.tool_call_id as string) || `exec-${Date.now()}`;
           if (prev.some((record) => record.record_id === recordId)) {
             return prev;
           }
@@ -605,9 +601,9 @@ export function useExecutionTree(
       
       // 工具调用结果 - 更新执行记录
       if (payloadType === "subagent_tool_result" || eventType === "tool_result") {
-        const toolCallId = payload.tool_call_id;
-        const content = payload.content || "";
-        const isError = payload.is_error || false;
+        const toolCallId = payload.tool_call_id as string | undefined;
+        const content = (payload.content as string) || "";
+        const isError = (payload.is_error as boolean) || false;
         
         setCodeExecutionRecords((prev) => {
           if (!toolCallId || !prev.some((record) => record.record_id === toolCallId)) {
@@ -631,14 +627,15 @@ export function useExecutionTree(
         });
       }
     }
-  };
+  }, [loadCodeExecutionRecords, sessionId]);
 
   // 处理来自 Agent SSE 的 subagent_event（包含新 Sub Agent 创建事件）
-  const onAgentSubAgentEvent = (event: any) => {
-    if (!event || typeof event !== "object") return;
+  const onAgentSubAgentEvent = useCallback((event: unknown) => {
+    if (!event || typeof event !== "object" || event === null) return;
+    const e = event as Record<string, unknown>;
 
-    const payload = event.payload || event;
-    const eventType = payload.type;
+    const payload = (e.payload as Record<string, unknown>) || e;
+    const eventType = payload.type as string | undefined;
 
     // 如果收到新 Sub Agent 的 lifecycle 事件，触发刷新
     if (eventType === "worker.lifecycle.changed" ||
@@ -652,7 +649,7 @@ export function useExecutionTree(
 
     // 转发到子组件的事件处理
     onSubAgentEvent(payload);
-  };
+  }, [triggerTreeRefresh, onCodeExecutionEvent, onSubAgentEvent]);
 
   // 初始加载
   useEffect(() => {
@@ -662,7 +659,7 @@ export function useExecutionTree(
     if (enabled && loadCodeExecutionRecords && userId && sessionId) {
       void refreshCodeExecutionRecords();
     }
-  }, [enabled, loadCodeExecutionRecords, userId, sessionId]);
+  }, [enabled, loadCodeExecutionRecords, userId, sessionId, refreshTree, refreshCodeExecutionRecords]);
 
   // 定时刷新（当 Host 正在运行时）
   // 使用 ref 避免 executionTree 变化导致频繁重建定时器
@@ -694,26 +691,32 @@ export function useExecutionTree(
     if (!enabled || !userId || !sessionId) return;
 
     const unsubscribeSubAgent = eventBus.on(EVENTS.SUBAGENT_EVENT, (event) => {
-      const eventSessionId = event?.session_id || sessionId;
+      if (!event || typeof event !== "object") return;
+      const e = event as Record<string, unknown>;
+      const eventSessionId = (e.session_id as string) || sessionId;
       if (eventSessionId === sessionId) {
         triggerTreeRefresh();
-        onCodeExecutionEvent(event);
+        onCodeExecutionEvent(e);
       }
     });
 
     const unsubscribeCodeExec = eventBus.on(EVENTS.CODE_EXECUTION_EVENT, (event) => {
       if (!loadCodeExecutionRecords) return;
-      const eventSessionId = event?.session_id || sessionId;
+      if (!event || typeof event !== "object") return;
+      const e = event as Record<string, unknown>;
+      const eventSessionId = (e.session_id as string) || sessionId;
       if (eventSessionId === sessionId) {
-        onCodeExecutionEvent(event);
+        onCodeExecutionEvent(e);
       }
     });
 
     const unsubscribeActivity = eventBus.on(EVENTS.EXECUTION_ACTIVITY, (event) => {
-      const eventSessionId = event?.session_id || sessionId;
+      if (!event || typeof event !== "object") return;
+      const e = event as Record<string, unknown>;
+      const eventSessionId = (e.session_id as string) || sessionId;
       if (eventSessionId !== sessionId) return;
 
-      const activityType = event?.type;
+      const activityType = e.type as string | undefined;
 
       if (activityType === "stream_start") {
         streamActiveRef.current = true;
@@ -738,7 +741,7 @@ export function useExecutionTree(
       unsubscribeCodeExec();
       unsubscribeActivity();
     };
-  }, [enabled, loadCodeExecutionRecords, userId, sessionId]);
+  }, [enabled, loadCodeExecutionRecords, userId, sessionId, onCodeExecutionEvent, triggerFullRefresh, triggerTreeRefresh]);
 
   return {
     executionTree,

@@ -33,7 +33,7 @@ interface UseStreamEventHandlerProps {
   isSessionRunning: (sessionId: string) => boolean;
   onAskUserRequest?: (request: AskUserRequest, sessionId: string) => void;
   /** 当收到 Sub Agent 事件时调用（用于刷新执行树） */
-  onSubAgentEvent?: (event: any) => void;
+  onSubAgentEvent?: (event: unknown) => void;
 }
 
 export function useStreamEventHandler({
@@ -57,7 +57,7 @@ export function useStreamEventHandler({
 
   // Synchronize segments back to React state array for a specific session
   // 流式过程中保持到达时序，不做全局排序
-  const syncSegmentsToUI = (sessionId: string) => {
+  const syncSegmentsToUI = useCallback((sessionId: string) => {
     const slot = getSessionSlot(sessionId);
     const currentSegments = slot.streamingSegments.map((s) => ({ ...s }));
     const content = currentSegments
@@ -100,17 +100,17 @@ export function useStreamEventHandler({
       }
       return newItems;
     });
-  };
+  }, [getSessionSlot, updateChatItems]);
 
   // Debounced flush for a specific session
-  const scheduleFlush = (sessionId: string) => {
+  const scheduleFlush = useCallback((sessionId: string) => {
     const slot = getSessionSlot(sessionId);
     if (slot.flushTimer) return;
     slot.flushTimer = setTimeout(() => {
       slot.flushTimer = null;
       syncSegmentsToUI(sessionId);
     }, 50);
-  };
+  }, [getSessionSlot, syncSegmentsToUI]);
 
   // 当新的非 think segment 到达时，将前面未完成的 think segment 标记为已完成
   // 使其 spinner 立即停止，而非等到整个消息结束
@@ -518,7 +518,7 @@ export function useStreamEventHandler({
         },
       ]);
     }
-  }, [getSessionSlot, updateChatItems, addStreamEventsForSession]);
+  }, [getSessionSlot, updateChatItems, addStreamEventsForSession, scheduleFlush, syncSegmentsToUI]);
 
   // Cleanup effect — clean up any flush timers
   useEffect(() => {

@@ -103,12 +103,13 @@ export function PptPreview({ url, downloadUrl, fileName }: PptPreviewProps) {
 
     void loadPresentation();
 
+    const preview = previewRef.current;
     return () => {
       cancelled = true;
       controller.abort();
       destroyRef.current?.();
       destroyRef.current = null;
-      previewRef.current?.replaceChildren();
+      preview?.replaceChildren();
     };
   }, [fileName, url]);
 
