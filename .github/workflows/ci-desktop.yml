@@ -49,18 +49,18 @@ jobs:
         include:
           - os: ubuntu-latest
             target: linux
-            script: dist:linux:dir
+            script: dist:ci:linux
             artifact-name: desktop-linux
             artifact-path: apps/desktop/dist/linux-unpacked/
           - os: macos-latest
             target: mac
-            script: dist:mac
+            script: dist:ci:mac
             artifact-name: desktop-mac
             artifact-path: apps/desktop/dist/*.dmg
             artifact-path2: apps/desktop/dist/*.zip
           - os: windows-latest
             target: win
-            script: dist:win
+            script: dist:ci:win
             artifact-name: desktop-win
             artifact-path: apps/desktop/dist/*.exe
             artifact-path2: apps/desktop/dist/*.zip

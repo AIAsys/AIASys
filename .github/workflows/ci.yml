@@ -118,7 +118,7 @@ jobs:
         run: cd apps/desktop && npm run prepare:runtime
 
       - name: Build desktop (Linux dir)
-        run: cd apps/desktop && npm run dist:linux:dir
+        run: cd apps/desktop && npm run dist:ci:linux
 
       - name: Upload desktop artifact
         uses: actions/upload-artifact@v4
