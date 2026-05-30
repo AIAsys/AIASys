@@ -4,32 +4,34 @@
 
 `docs/` 只放新协作者启动、运行和排障时需要先读的文档。
 
-如果你只想跑起来，先看 [guides/QUICKSTART.md](./guides/QUICKSTART.md)。
+如果你只想跑起来，先看 [guides/getting-started/QUICKSTART.md](./guides/getting-started/QUICKSTART.md)。
+
+完整指南索引见 [guides/README.md](./guides/README.md)。
 
 ## 当前入口
 
 | 位置 | 职责 |
 |---|---|
-| [guides/QUICKSTART.md](./guides/QUICKSTART.md) | 新协作者快速启动，带界面预览 |
-| [guides/SYSTEM_USAGE.md](./guides/SYSTEM_USAGE.md) | 系统使用教程，覆盖全部功能的操作指南 |
+| [guides/getting-started/QUICKSTART.md](./guides/getting-started/QUICKSTART.md) | 新协作者快速启动，带界面预览 |
+| [guides/getting-started/SYSTEM_USAGE.md](./guides/getting-started/SYSTEM_USAGE.md) | 系统使用教程，覆盖全部功能的操作指南 |
 | [deployment.md](./deployment.md) | 部署与运行说明 |
 | [getting-started.md](./getting-started.md) | 跑起来后怎么使用 `/analysis`，带完整界面截图 |
-| [guides/docker-network-configuration.md](./guides/docker-network-configuration.md) | Docker 运行时访问后端 broker 的网络排障 |
+| [guides/operations/docker-network-configuration.md](./guides/operations/docker-network-configuration.md) | Docker 运行时访问后端 broker 的网络排障 |
 | [changelog/](./changelog/) | 历史版本记录 |
 
 ## 推荐阅读路径
 
 ### 第一次启动
 
-1. [guides/QUICKSTART.md](./guides/QUICKSTART.md)
+1. [guides/getting-started/QUICKSTART.md](./guides/getting-started/QUICKSTART.md)
 2. [deployment.md](./deployment.md)
-3. [guides/SYSTEM_USAGE.md](./guides/SYSTEM_USAGE.md)
+3. [guides/getting-started/SYSTEM_USAGE.md](./guides/getting-started/SYSTEM_USAGE.md)
 
 ### 启动后出问题
 
 1. 先用 `./dev.sh status` 看前后端是否已经启动
 2. 再看 [deployment.md](./deployment.md) 的端口、配置和健康检查
-3. Docker 运行时访问数据库 broker 异常时，看 [guides/docker-network-configuration.md](./guides/docker-network-configuration.md)
+3. Docker 运行时访问数据库 broker 异常时，看 [guides/operations/docker-network-configuration.md](./guides/operations/docker-network-configuration.md)
 
 ### 想看设计
 
