@@ -28,11 +28,11 @@ export const surfacePreviewCards: SurfacePreviewCard[] = [
     title: "分析主链路",
     route: "/analysis",
     summary:
-      "适合从一个具体任务开始，Host Agent 自动分解子任务，实时追踪执行流程和结果。",
+      "从一个具体问题出发，Host Agent 自动拆解为子任务，多 Agent 并行执行，全程可视化追踪。",
     bullets: [
-      "复杂任务自动分解为 Sub Agent 并行执行",
-      "右侧边栏实时查看执行流和工具调用",
-      "文件、结果与导出集中沉淀",
+      "复杂任务自动分解，Sub Agent 并行推进",
+      "右侧边栏实时展示执行流与工具调用",
+      "文件、结果、导出材料集中沉淀",
     ],
     kind: "analysis",
     actionLabel: "进入分析工作台",
@@ -42,11 +42,11 @@ export const surfacePreviewCards: SurfacePreviewCard[] = [
     title: "知识库",
     route: "/analysis?overlay=knowledge_base",
     summary:
-      "在分析工作台内直接打开知识库弹窗，管理文档、执行检索，并把可用资源挂载回任务工作区。",
+      "在分析过程中随时调取知识库——上传文档、检索内容、把可用资源挂载到当前任务。",
     bullets: [
-      "分析页内直接打开知识库弹窗",
-      "工作区只消费已挂载知识库",
-      "知识库与图谱都以内嵌弹窗承接",
+      "分析页内一键打开，无需跳转",
+      "工作区仅消费已挂载的知识库",
+      "知识库与图谱均以内嵌弹窗承载",
     ],
     kind: "knowledge",
     actionLabel: "在分析中打开",
@@ -56,11 +56,11 @@ export const surfacePreviewCards: SurfacePreviewCard[] = [
     title: "知识图谱探索",
     route: "/analysis?overlay=knowledge_graph",
     summary:
-      "适合在分析工作台里继续往下看，把零散信息连成关系脉络，帮助你更快抓到重点。",
+      "把零散信息连成关系网络，用 GraphRAG 在实体之间穿行，快速定位关键脉络。",
     bullets: [
-      "从关系视角理解信息",
-      "GraphRAG 实体关系浏览",
-      "以内嵌图谱弹窗继续展开脉络",
+      "以关系视角理解信息结构",
+      "GraphRAG 实体关系自由浏览",
+      "内嵌图谱弹窗，不打断分析节奏",
     ],
     kind: "graph",
     actionLabel: "在分析中探索",
@@ -70,11 +70,11 @@ export const surfacePreviewCards: SurfacePreviewCard[] = [
     title: "技能市场",
     route: "/analysis",
     summary:
-      "在分析工作台中直接打开技能市场，安装技能并立即在会话中使用。",
+      "在分析工作台中浏览、安装技能，装完即刻生效，无需重启或切换页面。",
     bullets: [
-      "分析页面内打开技能市场弹窗",
-      "安装技能即刻可用",
-      "自定义开发专属技能",
+      "分析页内打开技能市场弹窗",
+      "安装即用，零等待",
+      "支持自定义开发专属技能",
     ],
     kind: "skills",
     actionLabel: "在分析中使用",
@@ -86,7 +86,7 @@ export const capabilityCards: CapabilityCard[] = [
   {
     title: "多 Agent 并行执行",
     summary:
-      "Host Agent 智能分解复杂任务，多个 Sub Agent 并行执行，大幅缩短任务完成时间。",
+      "Host Agent 将复杂任务拆解为子任务，多个 Sub Agent 同时推进，显著缩短交付时间。",
     icon: Bot,
     accent: "from-slate-950 via-indigo-800 to-violet-600",
     glow: "bg-foreground/10",
@@ -95,12 +95,12 @@ export const capabilityCards: CapabilityCard[] = [
       { label: "任务自动分解与并行调度", status: "已可用", tone: "ready" },
       { label: "右侧执行流实时可视化", status: "已可用", tone: "ready" },
     ],
-    note: "核心价值不是'单轮回答'，而是多 Agent 并行加速的任务执行闭环。",
+    note: "不是一次问答，而是一支并行推进的 Agent 编队。",
   },
   {
     title: "会话化分析",
     summary:
-      "围绕真实任务组织多轮对话、SSE 流式执行和人工确认，不把复杂分析压扁成一次性问答。",
+      "围绕真实任务展开多轮对话，SSE 流式响应配合人工确认，不把复杂分析压扁成单次问答。",
     icon: BrainCircuit,
     accent: "from-slate-950 via-slate-800 to-slate-600",
     glow: "bg-foreground/10",
@@ -109,12 +109,12 @@ export const capabilityCards: CapabilityCard[] = [
       { label: "会话历史续聊与状态恢复", status: "已可用", tone: "ready" },
       { label: "AskUser 人机协同确认", status: "已可用", tone: "ready" },
     ],
-    note: "核心价值不是'会回答'，而是能围绕任务上下文持续推进。",
+    note: "分析的深度来自持续对话，而非一次性提示词。",
   },
   {
     title: "能力与工具接入",
     summary:
-      "把连接器、技能与知识能力接入到同一工作面，工具调用可观测、可追溯。",
+      "连接器、技能、知识库统一接入同一工作面，工具调用全程可观测、可追溯。",
     icon: Wrench,
     accent: "from-slate-950 via-lime-900 to-emerald-700",
     glow: "bg-success/10",
@@ -123,12 +123,12 @@ export const capabilityCards: CapabilityCard[] = [
       { label: "技能运行时调用", status: "已可用", tone: "ready" },
       { label: "工具调用详情追踪", status: "已可用", tone: "ready" },
     ],
-    note: "关键不是'能不能接'，而是能否纳入会话执行闭环并被治理。",
+    note: "接入只是起点，纳入执行闭环并被治理才是关键。",
   },
   {
     title: "工作区与资产沉淀",
     summary:
-      "对话中产生的数据、文件和中间结果沉淀进工作区，让复盘与交接具备真实载体。",
+      "对话中产生的数据、代码、图表和中间结果自动归入工作区，让复盘和交接有据可依。",
     icon: FolderKanban,
     accent: "from-zinc-900 via-zinc-700 to-stone-500",
     glow: "bg-stone-900/10",
@@ -142,7 +142,7 @@ export const capabilityCards: CapabilityCard[] = [
   {
     title: "本地执行",
     summary:
-      "当前版本默认使用本地执行链路，把体验集中在任务工作区、对话和执行证据上。",
+      "代码和查询默认在你的机器上运行，数据不出本地，专注打磨任务工作区的核心体验。",
     icon: ShieldCheck,
     accent: "from-slate-950 via-cyan-900 to-blue-700",
     glow: "bg-info/10",
@@ -151,12 +151,12 @@ export const capabilityCards: CapabilityCard[] = [
       { label: "任务内执行记录追踪", status: "已可用", tone: "ready" },
       { label: "默认本地执行路径", status: "已可用", tone: "ready" },
     ],
-    note: "重点不是提供多种运行后端，而是把当前主线做稳、做清楚、做顺手。",
+    note: "先做稳、做透单机体验，再谈扩展。",
   },
   {
     title: "知识能力栈",
     summary:
-      "在分析工作台内直接管理知识库、检索文档和探索知识图谱，无缝衔接分析流程。",
+      "知识库管理、文档检索、知识图谱探索——全部内嵌在分析工作台中，无缝衔接分析流程。",
     icon: Network,
     accent: "from-slate-950 via-sky-900 to-cyan-700",
     glow: "bg-info/10",
@@ -165,12 +165,12 @@ export const capabilityCards: CapabilityCard[] = [
       { label: "GraphRAG 知识图谱探索", status: "已可用", tone: "ready" },
       { label: "统一文档提取与向量化", status: "已可用", tone: "ready" },
     ],
-    note: "知识库与知识图谱使用独立路由页承接，任务工作区负责挂载、切换和回到执行上下文。",
+    note: "知识库与图谱使用独立路由页承接，任务工作区负责挂载、切换和回到执行上下文。",
   },
   {
     title: "数据库浏览器",
     summary:
-      "直接在会话中连接 PostgreSQL 等数据库，查看表结构、执行 SQL 查询并沉淀结果。",
+      "在会话中直连 PostgreSQL 等数据库，浏览表结构、执行 SQL、沉淀查询结果，一气呵成。",
     icon: Database,
     accent: "from-slate-950 via-violet-900 to-purple-700",
     glow: "bg-info/10",
@@ -179,12 +179,12 @@ export const capabilityCards: CapabilityCard[] = [
       { label: "SQL 查询执行与结果展示", status: "已可用", tone: "ready" },
       { label: "MySQL/SQLite 多数据库支持", status: "已可用", tone: "ready" },
     ],
-    note: "把数据查询和分析流程整合进同一工作台，无需切换工具。",
+    note: "把数据查询和分析整合进同一个工作台，无需切换工具。",
   },
   {
     title: "技能市场",
     summary:
-      "在分析工作台内直接打开技能市场，安装和管理技能，无需跳转页面。",
+      "在分析工作台中浏览、安装技能，装完即用，让领域知识变成可复用的能力组件。",
     icon: Library,
     accent: "from-slate-950 via-amber-900 to-yellow-600",
     glow: "bg-warning/10",
@@ -198,7 +198,7 @@ export const capabilityCards: CapabilityCard[] = [
   {
     title: "可复核交付",
     summary:
-      "把过程、结果和边界都讲清楚，避免只剩一张截图或一段不可追溯的最终回答。",
+      "过程、结果、边界一目了然，不只剩一张截图——对话记录、工作区产物、导出材料完整留存。",
     icon: FileArchive,
     accent: "from-slate-950 via-amber-900 to-orange-700",
     glow: "bg-warning/10",
@@ -207,7 +207,7 @@ export const capabilityCards: CapabilityCard[] = [
       { label: "工作区导出与留痕", status: "已可用", tone: "ready" },
       { label: "Markdown/DOCX/PDF 多格式导出", status: "已可用", tone: "ready" },
     ],
-    note: "价值不只在'得到结果'，更在'结果是否可复核、可交接、可沉淀'。",
+    note: "交付的价值不在于'得到了答案'，而在于答案经得起复核和交接。",
   },
 ];
 
@@ -215,22 +215,22 @@ export const scenarioCards: ScenarioCard[] = [
   {
     title: "多 Agent 并行加速",
     summary:
-      "复杂任务智能分解为多个子任务，由 Sub Agent 并行执行，大幅缩短完成时间。",
+      "复杂任务智能拆解，多个 Sub Agent 同时执行，等待时间从串行变为并行。",
     icon: Bot,
     steps: [
-      "Host Agent 智能分析并分解任务",
-      "多个 Sub Agent 并行执行子任务",
-      "右侧边栏实时查看所有执行流",
+      "Host Agent 分析并拆解任务",
+      "多个 Sub Agent 并行推进子任务",
+      "右侧边栏实时追踪所有执行流",
     ],
     outcome: "适合复杂分析、批量处理、多步骤任务并行加速的场景。",
   },
   {
     title: "本地分析与复盘闭环",
     summary:
-      "围绕当前工作区直接执行代码、查看执行记录、沉淀产物，把主链路先做稳定。",
+      "围绕当前工作区直接执行代码、查看记录、沉淀产物，把分析主链路做深做透。",
     icon: ShieldCheck,
     steps: [
-      "在当前工作区继续推进对话与分析",
+      "在当前工作区持续推进行对话与分析",
       "使用本地执行链路完成代码和 SQL 操作",
       "保留执行记录、文件和工作区产物",
     ],
@@ -263,11 +263,11 @@ export const scenarioCards: ScenarioCard[] = [
   {
     title: "工具协同型任务",
     summary:
-      "当任务需要外部工具、环境约束和人工确认时，艾斯更像一套作业面，而不是聊天外壳。",
+      "当任务需要外部工具、环境约束和人工确认时，艾斯提供的是一套作业面，而非聊天外壳。",
     icon: Blocks,
     steps: [
       "确认任务能力与资源配置",
-      "通过连接器 / 技能调外部能力",
+      "通过连接器 / 技能调用外部能力",
       "通过 AskUser 处理关键确认点",
     ],
     outcome: "适合需要控制、留痕和协作边界的复杂任务。",
@@ -275,7 +275,7 @@ export const scenarioCards: ScenarioCard[] = [
   {
     title: "技能扩展与场景定制",
     summary:
-      "在分析页面内打开技能市场，安装技能后立即在会话中使用，无缝扩展 AI 能力。",
+      "在分析页面内打开技能市场，安装后立即在会话中使用，无缝扩展 AI 能力边界。",
     icon: Library,
     steps: [
       "在分析页面打开技能市场弹窗",
@@ -289,7 +289,7 @@ export const scenarioCards: ScenarioCard[] = [
 export const workflowSteps: WorkflowStep[] = [
   {
     title: "输入任务与资料",
-    detail: "把目标、原始数据、文档和上下文拉进当前任务，而不是零散粘贴。",
+    detail: "把目标、原始数据、文档和上下文拉进当前任务，而非零散粘贴。",
     icon: FileStack,
   },
   {
@@ -299,17 +299,17 @@ export const workflowSteps: WorkflowStep[] = [
   },
   {
     title: "Agent 执行与协同",
-    detail: "通过流式执行、工具调用和 AskUser 形成可推进的作业链，右侧边栏实时可视化。",
+    detail: "流式执行、工具调用、人工确认——形成可持续推进的作业链，右侧边栏实时可视化。",
     icon: BrainCircuit,
   },
   {
     title: "结果沉淀为资产",
-    detail: "把对话、工作区文件和知识结果沉淀下来，便于继续复盘和交接。",
+    detail: "对话、代码、图表、结论全部归入工作区，随时继续复盘或交接。",
     icon: GitBranch,
   },
   {
     title: "导出与复核",
-    detail: "把关键结果、文件和边界整理成可复核材料，而不是只留下聊天截图。",
+    detail: "关键结果、文件和边界整理成可复核材料，交付的不只是一段对话。",
     icon: ShieldCheck,
   },
 ];
@@ -318,7 +318,7 @@ export const trustCards: TrustCard[] = [
   {
     title: "后续规划",
     tone: "planned",
-    summary: "以上功能已进入路线图，进展公开透明。",
+    summary: "以下功能已进入路线图，进展公开透明。",
     items: [
       "技能社区共享市场",
       "多模态能力扩展",
@@ -330,25 +330,25 @@ export const trustCards: TrustCard[] = [
 export const entryCards: EntryCard[] = [
   {
     title: "开始分析",
-    description: "进入主分析链路，围绕当前任务展开会话、执行和工作区沉淀。",
+    description: "进入主分析链路，围绕当前任务展开会话、执行与沉淀。",
     action: "进入 /analysis",
     onClick: () => goToAnalysis(),
   },
   {
     title: "知识库",
-    description: "在分析工作台中打开知识库弹窗，管理文档、智能检索。",
+    description: "在分析工作台中打开知识库，管理文档、智能检索。",
     action: "在 /analysis 中使用",
     onClick: () => goToAnalysis(),
   },
   {
     title: "知识图谱",
-    description: "在分析工作台内打开知识图谱弹窗，探索 GraphRAG 实体关系和知识脉络。",
+    description: "在分析工作台内打开图谱，探索 GraphRAG 实体关系与知识脉络。",
     action: "打开 /analysis?overlay=knowledge_graph",
     onClick: () => goToAnalysis("knowledge_graph"),
   },
   {
     title: "技能市场",
-    description: "在分析工作台中打开技能市场，安装技能并立即使用。",
+    description: "在分析工作台中浏览技能市场，安装技能并立即使用。",
     action: "在 /analysis 中使用",
     onClick: () => goToAnalysis(),
   },
