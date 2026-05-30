@@ -205,7 +205,7 @@ AIASYS_FRONTEND_PORT=13010 ./dev.sh
 
 ---
 
-遇到启动问题时，先看 [../deployment.md](../deployment.md)。
+遇到启动问题时，先看 [../../deployment.md](../../deployment.md)。
 
 ---
 

@@ -53,7 +53,7 @@ AIASYS_FRONTEND_PORT=13002 AIASYS_BACKEND_PORT=13003 ./dev.sh
 
 ### Q: Docker 未安装会影响使用吗？
 
-不会。AIASys 默认使用本地 UV 运行环境执行代码，不强制依赖 Docker。Docker 只在需要 Docker 沙盒执行环境时才需要。详见 [deployment.md](../deployment.md)。
+不会。AIASys 默认使用本地 UV 运行环境执行代码，不强制依赖 Docker。Docker 只在需要 Docker 沙盒执行环境时才需要。详见 [../../deployment.md](../../deployment.md)。
 
 ### Q: Redis 未安装会影响使用吗？
 
@@ -190,4 +190,4 @@ grep -r "data" apps/backend/config.json
 
 ### Q: Docker 沙盒里的数据库怎么访问？
 
-Docker 运行时通过 broker 访问数据库，容器内不直接持有数据库凭据。如果报"数据库 broker 未配置"，看 [docker-network-configuration.md](docker-network-configuration.md)。
+Docker 运行时通过 broker 访问数据库，容器内不直接持有数据库凭据。如果报"数据库 broker 未配置"，看 [../operations/docker-network-configuration.md](../operations/docker-network-configuration.md)。
