@@ -546,7 +546,7 @@ cd apps/web && npm run typecheck          # 类型检查
 
 ## 文档
 
-[快速启动指南](docs/guides/QUICKSTART.md) — 5 分钟最小化启动
+[快速启动指南](docs/guides/getting-started/QUICKSTART.md) — 5 分钟最小化启动
 [更新日志](docs/changelog) — 版本变更记录
 [贡献指南](CONTRIBUTING.md) — 开发流程和代码规范
 
