@@ -30,6 +30,14 @@ function copyPath(sourcePath, targetPath, options = {}) {
   });
 }
 
+function copyPathIfExists(sourcePath, targetPath, options = {}) {
+  if (!fs.existsSync(sourcePath)) {
+    console.warn(`[aiasys-desktop] 跳过不存在的路径: ${sourcePath}`);
+    return;
+  }
+  copyPath(sourcePath, targetPath, options);
+}
+
 function prepareWebRuntime() {
   const webDistRoot = path.join(webRoot, "dist");
 
@@ -39,20 +47,35 @@ function prepareWebRuntime() {
 }
 
 function prepareBackendRuntime() {
-  const includeEntries = [
+  const requiredEntries = [
     ".venv",
     "app",
     "vendor",
     "skills",
     "agent_runtime_helpers",
-    "config.json",
-    "config.example.json",
     "pyproject.toml",
     "__init__.py",
   ];
 
-  for (const entry of includeEntries) {
+  const optionalEntries = [
+    "config.json",
+    "config.example.json",
+  ];
+
+  for (const entry of requiredEntries) {
     copyPath(path.join(backendRoot, entry), path.join(backendStageRoot, entry));
+  }
+
+  for (const entry of optionalEntries) {
+    copyPathIfExists(path.join(backendRoot, entry), path.join(backendStageRoot, entry));
+  }
+
+  // config.json 不在仓库中时，用 config.example.json 兜底
+  const stagedConfigPath = path.join(backendStageRoot, "config.json");
+  const stagedExamplePath = path.join(backendStageRoot, "config.example.json");
+  if (!fs.existsSync(stagedConfigPath) && fs.existsSync(stagedExamplePath)) {
+    fs.copyFileSync(stagedExamplePath, stagedConfigPath);
+    console.warn("[aiasys-desktop] config.json 不存在，已从 config.example.json 复制");
   }
 
   fs.mkdirSync(path.join(backendStageRoot, "data", "workspaces"), { recursive: true });
