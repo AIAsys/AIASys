@@ -24,6 +24,7 @@
   "build": {
     "appId": "com.aiasys.desktop",
     "productName": "AIASys Desktop",
+    "icon": "build/icon",
     "directories": {
       "output": "dist"
     },
