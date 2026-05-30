@@ -101,6 +101,7 @@ docs/superpowers/
 # 个人运行时产物（.agents 子目录中仅排除运行时内容，skills 和 MEMORY.md 是项目共享的）
 /.agents/context/
 /.agents/task-sessions/active/
+/.agents/task-sessions/paused/
 /.agents/task-sessions/archive/
 /.agents/task-sessions/completed/
 /.agents/task-sessions/handoffs/
