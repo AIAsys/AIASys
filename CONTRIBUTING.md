@@ -12,7 +12,7 @@
 
 ### 2.1 环境准备
 
-- 克隆项目后先看 [docs/guides/QUICKSTART.md](docs/guides/QUICKSTART.md)
+- 克隆项目后先看 [docs/guides/getting-started/QUICKSTART.md](docs/guides/getting-started/QUICKSTART.md)
 - 推荐顺序：
 
 ```bash
@@ -131,7 +131,8 @@ AIASys/
 
 如果你在开发中遇到任何困惑，欢迎：
 - 在 [Issues](https://github.com/AIAsys/AIASys/issues) 中提问。
-- 查阅 [docs/guides/](docs/guides/) 目录下的详细指南。
+- 查阅 [docs/guides/](docs/guides/) 目录下的详细指南，入口见 [docs/guides/README.md](docs/guides/README.md)。
+- 了解哪些 AI Agent 配置应该/不应该提交：见 [docs/guides/contributing/ai-agent-config-guidelines.md](docs/guides/contributing/ai-agent-config-guidelines.md)。
 
 ---
 
