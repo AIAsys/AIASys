@@ -53,6 +53,8 @@ function prepareBackendRuntime() {
     "vendor",
     "skills",
     "agent_runtime_helpers",
+    "templates",
+    "capability_sources",
     "pyproject.toml",
     "__init__.py",
   ];
@@ -60,6 +62,9 @@ function prepareBackendRuntime() {
   const optionalEntries = [
     "config.json",
     "config.example.json",
+    "scripts",
+    "fonts",
+    "docs",
   ];
 
   for (const entry of requiredEntries) {

@@ -490,7 +490,7 @@ class DesktopServiceManager {
       const child = spawnManagedProcess(
         "frontend-preview",
         pythonExecutable,
-        [path.join(this.webRoot, "scripts", "local_preview_server.py")],
+        [path.join(this.webRoot, "scripts", "committed", "local_preview_server.py")],
         {
           cwd: this.webRoot,
           env: {
