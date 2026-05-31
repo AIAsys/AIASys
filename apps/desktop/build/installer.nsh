@@ -46,20 +46,12 @@ $
 
 ; 在卸载文件后、完成页前插入数据清理确认
 !macro customRemoveFiles
-  ; 询问是否删除用户数据目录
-  MessageBox MB_YESNO|MB_ICONQUESTION "是否同时删除用户数据？$
-$
-用户数据包括工作区文件、会话历史、日志和本地数据库。$
-$
-点击"是"删除所有用户数据，点击"否"保留数据。" IDYES deleteData IDNO keepData
-
+  MessageBox MB_YESNO|MB_ICONQUESTION "是否同时删除用户数据（工作区文件、会话历史、日志、本地数据库）？" IDYES deleteData IDNO keepData
   deleteData:
     RMDir /r "$APPDATA\AIASys Desktop"
     DetailPrint "已删除用户数据"
     Goto dataDone
-
   keepData:
     DetailPrint "保留用户数据"
-
   dataDone:
 !macroend
