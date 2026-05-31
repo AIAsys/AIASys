@@ -3,7 +3,10 @@ import {
   AlertTriangle,
   Ban,
   CheckCircle2,
+  ChevronDown,
+  ChevronUp,
   Loader2,
+  Package,
   Plus,
   RefreshCw,
   SquareTerminal,
@@ -22,7 +25,7 @@ import {
   removeKernelEnv,
   type KernelEnvItem,
 } from "@/lib/api/kernelEnvs";
-import type { WorkspaceRuntimeEnvironmentRegistry } from "@/types/workspace";
+import type { WorkspaceRuntimeEnvironment, WorkspaceRuntimeEnvironmentRegistry } from "@/types/workspace";
 
 type TabNotice = { type: "success" | "error" | "info"; message: string } | null;
 
@@ -33,11 +36,13 @@ interface PythonRuntimeTabProps {
   isEnsuringUv: boolean;
   bindingEnvId: string | null;
   unregisteringEnvId: string | null;
+  installingEnvId: string | null;
   onRefreshRegistry: () => Promise<void>;
   onEnsureUv: () => Promise<void>;
   onRegisterPython: (env: KernelEnvItem) => Promise<void>;
   onBindDefault: (envId: string) => Promise<void>;
   onUnregister: (envId: string) => Promise<void>;
+  onInstallPackages: (envId: string, packages: string[]) => Promise<void>;
 }
 
 const runtimeStatusLabels: Record<string, string> = {
@@ -69,6 +74,181 @@ function Notice({ notice }: { notice: TabNotice }) {
   );
 }
 
+function UvEnvCard({
+  env,
+  workspaceId,
+  bindingEnvId,
+  unregisteringEnvId,
+  installingEnvId,
+  onBindDefault,
+  onUnregister,
+  onInstallPackages,
+}: {
+  env: WorkspaceRuntimeEnvironment;
+  workspaceId?: string | null;
+  bindingEnvId: string | null;
+  unregisteringEnvId: string | null;
+  installingEnvId: string | null;
+  onBindDefault: (envId: string) => Promise<void>;
+  onUnregister: (envId: string) => Promise<void>;
+  onInstallPackages: (envId: string, packages: string[]) => Promise<void>;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const [packageInput, setPackageInput] = useState("");
+  const [localInstalling, setLocalInstalling] = useState(false);
+  const [localNotice, setLocalNotice] = useState<TabNotice>(null);
+
+  const visiblePackages = env.packages.slice(0, 24);
+  const hasMore = env.packages.length > 24;
+
+  const handleInstall = useCallback(async () => {
+    const raw = packageInput.trim();
+    if (!raw) return;
+    const packages = raw
+      .split(/\s+/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+    if (packages.length === 0) return;
+    setLocalInstalling(true);
+    setLocalNotice(null);
+    try {
+      await onInstallPackages(env.env_id, packages);
+      setPackageInput("");
+      setLocalNotice({ type: "success", message: `已安装 ${packages.join(", ")}。` });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "安装失败";
+      setLocalNotice({ type: "error", message: msg });
+    } finally {
+      setLocalInstalling(false);
+    }
+  }, [packageInput, env.env_id, onInstallPackages]);
+
+  return (
+    <div className="rounded-lg border border-border bg-muted/20">
+      <div className="flex items-center justify-between gap-3 px-3 py-2">
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          className="flex min-w-0 flex-1 items-center gap-2 text-left"
+        >
+          {expanded ? (
+            <ChevronUp className="h-4 w-4 shrink-0 text-muted-foreground" />
+          ) : (
+            <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+          )}
+          <div className="min-w-0 overflow-hidden">
+            <div className="truncate text-sm font-medium text-foreground" title={env.display_name}>
+              {env.display_name}
+            </div>
+            <div
+              className="truncate text-xs text-muted-foreground"
+              title={`Python ${env.python_version || "未锁定"} · ${env.package_count} 个包 · ${runtimeStatusLabel(env.status)}`}
+            >
+              Python {env.python_version || "未锁定"} · {env.package_count} 个包 · {runtimeStatusLabel(env.status)}
+            </div>
+          </div>
+        </button>
+        <div className="flex shrink-0 items-center gap-2">
+          {env.active ? <Badge variant="success">Python 环境</Badge> : null}
+          {!env.active ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={bindingEnvId === env.env_id}
+              onClick={() => void onBindDefault(env.env_id)}
+            >
+              {bindingEnvId === env.env_id ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : null}
+              设为 Python 环境
+            </Button>
+          ) : null}
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            disabled={unregisteringEnvId === env.env_id}
+            onClick={() => void onUnregister(env.env_id)}
+          >
+            {unregisteringEnvId === env.env_id ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : null}
+            取消登记
+          </Button>
+        </div>
+      </div>
+
+      {expanded ? (
+        <div className="border-t border-border px-3 py-3">
+          {env.packages.length > 0 ? (
+            <div className="mb-3 grid grid-cols-2 gap-x-4 gap-y-1 sm:grid-cols-3 md:grid-cols-4">
+              {visiblePackages.map((pkg) => (
+                <div key={pkg.name} className="flex items-center gap-1.5 text-xs text-foreground">
+                  <Package className="h-3 w-3 shrink-0 text-muted-foreground" />
+                  <span className="truncate" title={`${pkg.name} ${pkg.version}`}>
+                    {pkg.name}
+                  </span>
+                  <span className="shrink-0 text-muted-foreground">{pkg.version}</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="mb-3 text-xs text-muted-foreground">暂无已安装包。</div>
+          )}
+          {hasMore ? (
+            <div className="mb-3 text-xs text-muted-foreground">
+              还有 {env.packages.length - 24} 个包未显示。
+            </div>
+          ) : null}
+
+          <div className="flex items-center gap-2">
+            <Input
+              type="text"
+              value={packageInput}
+              onChange={(e) => setPackageInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  void handleInstall();
+                }
+              }}
+              placeholder="空格分隔多个包，如 numpy pandas==2.0"
+              disabled={localInstalling || !workspaceId}
+              className="h-8 text-sm"
+            />
+            <Button
+              type="button"
+              size="sm"
+              disabled={localInstalling || !packageInput.trim() || !workspaceId}
+              onClick={() => void handleInstall()}
+            >
+              {localInstalling || installingEnvId === env.env_id ? (
+                <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+              ) : (
+                <Plus className="mr-1 h-4 w-4" />
+              )}
+              安装
+            </Button>
+          </div>
+
+          {localNotice ? (
+            <div
+              className={`mt-2 rounded-lg border px-3 py-1.5 text-xs ${
+                localNotice.type === "success"
+                  ? "border-success/30 bg-success-container text-on-success-container"
+                  : "border-error/30 bg-error-container text-on-error-container"
+              }`}
+            >
+              {localNotice.message}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export function PythonRuntimeTab({
   workspaceId,
   registry,
@@ -76,11 +256,13 @@ export function PythonRuntimeTab({
   isEnsuringUv,
   bindingEnvId,
   unregisteringEnvId,
+  installingEnvId,
   onRefreshRegistry,
   onEnsureUv,
   onRegisterPython,
   onBindDefault,
   onUnregister,
+  onInstallPackages,
 }: PythonRuntimeTabProps) {
   const [interpreterPath, setInterpreterPath] = useState("");
   const [interpreterName, setInterpreterName] = useState("");
@@ -269,57 +451,19 @@ export function PythonRuntimeTab({
         <div className="mt-4 space-y-2">
           {workspaceUvEnvs.length > 0 ? (
             workspaceUvEnvs.map((env) => (
-              <div
+              <UvEnvCard
                 key={env.env_id}
-                className="rounded-lg border border-border bg-muted/20 px-3 py-2"
-              >
-                <div className="flex items-center justify-between gap-3">
-                  <div className="min-w-0 overflow-hidden">
-                    <div className="truncate text-sm font-medium text-foreground" title={env.display_name}>
-                      {env.display_name}
-                    </div>
-                    <div
-                      className="truncate text-xs text-muted-foreground"
-                      title={`Python ${env.python_version || "未锁定"} · ${env.package_count} 个包 · ${runtimeStatusLabel(env.status)}`}
-                    >
-                      Python {env.python_version || "未锁定"} · {env.package_count} 个包 · {runtimeStatusLabel(env.status)}
-                    </div>
-                  </div>
-                  <div className="flex shrink-0 items-center gap-2">
-                    {env.active ? <Badge variant="success">Python 环境</Badge> : null}
-                    {!env.active ? (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        disabled={bindingEnvId === env.env_id}
-                        onClick={() => void onBindDefault(env.env_id)}
-                      >
-                        {bindingEnvId === env.env_id ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : null}
-                        设为 Python 环境
-                      </Button>
-                    ) : null}
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      disabled={unregisteringEnvId === env.env_id}
-                      onClick={() => void onUnregister(env.env_id)}
-                    >
-                      {unregisteringEnvId === env.env_id ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : null}
-                      取消登记
-                    </Button>
-                  </div>
-                </div>
-              </div>
+                env={env}
+                workspaceId={workspaceId}
+                bindingEnvId={bindingEnvId}
+                unregisteringEnvId={unregisteringEnvId}
+                installingEnvId={installingEnvId}
+                onBindDefault={onBindDefault}
+                onUnregister={onUnregister}
+                onInstallPackages={onInstallPackages}
+              />
             ))
-          ) : (
-            null
-          )}
+          ) : null}
           {workspaceRegisteredPythonEnvs.length > 0 ? (
             workspaceRegisteredPythonEnvs.map((env) => (
               <div

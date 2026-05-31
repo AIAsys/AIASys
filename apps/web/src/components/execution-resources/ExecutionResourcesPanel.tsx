@@ -14,6 +14,7 @@ import {
   bindWorkspaceRuntimeEnvironment,
   ensureWorkspaceUvEnvironment,
   getWorkspaceRuntimeEnvironments,
+  installWorkspaceRuntimePackages,
   registerWorkspacePythonEnvironment,
   updateTaskWorkspace,
   unregisterWorkspaceRuntimeEnvironment,
@@ -368,6 +369,7 @@ export function ExecutionResourcesPanel({
   const [isEnsuringUv, setIsEnsuringUv] = useState(false);
   const [bindingEnvId, setBindingEnvId] = useState<string | null>(null);
   const [unregisteringEnvId, setUnregisteringEnvId] = useState<string | null>(null);
+  const [installingEnvId, setInstallingEnvId] = useState<string | null>(null);
   const [containerResources, setContainerResources] = useState<WorkspaceContainerResource[]>([]);
   const [selectingSandboxId, setSelectingSandboxId] = useState<string | null>(null);
 
@@ -487,6 +489,26 @@ export function ExecutionResourcesPanel({
         setNotice({ type: "error", message });
       } finally {
         setUnregisteringEnvId(null);
+      }
+    },
+    [loadRegistry, workspaceId],
+  );
+
+  const handleInstallPackages = useCallback(
+    async (envId: string, packages: string[]) => {
+      if (!workspaceId) return;
+      setInstallingEnvId(envId);
+      setNotice(null);
+      try {
+        await installWorkspaceRuntimePackages(workspaceId, envId, { packages });
+        setNotice({ type: "success", message: `已安装 ${packages.join(", ")}。` });
+        await loadRegistry();
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "安装依赖失败";
+        setNotice({ type: "error", message });
+        throw err;
+      } finally {
+        setInstallingEnvId(null);
       }
     },
     [loadRegistry, workspaceId],
@@ -621,11 +643,13 @@ export function ExecutionResourcesPanel({
                 isEnsuringUv={isEnsuringUv}
                 bindingEnvId={bindingEnvId}
                 unregisteringEnvId={unregisteringEnvId}
+                installingEnvId={installingEnvId}
                 onRefreshRegistry={loadRegistry}
                 onEnsureUv={handleEnsureUv}
                 onRegisterPython={handleRegisterPython}
                 onBindDefault={handleBindDefault}
                 onUnregister={handleUnregisterEnv}
+                onInstallPackages={handleInstallPackages}
               />
             ) : null}
 
