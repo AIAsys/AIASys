@@ -287,6 +287,7 @@ AI 先向用户说"我改好了"，然后才想起来更新 Todo。
 - [ ] 汇报内容包含结果摘要、改动清单、验证结果
 - [ ] 若中途汇报，必须说明阻塞原因和当前进度
 - [ ] 任务涉及 skill 的新增、修改、废弃时，确认是否需要执行关联引用检查（见 AGENTS.md "Skill 变更后的关联维护"和 task-session "文档同步"章节）
+- [ ] 提交前确认文档同步检查已完成（见 `github-project-management` skill "提交前文档与 skill 同步检查"）
 
 ---
 
@@ -294,12 +295,16 @@ AI 先向用户说"我改好了"，然后才想起来更新 Todo。
 
 当任务涉及以下操作时，必须在 Todo 中加入对应的同步检查项：
 
+- **修改了用户-facing 代码**（前端组件、后端 API、配置项默认值）→ 检查 `docs/guides/` 下对应功能文档是否需要更新，同步更新 `docs/guides/DOC_CODE_MAP.md`
+- **修改了架构、对象模型、交互模式、运行态设计** → 检查 `design-draft/design/` 下对应设计文档是否需要更新。design 文档是开发记忆的核心，被 gitignore 但不意味着可以不同步
 - **修改了某个 skill 的 SKILL.md**（包括 description、职责范围、关联引用）→ 搜索该 skill 名称在 `.agents/skills/` 下的所有引用，确认其他 skill 的"不替代 XXX""详见 XXX"等声明是否需要同步更新
 - **新增 skill 到 `.agents/skills/`** → 确认新 skill 的 description 是否声明了与已有 skill 的边界（"不替代 XXX""不适用于 XXX"）
 - **废弃或删除 skill** → 搜索该 skill 名称在所有 skill 和 AGENTS.md 中的引用，更新或删除失效引用
 - **修改了 AGENTS.md 中的约束规则**（项目语义、协作规则、多终端 AI 协作开发约束等）→ 检查受影响的 skill 是否需要同步更新，确保 skill 中的规则描述不与 AGENTS.md 冲突
 
-这不是可选步骤。skill 之间的引用不一致会导致后续 AI 读取到矛盾或失效信息，产生不可预期的行为。具体协议见 AGENTS.md "Skill 变更后的关联维护"。
+这不是可选步骤。skill 之间的引用不一致会导致后续 AI 读取到矛盾或失效信息，产生不可预期的行为。design 文档与代码不同步会导致后续开发者（包括 AI）基于过时的设计假设做决策。具体协议见 AGENTS.md "Skill 变更后的关联维护"。
+
+**提交前最终确认**：代码改动完成后、commit 之前，按 `github-project-management` skill 的"提交前文档与 skill 同步检查"执行最终确认，确保文档、design 文档、skill、AGENTS.md 四者一致后再提交。
 
 ---
 
