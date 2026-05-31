@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import pytest
 from pathlib import Path
 
@@ -100,3 +101,42 @@ async def test_shell_output_truncation(tmp_workspace: Path) -> None:
 
     assert not result.is_error
     assert "truncated" in result.output
+
+
+@pytest.mark.asyncio
+async def test_shell_dangerous_windows_blocked(tmp_workspace: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Windows 危险命令检测：mock os.name='nt' 后应拦截 Windows 特有危险命令。"""
+    monkeypatch.setattr(os, "name", "nt")
+    tool = Shell()
+
+    # del 删除 C 盘
+    result = await tool.invoke(**ShellParams(command="del /f /s /q C:\\").model_dump())
+    assert result.is_error
+    assert "危险操作" in result.message
+
+    # rd 删除 C 盘
+    result = await tool.invoke(**ShellParams(command="rd /s /q C:\\").model_dump())
+    assert result.is_error
+    assert "危险操作" in result.message
+
+    # format 格式化
+    result = await tool.invoke(**ShellParams(command="format C:").model_dump())
+    assert result.is_error
+    assert "危险操作" in result.message
+
+    # diskpart
+    result = await tool.invoke(**ShellParams(command="diskpart").model_dump())
+    assert result.is_error
+    assert "危险操作" in result.message
+
+    # shutdown
+    result = await tool.invoke(**ShellParams(command="shutdown /s /f /t 0").model_dump())
+    assert result.is_error
+    assert "危险操作" in result.message
+
+    # PowerShell Remove-Item -Recurse
+    result = await tool.invoke(
+        **ShellParams(command='powershell -Command "Remove-Item -Recurse -Force C:\\"').model_dump()
+    )
+    assert result.is_error
+    assert "危险操作" in result.message

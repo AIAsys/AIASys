@@ -7,9 +7,6 @@ import pytest
 
 from app.services.terminal.pty_manager import PtyManager, PtySession
 
-pytestmark = pytest.mark.skipif(sys.platform == "win32", reason="PTY not supported on Windows")
-
-
 @pytest.fixture
 def pty_manager():
     return PtyManager()
@@ -27,6 +24,7 @@ def mock_session():
     session.session_key = ""
     session._on_output = None
     session._on_exit = None
+    session._winpty_proc = None
     return session
 
 

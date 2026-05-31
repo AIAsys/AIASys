@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 import re
 from pathlib import Path
 from typing import Any
@@ -65,6 +66,22 @@ _DANGEROUS_PATTERNS = [
     r"(?:\\x[0-9a-fA-F]{2}){4,}",  # \x 十六进制编码序列（4+连续）
     r"(?:\\u[0-9a-fA-F]{4}){2,}",  # \u Unicode 编码序列（2+连续）
     r"\b(?:eval|exec)\s+.*(?:\\x|base64\s+-d|base64\s+--decode)",  # eval $(echo ...|base64 -d) 绕过
+]
+
+# Windows 危险命令模式
+_DANGEROUS_PATTERNS_WINDOWS = [
+    r"\bdel\s+(?:/\w+\s+)*[A-Z]:\\",  # del /f /s /q C:\
+    r"\b(?:rd|rmdir)\s+(?:/\w+\s+)*[A-Z]:\\",  # rd /s /q C:\
+    r"\bformat\s+[A-Z]:",  # format C:
+    r"\bdiskpart\b",  # diskpart
+    r"\bdeltree\s+[A-Z]:\\",  # deltree C:\
+    r"\bshutdown\s+/[sr]\b",  # shutdown /s, shutdown /r
+    r"\bbcdedit\s+/delete",  # bcdedit /delete
+    r"\breg\s+delete\s+HKLM",  # reg delete HKLM
+    r"\breg\s+delete\s+HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run",  # 删除启动项
+    r"powershell(?:\.exe)?\s+.*Remove-Item\s+.*-Recurse",  # PowerShell Remove-Item -Recurse
+    r"pwsh(?:\.exe)?\s+.*Remove-Item\s+.*-Recurse",  # pwsh Remove-Item -Recurse
+    r"\bcipher\s+/w:[A-Z]:",  # cipher /w:C: 擦除磁盘
 ]
 
 
@@ -132,8 +149,11 @@ class Shell(AiasysTool):
         if not params.command or not params.command.strip():
             return ToolResult(content="命令不能为空", is_error=True)
 
-        # 危险命令检测
-        for pattern in _DANGEROUS_PATTERNS:
+        # 危险命令检测：按平台合并检测模式
+        patterns = list(_DANGEROUS_PATTERNS)
+        if os.name == "nt":
+            patterns.extend(_DANGEROUS_PATTERNS_WINDOWS)
+        for pattern in patterns:
             if re.search(pattern, params.command):
                 return ToolResult(
                     content=f"命令包含危险操作，已被拦截: `{params.command[:80]}`",
