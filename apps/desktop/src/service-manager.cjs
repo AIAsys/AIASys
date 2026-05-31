@@ -4,8 +4,8 @@ const path = require("path");
 const { spawn, spawnSync } = require("child_process");
 
 const HOST = process.env.AIASYS_DESKTOP_HOST || "127.0.0.1";
-const DEFAULT_FRONTEND_PORT = 13000;
-const DEFAULT_BACKEND_PORT = 13001;
+const DEFAULT_FRONTEND_PORT = 13010;
+const DEFAULT_BACKEND_PORT = 13011;
 const FRONTEND_PORT = Number(
   process.env.AIASYS_DESKTOP_FRONTEND_PORT || String(DEFAULT_FRONTEND_PORT),
 );
