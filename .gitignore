@@ -3,6 +3,7 @@ __pycache__/
 *.py[oc]
 build/
 dist/
+!apps/desktop/build/
 wheels/
 *.egg-info
 .venv

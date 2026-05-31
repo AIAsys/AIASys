@@ -56,6 +56,16 @@ async function shutdownApp() {
   return signalShutdownPromise;
 }
 
+function getWindowIconPath() {
+  const appRoot = app.isPackaged
+    ? path.join(process.resourcesPath, "app.asar")
+    : path.join(__dirname, "..");
+  if (process.platform === "win32") {
+    return path.join(appRoot, "build", "icon.ico");
+  }
+  return path.join(appRoot, "build", "icon.png");
+}
+
 function createMainWindow(rendererBaseUrl) {
   const preloadPath = path.join(__dirname, "preload.cjs");
   const initialUrl = new URL(startPath, rendererBaseUrl).toString();
@@ -68,6 +78,7 @@ function createMainWindow(rendererBaseUrl) {
     autoHideMenuBar: true,
     show: false,
     title: "AIASys Desktop",
+    icon: getWindowIconPath(),
     webPreferences: {
       preload: preloadPath,
       contextIsolation: true,
