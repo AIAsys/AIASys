@@ -5,16 +5,16 @@
 
 !macro customInit
   ; 安装前检测并终止正在运行的 AIASys Desktop 进程
-  nsProcess::FindProcess "AIASys Desktop.exe"
+  ; 使用 taskkill 替代 nsProcess 插件（CI 环境中 nsProcess 插件可能缺失）
+  nsExec::ExecToStack 'tasklist /FI "IMAGENAME eq AIASys Desktop.exe" 2>NUL | find /I "AIASys Desktop.exe"'
   Pop $R0
-  ${If} $R0 == "1"
+  ${If} $R0 == "0"
     MessageBox MB_OKCANCEL|MB_ICONEXCLAMATION "AIASys Desktop 正在运行。安装前需要关闭该应用。$
 $
-点击“确定”自动关闭并继续安装，点击“取消”退出安装程序。" IDOK closeApp IDCANCEL cancelInstall
+点击"确定"自动关闭并继续安装，点击"取消"退出安装程序。" IDOK closeApp IDCANCEL cancelInstall
 
     closeApp:
-      nsProcess::KillProcess "AIASys Desktop.exe"
-      Pop $R0
+      nsExec::ExecToStack 'taskkill /F /IM "AIASys Desktop.exe" 2>NUL'
       Sleep 2000
       Goto continueInstall
 
@@ -29,11 +29,10 @@ $
 
 !macro customUnInit
   ; 卸载前检测并终止正在运行的 AIASys Desktop 进程
-  nsProcess::FindProcess "AIASys Desktop.exe"
+  nsExec::ExecToStack 'tasklist /FI "IMAGENAME eq AIASys Desktop.exe" 2>NUL | find /I "AIASys Desktop.exe"'
   Pop $R0
-  ${If} $R0 == "1"
-    nsProcess::KillProcess "AIASys Desktop.exe"
-    Pop $R0
+  ${If} $R0 == "0"
+    nsExec::ExecToStack 'taskkill /F /IM "AIASys Desktop.exe" 2>NUL'
     Sleep 1000
   ${EndIf}
 !macroend
@@ -58,7 +57,7 @@ $
 $
 数据目录: $APPDATA\AIASys Desktop$
 $
-点击“是”删除所有用户数据，点击“否”保留数据。" IDYES deleteData IDNO keepData
+点击"是"删除所有用户数据，点击"否"保留数据。" IDYES deleteData IDNO keepData
 
   deleteData:
     RMDir /r "$APPDATA\AIASys Desktop"
