@@ -27,7 +27,7 @@ npm run dev
 
 这个命令会：
 
-- 优先复用已运行的 `127.0.0.1:13001` backend 和 `127.0.0.1:13000` frontend
+- 优先复用已运行的 `127.0.0.1:13011` backend 和 `127.0.0.1:13010` frontend
 - 如未运行，则自动拉起 backend 和 `apps/web` 的 Vite dev server
 - 默认端口若被其他 checkout 占用，会自动回退到新的空闲端口
 - 然后打开 Electron 窗口

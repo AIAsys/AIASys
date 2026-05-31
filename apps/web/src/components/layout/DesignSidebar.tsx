@@ -19,20 +19,13 @@ export function DesignSidebar({
   onOpenGlobalSettings,
   onOpenChannel,
   onOpenChannelSettings,
-  sessions = [],
   workspaces = [],
   currentWorkspaceId,
-  currentSessionId,
   isLoadingHistory = false,
-  onSessionSelect,
-  onDeleteSession,
-  onForkConversation,
   onWorkspaceSelect,
   onDeleteWorkspace,
   onDeleteAllWorkspaces,
   onDeleteSelectedWorkspaces,
-  onExportSession,
-  exportingSessionId,
 }: SidebarProps) {
   const { user, isAuthenticated, isLoading, handleLogout, updateProfile } = useAuthContext();
 
@@ -64,14 +57,6 @@ export function DesignSidebar({
   const handleSaveProfile = async (data: { name: string; avatarColor: string; avatarChar: string }) => {
     return updateProfile(data);
   };
-
-  const filteredSessions = useMemo(() => {
-    if (!searchQuery.trim()) return sessions;
-    const query = searchQuery.toLowerCase();
-    return sessions.filter((session) =>
-      (session.title || "未命名对话").toLowerCase().includes(query),
-    );
-  }, [sessions, searchQuery]);
 
   const displayWorkspaces = useMemo(
     () => workspaces.filter((w) => w.workspace_kind !== "claw" && w.title !== "Claw 远程会话"),
@@ -106,25 +91,18 @@ export function DesignSidebar({
         <DesignSidebarExpanded
           avatarChar={avatarChar}
           avatarColor={avatarColor}
-          currentSessionId={currentSessionId}
           currentWorkspaceId={currentWorkspaceId}
           displayName={displayName}
-          exportingSessionId={exportingSessionId}
-          filteredSessions={filteredSessions}
           filteredWorkspaces={filteredWorkspaces}
           isAuthenticated={isAuthenticated}
           isLoadingHistory={isLoadingHistory}
           searchQuery={searchQuery}
-          sessions={sessions}
           workspaces={displayWorkspaces}
           onClose={onClose}
-          onDeleteSession={onDeleteSession}
-          onForkConversation={onForkConversation}
           onWorkspaceSelect={onWorkspaceSelect}
           onDeleteWorkspace={onDeleteWorkspace}
           onDeleteAllWorkspaces={onDeleteAllWorkspaces}
           onDeleteSelectedWorkspaces={onDeleteSelectedWorkspaces}
-          onExportSession={onExportSession}
           onUpdateWorkspace={onUpdateWorkspace}
           onOpenGlobalSettings={onOpenGlobalSettings}
           onOpenChannel={onOpenChannel}
@@ -132,7 +110,6 @@ export function DesignSidebar({
           onLogout={handleLogout}
           onNewTask={onNewTask}
           onSearchQueryChange={setSearchQuery}
-          onSessionSelect={onSessionSelect}
           onClearSearch={() => setSearchQuery("")}
           onEditProfile={handleEditProfile}
         />
