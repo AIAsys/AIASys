@@ -30,6 +30,7 @@
     },
     "files": [
       "src/**/*",
+      "build/**/*",
       "package.json"
     ],
     "extraResources": [

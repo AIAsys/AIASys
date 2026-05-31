@@ -44,6 +44,9 @@ function prepareWebRuntime() {
   ensureExists(webDistRoot, "web dist");
 
   copyPath(webDistRoot, path.join(webStageRoot, "dist"));
+
+  const scriptsCommittedRoot = path.join(webRoot, "scripts", "committed");
+  copyPathIfExists(scriptsCommittedRoot, path.join(webStageRoot, "scripts", "committed"));
 }
 
 function prepareBackendRuntime() {
