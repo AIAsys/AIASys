@@ -1,5 +1,5 @@
 const path = require("path");
-const { app, BrowserWindow, dialog, shell } = require("electron");
+const { app, BrowserWindow, dialog, shell, Tray, Menu } = require("electron");
 const { DesktopServiceManager } = require("./service-manager.cjs");
 
 const desktopMode =
@@ -14,9 +14,11 @@ const disableGpu =
 const runtimeStateRoot = path.join(app.getPath("userData"), "backend-runtime");
 
 let mainWindow = null;
+let tray = null;
 let serviceManager = null;
 let shutdownStarted = false;
 let signalShutdownPromise = null;
+let isQuitting = false;
 
 if (remoteDebuggingPort) {
   app.commandLine.appendSwitch("remote-debugging-port", remoteDebuggingPort);
@@ -120,6 +122,13 @@ function createMainWindow(rendererBaseUrl) {
     mainWindow = null;
   });
 
+  mainWindow.on("close", (event) => {
+    if (!isQuitting) {
+      event.preventDefault();
+      mainWindow.hide();
+    }
+  });
+
   mainWindow.once("ready-to-show", () => {
     mainWindow?.show();
     if (openDevTools) {
@@ -128,6 +137,64 @@ function createMainWindow(rendererBaseUrl) {
   });
 
   void mainWindow.loadURL(initialUrl);
+}
+
+function createTray() {
+  const iconPath = getWindowIconPath();
+  tray = new Tray(iconPath);
+  tray.setToolTip("AIASys Desktop");
+
+  const contextMenu = Menu.buildFromTemplate([
+    {
+      label: "显示窗口",
+      click: () => {
+        if (mainWindow) {
+          mainWindow.show();
+          mainWindow.focus();
+        } else if (serviceManager) {
+          createMainWindow(serviceManager.rendererBaseUrl);
+        }
+      },
+    },
+    { type: "separator" },
+    {
+      label: "打开日志目录",
+      click: () => {
+        const logsDir = path.join(runtimeStateRoot, "logs");
+        fs.mkdirSync(logsDir, { recursive: true });
+        void shell.openPath(logsDir);
+      },
+    },
+    {
+      label: "打开数据目录",
+      click: () => {
+        void shell.openPath(app.getPath("userData"));
+      },
+    },
+    { type: "separator" },
+    {
+      label: "退出",
+      click: () => {
+        isQuitting = true;
+        exitAfterShutdown(0);
+      },
+    },
+  ]);
+
+  tray.setContextMenu(contextMenu);
+
+  tray.on("click", () => {
+    if (mainWindow) {
+      if (mainWindow.isVisible()) {
+        mainWindow.hide();
+      } else {
+        mainWindow.show();
+        mainWindow.focus();
+      }
+    } else if (serviceManager) {
+      createMainWindow(serviceManager.rendererBaseUrl);
+    }
+  });
 }
 
 async function bootstrap() {
@@ -139,25 +206,40 @@ async function bootstrap() {
   });
   const rendererBaseUrl = await serviceManager.start();
   createMainWindow(rendererBaseUrl);
+  createTray();
 }
 
 app.whenReady().then(() => {
   void bootstrap().catch(async (error) => {
     logError("bootstrap failed", error);
-    dialog.showErrorBox(
-      "AIASys Desktop 启动失败",
-      error instanceof Error ? error.stack || error.message : String(error),
-    );
+
+    // 收集日志路径信息
+    const logsDir = path.join(runtimeStateRoot, "logs");
+    const errorMessage =
+      error instanceof Error ? error.stack || error.message : String(error);
+    const fullMessage = `${errorMessage}\n\n日志目录: ${logsDir}`;
+
+    dialog.showErrorBox("AIASys Desktop 启动失败", fullMessage);
+
+    // 尝试打开日志目录
+    try {
+      void shell.openPath(logsDir);
+    } catch {
+      // 忽略打开目录失败
+    }
+
     await shutdownApp();
     app.exit(1);
   });
 });
 
 process.once("SIGINT", () => {
+  isQuitting = true;
   exitAfterShutdown(0);
 });
 
 process.once("SIGTERM", () => {
+  isQuitting = true;
   exitAfterShutdown(0);
 });
 
@@ -166,6 +248,7 @@ process.on("message", (message) => {
     return;
   }
 
+  isQuitting = true;
   exitAfterShutdown(0);
 });
 
@@ -176,9 +259,8 @@ app.on("activate", () => {
 });
 
 app.on("window-all-closed", () => {
-  if (process.platform !== "darwin") {
-    app.quit();
-  }
+  // macOS 上保持应用运行（通过托盘），其他平台也不退出，由托盘控制
+  // 不调用 app.quit()，让托盘保持活跃
 });
 
 app.on("will-quit", (event) => {
@@ -187,7 +269,12 @@ app.on("will-quit", (event) => {
   }
 
   event.preventDefault();
+  isQuitting = true;
   void shutdownApp().finally(() => {
     app.quit();
   });
+});
+
+app.on("before-quit", () => {
+  isQuitting = true;
 });
