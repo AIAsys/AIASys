@@ -7,30 +7,20 @@ import {
 import { BrandLockup } from "@/components/branding/BrandLogo";
 import { DesignSidebarHistorySection } from "./DesignSidebarHistorySection";
 import { DesignSidebarFooter } from "./DesignSidebarFooter";
-import type {
-  Conversation,
-  TaskWorkspaceSummary,
-} from "@/pages/DataAnalysisPage/types";
-import type { SessionExportScope } from "@/types/sessionExport";
+import type { TaskWorkspaceSummary } from "@/pages/DataAnalysisPage/types";
 import type { SettingsSection } from "@/components/settings/global-settings";
 
 interface DesignSidebarExpandedProps {
   avatarChar: string;
   avatarColor: string;
-  currentSessionId?: string;
   currentWorkspaceId?: string;
   displayName: string;
-  exportingSessionId?: string | null;
-  filteredSessions: Conversation[];
   filteredWorkspaces: TaskWorkspaceSummary[];
   isAuthenticated: boolean;
   isLoadingHistory: boolean;
   searchQuery: string;
-  sessions: Conversation[];
   workspaces: TaskWorkspaceSummary[];
   onClose?: () => void;
-  onDeleteSession?: (sessionId: string) => void;
-  onForkConversation?: (sessionId: string) => void | Promise<void>;
   onWorkspaceSelect?: (workspaceId: string) => void;
   onDeleteWorkspace?: (workspaceId: string) => void | Promise<void>;
   onDeleteAllWorkspaces?: () => void;
@@ -39,10 +29,6 @@ interface DesignSidebarExpandedProps {
     workspaceId: string,
     patch: { title?: string; description?: string | null },
   ) => Promise<void> | void;
-  onExportSession?: (
-    sessionId: string,
-    scope: SessionExportScope,
-  ) => Promise<void> | void;
   onEditProfile: () => void;
   onLogout: () => void;
   onNewTask?: () => void;
@@ -50,33 +36,25 @@ interface DesignSidebarExpandedProps {
   onOpenChannel?: () => void;
   onOpenChannelSettings?: () => void;
   onSearchQueryChange: (value: string) => void;
-  onSessionSelect?: (sessionId: string) => void;
   onClearSearch: () => void;
 }
 
 export function DesignSidebarExpanded({
   avatarChar,
   avatarColor,
-  currentSessionId,
   currentWorkspaceId,
   displayName,
-  exportingSessionId,
-  filteredSessions,
   filteredWorkspaces,
   isAuthenticated,
   isLoadingHistory,
   searchQuery,
-  sessions,
   workspaces,
   onClose,
-  onDeleteSession,
-  onForkConversation,
   onWorkspaceSelect,
   onDeleteWorkspace,
   onDeleteAllWorkspaces,
   onDeleteSelectedWorkspaces,
   onUpdateWorkspace,
-  onExportSession,
   onEditProfile,
   onLogout,
   onNewTask,
@@ -84,7 +62,6 @@ export function DesignSidebarExpanded({
   onOpenChannel,
   onOpenChannelSettings,
   onSearchQueryChange,
-  onSessionSelect,
   onClearSearch,
 }: DesignSidebarExpandedProps) {
   return (
@@ -144,26 +121,18 @@ export function DesignSidebarExpanded({
       </div>
 
       <DesignSidebarHistorySection
-        sessions={sessions}
         workspaces={workspaces}
         filteredWorkspaces={filteredWorkspaces}
         currentWorkspaceId={currentWorkspaceId}
-        filteredSessions={filteredSessions}
-        currentSessionId={currentSessionId}
         isLoadingHistory={isLoadingHistory}
         searchQuery={searchQuery}
         onSearchQueryChange={onSearchQueryChange}
         onClearSearch={onClearSearch}
-        onSessionSelect={onSessionSelect}
-        onDeleteSession={onDeleteSession}
-        onForkConversation={onForkConversation}
         onWorkspaceSelect={onWorkspaceSelect}
         onDeleteWorkspace={onDeleteWorkspace}
         onDeleteAllWorkspaces={onDeleteAllWorkspaces}
         onDeleteSelectedWorkspaces={onDeleteSelectedWorkspaces}
         onUpdateWorkspace={onUpdateWorkspace}
-        onExportSession={onExportSession}
-        exportingSessionId={exportingSessionId}
       />
 
       <DesignSidebarFooter
