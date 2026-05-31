@@ -262,8 +262,7 @@ class PtyManager:
         """Windows 平台 spawn 实现（pywinpty）"""
         if not _WINPTY_AVAILABLE or _WinPtyProcess is None:
             raise PtyUnsupportedError(
-                "Windows 上需要安装 pywinpty 才能使用内置终端。"
-                "运行: pip install pywinpty"
+                "Windows 上需要安装 pywinpty 才能使用内置终端。运行: pip install pywinpty"
             )
 
         async with self._lock:
@@ -556,7 +555,9 @@ class PtyManager:
                 except asyncio.CancelledError:
                     raise
                 except Exception as exc:
-                    logger.debug("PTY 读取异常 (Windows): terminal_id=%s %s", session.terminal_id, exc)
+                    logger.debug(
+                        "PTY 读取异常 (Windows): terminal_id=%s %s", session.terminal_id, exc
+                    )
                     break
         except asyncio.CancelledError:
             logger.debug("PTY 读取循环被取消 (Windows): terminal_id=%s", session.terminal_id)
