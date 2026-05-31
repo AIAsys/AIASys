@@ -15,6 +15,16 @@
 
 终端会话绑定到当前工作区的工作目录。切换工作区时，终端会自动 cd 到新工作区的根目录。终端会话在页面刷新后保持连接，不需要重新打开。
 
+### 跨平台支持
+
+| 平台 | 实现方式 | 说明 |
+|------|----------|------|
+| Linux | POSIX openpty + fork/exec | 标准伪终端 |
+| macOS | POSIX openpty + fork/exec | 标准伪终端 |
+| Windows | pywinpty (ConPTY/WinPTY) | 依赖 `pywinpty>=2.0.0`，安装桌面版时自动包含 |
+
+Windows 终端优先查找 PowerShell，回退到 cmd.exe。pywinpty 未安装时终端功能不可用，系统会提示安装命令。
+
 ## 监控后台任务
 
 Agent 执行长时间任务时，可以把任务放到后台运行，不阻塞对话流。典型场景：
