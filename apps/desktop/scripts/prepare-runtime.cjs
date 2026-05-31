@@ -38,6 +38,32 @@ function copyPathIfExists(sourcePath, targetPath, options = {}) {
   copyPath(sourcePath, targetPath, options);
 }
 
+/**
+ * 递归清理目录下的 __pycache__ 和 .pyc 文件。
+ * 避免工具类名变更后缓存不一致，同时减小打包体积。
+ */
+function cleanPycache(dirPath) {
+  if (!fs.existsSync(dirPath)) {
+    return;
+  }
+
+  const entries = fs.readdirSync(dirPath, { withFileTypes: true });
+  for (const entry of entries) {
+    const fullPath = path.join(dirPath, entry.name);
+    if (entry.isDirectory()) {
+      if (entry.name === "__pycache__") {
+        console.log(`[aiasys-desktop] 清理: ${fullPath}`);
+        fs.rmSync(fullPath, { recursive: true, force: true });
+      } else {
+        cleanPycache(fullPath);
+      }
+    } else if (entry.name.endsWith(".pyc") || entry.name.endsWith(".pyo")) {
+      console.log(`[aiasys-desktop] 清理: ${fullPath}`);
+      fs.unlinkSync(fullPath);
+    }
+  }
+}
+
 function prepareWebRuntime() {
   const webDistRoot = path.join(webRoot, "dist");
 
@@ -92,9 +118,19 @@ function prepareBackendRuntime() {
 }
 
 function main() {
+  console.log("[aiasys-desktop] 准备运行时...");
+
+  // 清理 Python 缓存（在复制前清理源目录，避免复制到 staging）
+  console.log("[aiasys-desktop] 清理 __pycache__ 和 .pyc 文件...");
+  cleanPycache(backendRoot);
+
   resetDir(runtimeRoot);
   prepareWebRuntime();
   prepareBackendRuntime();
+
+  // 再次清理 staging 目录中可能残留的缓存（防御性）
+  cleanPycache(backendStageRoot);
+
   console.log(`[aiasys-desktop] runtime prepared at ${runtimeRoot}`);
 }
 

@@ -115,11 +115,18 @@ async function findAvailablePort(host, startPort, excludePorts = []) {
   throw new Error(`无法为 desktop 找到可用端口，起始端口: ${startPort}`);
 }
 
+/**
+ * 读取监听指定端口的进程信息。
+ * Linux/macOS 用 lsof + ps；Windows 用 netstat -ano + tasklist。
+ */
 function readListeningProcess(port) {
   if (process.platform === "win32") {
-    return null;
+    return readListeningProcessWindows(port);
   }
+  return readListeningProcessUnix(port);
+}
 
+function readListeningProcessUnix(port) {
   const lsofResult = spawnSync(
     "lsof",
     ["-nP", `-iTCP:${port}`, "-sTCP:LISTEN", "-Fp"],
@@ -152,6 +159,75 @@ function readListeningProcess(port) {
   return {
     pid,
     command: psResult.stdout.trim(),
+  };
+}
+
+function readListeningProcessWindows(port) {
+  // 步骤 1: netstat -ano 找 PID
+  const netstatResult = spawnSync("netstat", ["-ano"], {
+    encoding: "utf-8",
+    windowsHide: true,
+  });
+
+  if (netstatResult.status !== 0 || !netstatResult.stdout) {
+    return null;
+  }
+
+  // 解析 netstat 输出，匹配 "127.0.0.1:PORT" 或 "0.0.0.0:PORT" 的 LISTENING 行
+  const lines = netstatResult.stdout.split("\r\n").join("\n").split("\n");
+  let pid = null;
+
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+    // 格式类似: TCP    127.0.0.1:13011    0.0.0.0:0    LISTENING    12345
+    if (!line.startsWith("TCP")) {
+      continue;
+    }
+    const parts = line.split(/\s+/);
+    if (parts.length < 5) {
+      continue;
+    }
+    const localAddress = parts[1];
+    const state = parts[3];
+    const candidatePid = parts[parts.length - 1];
+
+    if (
+      state === "LISTENING" &&
+      (localAddress === `${HOST}:${port}` || localAddress.endsWith(`:${port}`))
+    ) {
+      pid = candidatePid;
+      break;
+    }
+  }
+
+  if (!pid || pid === "0") {
+    return null;
+  }
+
+  // 步骤 2: tasklist /FI "PID eq xxx" /FO CSV 获取进程名
+  const tasklistResult = spawnSync(
+    "tasklist",
+    ["/FI", `PID eq ${pid}`, "/FO", "CSV", "/NH"],
+    { encoding: "utf-8", windowsHide: true },
+  );
+
+  if (tasklistResult.status !== 0 || !tasklistResult.stdout) {
+    return { pid, command: "" };
+  }
+
+  // CSV 格式: "python.exe","12345","Console","1","12,345 K"
+  const csvLine = tasklistResult.stdout.trim().split("\r\n").join("\n").split("\n")[0];
+  if (!csvLine) {
+    return { pid, command: "" };
+  }
+
+  // 简单解析 CSV：取第一个引号内的值为进程名
+  const match = csvLine.match(/^"([^"]+)"/);
+  const processName = match ? match[1] : csvLine.split(",")[0];
+
+  return {
+    pid,
+    command: processName || "",
   };
 }
 
@@ -222,9 +298,23 @@ async function canReuseService({ url, port, label, expectedPaths }) {
   };
 }
 
-async function waitForUrl(url, label, timeoutMs = 90_000) {
+/**
+ * 等待 URL 就绪，同时监控子进程是否已崩溃退出。
+ * 如果子进程在轮询期间崩溃，提前抛出错误，避免 90 秒干等。
+ */
+async function waitForUrl(url, label, timeoutMs = 90_000, childProcesses = []) {
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
+    // 检查是否有子进程已崩溃
+    for (const child of childProcesses) {
+      if (child && child.exitCode !== null) {
+        throw new Error(
+          `${label} 子进程已崩溃退出（exitCode=${child.exitCode}），` +
+            `无法继续等待服务就绪: ${url}`,
+        );
+      }
+    }
+
     if (await probeUrl(url)) {
       return;
     }
@@ -234,25 +324,89 @@ async function waitForUrl(url, label, timeoutMs = 90_000) {
   throw new Error(`${label} 在 ${timeoutMs}ms 内未就绪: ${url}`);
 }
 
+/**
+ * 创建日志写入流，同时输出到控制台。
+ */
+function createLogStream(logFilePath) {
+  fs.mkdirSync(path.dirname(logFilePath), { recursive: true });
+  const stream = fs.createWriteStream(logFilePath, { flags: "a" });
+  const now = new Date().toISOString();
+  stream.write(`\n[${now}] === 日志开始 ===\n`);
+  return stream;
+}
+
+function logToBoth(stream, prefix, data) {
+  const lines = String(data).split("\n");
+  for (const line of lines) {
+    if (line.trim() === "") {
+      continue;
+    }
+    const formatted = `[${prefix}] ${line}`;
+    console.log(formatted);
+    if (stream && !stream.destroyed) {
+      stream.write(`${formatted}\n`);
+    }
+  }
+}
+
 function spawnManagedProcess(name, command, args, options) {
+  const isWindows = process.platform === "win32";
+
   const child = spawn(command, args, {
     ...options,
-    detached: process.platform !== "win32",
-    stdio: "inherit",
+    detached: !isWindows,
+    stdio: ["ignore", "pipe", "pipe"],
+    windowsHide: isWindows,
   });
+
+  // 日志流
+  let logStream = null;
+  if (options?.__logFilePath) {
+    try {
+      logStream = createLogStream(options.__logFilePath);
+    } catch (error) {
+      console.error(`[aiasys-desktop] 无法创建日志文件 ${options.__logFilePath}:`, error);
+    }
+  }
+
+  if (child.stdout) {
+    child.stdout.on("data", (data) => {
+      logToBoth(logStream, name, data);
+    });
+  }
+
+  if (child.stderr) {
+    child.stderr.on("data", (data) => {
+      logToBoth(logStream, `${name}:stderr`, data);
+    });
+  }
 
   child.once("error", (error) => {
     console.error(`[aiasys-desktop] ${name} 启动失败:`, error);
+    if (logStream && !logStream.destroyed) {
+      logStream.write(`[${name}] 启动失败: ${error.message}\n`);
+    }
   });
 
   child.once("exit", (code, signal) => {
     if (code === 0 || signal === "SIGTERM") {
+      if (logStream && !logStream.destroyed) {
+        logStream.end(`[${name}] 正常退出: code=${code} signal=${signal}\n`);
+      }
       return;
     }
     console.error(
       `[aiasys-desktop] ${name} 提前退出: code=${code ?? "null"} signal=${signal ?? "null"}`,
     );
+    if (logStream && !logStream.destroyed) {
+      logStream.write(
+        `[${name}] 提前退出: code=${code ?? "null"} signal=${signal ?? "null"}\n`,
+      );
+    }
   });
+
+  // 附加日志流引用，供外部关闭
+  child.__logStream = logStream;
 
   return child;
 }
@@ -262,10 +416,15 @@ async function terminateChild(child) {
     return;
   }
 
+  if (child.__logStream && !child.__logStream.destroyed) {
+    child.__logStream.end(`[terminate] 进程被终止\n`);
+  }
+
   if (process.platform === "win32") {
     await new Promise((resolve) => {
       const killer = spawn("taskkill", ["/pid", String(child.pid), "/t", "/f"], {
         stdio: "ignore",
+        windowsHide: true,
       });
       killer.once("exit", () => resolve());
       killer.once("error", () => resolve());
@@ -352,6 +511,16 @@ class DesktopServiceManager {
 
   get backendBaseUrl() {
     return `http://${this.host}:${this.backendPort}`;
+  }
+
+  /**
+   * 获取日志文件路径
+   */
+  getLogFilePath(name) {
+    const logsDir = this.isPackaged
+      ? this.backendLogsRoot
+      : path.join(this.backendRoot, "logs");
+    return path.join(logsDir, `${name}-spawn.log`);
   }
 
   async resolveDesiredPort({
@@ -460,10 +629,11 @@ class DesktopServiceManager {
           AIASYS_RUNTIME_LOGS_DIR: this.backendLogsRoot,
           AIASYS_RUNTIME_WORKSPACES_DIR: this.backendWorkspacesRoot,
         },
+        __logFilePath: this.getLogFilePath("backend"),
       },
     );
     this.managedChildren.push(child);
-    await waitForUrl(backendHealthUrl, "backend");
+    await waitForUrl(backendHealthUrl, "backend", 90_000, this.managedChildren);
   }
 
   async ensureFrontend() {
@@ -500,10 +670,11 @@ class DesktopServiceManager {
             AIASYS_PREVIEW_PORT: String(this.frontendPort),
             AIASYS_PREVIEW_BACKEND_URL: this.backendBaseUrl,
           },
+          __logFilePath: this.getLogFilePath("frontend"),
         },
       );
       this.managedChildren.push(child);
-      await waitForUrl(frontendUrl, "frontend-preview");
+      await waitForUrl(frontendUrl, "frontend-preview", 90_000, this.managedChildren);
       return;
     }
 
@@ -520,10 +691,11 @@ class DesktopServiceManager {
           BROWSER: "none",
           VITE_API_TARGET: this.backendBaseUrl,
         },
+        __logFilePath: this.getLogFilePath("frontend"),
       },
     );
     this.managedChildren.push(child);
-    await waitForUrl(frontendUrl, "frontend-dev");
+    await waitForUrl(frontendUrl, "frontend-dev", 90_000, this.managedChildren);
   }
 
   ensureBuiltRenderer() {
