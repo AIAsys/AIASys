@@ -49,17 +49,69 @@ Python 路径自动检测：
 
 不需要手动配置 Python 路径。
 
-## 打包模式
+### Windows 编码兼容性
 
-打包后的桌面版（`npm run build` 产物）将后端运行时外置到用户目录，不在安装包内写运行时数据。升级桌面版不会覆盖用户的后端配置和运行时文件。
+Windows 系统默认使用 cp936（GBK）编码，与 Linux/macOS 的 UTF-8 不同。桌面版在 Windows 上做了以下适配：
 
-各平台运行时目录：
+- 子进程输出使用智能解码：尝试 UTF-8 → locale 编码（cp936）→ GBK → UTF-8 replace
+- 构造 Windows 命令行时避免使用 `shlex.quote`（单引号会损坏 cmd.exe），改用双引号或 `subprocess.list2cmdline`
+- 日志文件统一使用 UTF-8 编码，确保跨平台一致性
+
+后端开发者在编写涉及 subprocess 的工具时，需要遵循相同的编码处理策略。
+
+## 打包与安装
+
+### 构建命令
+
+```bash
+cd apps/desktop
+
+# Linux 目录版
+npm run dist:linux:dir
+
+# Windows NSIS 安装包 + 便携版 zip
+npm run dist:win
+
+# macOS dmg + zip
+npm run dist:mac
+```
+
+构建流程：`build:web`（构建前端）→ `prepare:runtime`（staging 后端运行时）→ `electron-builder`（打包）。
+
+### 打包特性
+
+- 后端运行时外置到用户目录，不在安装包内写运行时数据
+- `prepare-runtime.cjs` 自动清理 `__pycache__` 和 `.pyc` 文件
+- 升级桌面版不会覆盖用户的后端配置和运行时文件
+
+### 各平台产物
+
+| 平台 | 产物 | 说明 |
+|------|------|------|
+| Linux | `dist/linux-unpacked/aiasys-desktop` | 目录版，直接运行 |
+| Linux | `dist/AIASys Desktop-x.x.x.AppImage` | 单文件可执行（CI 构建）|
+| Windows | `dist/AIASys Desktop Setup x.x.x.exe` | NSIS 安装程序，可选安装目录 |
+| Windows | `dist/AIASys Desktop-x.x.x-win.zip` | 便携版，解压即用 |
+| macOS | `dist/AIASys Desktop-x.x.x.dmg` | 磁盘映像安装包 |
+
+### Windows 安装包特性
+
+- 允许用户选择安装目录（非一键安装）
+- 不需要管理员权限（避免拖放文件到应用失效）
+- 安装前自动检测并关闭运行中的 AIASys Desktop
+- 卸载时询问是否删除用户数据（`%APPDATA%/AIASys Desktop`）
+
+### 各平台运行时目录
 
 - Linux：`~/.config/aiasys-desktop/backend-runtime/`
 - macOS：`~/Library/Application Support/aiasys-desktop/backend-runtime/`
-- Windows：`%APPDATA%/aiasys-desktop/backend-runtime/`
+- Windows：`%APPDATA%/AIASys Desktop/backend-runtime/`
 
 （Electron 通过 `app.getPath("userData")` 自动获取，各平台映射到正确路径。）
+
+### 跨平台构建限制
+
+Windows 安装包必须在 Windows 环境（或 Windows CI runner）上构建。在 Linux/macOS 上交叉构建会产生含 Linux venv 的无效产物，Windows 上无法运行。Linux 和 macOS 同理。
 
 ## 远程调试
 
@@ -91,6 +143,27 @@ export AIASYS_DESKTOP_START_PATH=/some-other-path
 set AIASYS_DESKTOP_START_PATH=/some-other-path
 ```
 
+## 系统托盘
+
+关闭窗口时，应用会隐藏到系统托盘而不是退出。
+
+托盘右键菜单：
+- **显示窗口**：恢复主窗口
+- **打开日志目录**：打开 backend 运行日志文件夹
+- **打开数据目录**：打开用户数据根目录
+- **退出**：彻底结束所有子进程并退出应用
+
+## 日志
+
+子进程（backend、frontend）的 stdout/stderr 同时输出到控制台和持久化日志文件：
+
+```
+{userData}/backend-runtime/logs/backend-spawn.log
+{userData}/backend-runtime/logs/frontend-spawn.log
+```
+
+启动失败时，错误对话框会显示日志目录路径，并自动打开该目录。
+
 ## 与 Web 版的区别
 
 | 特性 | 桌面版 | Web 版 |
@@ -98,6 +171,7 @@ set AIASYS_DESKTOP_START_PATH=/some-other-path
 | 原生窗口 | 有 | 无（浏览器标签页） |
 | 系统托盘 | 有 | 无 |
 | 自动端口管理 | 有 | 无（需手动启动前后端） |
+| 离线运行 | 有（安装后无需网络） | 需网络（若部署在远程） |
 | 适用场景 | 日常使用 | 临时访问、远程使用 |
 | 前端代码 | 与 Web 版共用 | 与桌面版共用 |
 

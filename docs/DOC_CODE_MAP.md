@@ -93,12 +93,17 @@
   - apps/backend/app/api/routes/session_database.py (会话数据库 broker)
 
 ## execution-resources.md
-- 覆盖功能: Python 环境注册、UV 管理、Kernel 切换
+- 覆盖功能: Python 环境注册、UV 管理、包安装、Kernel 切换
 - 前端组件:
   - apps/web/src/components/execution-resources/ExecutionResourcesPanel.tsx (执行资源面板)
+  - apps/web/src/components/execution-resources/PythonRuntimeTab.tsx (Python 环境列表与包安装)
 - 后端路由:
   - apps/backend/app/api/routes/runtime_envs.py (UV 环境管理)
   - apps/backend/app/api/routes/kernel_envs.py (Kernel 环境管理)
+- 后端服务:
+  - apps/backend/app/services/runtime_environment.py (UV 环境生命周期与包安装)
+- 后端工具:
+  - apps/backend/app/agents/tools/runtime_environment_tool.py (Agent 运行时环境工具)
 
 ## container-resources.md
 - 覆盖功能: Docker 沙盒登记、创建、管理
@@ -108,13 +113,15 @@
   - apps/backend/app/api/routes/container_resources.py (容器资源管理)
 
 ## terminal-monitor.md
-- 覆盖功能: WebSocket 终端、后台监控任务
+- 覆盖功能: WebSocket 终端（Linux/macOS/Windows 三端）、后台监控任务
 - 前端组件:
   - apps/web/src/components/terminal/TerminalPanel.tsx (终端面板)
   - apps/web/src/components/layout/WorkspaceSidebar/WorkspaceMonitorPanel.tsx (监控面板)
 - 后端路由:
   - apps/backend/app/api/routes/terminal.py (WebSocket 终端)
   - apps/backend/app/api/routes/sessions_monitor.py (后台任务监控)
+- 后端服务:
+  - apps/backend/app/services/terminal/pty_manager.py (PTY 会话管理，跨平台支持)
 
 ## knowledge-base.md
 - 覆盖功能: 知识库创建、文档上传、混合检索

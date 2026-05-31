@@ -14,6 +14,7 @@
 |---|---|
 | [guides/getting-started/QUICKSTART.md](./guides/getting-started/QUICKSTART.md) | 新协作者快速启动，带界面预览 |
 | [guides/getting-started/SYSTEM_USAGE.md](./guides/getting-started/SYSTEM_USAGE.md) | 系统使用教程，覆盖全部功能的操作指南 |
+| [guides/getting-started/desktop-app.md](./guides/getting-started/desktop-app.md) | 桌面应用（Electron）使用与打包 |
 | [deployment.md](./deployment.md) | 部署与运行说明 |
 | [getting-started.md](./getting-started.md) | 跑起来后怎么使用 `/analysis`，带完整界面截图 |
 | [guides/operations/docker-network-configuration.md](./guides/operations/docker-network-configuration.md) | Docker 运行时访问后端 broker 的网络排障 |

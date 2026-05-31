@@ -171,7 +171,19 @@ VITE_AUTH_MODE=local VITE_API_TARGET=http://localhost:13001 npm run dev -- --por
 AIASYS_FRONTEND_PORT=13010 ./dev.sh
 ```
 
-## 5. 验证运行状态
+## 5. 桌面版快速启动（可选）
+
+如果想用桌面版而不是浏览器：
+
+```bash
+cd apps/desktop
+npm install
+npm run dev
+```
+
+桌面版自动管理前后端服务，不需要单独启动 `./dev.sh`。详见 [桌面应用文档](desktop-app.md)。
+
+## 6. 验证运行状态
 
 服务启动后，可以通过以下方式验证（以下 URL 为默认值）：
 
@@ -189,7 +201,7 @@ AIASYS_FRONTEND_PORT=13010 ./dev.sh
   curl http://localhost:13001/health/docker
   ```
 
-## 6. 常用开发命令
+## 7. 常用开发命令
 
 | 任务 | 命令 | 路径 |
 |:---|:---|:---|
@@ -202,6 +214,10 @@ AIASYS_FRONTEND_PORT=13010 ./dev.sh
 | 运行后端测试 | `.venv/bin/python -m pytest` | `apps/backend/` |
 | 前端构建 | `npm run build` | `apps/web/` |
 | 校验视觉基线 | `./dev.sh design-lint` | 项目根目录 |
+| 桌面版开发 | `npm run dev` | `apps/desktop/` |
+| 桌面版 Linux 打包 | `npm run dist:linux:dir` | `apps/desktop/` |
+| 桌面版 Windows 打包 | `npm run dist:win` | `apps/desktop/` |
+| 桌面版 macOS 打包 | `npm run dist:mac` | `apps/desktop/` |
 
 ---
 
@@ -209,7 +225,7 @@ AIASYS_FRONTEND_PORT=13010 ./dev.sh
 
 ---
 
-## 界面预览
+## 8. 界面预览
 
 启动成功后，你可以访问：
 
