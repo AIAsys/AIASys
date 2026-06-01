@@ -996,13 +996,6 @@ class WorkspaceRegistryService:
             if detached_path is not None:
                 self.session_manager.purge_detached_session(detached_path)
 
-            try:
-                from app.services.memory.chat_history_store import ChatHistoryStore
-
-                ChatHistoryStore().delete_session(user_id=user_id, session_id=session_id)
-            except Exception:
-                logger.warning("删除会话聊天记录失败: %s/%s", user_id, session_id, exc_info=True)
-
             # 清理反向索引
             self._delete_session_index(user_id, session_id)
 
