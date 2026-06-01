@@ -10,11 +10,17 @@ import logging
 from pathlib import Path
 from typing import Literal
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from app.core.auth import require_auth
 from app.models.user import UserInfo
+from app.services.export import (
+    WorkspaceExportService,
+    WorkspaceImportError,
+    WorkspaceImportService,
+)
 from app.services.workspace_registry import get_workspace_registry_service
 
 logger = logging.getLogger(__name__)
@@ -193,3 +199,135 @@ async def scan_workspace_files(
 
 
 router.include_router(filescan_router)
+
+
+# ------------------------------------------------------------------
+# 工作区导入导出
+# ------------------------------------------------------------------
+
+export_import_router = APIRouter(prefix="/workspaces", tags=["workspaces"])
+
+
+class ExportWorkspaceRequest(BaseModel):
+    include_conversations: bool = False
+    selected_files: list[str] | None = None
+    exclude_rules: list[str] | None = None
+
+
+@export_import_router.post("/{workspace_id}/export")
+async def export_workspace(
+    workspace_id: str,
+    request: ExportWorkspaceRequest,
+    current_user: UserInfo = Depends(require_auth()),
+):
+    """导出工作区为 ZIP 包。支持选项：包含对话记录、选择文件、自定义排除规则。"""
+    service = get_workspace_registry_service()
+    try:
+        workspace = service.get_workspace(
+            current_user.user_id,
+            workspace_id,
+            include_conversations=True,
+        )
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="Workspace not found") from exc
+
+    # 读取原始 workspace.json 元数据
+    workspace_dir = service.get_workspace_root(current_user.user_id, workspace_id)
+    meta_path = workspace_dir / ".aiasys" / "workspace" / "workspace.json"
+    try:
+        workspace_meta = json.loads(meta_path.read_text(encoding="utf-8"))
+    except Exception:
+        workspace_meta = workspace.model_dump(mode="json")
+
+    # 读取对话投影
+    conv_path = workspace_dir / ".aiasys" / "workspace" / "conversations.json"
+    conversations = []
+    try:
+        conv_data = json.loads(conv_path.read_text(encoding="utf-8"))
+        if isinstance(conv_data, dict):
+            conversations = conv_data.get("conversations") or []
+    except Exception:
+        pass
+
+    export_service = WorkspaceExportService()
+    try:
+        zip_buffer, filename = export_service.build_archive(
+            user_id=current_user.user_id,
+            workspace_id=workspace_id,
+            workspace_meta=workspace_meta,
+            conversation_payloads=conversations,
+            exported_by=current_user.user_id,
+            include_conversations=request.include_conversations,
+            selected_files=request.selected_files,
+            exclude_rules=request.exclude_rules,
+        )
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.error("工作区导出失败: %s", exc)
+        raise HTTPException(status_code=500, detail="Export failed") from exc
+
+    return StreamingResponse(
+        zip_buffer,
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@export_import_router.post("/import")
+async def import_workspace(
+    file: UploadFile = File(...),
+    current_user: UserInfo = Depends(require_auth()),
+):
+    """从 ZIP 包导入工作区。"""
+    if not file.filename or not file.filename.endswith(".zip"):
+        raise HTTPException(status_code=400, detail="请上传 ZIP 文件")
+
+    try:
+        contents = await file.read()
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"读取文件失败: {exc}") from exc
+
+    registry = get_workspace_registry_service()
+    import_service = WorkspaceImportService(registry=registry)
+
+    try:
+        new_workspace_id, workspace_meta = import_service.import_from_zip(
+            user_id=current_user.user_id,
+            zip_bytes=contents,
+        )
+    except WorkspaceImportError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.error("工作区导入失败: %s", exc)
+        raise HTTPException(status_code=500, detail="Import failed") from exc
+
+    # 返回新建工作区详情
+    try:
+        workspace = registry.get_workspace(
+            current_user.user_id,
+            new_workspace_id,
+            include_conversations=True,
+        )
+        return workspace
+    except Exception as exc:
+        logger.warning("导入成功但读取详情失败: %s", exc)
+        from app.models.workspace import WorkspaceDetailResponse
+
+        return WorkspaceDetailResponse(
+            workspace_id=new_workspace_id,
+            title=str(workspace_meta.get("title") or "导入的工作区"),
+            description=workspace_meta.get("description"),
+            created_at=str(workspace_meta.get("created_at") or ""),
+            updated_at=str(workspace_meta.get("updated_at") or ""),
+            workspace_kind=str(workspace_meta.get("workspace_kind") or "task"),
+            execution_policy={},
+            runtime_binding={},
+            status="active",
+            current_conversation_id=None,
+            conversation_count=0,
+            conversations=[],
+        )
+
+
+router.include_router(export_import_router)
