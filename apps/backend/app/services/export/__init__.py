@@ -14,6 +14,11 @@ from app.services.export.session_export_service import (
     SessionExportScope,
     SessionExportService,
 )
+from app.services.export.workspace_export_service import WorkspaceExportService
+from app.services.export.workspace_import_service import (
+    WorkspaceImportError,
+    WorkspaceImportService,
+)
 
 __all__ = [
     "export_markdown_file",
@@ -23,5 +28,8 @@ __all__ = [
     "SessionExportService",
     "SessionExportNotFoundError",
     "SessionExportScope",
+    "WorkspaceExportService",
+    "WorkspaceImportService",
+    "WorkspaceImportError",
     "MARKDOWN_EXTENSIONS",
 ]
