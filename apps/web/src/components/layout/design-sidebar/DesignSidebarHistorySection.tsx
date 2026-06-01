@@ -1,5 +1,6 @@
 import {
   Check,
+  Download,
   FolderOpen,
   History,
   Loader2,
@@ -25,6 +26,11 @@ const LazySaveWorkspaceAsTemplateDialog = lazy(() =>
     default: module.SaveWorkspaceAsTemplateDialog,
   })),
 );
+const LazyExportWorkspaceDialog = lazy(() =>
+  import("@/components/ExportWorkspaceDialog").then((module) => ({
+    default: module.ExportWorkspaceDialog,
+  })),
+);
 
 interface DesignSidebarHistorySectionProps {
   workspaces?: TaskWorkspaceSummary[];
@@ -38,6 +44,7 @@ interface DesignSidebarHistorySectionProps {
   onDeleteWorkspace?: (workspaceId: string) => void | Promise<void>;
   onDeleteAllWorkspaces?: () => void;
   onDeleteSelectedWorkspaces?: (ids: string[]) => void;
+  onExportWorkspace?: (workspaceId: string) => void | Promise<void>;
   onUpdateWorkspace?: (
     workspaceId: string,
     patch: { title?: string; description?: string | null },
@@ -55,6 +62,7 @@ export function DesignSidebarHistorySection({
   onWorkspaceSelect,
   onDeleteWorkspace,
   onDeleteSelectedWorkspaces,
+  onExportWorkspace,
   onUpdateWorkspace,
 }: DesignSidebarHistorySectionProps) {
   const [editingWorkspaceId, setEditingWorkspaceId] = useState<string | null>(
@@ -66,6 +74,7 @@ export function DesignSidebarHistorySection({
   const [isMultiSelectMode, setIsMultiSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [exportingWorkspaceId, setExportingWorkspaceId] = useState<string | null>(null);
+  const [dialogExportWorkspaceId, setDialogExportWorkspaceId] = useState<string | null>(null);
 
   const hasSearchQuery = searchQuery.trim().length > 0;
   const displayedWorkspaces = hasSearchQuery ? filteredWorkspaces : workspaces;
@@ -357,6 +366,15 @@ export function DesignSidebarHistorySection({
                         <DropdownMenuItem
                           onClick={(event) => {
                             event.stopPropagation();
+                            setDialogExportWorkspaceId(workspace.workspace_id);
+                          }}
+                        >
+                          <Download className="mr-2 h-4 w-4" />
+                          <span>导出工作区</span>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={(event) => {
+                            event.stopPropagation();
                             void onDeleteWorkspace?.(workspace.workspace_id);
                           }}
                           className="text-error focus:text-error"
@@ -397,6 +415,19 @@ export function DesignSidebarHistorySection({
             }
             isOpen={Boolean(exportingWorkspaceId)}
             onClose={() => setExportingWorkspaceId(null)}
+          />
+        </Suspense>
+      )}
+
+      {dialogExportWorkspaceId && (
+        <Suspense fallback={null}>
+          <LazyExportWorkspaceDialog
+            workspaceId={dialogExportWorkspaceId}
+            workspaceTitle={
+              workspaces.find((w) => w.workspace_id === dialogExportWorkspaceId)?.title || ""
+            }
+            isOpen={Boolean(dialogExportWorkspaceId)}
+            onClose={() => setDialogExportWorkspaceId(null)}
           />
         </Suspense>
       )}

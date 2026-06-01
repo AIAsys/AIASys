@@ -406,6 +406,7 @@ export function MainContent({
               onCompactConversation={sessionLifecycle.handleCompactConversation}
               sessionInputFocusSignal={sessionInputBridgeRequestKey}
               tokenUsageRefreshSignal={tokenUsageRefreshSignal}
+              onUploadToWorkspace={executor.handleUploadFiles}
             />
           </Suspense>
         ) : null}

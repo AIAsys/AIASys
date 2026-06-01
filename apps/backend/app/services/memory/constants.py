@@ -43,7 +43,6 @@ MEMORY_FILE_NAME = "MEMORY.md"
 MEMORY_SUMMARY_FILE_NAME = "memory_summary.md"
 RAW_MEMORIES_FILE_NAME = "raw_memories.md"
 ROLLOUT_SUMMARIES_DIR_NAME = "rollout_summaries"
-CHAT_HISTORY_DB_FILE_NAME = "chat_history.db"
 USER_MEMORY_STATE_DIR_RELATIVE_PATH = ".memory"
 MEMORY_SNAPSHOT_MIRROR_DIR_NAME = "snapshots"
 

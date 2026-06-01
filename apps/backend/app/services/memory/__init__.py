@@ -1,6 +1,5 @@
 """Memory 子系统导出。"""
 
-from app.services.memory.chat_history_store import ChatHistoryStore
 from app.services.memory.constants import (
     USER_DEFAULT_GLOBAL_WORKSPACE_SCOPE,
     normalize_memory_scope_key,
@@ -37,7 +36,6 @@ __all__ = [
     "MemoryResolver",
     "MemoryStateRuntime",
     "MemoryPipelineService",
-    "ChatHistoryStore",
     "SecurityScanResult",
     "scan_memory_content",
     "get_user_memory_file_path",

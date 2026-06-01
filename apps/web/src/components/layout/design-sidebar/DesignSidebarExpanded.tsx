@@ -2,6 +2,7 @@ import {
   PanelLeftClose,
   Plus,
   SatelliteDish,
+  Upload,
   Settings,
 } from "lucide-react";
 import { BrandLockup } from "@/components/branding/BrandLogo";
@@ -25,6 +26,8 @@ interface DesignSidebarExpandedProps {
   onDeleteWorkspace?: (workspaceId: string) => void | Promise<void>;
   onDeleteAllWorkspaces?: () => void;
   onDeleteSelectedWorkspaces?: (ids: string[]) => void;
+  onExportWorkspace?: (workspaceId: string) => void | Promise<void>;
+  onImportWorkspace?: () => void | Promise<void>;
   onUpdateWorkspace?: (
     workspaceId: string,
     patch: { title?: string; description?: string | null },
@@ -54,6 +57,8 @@ export function DesignSidebarExpanded({
   onDeleteWorkspace,
   onDeleteAllWorkspaces,
   onDeleteSelectedWorkspaces,
+  onExportWorkspace,
+  onImportWorkspace,
   onUpdateWorkspace,
   onEditProfile,
   onLogout,
@@ -95,6 +100,19 @@ export function DesignSidebarExpanded({
           新建工作区
         </button>
       </div>
+      {onImportWorkspace ? (
+        <div className="px-3 mb-2">
+          <button
+            type="button"
+            data-testid="sidebar-import-workspace-expanded"
+            onClick={onImportWorkspace}
+            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg border border-border bg-background hover:bg-accent font-medium text-sm transition-colors text-foreground"
+          >
+            <Upload className="w-4 h-4 text-tertiary" />
+            导入工作区
+          </button>
+        </div>
+      ) : null}
 
       <div className="px-3 mb-2">
         <div className="flex items-center gap-1">
@@ -132,6 +150,7 @@ export function DesignSidebarExpanded({
         onDeleteWorkspace={onDeleteWorkspace}
         onDeleteAllWorkspaces={onDeleteAllWorkspaces}
         onDeleteSelectedWorkspaces={onDeleteSelectedWorkspaces}
+        onExportWorkspace={onExportWorkspace}
         onUpdateWorkspace={onUpdateWorkspace}
       />
 
