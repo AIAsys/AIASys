@@ -70,6 +70,7 @@ interface DockChatViewProps {
   onCompactConversation?: (instruction?: string) => Promise<void> | void;
   sessionInputFocusSignal?: number;
   tokenUsageRefreshSignal?: number | string;
+  onUploadToWorkspace?: (files: FileList | File[]) => Promise<void> | void;
 }
 
 export function DockChatView({
@@ -113,6 +114,7 @@ export function DockChatView({
   onCompactConversation,
   sessionInputFocusSignal,
   tokenUsageRefreshSignal,
+  onUploadToWorkspace,
 }: DockChatViewProps) {
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
@@ -185,6 +187,7 @@ export function DockChatView({
         onOpenToolConfig={onOpenToolConfig}
         onOpenRuntimeConfig={onOpenRuntimeConfig}
         focusSignal={sessionInputFocusSignal}
+        onUploadToWorkspace={onUploadToWorkspace}
       />
     </div>
   );

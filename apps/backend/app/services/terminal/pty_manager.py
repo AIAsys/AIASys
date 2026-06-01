@@ -17,7 +17,7 @@ import asyncio
 import logging
 import os
 import struct
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Callable
 
 logger = logging.getLogger(__name__)

@@ -762,3 +762,46 @@ export async function getGlobalAutoTasksSummary(): Promise<GlobalAutoTaskSummary
     },
   );
 }
+
+// --- 工作区导入导出 ---
+
+export interface ExportWorkspacePayload {
+  include_conversations?: boolean;
+  selected_files?: string[];
+  exclude_rules?: string[];
+}
+
+export async function exportWorkspace(
+  workspaceId: string,
+  payload?: ExportWorkspacePayload,
+): Promise<Blob> {
+  const response = await fetch(API_ENDPOINTS.WORKSPACE_EXPORT(workspaceId), {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload ?? {}),
+  });
+  if (!response.ok) {
+    const detail = await response.text().catch(() => "导出失败");
+    throw new Error(detail);
+  }
+  return response.blob();
+}
+
+export async function importWorkspace(file: File): Promise<WorkspaceDetailResponse> {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const response = await fetch(API_ENDPOINTS.WORKSPACE_IMPORT, {
+    method: "POST",
+    body: formData,
+    credentials: "include",
+  });
+
+  if (!response.ok) {
+    const detail = await response.text().catch(() => "导入失败");
+    throw new Error(detail);
+  }
+
+  return response.json() as Promise<WorkspaceDetailResponse>;
+}

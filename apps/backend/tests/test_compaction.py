@@ -20,6 +20,9 @@ from app.services.agent.runtime_backends.aiasys.llm_clients.base import (
     LlmChunk,
     LlmDelta,
 )
+from app.services.agent.runtime_backends.aiasys.session_compaction import (
+    SessionCompactionMixin,
+)
 
 
 class FakeLlmClient(BaseLlmClient):
@@ -495,6 +498,105 @@ class TestEstimatedTokenCount:
             preserved_count=0,
         )
         assert result.estimated_token_count() == 0
+
+
+# ---------------------------------------------------------------------------
+# SessionCompactionMixin._maybe_compact_context
+# ---------------------------------------------------------------------------
+
+
+class MockLoopControl:
+    compaction_trigger_ratio = 0.01  # 极低阈值确保触发
+    reserved_context_size = 0
+    max_preserved_messages = 1
+    max_summary_tokens = 500
+    tool_snip_max_chars = 2000
+
+
+class MockConfig:
+    def __init__(self) -> None:
+        self.loop_control = MockLoopControl()
+        self.task_models: dict[str, Any] = {}
+        self.models: dict[str, Any] = {}
+        self.providers: dict[str, Any] = {}
+
+
+class MockSpec:
+    def __init__(self) -> None:
+        self.config = MockConfig()
+        self.work_dir = "/tmp/test"
+
+
+class _TestSession(SessionCompactionMixin):
+    def __init__(self, messages: list[dict[str, Any]], estimated: int) -> None:
+        self._spec = MockSpec()
+        self.messages = list(messages)
+        self._estimated_token_count = estimated
+        self._client = FakeLlmClient(response_text="Summary.")
+        self._model_config = {"max_context_size": 10000}
+        self.session_id = "test-session"
+
+    def _invalidate_system_prompt_snapshot(self) -> None:
+        pass
+
+
+class TestSessionCompactionMixin:
+    @pytest.mark.asyncio
+    async def test_compaction_restores_system_token_count(self):
+        """压缩后 _estimated_token_count 必须包含 system messages 的 token。
+
+        Bug: 压缩前 _estimated_token_count 包含 system messages（通过 _append_message
+        累加或 LLM usage 精确值），但压缩后 result.estimated_token_count() 只包含
+        compacted_messages，导致 _estimated_token_count 语义不一致，后续触发判断低估。
+        """
+        system_msg = {"role": "system", "content": "x" * 400}  # 100 tokens
+        chat_msgs = [
+            {"role": "user", "content": "u1"},
+            {"role": "assistant", "content": "a1"},
+            {"role": "user", "content": "u2"},
+        ]
+        all_msgs = [system_msg, *chat_msgs]
+        # 估算: system 100 + chat ~small
+        estimated_before = estimate_text_tokens(all_msgs)
+
+        session = _TestSession(all_msgs, estimated_before)
+        await session._maybe_compact_context()
+
+        # 压缩后 messages 仍应包含 system message
+        assert session.messages[0]["role"] == "system"
+        assert session.messages[0]["content"] == system_msg["content"]
+
+        # 关键断言: _estimated_token_count 必须包含 system messages
+        system_tokens = estimate_text_tokens([system_msg])
+        assert session._estimated_token_count >= system_tokens
+
+        # 更严格的断言: 加上新消息后总估算不应丢失 system 部分
+        estimated_after_manual = estimate_text_tokens(session.messages)
+        # 允许 result.estimated_token_count() 使用精确 usage 值，所以用上限检查
+        assert session._estimated_token_count >= estimated_after_manual - 50
+
+    @pytest.mark.asyncio
+    async def test_compaction_preserves_estimated_token_semantics(self):
+        """压缩前后 _estimated_token_count 的语义应保持一致（都代表全部消息）。"""
+        system_msg = {"role": "system", "content": "s" * 400}
+        chat_msgs = [
+            {"role": "user", "content": "u1"},
+            {"role": "assistant", "content": "a1"},
+            {"role": "user", "content": "u2"},
+            {"role": "assistant", "content": "a2"},
+        ]
+        all_msgs = [system_msg, *chat_msgs]
+        estimated_before = estimate_text_tokens(all_msgs)
+
+        session = _TestSession(all_msgs, estimated_before)
+        await session._maybe_compact_context()
+
+        # 压缩后重新估算全部消息的 token
+        full_estimate_after = estimate_text_tokens(session.messages)
+        # _estimated_token_count 应至少和手动估算接近（允许 usage 精确值的差异）
+        assert session._estimated_token_count >= full_estimate_after - 50
+        # 但绝不能小于 system messages 的 token（这是原 bug 的表现）
+        assert session._estimated_token_count >= estimate_text_tokens([system_msg])
 
 
 # ---------------------------------------------------------------------------

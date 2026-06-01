@@ -137,6 +137,9 @@ class SessionCompactionMixin:
                 self._estimated_token_count += estimate_text_tokens(
                     [{"role": "user", "content": restored_task_context}]
                 )
+            # 压缩前 _estimated_token_count 包含 system messages（通过 _append_message
+            # 累加或 LLM usage 精确值），压缩后必须保持语义一致。
+            self._estimated_token_count += estimate_text_tokens(system_messages)
             after_count = len(self.messages)
             after_tokens = self._estimated_token_count
             summary_tokens = result.usage_output_tokens or 0

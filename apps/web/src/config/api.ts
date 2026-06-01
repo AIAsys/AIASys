@@ -400,6 +400,9 @@ export const API_ENDPOINTS = {
     `/api/workspaces/${encodeURIComponent(workspaceId)}/conversations/${encodeURIComponent(conversationId)}/runtime/stop`,
   WORKSPACE_CANVAS: (workspaceId: string, filePath: string) =>
     `/api/workspaces/${encodeURIComponent(workspaceId)}/canvas/${encodePathPreservingSlashes(filePath)}`,
+  WORKSPACE_EXPORT: (workspaceId: string) =>
+    `/api/workspaces/${encodeURIComponent(workspaceId)}/export`,
+  WORKSPACE_IMPORT: `/api/workspaces/import`,
   WORKSPACE_AUTO_TASKS: (workspaceId: string) =>
     `/api/auto-tasks/workspaces/${encodeURIComponent(workspaceId)}/tasks`,
   WORKSPACE_AUTO_TASK: (workspaceId: string, taskId: string) =>
