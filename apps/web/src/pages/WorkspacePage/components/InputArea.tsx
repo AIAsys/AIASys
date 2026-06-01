@@ -2,7 +2,7 @@ import {
   ArrowUp,
   Brain,
   FileText,
-  FileUp,
+  FolderUp,
   Minimize2,
   ServerCog,
   SlidersHorizontal,
@@ -22,7 +22,6 @@ import {
 } from "react";
 
 import type { LLMModelConfig } from "@/lib/api/llm";
-import { useDragDrop } from "@/hooks/useDragDrop";
 import { API_ENDPOINTS, getCurrentUserId } from "@/config/api";
 import { extractClipboardFiles } from "@/utils/clipboardFiles";
 import { ModelSelector } from "./ModelSelector";
@@ -85,6 +84,8 @@ interface InputAreaProps {
   onOpenRuntimeConfig?: () => void;
   /** 需要把焦点重新带回输入框时递增 */
   focusSignal?: number;
+  /** 上传文件到工作区（不加入消息附件） */
+  onUploadToWorkspace?: (files: FileList | File[]) => Promise<void> | void;
 }
 
 export function InputArea({
@@ -121,6 +122,7 @@ export function InputArea({
   onOpenToolConfig,
   onOpenRuntimeConfig,
   focusSignal,
+  onUploadToWorkspace,
 }: InputAreaProps) {
   const isImageFile = (filename: string) =>
     /\.(png|jpe?g|gif|webp)$/i.test(filename);
@@ -177,20 +179,18 @@ export function InputArea({
     };
   }, [showAttachments]);
 
-  // 处理拖拽上传逻辑
-  const { isDragging, dragProps } = useDragDrop(
-    useCallback(
-      (fileList: FileList) => {
-        if (!onFileChange || isUploading || isPrewarming || isInitializingEnvironment) return;
-
-        // 构造虚拟 ChangeEvent 以复用系统文件上传处理流程
-        const mockEvent = {
-          target: { files: fileList },
-        } as React.ChangeEvent<HTMLInputElement>;
-        onFileChange(mockEvent);
-      },
-      [onFileChange, isUploading, isPrewarming, isInitializingEnvironment]
-    )
+  // 上传文件到工作区（独立入口，不加入消息附件）
+  const workspaceUploadInputRef = useRef<HTMLInputElement>(null);
+  const handleWorkspaceUploadChange = useCallback(
+    (e: ChangeEvent<HTMLInputElement>) => {
+      const files = e.target.files;
+      if (!files || files.length === 0) return;
+      if (!onUploadToWorkspace || isUploading || isPrewarming || isInitializingEnvironment) return;
+      void onUploadToWorkspace(files);
+      // 重置 input 以便重复选择同一文件
+      e.target.value = "";
+    },
+    [onUploadToWorkspace, isUploading, isPrewarming, isInitializingEnvironment]
   );
 
   // 处理粘贴文件
@@ -242,21 +242,7 @@ export function InputArea({
 
   return (
     <div className="p-4 md:p-6 bg-muted relative">
-      <div 
-        className={`max-w-4xl mx-auto rounded-xl border shadow-sm p-4 min-h-[120px] relative flex flex-col transition-colors ${
-          isDragging ? "bg-primary/5 border-primary" : "bg-muted border-border"
-        }`}
-        {...dragProps}
-      >
-        {/* 全局拖拽上传覆盖层 */}
-        {isDragging && !isUploading && !isPrewarming && !isInitializingEnvironment && (
-          <div className="absolute inset-0 z-20 bg-background/80 backdrop-blur-sm rounded-xl border-2 border-primary border-dashed flex flex-col items-center justify-center">
-            <FileUp className="w-10 h-10 text-primary mb-3 animate-bounce" />
-            <p className="font-semibold text-primary/90 text-lg">松开鼠标添加文件分析</p>
-            <p className="text-sm text-primary/70 mt-1">文件将被暂存在当前会话中</p>
-          </div>
-        )}
-
+      <div className="max-w-4xl mx-auto rounded-xl border shadow-sm p-4 min-h-[120px] relative flex flex-col transition-colors bg-muted border-border">
         {/* 待发送附件预览 */}
         {uploadedFiles.length > 0 && (
           <div className="flex flex-wrap gap-2 mb-2">
@@ -372,6 +358,35 @@ export function InputArea({
             >
               <Upload size={18} />
             </button>
+
+            {/* 上传文件到工作区 */}
+            {onUploadToWorkspace ? (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    onClick={() => workspaceUploadInputRef.current?.click()}
+                    className="flex-shrink-0 p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                    title="上传文件到工作区"
+                    disabled={isUploading || isPrewarming || isInitializingEnvironment}
+                  >
+                    <FolderUp size={18} />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="top" sideOffset={6}>
+                  上传文件到工作区
+                </TooltipContent>
+              </Tooltip>
+            ) : null}
+            <input
+              ref={workspaceUploadInputRef}
+              type="file"
+              multiple
+              className="hidden"
+              onChange={handleWorkspaceUploadChange}
+              title="上传文件到工作区"
+              aria-label="上传文件到工作区"
+            />
 
             {/* 模型选择区域 - 类似 OpenAI/Claude 的下拉菜单 */}
             <ModelSelector

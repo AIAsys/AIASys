@@ -21,4 +21,6 @@ export interface SidebarProps {
   onDeleteWorkspace?: (workspaceId: string) => void | Promise<void>;
   onDeleteAllWorkspaces?: () => void;
   onDeleteSelectedWorkspaces?: (ids: string[]) => void;
+  onExportWorkspace?: (workspaceId: string) => void | Promise<void>;
+  onImportWorkspace?: () => void | Promise<void>;
 }

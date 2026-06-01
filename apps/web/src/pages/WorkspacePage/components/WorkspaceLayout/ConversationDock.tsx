@@ -77,6 +77,7 @@ interface ConversationDockProps {
   onCompactConversation?: (instruction?: string) => Promise<void> | void;
   sessionInputFocusSignal?: number;
   tokenUsageRefreshSignal?: number | string;
+  onUploadToWorkspace?: (files: FileList | File[]) => Promise<void> | void;
 }
 
 export function ConversationDock({
@@ -133,6 +134,7 @@ export function ConversationDock({
   onCompactConversation,
   sessionInputFocusSignal,
   tokenUsageRefreshSignal,
+  onUploadToWorkspace,
 }: ConversationDockProps) {
   const { handleDragStart } = useDockResize(width, onWidthChange);
 
@@ -241,6 +243,7 @@ export function ConversationDock({
         onCompactConversation={onCompactConversation}
         sessionInputFocusSignal={sessionInputFocusSignal}
         tokenUsageRefreshSignal={tokenUsageRefreshSignal}
+        onUploadToWorkspace={onUploadToWorkspace}
       />
     </aside>
   );
