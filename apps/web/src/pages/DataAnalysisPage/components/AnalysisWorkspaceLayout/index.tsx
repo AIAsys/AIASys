@@ -1,5 +1,5 @@
-import { lazy, Suspense, useCallback, useEffect, useState } from "react";
-import { updateTaskWorkspace } from "@/lib/api/workspaces";
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { updateTaskWorkspace, exportWorkspace, importWorkspace } from "@/lib/api/workspaces";
 import { DesignSidebar } from "@/components/layout/DesignSidebar";
 import { MainContent } from "./MainContent";
 import { WorkspaceDeleteDialog } from "./components/WorkspaceDeleteDialog";
@@ -142,6 +142,46 @@ export function AnalysisWorkspaceLayout({
     [loadWorkspaces],
   );
 
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleExportWorkspace = useCallback(
+    async (workspaceId: string) => {
+      try {
+        const blob = await exportWorkspace(workspaceId);
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `workspace_${workspaceId}.zip`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      } catch (error) {
+        console.error("导出工作区失败:", error);
+      }
+    },
+    [],
+  );
+
+  const handleImportWorkspaceClick = useCallback(() => {
+    fileInputRef.current?.click();
+  }, []);
+
+  const handleImportFileChange = useCallback(
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      try {
+        await importWorkspace(file);
+        await loadWorkspaces();
+      } catch (error) {
+        console.error("导入工作区失败:", error);
+      }
+      e.target.value = "";
+    },
+    [loadWorkspaces],
+  );
+
 
 
   const sessionTitle =
@@ -157,6 +197,13 @@ export function AnalysisWorkspaceLayout({
 
   return (
     <>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".zip"
+        className="hidden"
+        onChange={handleImportFileChange}
+      />
       <DesignSidebar
         collapsed={executor.sidebarMode === "collapsed"}
         workspaces={workspaces}
@@ -168,6 +215,8 @@ export function AnalysisWorkspaceLayout({
         onDeleteSelectedWorkspaces={handleDeleteSelectedWorkspaces}
         onNewTask={handleNewTask}
         onUpdateWorkspace={handleUpdateWorkspace}
+        onExportWorkspace={handleExportWorkspace}
+        onImportWorkspace={handleImportWorkspaceClick}
         onOpenGlobalSettings={handleOpenGlobalSettings}
         onOpenChannel={handleOpenChannel}
         onOpenChannelSettings={handleOpenChannelSettings}
