@@ -26,6 +26,8 @@ export function DesignSidebar({
   onDeleteWorkspace,
   onDeleteAllWorkspaces,
   onDeleteSelectedWorkspaces,
+  onExportWorkspace,
+  onImportWorkspace,
 }: SidebarProps) {
   const { user, isAuthenticated, isLoading, handleLogout, updateProfile } = useAuthContext();
 
@@ -103,6 +105,8 @@ export function DesignSidebar({
           onDeleteWorkspace={onDeleteWorkspace}
           onDeleteAllWorkspaces={onDeleteAllWorkspaces}
           onDeleteSelectedWorkspaces={onDeleteSelectedWorkspaces}
+          onExportWorkspace={onExportWorkspace}
+          onImportWorkspace={onImportWorkspace}
           onUpdateWorkspace={onUpdateWorkspace}
           onOpenGlobalSettings={onOpenGlobalSettings}
           onOpenChannel={onOpenChannel}
