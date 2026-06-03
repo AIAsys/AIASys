@@ -10,6 +10,8 @@ from pydantic import BaseModel, Field, field_validator
 
 from app.core.agent_tool import AiasysTool
 from app.core.tool_result import ToolResult
+import sqlite3
+
 from app.services.data_table_service import (
     DataTableColumnDef,
     DataTableCreateRequest,
@@ -17,7 +19,6 @@ from app.services.data_table_service import (
     create_data_table,
     delete_data_table_record,
     insert_data_table_records,
-    read_data_table_records,
     read_data_table_schema,
     remove_data_table_column,
     update_data_table_column,
@@ -152,11 +153,26 @@ class DataTablePathParams(BaseModel):
     table_path: str = Field(description="多维表路径，支持相对路径、/workspace/... 或 /global/...")
 
 
-class ReadDataTableRecordsParams(DataTablePathParams):
-    """读取多维表记录参数。"""
+class QueryDataTableParams(DataTablePathParams):
+    """查询多维表参数。"""
 
-    limit: int = Field(default=100, description="返回记录数", ge=1, le=500)
-    offset: int = Field(default=0, description="偏移量", ge=0)
+    sql: str = Field(description="SQL 查询语句，必须以 SELECT 开头")
+    max_rows: int = Field(default=500, description="最大返回行数", ge=1, le=2000)
+
+    @field_validator("sql", mode="after")
+    @classmethod
+    def _validate_select_only(cls, value: str) -> str:
+        stripped = value.strip()
+        # 简单拦截：必须以 SELECT 开头（允许前导注释/空白）
+        upper = stripped.upper()
+        # 跳过前导注释行
+        lines = [line for line in stripped.splitlines() if line.strip() and not line.strip().startswith("--")]
+        if not lines:
+            raise ValueError("SQL 不能为空")
+        first = lines[0].strip().upper()
+        if not first.startswith("SELECT"):
+            raise ValueError("QueryDataTable 仅支持 SELECT 查询，禁止 INSERT/UPDATE/DELETE/ALTER/DROP 等写操作")
+        return stripped
 
 
 class InsertDataTableRecordsParams(DataTablePathParams):
@@ -301,57 +317,72 @@ class ReadDataTableSchema(AiasysTool):
             return ToolResult(content=f"读取多维表 schema 失败: {exc}", is_error=True)
 
 
-class ReadDataTableRecords(AiasysTool):
-    """读取多维表记录。"""
+class QueryDataTable(AiasysTool):
+    """查询多维表（只读 SELECT）。"""
 
-    name: str = "ReadDataTableRecords"
+    name: str = "QueryDataTable"
     description: str = """
-读取多维表记录。
+对多维表执行只读 SQL 查询。
 
-返回完整记录列表。如需聚合（平均值、排序、过滤等），先读取记录再用 RunCode 处理，DataTable 本身不支持 SQL 查询。
+底层使用 SQLite 引擎，支持完整的 SELECT 语法：WHERE 过滤、ORDER BY 排序、GROUP BY 聚合、JOIN 关联、LIMIT 分页等。只能执行 SELECT 查询，写操作（INSERT/UPDATE/DELETE/ALTER/DROP）会被拒绝。
+
+常用查询示例：
+- 查看所有记录：SELECT * FROM records LIMIT 10
+- 过滤 + 排序：SELECT * FROM records WHERE status = 'active' ORDER BY created_at DESC LIMIT 5
+- 聚合统计：SELECT department, AVG(salary), COUNT(*) FROM records GROUP BY department
+- 查看表结构：SELECT column_name, data_type FROM _schema ORDER BY order_index
 
 参数：
 - table_path: 多维表路径，支持相对路径、/workspace/... 或 /global/...。
-- limit: 返回记录数，默认 100，最大 500。
-- offset: 偏移量。
+- sql: SQL 查询语句，必须以 SELECT 开头。
+- max_rows: 最大返回行数，默认 500。
 """
-    params: type[BaseModel] = ReadDataTableRecordsParams
-    parameters: dict[str, Any] = ReadDataTableRecordsParams.model_json_schema()
+    params: type[BaseModel] = QueryDataTableParams
+    parameters: dict[str, Any] = QueryDataTableParams.model_json_schema()
 
     async def invoke(self, ctx: dict[str, Any] | None = None, **kwargs: Any) -> ToolResult:
         del ctx
-        params = ReadDataTableRecordsParams.model_validate(kwargs)
+        params = QueryDataTableParams.model_validate(kwargs)
         try:
             _, table_file, scope, relative_path = _resolve_table_path(params.table_path)
-            records = read_data_table_records(table_file, limit=params.limit, offset=params.offset)
-            lines = [
-                f"多维表路径: /{'global' if scope == 'global' else 'workspace'}/{relative_path}",
-                f"返回记录数: {len(records)}",
-                f"limit: {params.limit}",
-                f"offset: {params.offset}",
-            ]
-            if records:
-                columns = list(records[0].keys())
-                lines.extend(["", " | ".join(columns), "-" * max(1, len(" | ".join(columns)))])
-                for record in records:
-                    lines.append(" | ".join(str(record.get(column, "")) for column in columns))
-            return ToolResult(
-                content="\n".join(lines),
-                artifacts=[
-                    {
-                        "data_table_records": {
-                            "scope": scope,
-                            "relative_path": relative_path,
-                            "records": records,
-                            "limit": params.limit,
-                            "offset": params.offset,
+            conn = sqlite3.connect(str(table_file))
+            conn.row_factory = sqlite3.Row
+            try:
+                # 安全：附加 LIMIT 防止超大结果
+                sql = params.sql.strip()
+                if "LIMIT" not in sql.upper():
+                    sql = f"{sql} LIMIT {params.max_rows}"
+                rows = conn.execute(sql).fetchall()
+                records = [dict(row) for row in rows]
+                columns = list(records[0].keys()) if records else []
+                lines = [
+                    f"多维表路径: /{'global' if scope == 'global' else 'workspace'}/{relative_path}",
+                    f"SQL: {params.sql}",
+                    f"返回行数: {len(records)}",
+                ]
+                if records:
+                    lines.extend(["", " | ".join(columns), "-" * max(1, len(" | ".join(columns)))])
+                    for record in records:
+                        lines.append(" | ".join(str(record.get(column, "")) for column in columns))
+                return ToolResult(
+                    content="\n".join(lines),
+                    artifacts=[
+                        {
+                            "data_table_query": {
+                                "scope": scope,
+                                "relative_path": relative_path,
+                                "sql": params.sql,
+                                "records": records,
+                                "row_count": len(records),
+                            }
                         }
-                    }
-                ],
-            )
+                    ],
+                )
+            finally:
+                conn.close()
         except Exception as exc:
-            logger.error("读取多维表记录失败: %s", exc, exc_info=True)
-            return ToolResult(content=f"读取多维表记录失败: {exc}", is_error=True)
+            logger.error("查询多维表失败: %s", exc, exc_info=True)
+            return ToolResult(content=f"查询多维表失败: {exc}", is_error=True)
 
 
 class InsertDataTableRecords(AiasysTool):

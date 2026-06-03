@@ -66,7 +66,8 @@ class CreateSubagentTool(AiasysTool):
 
     name = "CreateSubagent"
     description = (
-        "动态创建一个新的子 Agent（角色）配置。"
+        "动态创建一个新的自定义子 Agent（角色）配置。"
+        "系统预设角色（data_analyst、coder、researcher、reviewer、worker）可直接通过 Task 工具调用，无需创建。"
         "默认创建到当前工作区（scope='workspace'），立即可用。"
         "写入我的默认需要当前运行上下文显式授权。"
         "参数: name(标识名), description(描述), system_prompt(系统提示词), "
