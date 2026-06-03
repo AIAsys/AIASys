@@ -160,6 +160,10 @@ export function SessionTaskPanel({ tasks = [], planState }: SessionTaskPanelProp
   const isPlanPendingApproval = planState?.approval_status === "pending_approval";
   const hasPlanFile = Boolean(planState?.current_plan_file);
 
+  const toggleExpanded = useCallback(() => {
+    setIsExpanded((v) => !v);
+  }, [setIsExpanded]);
+
   // Nothing to show
   const hasContent =
     tasks.length > 0 || isPlanModeActive || isPlanPendingApproval || hasPlanFile;
@@ -172,10 +176,6 @@ export function SessionTaskPanel({ tasks = [], planState }: SessionTaskPanelProp
   ).length;
 
   const { visible, hidden } = selectVisibleTasks(tasks);
-
-  const toggleExpanded = useCallback(() => {
-    setIsExpanded((v) => !v);
-  }, [setIsExpanded]);
 
   // Collapsed mode — single-line summary
   if (!isExpanded) {
