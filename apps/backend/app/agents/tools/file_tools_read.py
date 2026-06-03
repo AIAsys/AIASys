@@ -64,11 +64,17 @@ class ReadFile(AiasysTool):
 - line_offset 为负值时从文件尾部计数（如 -100 读取最后100行）
 - 输出带行号（cat -n 格式），方便 Agent 定位
 
+为什么用 ReadFile 而不是 Shell cat：
+- 自动做路径安全校验，防止越界到 /etc、/root 等系统目录
+- 支持 `/global/` 前缀访问全局工作区文件（Shell 做不到）
+- 自动记录文件访问历史，便于审计和回溯
+- 支持从文件尾部倒读（Shell tail 需要额外参数且不带行号）
+- 自动拒绝敏感文件（.env、密钥文件等），避免意外泄露
+
 限制：
 - 单次最多读取 {MAX_LINES} 行或 {MAX_BYTES} 字节
 - 单行超过 {MAX_LINE_LENGTH} 字符会被截断
 - 拒绝读取二进制文件（图片、视频、可执行文件等）
-- 拒绝读取敏感文件（.env、密钥文件等）
 """
     params: type[BaseModel] = ReadFileParams
 

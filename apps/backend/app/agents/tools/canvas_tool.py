@@ -199,13 +199,23 @@ class BatchCanvasOperations(AiasysTool):
 
     name: str = "BatchCanvasOperations"
     description: str = """
-批量修改 JSON Canvas 文件。
+批量修改 JSON Canvas 文件（增删改节点和边）。
 
 参数：
 - canvas_path: Canvas 文件路径，支持相对路径、/workspace/... 或 /global/...。
-- operations: 操作列表，支持 add_node、update_node、remove_node、add_edge、update_edge、remove_edge。
+- operations: 操作列表，每个操作是一个 {"action": "...", "data": {...}} 对象。
+  支持 action: add_node、update_node、remove_node、add_edge、update_edge、remove_edge。
 
-适合让 Agent 一次性增删改多个节点和边，避免反复读写同一个 .canvas 文件。
+为什么用 BatchCanvasOperations 而不是 WriteFile：
+- **批量操作**：一次调用可以完成多个增删改，避免反复读写 .canvas 文件
+- **类型安全**：add_node/update_node/remove_node/add_edge 等操作会自动处理节点 ID 和边引用，比手写 JSON 更不容易出错
+- **保留未修改内容**：只变更指定的节点/边，不会影响 canvas 中的其他内容
+
+使用场景：
+- 在 canvas 中添加多个节点
+- 连接节点（创建边）
+- 删除节点或边
+- 批量修改节点属性（颜色、文本等）
 """
     params: type[BaseModel] = BatchCanvasOperationsParams
     parameters: dict[str, Any] = BatchCanvasOperationsParams.model_json_schema()
