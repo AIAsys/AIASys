@@ -16,6 +16,7 @@ from app.core.templates import (
     get_workspace_template,
     list_workspace_templates,
 )
+from app.services.session.config_projection import read_user_ui_settings
 from app.models.external_template_market import (
     ExternalTemplateMarketListResponse,
     InstallExternalTemplateRequest,
@@ -87,7 +88,17 @@ async def list_templates(
 
     installed_only=true 时只返回用户目录中的模板（已安装）。
     """
-    templates = list_workspace_templates(current_user.user_id, installed_only=installed_only)
+    ui_settings = read_user_ui_settings(current_user.user_id)
+    template_order = ui_settings.get("templateOrder")
+    order_list: list[str] | None = None
+    if isinstance(template_order, list):
+        order_list = [str(item).strip() for item in template_order if str(item).strip()]
+
+    templates = list_workspace_templates(
+        current_user.user_id,
+        installed_only=installed_only,
+        template_order=order_list,
+    )
     return {
         "templates": [build_template_payload(t) for t in templates],
         "total": len(templates),

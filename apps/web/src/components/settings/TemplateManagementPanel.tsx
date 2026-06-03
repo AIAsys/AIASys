@@ -1,15 +1,15 @@
 import { useEffect, useState, useCallback } from "react";
 import {
-  FilePlus,
-  Trash2,
+
+
   Loader2,
   AlertCircle,
   FileText,
-  Puzzle,
+
   RefreshCw,
   Store,
 } from "lucide-react";
-import { TEMPLATE_ICON_MAP } from "@/lib/templateIcons";
+
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -25,6 +25,9 @@ import {
   type WorkspaceTemplateItem,
 } from "@/lib/api/workspaces";
 import { useFileUploadToast } from "@/components/file/FileUploadToast";
+import { useAuthState } from "@/contexts/AuthContext";
+import { saveUserUISettings } from "@/lib/api/uiSettings";
+import { TemplateSortableGrid } from "@/components/TemplateSortableGrid";
 import type { SettingsSection } from "@/components/settings/global-settings";
 
 export interface TemplateManagementPanelProps {
@@ -33,11 +36,13 @@ export interface TemplateManagementPanelProps {
 
 export function TemplateManagementPanel({ onNavigate }: TemplateManagementPanelProps) {
   const { showSuccess, showError: showToastError } = useFileUploadToast();
+  const { user } = useAuthState();
   const [templates, setTemplates] = useState<WorkspaceTemplateItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>("");
 
   const loadTemplates = useCallback(async () => {
     setIsLoading(true);
@@ -129,70 +134,20 @@ export function TemplateManagementPanel({ onNavigate }: TemplateManagementPanelP
             <p className="text-xs mt-1">前往模板市场浏览和安装</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {templates.map((template) => {
-              const capCount = (template.recommended_capabilities ?? []).length;
-              return (
-                <div
-                  key={template.template_id}
-                  className="group flex flex-col rounded-lg border border-border bg-background p-4 transition-shadow hover:shadow-sm"
-                >
-                  <div className="flex items-start gap-3">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
-                      {TEMPLATE_ICON_MAP[template.icon] ?? (
-                        <FilePlus className="h-5 w-5" />
-                      )}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className="truncate text-sm font-medium text-foreground">
-                          {template.name}
-                        </span>
-                        <span className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
-                          {template.category}
-                        </span>
-                      </div>
-                      <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">
-                        {template.description || "无描述"}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="mt-3 flex items-center gap-3 text-[11px] text-muted-foreground">
-                    <span className="flex items-center gap-1">
-                      <FileText className="h-3 w-3" />
-                      {template.files?.length ?? 0} 个文件
-                    </span>
-                    {capCount > 0 && (
-                      <span className="flex items-center gap-1">
-                        <Puzzle className="h-3 w-3" />
-                        {capCount} 项能力
-                      </span>
-                    )}
-                  </div>
-
-                  {!template.is_builtin && (
-                    <div className="mt-3 flex items-center justify-end gap-2">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 text-xs text-destructive hover:text-destructive hover:bg-destructive/5"
-                        onClick={() => setConfirmDeleteId(template.template_id)}
-                        disabled={deletingId === template.template_id}
-                      >
-                        {deletingId === template.template_id ? (
-                          <Loader2 className="h-3 w-3 animate-spin" />
-                        ) : (
-                          <Trash2 className="h-3 w-3" />
-                        )}
-                        <span className="ml-1">删除</span>
-                      </Button>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
+          <TemplateSortableGrid
+            templates={templates}
+            selectedTemplateId={selectedTemplateId}
+            isBusy={false}
+            onSelect={(templateId) => setSelectedTemplateId(templateId)}
+            onPreview={() => {}}
+            onReorder={(newItems) => {
+              setTemplates(newItems);
+              if (user?.id) {
+                const order = newItems.map((t) => t.template_id);
+                saveUserUISettings(user.id, { templateOrder: order }).catch(() => {});
+              }
+            }}
+          />
         )}
       </div>
 
