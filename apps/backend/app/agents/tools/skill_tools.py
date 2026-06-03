@@ -190,8 +190,19 @@ class LoadSkill(AiasysTool):
         )
 
         if result is None:
-            # 尝试查找相似名称提示
+            # 尝试按 display_name 匹配（Agent 有时会传 display_name 而不是 name）
             all_skills = mgr.list_all_skills(workspace_path)
+            for s in all_skills:
+                if s.display_name and s.display_name.strip().lower() == params.name.strip().lower():
+                    result = mgr.get_skill_file_content(
+                        skill_name=s.name,
+                        workspace_path=workspace_path,
+                        relative_path=params.file.strip() if params.file else "SKILL.md",
+                    )
+                    break
+
+        if result is None:
+            # 尝试查找相似名称提示
             names = [s.name for s in all_skills]
             hint = f"。可用 Skill: {', '.join(names)}" if names else ""
             return ToolResult(
@@ -235,7 +246,9 @@ class SearchStoreSkills(AiasysTool):
 - 不确定某个 Skill 是否已安装到系统时
 - 想浏览所有可用 Skill 时
 
-返回格式为 JSON 数组，每个元素包含 name、display_name、description、source。
+重要：搜索到需要的 Skill 后，必须调用 `EnableSkill` 将其安装到当前工作区（或全局工作区）。只搜索不安装，Skill 无法在当前工作区使用。
+
+返回格式为 JSON 数组，每个元素包含 name、display_name、description、source。返回的 `name` 字段可直接传给 `EnableSkill(name=...)` 进行安装。
 """
     params: type[BaseModel] = SearchStoreSkillsParams
 
@@ -260,8 +273,24 @@ class SearchStoreSkills(AiasysTool):
                 continue
             if query:
                 haystack = f"{skill.name} {skill.display_name} {skill.description}".lower()
-                if query not in haystack:
-                    continue
+                # 分词匹配：query 中任意一个词/字匹配即可
+                # 英文按空格分词；中文按单个字符拆分（因为中文没有空格分隔）
+                query_parts = []
+                for part in query.split():
+                    if len(part) >= 2:
+                        # 检测是否包含 CJK 字符（中文/日文/韩文）
+                        has_cjk = any("\u4e00" <= ch <= "\u9fff" for ch in part)
+                        if has_cjk:
+                            # 中文：每个字符作为一个匹配单元
+                            query_parts.extend([ch for ch in part if "\u4e00" <= ch <= "\u9fff"])
+                        else:
+                            query_parts.append(part)
+                if query_parts:
+                    if not any(part in haystack for part in query_parts):
+                        continue
+                else:
+                    if query not in haystack:
+                        continue
             items.append(
                 {
                     "name": skill.name,
@@ -277,8 +306,16 @@ class SearchStoreSkills(AiasysTool):
                 msg += f"（关键词: {params.query}）"
             return ToolResult(content=msg, artifacts=[{"skills": []}])
 
+        # 明确提示 Agent 下一步调用 EnableSkill
+        names = [item["name"] for item in items]
+        install_hint = ""
+        if len(names) == 1:
+            install_hint = f"\n\n请立即调用 EnableSkill(name='{names[0]}') 将其安装到当前工作区。"
+        else:
+            install_hint = f"\n\n请从中选择一个最合适的，立即调用 EnableSkill(name='<skill_name>') 安装到当前工作区。推荐的 Skill 名称: {', '.join(names)}"
+
         return ToolResult(
-            content=f"Skill 仓库中找到 {len(items)} 个 Skill",
+            content=f"Skill 仓库中找到 {len(items)} 个 Skill{install_hint}",
             artifacts=[{"skills": items}],
         )
 
