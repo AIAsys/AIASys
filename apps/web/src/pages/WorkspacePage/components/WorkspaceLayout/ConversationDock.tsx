@@ -244,6 +244,8 @@ export function ConversationDock({
         sessionInputFocusSignal={sessionInputFocusSignal}
         tokenUsageRefreshSignal={tokenUsageRefreshSignal}
         onUploadToWorkspace={onUploadToWorkspace}
+        tasks={sessionStatus?.tasks}
+        planState={sessionStatus?.plan_state}
       />
     </aside>
   );

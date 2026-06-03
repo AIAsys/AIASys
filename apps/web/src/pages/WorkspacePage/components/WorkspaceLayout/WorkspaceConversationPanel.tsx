@@ -1,4 +1,5 @@
 import {
+  Download,
   GitBranchPlus,
   MessageSquare,
   MessageSquarePlus,
@@ -26,6 +27,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { useEffect, useMemo, useState } from "react";
+import { exportConversation } from "@/lib/api/sessions";
+import { useAuthContext } from "@/contexts/AuthContext";
 import type { TaskWorkspaceSummary } from "../../types";
 
 function toMillis(value?: string | null): number {
@@ -94,6 +97,8 @@ export function WorkspaceConversationPanel({
     title: string;
   } | null>(null);
   const [renameValue, setRenameValue] = useState("");
+  const { user } = useAuthContext();
+  const currentUserId = user?.id;
   const isCollapsed = embedded ? false : collapsed;
   const edgeBorderClass =
     placement === "right"
@@ -152,6 +157,31 @@ export function WorkspaceConversationPanel({
     setSwitchSucceededSessionId(null);
     setPendingSwitchSessionId(sessionId);
     onSelectConversation(sessionId);
+  };
+
+  const handleExportConversation = async (
+    event: React.MouseEvent,
+    sessionId: string,
+    title: string,
+  ) => {
+    event.stopPropagation();
+    if (!currentUserId) return;
+    try {
+      const blob = await exportConversation(currentUserId, sessionId);
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      const safeTitle = (title || "conversation")
+        .replace(/[^\w\-\u4e00-\u9fa5]/g, "_")
+        .slice(0, 50);
+      link.download = `${safeTitle}_${sessionId}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch {
+      // 静默失败，不打扰用户
+    }
   };
 
   const conversations = useMemo(
@@ -414,6 +444,20 @@ export function WorkspaceConversationPanel({
                           <GitBranchPlus className="mr-2 h-4 w-4" />
                           Fork 为新对话
                         </DropdownMenuItem>
+                        {currentUserId ? (
+                          <DropdownMenuItem
+                            onClick={(event) => {
+                              void handleExportConversation(
+                                event,
+                                conversation.session_id,
+                                conversation.title || "conversation",
+                              );
+                            }}
+                          >
+                            <Download className="mr-2 h-4 w-4" />
+                            导出对话
+                          </DropdownMenuItem>
+                        ) : null}
                         {onDeleteConversation ? (
                           <DropdownMenuItem
                             onClick={(event) => {

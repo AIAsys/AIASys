@@ -29,6 +29,8 @@ export function useSessionManagement({
     Boolean(initialSessionId),
   );
   const latestSelectRequestRef = useRef(0);
+  const latestSelectTargetRef = useRef<string | null>(null);
+  const loadedHistorySessionsRef = useRef<Set<string>>(new Set());
   const hasLoadedHistoryRef = useRef(false);
   const isLoadingRef = useRef(false);
   const conversationsRef = useRef<Conversation[]>([]);
@@ -108,10 +110,10 @@ export function useSessionManagement({
       }
       console.error("Failed to load history sessions:", error);
     } finally {
-      hasLoadedHistoryRef.current = true;
       if (shouldShowLoading) {
         setIsLoadingConversations(false);
       }
+      hasLoadedHistoryRef.current = true;
       isLoadingRef.current = false;
     }
   }, [apiBaseUrl]);
@@ -146,20 +148,33 @@ export function useSessionManagement({
     async (sid: string): Promise<ChatItem[]> => {
       latestSelectRequestRef.current += 1;
       const requestId = latestSelectRequestRef.current;
+      latestSelectTargetRef.current = sid;
       setIsRestoringSession(true);
 
       const restoredItems: ChatItem[] = [];
 
       try {
         const userId = getCurrentUserId();
+        // 首次加载某个会话时只取最近 50 条消息，避免大对话全量加载
+        const isFirstLoad = !loadedHistorySessionsRef.current.has(sid);
+        const historyLimit = isFirstLoad ? 50 : 0;
         const endpoint = API_ENDPOINTS.SESSION_HISTORY(userId, sid);
-        const data = await apiRequest<{ messages?: HistoryMessage[] }>(
-          `${apiBaseUrl}${endpoint}`,
-        );
+        const data = await apiRequest<{
+          messages?: HistoryMessage[];
+          total_messages?: number;
+          has_more?: boolean;
+        }>(`${apiBaseUrl}${endpoint}${historyLimit > 0 ? `?limit=${historyLimit}` : ""}`);
         const messages = (data.messages || []) as HistoryMessage[];
         restoredItems.push(...restoreChatItemsFromHistory(sid, messages));
 
-        if (requestId !== latestSelectRequestRef.current) {
+        // 标记该会话历史已加载过，下次切换回来不再限制条数
+        loadedHistorySessionsRef.current.add(sid);
+
+        // 同时检查 requestId 和目标 sessionId，防止 A->B->A 快速切换时迟到回包覆盖
+        if (
+          requestId !== latestSelectRequestRef.current ||
+          sid !== latestSelectTargetRef.current
+        ) {
           return restoredItems;
         }
 
