@@ -640,6 +640,11 @@ class TaskTool(AiasysTool):
             final_content = f"子 Agent 执行异常: {exc}"
             storage.update_status("failed")
         finally:
+            # 确保缓冲数据落盘（异常路径）
+            try:
+                await storage.flush()
+            except Exception:
+                logger.warning("子 Agent 缓冲刷盘失败", exc_info=True)
             # 重置子 Agent 的 contextvar
             current_workspace.reset(_workspace_token)
             current_session_root.reset(_session_root_token)
@@ -674,7 +679,13 @@ class TaskTool(AiasysTool):
                 }
             )
 
-        # 10. yield 最终结果
+        # 10. 强制刷盘（正常收尾路径的 write 可能未达阈值）
+        try:
+            await storage.flush()
+        except Exception:
+            logger.warning("子 Agent 收尾刷盘失败", exc_info=True)
+
+        # 11. yield 最终结果
         yield ToolResult(
             content=final_content or "子 Agent 执行完成",
             is_error=final_is_error,

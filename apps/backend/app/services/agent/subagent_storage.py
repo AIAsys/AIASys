@@ -51,7 +51,15 @@ class SubAgentStorage:
         ├── wire.jsonl     # 实时执行事件流
         ├── context.jsonl  # OpenAI 格式对话历史
         └── work/          # 子 Agent 临时运行产物，不是独立工作区
+
+    写入模型：
+    - wire.jsonl / context.jsonl 采用批量缓冲，减少频繁 open/close 的系统调用开销
+    - 缓冲达到阈值（10 条）时自动 flush
+    - 子 Agent 结束时必须显式调用 flush() 确保数据落盘
+    - meta.json 为低频写，直接原子写入（不缓冲）
     """
+
+    BUFFER_SIZE = 10  # 批量写入阈值
 
     def __init__(self, user_id: str, session_id: str, agent_id: str) -> None:
         self.user_id = user_id
@@ -62,6 +70,8 @@ class SubAgentStorage:
         self._context_file: Path | None = None
         self._meta_file: Path | None = None
         self._lock = asyncio.Lock()
+        self._wire_buffer: list[str] = []
+        self._context_buffer: list[str] = []
 
     @property
     def subagent_dir(self) -> Path:
@@ -187,6 +197,70 @@ class SubAgentStorage:
         """
         pass
 
+    async def flush(self) -> None:
+        """强制将缓冲区的数据刷盘。
+
+        子 Agent 结束时必须调用此方法，确保所有数据落盘。
+        """
+        await self._flush_wire()
+        await self._flush_context()
+
+    async def _flush_wire(self) -> None:
+        """将 wire 缓冲批量写入文件，失败时重试一次。"""
+        if not self._wire_buffer:
+            return
+        lines = self._wire_buffer.copy()
+        self._wire_buffer.clear()
+        async with self._lock:
+            try:
+                with open(self.wire_file, "a", encoding="utf-8") as f:
+                    f.write("".join(lines))
+            except Exception as first_err:
+                logger.warning(
+                    "wire 批量写入失败，尝试重试: agent_id=%s err=%s",
+                    self.agent_id,
+                    first_err,
+                )
+                try:
+                    with open(self.wire_file, "a", encoding="utf-8") as f:
+                        f.write("".join(lines))
+                except Exception as second_err:
+                    logger.error(
+                        "wire 批量写入重试失败: agent_id=%s first=%s second=%s",
+                        self.agent_id,
+                        first_err,
+                        second_err,
+                        exc_info=True,
+                    )
+
+    async def _flush_context(self) -> None:
+        """将 context 缓冲批量写入文件，失败时重试一次。"""
+        if not self._context_buffer:
+            return
+        lines = self._context_buffer.copy()
+        self._context_buffer.clear()
+        async with self._lock:
+            try:
+                with open(self.context_file, "a", encoding="utf-8") as f:
+                    f.write("".join(lines))
+            except Exception as first_err:
+                logger.warning(
+                    "context 批量写入失败，尝试重试: agent_id=%s err=%s",
+                    self.agent_id,
+                    first_err,
+                )
+                try:
+                    with open(self.context_file, "a", encoding="utf-8") as f:
+                        f.write("".join(lines))
+                except Exception as second_err:
+                    logger.error(
+                        "context 批量写入重试失败: agent_id=%s first=%s second=%s",
+                        self.agent_id,
+                        first_err,
+                        second_err,
+                        exc_info=True,
+                    )
+
     async def append_wire_event(
         self,
         message_type: str,
@@ -203,21 +277,15 @@ class SubAgentStorage:
             "timestamp": ts,
             "message": {"type": message_type, "payload": payload},
         }
-        async with self._lock:
-            try:
-                with open(self.wire_file, "a", encoding="utf-8") as f:
-                    f.write(json.dumps(record, ensure_ascii=False) + "\n")
-            except Exception:
-                logger.warning("追加 wire 事件失败: agent_id=%s", self.agent_id, exc_info=True)
+        self._wire_buffer.append(json.dumps(record, ensure_ascii=False) + "\n")
+        if len(self._wire_buffer) >= self.BUFFER_SIZE:
+            await self._flush_wire()
 
     async def append_context_message(self, message: dict[str, Any]) -> None:
         """追加消息到 context.jsonl（OpenAI 格式）。"""
-        async with self._lock:
-            try:
-                with open(self.context_file, "a", encoding="utf-8") as f:
-                    f.write(json.dumps(message, ensure_ascii=False) + "\n")
-            except Exception:
-                logger.warning("追加 context 消息失败: agent_id=%s", self.agent_id, exc_info=True)
+        self._context_buffer.append(json.dumps(message, ensure_ascii=False) + "\n")
+        if len(self._context_buffer) >= self.BUFFER_SIZE:
+            await self._flush_context()
 
     async def append_wire_agent_runtime_event(
         self,
