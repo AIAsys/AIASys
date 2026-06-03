@@ -197,6 +197,7 @@ flowchart TD
 - 安装 MCP Server 必须用 `InstallMCPServer`，禁止手动 curl/npm install
 - 管理环境变量必须用 `SetEnvVar`/`GetEnvVar`，禁止 Shell `export`
 - 数据表写操作必须用专用工具，禁止 Shell `sqlite3` 直接 INSERT/UPDATE/DELETE
+- **图片/视频内容分析优先使用 `ReadMediaFile`**。此工具直接让模型理解媒体内容，比 Shell 运行 Python/PIL、ImageMagick 或 ffmpeg 更直接、更可靠
 
 Shell 更适合：系统命令、安装依赖、复杂管道操作、没有专用工具覆盖的场景。
 
