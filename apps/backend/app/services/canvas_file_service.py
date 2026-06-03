@@ -6,26 +6,10 @@ import time
 import uuid
 from pathlib import Path
 
+from filelock import FileLock
+
 from app.models.canvas import CanvasBatchOperation, CanvasEdge, CanvasFile, CanvasNode
 from app.services.file_history import file_history_service
-
-# 跨平台文件锁：Linux/macOS 用 fcntl；Windows 暂做空操作，线程锁已提供进程内保护。
-try:
-    import fcntl
-
-    def _lock_file(fd: int) -> None:
-        fcntl.flock(fd, fcntl.LOCK_EX)
-
-    def _unlock_file(fd: int) -> None:
-        fcntl.flock(fd, fcntl.LOCK_UN)
-
-except ImportError:
-
-    def _lock_file(_fd: int) -> None:
-        pass
-
-    def _unlock_file(_fd: int) -> None:
-        pass
 
 
 def _new_id(prefix: str = "node") -> str:
@@ -148,13 +132,9 @@ class CanvasFileService:
             source_detail="write_canvas",
         )
         tmp_path = file_path.with_suffix(".tmp")
-        with open(tmp_path, "w", encoding="utf-8") as f:
-            fd = f.fileno()
-            _lock_file(fd)
-            try:
-                f.write(json_str)
-            finally:
-                _unlock_file(fd)
+        lock_path = str(tmp_path) + ".lock"
+        with FileLock(lock_path):
+            tmp_path.write_text(json_str, encoding="utf-8")
         tmp_path.replace(file_path)
 
         new_mtime = file_path.stat().st_mtime

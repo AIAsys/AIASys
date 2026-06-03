@@ -41,9 +41,15 @@ class SessionCompactionMixin:
         if not chat_messages:
             return
 
-        token_count = self._estimated_token_count
-        if token_count <= 0:
-            token_count = estimate_text_tokens(chat_messages)
+        # 触发条件只基于 chat_messages（system messages 不参与压缩），
+        # _estimated_token_count 若包含 system 需扣除其估算值。
+        token_count = estimate_text_tokens(chat_messages)
+        if self._estimated_token_count > 0:
+            system_tokens = estimate_text_tokens(system_messages)
+            token_count = max(
+                token_count,
+                self._estimated_token_count - system_tokens,
+            )
 
         trigger_reason = ""
         if token_count >= max_context_size * loop_control.compaction_trigger_ratio:

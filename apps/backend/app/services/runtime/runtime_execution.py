@@ -27,6 +27,18 @@ from app.services.history import (
 
 logger = logging.getLogger(__name__)
 
+
+def _shell_quote(arg: str) -> str:
+    """跨平台 shell 参数引用。
+
+    Windows cmd 不识别 POSIX 单引号，需要用双引号包裹并转义内部双引号；
+    POSIX 平台沿用 shlex.quote。
+    """
+    if os.name == "nt":
+        return '"' + arg.replace('"', '\\"') + '"'
+    return shlex.quote(arg)
+
+
 DEFAULT_SANDBOX_MODE = "plain_shell"
 DEFAULT_DISPLAY_NAME = "未绑定 Python"
 _DYNAMIC_KERNEL_ROOT = Path(tempfile.gettempdir()) / "aiasys-runtime-kernels"
@@ -209,9 +221,9 @@ def wrap_shell_command_for_runtime(
         workdir = container.workspace_mount_path or "/workspace"
         env_args = _docker_exec_env_args(plan)
         wrapped = (
-            f"docker exec -w {shlex.quote(workdir)} "
+            f"docker exec -w {_shell_quote(workdir)} "
             f"{env_args}"
-            f"{shlex.quote(docker_target)} sh -lc {shlex.quote(command)}"
+            f"{_shell_quote(docker_target)} sh -lc {_shell_quote(command)}"
         )
         return wrapped, plan.workspace
 
@@ -223,9 +235,9 @@ def wrap_shell_command_for_runtime(
         if project_dir is None:
             return command, plan.workspace
         wrapped = (
-            f"uv run --project {shlex.quote(str(project_dir))} "
-            f"--directory {shlex.quote(str(plan.workspace or project_dir))} "
-            f"sh -lc {shlex.quote(command)}"
+            f"uv run --project {_shell_quote(str(project_dir))} "
+            f"--directory {_shell_quote(str(plan.workspace or project_dir))} "
+            f"sh -lc {_shell_quote(command)}"
         )
         return wrapped, plan.workspace
 
@@ -458,7 +470,7 @@ def _docker_exec_env_args(plan: RuntimeExecutionPlan) -> str:
         key_text = str(key).strip()
         if not key_text or not re.match(r"^[A-Za-z_][A-Za-z0-9_]*$", key_text):
             continue
-        parts.append(f"-e {shlex.quote(key_text)}={shlex.quote(str(value))}")
+        parts.append(f"-e {_shell_quote(key_text)}={_shell_quote(str(value))}")
     return "".join(f"{part} " for part in parts)
 
 

@@ -62,7 +62,6 @@ export function DesignSidebarHistorySection({
   onWorkspaceSelect,
   onDeleteWorkspace,
   onDeleteSelectedWorkspaces,
-  onExportWorkspace,
   onUpdateWorkspace,
 }: DesignSidebarHistorySectionProps) {
   const [editingWorkspaceId, setEditingWorkspaceId] = useState<string | null>(

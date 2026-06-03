@@ -96,6 +96,70 @@ def _resolve_working_dir() -> Path:
     return Path.cwd()
 
 
+def _shell_quote(arg: str) -> str:
+    """跨平台 shell 参数引用。
+
+    Windows 上用双引号包裹（cmd 不识别单引号），POSIX 上用 shlex.quote。
+    """
+    if os.name == "nt":
+        # Windows: 双引号包裹，内部双引号用反斜杠转义
+        escaped = arg.replace('"', '\\"')
+        return f'"{escaped}"'
+    import shlex
+
+    return shlex.quote(arg)
+
+
+async def _create_shell_process(command: str, **kwargs: Any) -> asyncio.subprocess.Process:
+    """跨平台创建 shell 子进程。
+
+    Windows 下默认 asyncio.create_subprocess_shell 调用 cmd.exe，
+    无法执行 ls/cat/2>/dev/null 等 POSIX 命令。
+    若系统存在 bash（如 Git Bash）则显式使用 bash -c 执行命令。
+    Linux/macOS 保持原行为。
+    """
+    if os.name == "nt":
+        import shutil
+
+        bash_path = shutil.which("bash")
+        if bash_path:
+            return await asyncio.create_subprocess_exec(bash_path, "-c", command, **kwargs)
+    return await asyncio.create_subprocess_shell(command, **kwargs)
+
+
+async def _create_shell_process_with_interpreter(
+    command: str, interpreter: str, **kwargs: Any
+) -> asyncio.subprocess.Process:
+    """根据 interpreter 参数创建 shell 子进程。"""
+    if interpreter == "auto":
+        return await _create_shell_process(command, **kwargs)
+
+    if interpreter == "bash":
+        import shutil
+
+        bash_path = shutil.which("bash")
+        if not bash_path:
+            raise RuntimeError("系统未找到 bash，无法使用 interpreter='bash'")
+        return await asyncio.create_subprocess_exec(bash_path, "-c", command, **kwargs)
+
+    if interpreter == "cmd":
+        if os.name != "nt":
+            raise RuntimeError("interpreter='cmd' 仅在 Windows 上可用")
+        return await asyncio.create_subprocess_shell(command, **kwargs)
+
+    if interpreter == "powershell":
+        if os.name != "nt":
+            raise RuntimeError("interpreter='powershell' 仅在 Windows 上可用")
+        import shutil
+
+        ps_path = shutil.which("powershell") or shutil.which("pwsh")
+        if not ps_path:
+            raise RuntimeError("系统未找到 PowerShell（powershell 或 pwsh）")
+        return await asyncio.create_subprocess_exec(ps_path, "-Command", command, **kwargs)
+
+    raise ValueError(f"不支持的 interpreter: {interpreter}，可选值: auto、bash、cmd、powershell")
+
+
 class ShellParams(BaseModel):
     """Shell 命令执行参数。"""
 
@@ -109,6 +173,10 @@ class ShellParams(BaseModel):
     container: str | None = Field(
         default=None,
         description="Docker 容器 ID 或名称。指定后命令将在该容器内执行，而不是默认的 UV 环境",
+    )
+    interpreter: str = Field(
+        default="auto",
+        description="指定使用的 shell 解释器。auto（自动检测，默认）、bash、cmd、powershell。Windows 上 bash 不可用时 fallback 到 cmd。",
     )
 
 
@@ -161,13 +229,10 @@ class Shell(AiasysTool):
                 )
 
         if params.container:
-            import shlex
-
             workdir = "/workspace"
-            command = (
-                f"docker exec -w {shlex.quote(workdir)} "
-                f"{shlex.quote(params.container)} sh -lc {shlex.quote(params.command)}"
-            )
+            container_quoted = _shell_quote(params.container)
+            cmd_quoted = _shell_quote(params.command)
+            command = f"docker exec -w {workdir} {container_quoted} sh -lc {cmd_quoted}"
             cwd = _resolve_working_dir()
             env = _build_shell_exec_env() or {}
         else:
@@ -186,8 +251,9 @@ class Shell(AiasysTool):
             )
 
         try:
-            proc = await asyncio.create_subprocess_shell(
+            proc = await _create_shell_process_with_interpreter(
                 command,
+                interpreter=params.interpreter,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
                 stdin=asyncio.subprocess.DEVNULL,  # 立即关闭 stdin

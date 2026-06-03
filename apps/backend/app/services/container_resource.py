@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import json
+import os
 import re
-import shlex
 from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -19,8 +19,24 @@ from app.models.container_resource import (
 )
 from app.services.runtime_environment import resolve_workspace_runtime_dir
 
-_REGISTRY_FILE = "containers.json"
+
+def _shell_split(command: str | list[str] | None) -> list[str] | None:
+    """跨平台 shell 命令分割。
+
+    如果已经是 list 直接返回；如果是 str，在 Windows 上用空格分割（避免
+    shlex.split 按 POSIX 规则错误处理含反斜杠的路径），POSIX 上用 shlex.split。
+    """
+    if command is None or isinstance(command, list):
+        return command
+    if os.name == "nt":
+        return command.split()
+    import shlex
+
+    return shlex.split(command)
+
+
 _ID_PATTERN = re.compile(r"^[a-zA-Z0-9_-]+$")
+_REGISTRY_FILE = "container_registry.json"
 
 
 def _now_iso() -> str:
@@ -115,7 +131,7 @@ class ContainerResourceService:
         if create_container:
             if not image:
                 raise ValueError("create_container=true 时必须提供 image")
-            resolved_command = shlex.split(command) if isinstance(command, str) else command
+            resolved_command = _shell_split(command)
             workspace_env_vars = self.workspace_registry.get_workspace_env_vars(
                 user_id, workspace_id
             )

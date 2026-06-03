@@ -7,6 +7,7 @@ default_title = "数据分析"
 default_description = "对数据集进行探索、清洗、分析和可视化。"
 initial_conversation_title = "开始分析"
 env_kind = "uv"
+recommended_skills = ["aiasys-platform-skill", "aiasys-canvas-skill", "uv-runtime-skill", "pymupdf4llm-pdf-to-markdown-skill", "paddleocr-skill", "aiasys-tool-usage-skill"]
 
 [[files]]
 relative_path = "README.md"

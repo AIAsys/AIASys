@@ -1,0 +1,46 @@
+template_id = "official-default"
+name = "官方默认"
+description = "通用工作模板，预装最基础常用的系统 skill，适合大多数日常任务和协作场景。"
+icon = "layout-template"
+category = "通用"
+default_title = "新任务"
+default_description = ""
+initial_conversation_title = "开始工作"
+env_kind = "uv"
+recommended_skills = ["aiasys-platform-skill", "aiasys-canvas-skill", "uv-runtime-skill", "aiasys-tool-usage-skill"]
+
+[[files]]
+relative_path = "README.md"
+content = """# 工作区
+
+这是 AIASys 官方默认工作区，预装了最基础常用的系统 skill。
+
+## 已预装能力
+
+| Skill | 说明 |
+|------|------|
+| aiasys-platform-skill | AIASys 平台使用指南 |
+| aiasys-canvas-skill | Canvas 可视化编辑 |
+| uv-runtime-skill | Python/UV 运行环境管理 |
+
+## 快速开始
+
+1. 在对话中描述你的任务目标
+2. Agent 会根据任务类型自动调用合适的工具和能力
+3. 需要更多专项能力时，可在 Skill 市场中搜索并安装
+
+---
+"""
+
+[[files]]
+relative_path = ".aiasys/README.md"
+content = """# 工作区配置
+
+本目录存放当前工作区的 AIASys 配置。
+
+- `skills/` — 已启用的 Skill 列表
+- `mcp/` — 已配置的 MCP 连接器
+- `memory/` — 工作区级记忆文件
+
+全局配置继承自 `global_workspace/.aiasys/`，此处可覆盖。
+"""

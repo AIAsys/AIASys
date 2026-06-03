@@ -9,6 +9,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -538,7 +539,7 @@ class RuntimeEnvironmentService:
 
     def _run_uv(self, command: list[str], *, cwd: Path) -> RuntimeEnvCommandResult:
         env = dict(os.environ)
-        env.setdefault("UV_CACHE_DIR", "/tmp/uv-cache")
+        env.setdefault("UV_CACHE_DIR", os.path.join(tempfile.gettempdir(), "uv-cache"))
         try:
             completed = subprocess.run(
                 command,

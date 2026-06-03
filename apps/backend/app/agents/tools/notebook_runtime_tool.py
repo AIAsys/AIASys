@@ -193,17 +193,20 @@ def _append_notebook_run_record(
 
 class RunNotebook(AiasysTool):
     name: str = "RunNotebook"
-    description: str = """按 notebook 语义执行当前逻辑工作区中的 `.ipynb` 文件。
+    description: str = """执行/运行当前工作区中的 Jupyter notebook（.ipynb）中的代码单元格。
 
 适用场景：
-- 执行某个 code cell
+- 执行 notebook 中的某个 code cell
 - 执行一段 cell 范围
-- 执行整个 notebook 中的 code cell
+- 执行整个 notebook 中的所有 code cell
+- 获取代码单元格的输出结果（stdout、执行结果等）
 
 特点：
 - 每个 notebook 使用独立的 IPython kernel，变量状态按 notebook 隔离
 - 默认把安全输出写回 notebook，不直接写入 base64 图像
 - 默认只返回执行摘要，避免上下文爆炸
+
+注意：优先使用此工具来执行 notebook 代码，不要用 Shell 运行 Python 脚本来模拟 notebook 执行。
 """
     params: type[BaseModel] = RunNotebookParams
 

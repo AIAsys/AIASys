@@ -9,7 +9,6 @@ Session execution journal 服务。
 
 from __future__ import annotations
 
-import fcntl
 import json
 import logging
 import re
@@ -17,6 +16,8 @@ import shutil
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional
+
+from filelock import FileLock
 
 from app.models.session import (
     ExecutionOrigin,
@@ -73,6 +74,8 @@ class SessionExecutionJournal:
         self.recovery_path = self.execution_dir / "recovery.json"
         self.replay_runs_path = self.execution_dir / "replay-runs.jsonl"
         self.history_path = self.active_state_dir / HISTORY_SNAPSHOT_FILE_NAME
+        self._records_lock = FileLock(str(self.records_path) + ".lock")
+        self._replay_runs_lock = FileLock(str(self.replay_runs_path) + ".lock")
 
     def initialize_structure(self) -> None:
         """确保 execution journal 目录存在。"""
@@ -280,12 +283,9 @@ class SessionExecutionJournal:
             agent_config_snapshot=agent_config_snapshot,
         )
 
-        with open(self.records_path, "a", encoding="utf-8") as f:
-            fcntl.flock(f.fileno(), fcntl.LOCK_EX)
-            try:
+        with self._records_lock:
+            with open(self.records_path, "a", encoding="utf-8") as f:
                 f.write(json.dumps(record.model_dump(), ensure_ascii=False) + "\n")
-            finally:
-                fcntl.flock(f.fileno(), fcntl.LOCK_UN)
 
         self._write_json(
             self.index_path,
@@ -353,12 +353,9 @@ class SessionExecutionJournal:
             "finished_at": finished_at,
         }
 
-        with open(self.replay_runs_path, "a", encoding="utf-8") as f:
-            fcntl.flock(f.fileno(), fcntl.LOCK_EX)
-            try:
+        with self._replay_runs_lock:
+            with open(self.replay_runs_path, "a", encoding="utf-8") as f:
                 f.write(json.dumps(payload, ensure_ascii=False) + "\n")
-            finally:
-                fcntl.flock(f.fileno(), fcntl.LOCK_UN)
 
         return payload
 

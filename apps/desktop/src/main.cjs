@@ -1,3 +1,4 @@
+const fs = require("fs");
 const path = require("path");
 const { app, BrowserWindow, dialog, shell, Tray, Menu } = require("electron");
 const { DesktopServiceManager } = require("./service-manager.cjs");

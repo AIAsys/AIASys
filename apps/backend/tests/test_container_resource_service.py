@@ -144,7 +144,7 @@ def test_register_existing_docker_container_persists_workspace_entry(
         / "local_default"
         / "task-env"
         / ".env"
-        / "containers.json"
+        / "container_registry.json"
     )
     payload = json.loads(registry_path.read_text(encoding="utf-8"))
     assert payload["containers"][0]["container_id"] == "sandbox-alpha-resource"

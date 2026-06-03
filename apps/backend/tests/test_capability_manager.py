@@ -18,8 +18,12 @@ def _configure_capability_sources(
 ) -> Path:
     builtin_dir = tmp_path / "capability_sources" / "builtin"
     store_dir = tmp_path / "capability_sources" / "store"
+    skill_builtin_dir = tmp_path / "skills" / "builtin"
+    skill_store_dir = tmp_path / "skills" / "store"
     monkeypatch.setattr(source_registry_module, "_BUILTIN_SOURCES_DIR", builtin_dir)
     monkeypatch.setattr(source_registry_module, "_STORE_SOURCES_DIR", store_dir)
+    monkeypatch.setattr(source_registry_module, "_SKILL_BUILTIN_DIR", skill_builtin_dir)
+    monkeypatch.setattr(source_registry_module, "_SKILL_STORE_DIR", skill_store_dir)
     return builtin_dir
 
 
@@ -63,7 +67,7 @@ def test_deactivate_skill_removes_declaration_when_skill_is_uninstalled(
     cap_builtin_dir = _configure_capability_sources(tmp_path, monkeypatch)
     skill_builtin_dir = _configure_skill_sources(tmp_path, monkeypatch)
     _write_manifest(cap_builtin_dir / "skill" / "demo-skill", "demo-skill")
-    _write_skill_source(cap_builtin_dir / "skill" / "demo-skill", "demo-skill")
+    _write_manifest(skill_builtin_dir / "demo-skill", "demo-skill")
     _write_skill_source(skill_builtin_dir / "demo-skill", "demo-skill")
 
     workspace_path = tmp_path / "workspaces" / "local_default" / "workspace-a"

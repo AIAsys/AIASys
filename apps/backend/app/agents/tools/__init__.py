@@ -84,12 +84,8 @@ if TYPE_CHECKING:
         get_update_knowledge_base_tool,
         get_upload_documents_to_knowledge_base_tool,
     )
-    from .notebook_file_tool import EditNotebookFile, ReadNotebook
-    from .notebook_runtime_tool import RunNotebook
     from .notebook_session_tool import (
-        CreateSessionNotebook,
         ListSessionNotebooks,
-        ReadNotebookOutputs,
     )
     from .notebook_tool import ManageNotebook
     from .runtime_environment_tool import RuntimeEnvironment
@@ -104,11 +100,7 @@ if TYPE_CHECKING:
 
 __all__ = [
     "AiasysTool",
-    "ReadNotebook",
-    "EditNotebookFile",
     "ListSessionNotebooks",
-    "CreateSessionNotebook",
-    "ReadNotebookOutputs",
     "ManageNotebook",
     "RunCode",
     "ListKernelEnvs",
@@ -183,10 +175,11 @@ __all__ = [
     "TaskListTool",
     "EnterPlanModeTool",
     "ExitPlanModeTool",
-    # Notebook runtime
-    "RunNotebook",
     # Ask user
     "AskUser",
+    "ListMCPServers",
+    "SearchMCPMarket",
+    "InstallMCPServer",
 ]
 
 
@@ -347,5 +340,13 @@ def __getattr__(name: str) -> Any:
 
     if name == "AskUser":
         return import_module(".ask_user.tool", __name__).AskUser
+
+    if name in {
+        "ListMCPServers",
+        "SearchMCPMarket",
+        "InstallMCPServer",
+    }:
+        module = import_module(".mcp_tools", __name__)
+        return getattr(module, name)
 
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
