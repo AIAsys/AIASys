@@ -32,5 +32,5 @@
 ## 维护提醒
 
 1. 认证相关 Hook 已经收口到 `contexts/AuthContext.tsx` 导出的 `useAuthContext()` / `useAuthState()`，本目录不再维护旧式 `useAuth.ts`。
-2. 当前页面主编排大多在 `pages/DataAnalysisPage/hooks/`，不要把页面级生命周期误记到这里。
+2. 当前页面主编排大多在 `pages/WorkspacePage/hooks/`，不要把页面级生命周期误记到这里。
 3. 如新增 Hook，优先判断它是“跨页面复用能力”还是“页面编排逻辑”，避免继续把所有逻辑都塞进 `src/hooks/`。

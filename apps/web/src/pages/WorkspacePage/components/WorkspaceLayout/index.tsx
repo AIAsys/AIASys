@@ -26,9 +26,12 @@ export function WorkspaceLayout({
   executor,
   workspaces,
   isLoadingWorkspaces,
+  isLoadingMore = false,
+  hasMore = false,
   currentWorkspaceId,
   currentWorkspace,
   loadWorkspaces,
+  loadMoreWorkspaces,
   runtimeControls,
   sessionLifecycle,
   userModels,
@@ -58,7 +61,8 @@ export function WorkspaceLayout({
   const { navigateToWorkspaceConversation } = useWorkspaceRouteSync({
     currentWorkspace,
     currentWorkspaceId,
-    executor,
+    sessionId: executor.sessionId,
+    handleSelectSession: executor.handleSelectSession,
     isLoadingWorkspaces,
     leaveProjectWorkspace,
     workspaces,
@@ -209,6 +213,8 @@ export function WorkspaceLayout({
         workspaces={workspaces}
         currentWorkspaceId={currentWorkspaceId}
         isLoadingHistory={executor.isLoadingHistory || isLoadingWorkspaces}
+        isLoadingMore={isLoadingMore}
+        hasMore={hasMore}
         onWorkspaceSelect={handleWorkspaceSelect}
         onDeleteWorkspace={handleDeleteWorkspace}
         onDeleteAllWorkspaces={handleDeleteAllWorkspaces}
@@ -222,6 +228,7 @@ export function WorkspaceLayout({
         onOpenChannelSettings={handleOpenChannelSettings}
         onClose={() => executor.setSidebarMode("collapsed")}
         onExpand={() => executor.setSidebarMode("expanded")}
+        onLoadMore={loadMoreWorkspaces}
       />
 
       <WorkspaceDeleteDialog

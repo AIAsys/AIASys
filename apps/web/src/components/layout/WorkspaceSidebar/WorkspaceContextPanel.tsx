@@ -1,11 +1,8 @@
 import { Suspense, cloneElement, isValidElement, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocalStorageState } from "@/hooks/useLocalStorageState";
 import {
-  CheckCircle2,
   Database,
   GitBranch,
-  ListTodo,
-  Map as MapIcon,
   Puzzle,
   Radio,
   ScrollText,
@@ -19,7 +16,7 @@ import { cn } from "@/lib/utils";
 import type {
   SessionStatusInfo,
   TaskWorkspaceSummary,
-} from "@/pages/DataAnalysisPage/types";
+} from "@/pages/WorkspacePage/types";
 import { ActivityBar, type ActivityBarItem } from "./ActivityBar";
 import { ActivitySidebar } from "./ActivitySidebar";
 import {
@@ -416,13 +413,7 @@ export function WorkspaceContextPanel({
     resolvedExecutionRecordCount,
     runtimeLabel,
     sessionTasks,
-    activeTasks,
-    inProgressTask,
     planState,
-    isPlanModeActive,
-    isPlanPendingApproval,
-    completedTaskCount,
-    totalTaskCount,
   } = headerData;
   const viewButtons: ViewButton[] = getViewButtons(layoutMode);
   const [activityItems, setActivityItems] = useState<Array<ActivityBarItem<ActivityPanelView>>>(
@@ -773,45 +764,7 @@ export function WorkspaceContextPanel({
           <SummaryChip>{resolvedMessageCount} 条消息</SummaryChip>
           <SummaryChip>{resolvedExecutionRecordCount} 条记录</SummaryChip>
           <SummaryChip>{runtimeLabel}</SummaryChip>
-          {isPlanModeActive ? (
-            <SummaryChip className="border-primary/25 bg-primary-container text-on-primary-container">
-              <MapIcon className="mr-1 h-3 w-3" />
-              规划模式
-            </SummaryChip>
-          ) : isPlanPendingApproval ? (
-            <SummaryChip className="border-warning/25 bg-warning-container text-on-warning-container">
-              <MapIcon className="mr-1 h-3 w-3" />
-              计划待批
-            </SummaryChip>
-          ) : null}
-          {totalTaskCount > 0 ? (
-            <SummaryChip>
-              <ListTodo className="mr-1 h-3 w-3" />
-              {completedTaskCount}/{totalTaskCount} 任务
-            </SummaryChip>
-          ) : null}
         </div>
-        {(activeTasks.length > 0 || isPlanModeActive || isPlanPendingApproval) ? (
-          <div className="mt-2 flex min-w-0 flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
-            {inProgressTask ? (
-              <span className="inline-flex min-w-0 max-w-full items-center gap-1 rounded-md bg-muted px-2 py-1">
-                <ListTodo className="h-3 w-3 shrink-0" />
-                <span className="truncate">进行中：{inProgressTask.content}</span>
-              </span>
-            ) : activeTasks.length > 0 ? (
-              <span className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-1">
-                <ListTodo className="h-3 w-3" />
-                待处理 {activeTasks.length} 项
-              </span>
-            ) : null}
-            {planState?.current_plan_file ? (
-              <span className="inline-flex min-w-0 max-w-full items-center gap-1 rounded-md bg-muted px-2 py-1">
-                <CheckCircle2 className="h-3 w-3 shrink-0" />
-                <span className="truncate">{planState.current_plan_file}</span>
-              </span>
-            ) : null}
-          </div>
-        ) : null}
       </div>
       <div className="flex items-center gap-2" />
     </div>

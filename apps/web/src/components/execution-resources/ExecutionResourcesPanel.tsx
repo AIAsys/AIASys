@@ -24,7 +24,7 @@ import type {
   WorkspaceRuntimeEnvironment,
   WorkspaceRuntimeEnvironmentRegistry,
 } from "@/types/workspace";
-import type { TaskWorkspaceSummary } from "@/pages/DataAnalysisPage/types";
+import type { TaskWorkspaceSummary } from "@/pages/WorkspacePage/types";
 import { cn } from "@/lib/utils";
 import { EnvVarsPanel } from "@/components/workspace/EnvVarsPanel";
 import { PythonRuntimeTab } from "./PythonRuntimeTab";

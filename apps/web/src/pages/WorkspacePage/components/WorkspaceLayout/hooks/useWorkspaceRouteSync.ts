@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef } from "react";
-import type { UseCodeExecutorReturn } from "../../../hooks/useCodeExecutor/executorTypes";
 import type { TaskWorkspaceSummary } from "../../../types";
 
 function workspaceHasSession(
@@ -59,7 +58,8 @@ function shouldPreserveRouteSessionDuringHydration(
 interface UseWorkspaceRouteSyncParams {
   currentWorkspace?: TaskWorkspaceSummary;
   currentWorkspaceId?: string;
-  executor: Pick<UseCodeExecutorReturn, "handleSelectSession" | "sessionId">;
+  sessionId: string | undefined;
+  handleSelectSession: (sid: string, options?: { silent?: boolean }) => Promise<void>;
   isLoadingWorkspaces: boolean;
   leaveProjectWorkspace: () => void;
   workspaces: TaskWorkspaceSummary[];
@@ -75,7 +75,8 @@ interface UseWorkspaceRouteSyncReturn {
 export function useWorkspaceRouteSync({
   currentWorkspace,
   currentWorkspaceId,
-  executor,
+  sessionId,
+  handleSelectSession,
   isLoadingWorkspaces,
   leaveProjectWorkspace,
   workspaces,
@@ -122,7 +123,7 @@ export function useWorkspaceRouteSync({
     let changed = false;
     const sessionBelongsToCurrentWorkspace = workspaceHasSession(
       currentWorkspace,
-      executor.sessionId,
+      sessionId,
     );
     const preserveRouteSessionDuringHydration =
       shouldPreserveRouteSessionDuringHydration(
@@ -150,7 +151,7 @@ export function useWorkspaceRouteSync({
       currentWorkspaceId &&
       analysisWorkspaceIdFromRoute === currentWorkspaceId &&
       analysisSessionIdFromRoute &&
-      analysisSessionIdFromRoute !== executor.sessionId &&
+      analysisSessionIdFromRoute !== sessionId &&
       workspaceHasSession(currentWorkspace, analysisSessionIdFromRoute),
     );
 
@@ -168,7 +169,7 @@ export function useWorkspaceRouteSync({
       }
       const shouldKeepSessionRoute =
         Boolean(analysisSessionIdFromRoute) &&
-        (analysisSessionIdFromRoute === executor.sessionId ||
+        (analysisSessionIdFromRoute === sessionId ||
           preserveRouteWorkspaceContext);
       if (!shouldKeepSessionRoute && nextSearch.has("session_id")) {
         nextSearch.delete("session_id");
@@ -180,8 +181,8 @@ export function useWorkspaceRouteSync({
         changed = true;
       }
       const nextSessionId =
-        sessionBelongsToCurrentWorkspace && executor.sessionId
-          ? executor.sessionId
+        sessionBelongsToCurrentWorkspace && sessionId
+          ? sessionId
           : preserveRouteSessionDuringHydration
             ? analysisSessionIdFromRoute
             : preferredWorkspaceSessionId;
@@ -210,7 +211,7 @@ export function useWorkspaceRouteSync({
     analysisWorkspaceIdFromRoute,
     currentWorkspace,
     currentWorkspaceId,
-    executor.sessionId,
+    sessionId,
     isLoadingWorkspaces,
     workspaces,
   ]);
@@ -249,7 +250,7 @@ export function useWorkspaceRouteSync({
     );
     const activeSessionBelongsToWorkspace = workspaceHasSession(
       targetWorkspace,
-      executor.sessionId,
+      sessionId,
     );
     const targetSessionId = routeSessionBelongsToWorkspace
       ? analysisSessionIdFromRoute
@@ -259,7 +260,7 @@ export function useWorkspaceRouteSync({
       analysisWorkspaceIdFromRoute === currentWorkspaceId &&
       activeSessionBelongsToWorkspace &&
       (!analysisSessionIdFromRoute ||
-        analysisSessionIdFromRoute === executor.sessionId)
+        analysisSessionIdFromRoute === sessionId)
     ) {
       return;
     }
@@ -272,21 +273,22 @@ export function useWorkspaceRouteSync({
       analysisSessionIdFromRoute !== targetSessionId
     ) {
       leaveProjectWorkspace();
-      void executor.handleSelectSession(targetSessionId, { silent: true });
+      void handleSelectSession(targetSessionId, { silent: true });
       return;
     }
 
-    if (!targetSessionId || targetSessionId === executor.sessionId) {
+    if (!targetSessionId || targetSessionId === sessionId) {
       return;
     }
 
     leaveProjectWorkspace();
-    void executor.handleSelectSession(targetSessionId, { silent: true });
+    void handleSelectSession(targetSessionId, { silent: true });
   }, [
     analysisSessionIdFromRoute,
     analysisWorkspaceIdFromRoute,
     currentWorkspaceId,
-    executor,
+    sessionId,
+    handleSelectSession,
     isLoadingWorkspaces,
     leaveProjectWorkspace,
     navigateToWorkspaceConversation,

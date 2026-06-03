@@ -17,7 +17,7 @@ import { API_ENDPOINTS } from "@/config/api";
 import { apiRequest } from "@/lib/api/httpClient";
 import { CodeMirrorEditor } from "@/components/editor/CodeMirrorEditor";
 import { useWorkspaceMarkdownComponents } from "@/components/markdown/WorkspaceMarkdownComponents";
-import { CanvasActionMenu } from "@/pages/DataAnalysisPage/components/AnalysisWorkspaceLayout/components/CanvasActionMenu";
+import { CanvasActionMenu } from "@/components/workspace/CanvasActionMenu";
 import {
   getWorkspaceEditorLanguage,
   isGenericallyEditable,

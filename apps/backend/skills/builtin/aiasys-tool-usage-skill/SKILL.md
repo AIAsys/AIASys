@@ -99,11 +99,30 @@ ManageNotebook(action="edit", notebook_path="analysis.ipynb", edit_operation="pa
 
 ### 数据表
 - `CreateDataTable`：创建多维表
-- `ReadDataTableSchema` / `ReadDataTableRecords`：读取表结构和记录
+- `ReadDataTableSchema`：读取表结构（列名、类型、顺序）
+- `QueryDataTable`：对多维表执行只读 SQL 查询（WHERE 过滤、ORDER BY 排序、GROUP BY 聚合等）
 - `InsertDataTableRecords` / `UpdateDataTableRecord` / `DeleteDataTableRecord`：增删改记录
 - `AddDataTableColumn` / `UpdateDataTableColumn` / `RemoveDataTableColumn`：管理列
 
-约束：DataTable 不支持 SQL 查询。需要聚合计算时，先用 `ReadDataTableRecords` 读取数据，再用 `RunCode` 处理。
+**QueryDataTable 示例**：
+
+```python
+# 查看所有记录
+QueryDataTable(table_path="/workspace/sales.table.db", sql="SELECT * FROM records LIMIT 10")
+
+# 过滤 + 排序
+QueryDataTable(table_path="/workspace/sales.table.db", sql="SELECT * FROM records WHERE status='active' ORDER BY amount DESC LIMIT 5")
+
+# 聚合统计
+QueryDataTable(table_path="/workspace/sales.table.db", sql="SELECT department, AVG(salary), COUNT(*) FROM records GROUP BY department")
+
+# 查看表结构
+QueryDataTable(table_path="/workspace/sales.table.db", sql="SELECT column_name, data_type FROM _schema ORDER BY order_index")
+```
+
+**约束**：
+- 写操作（INSERT/UPDATE/DELETE/ALTER TABLE）**必须使用专用工具**，确保 `_schema` 表和 `records` 表同步
+- `QueryDataTable` 仅支持 SELECT，非 SELECT 语句会被拒绝
 
 ### 数据库
 - `DatabaseQuery`：统一数据库查询接口
@@ -115,6 +134,18 @@ ManageNotebook(action="edit", notebook_path="analysis.ipynb", edit_operation="pa
 - `InstallMCPServer`：安装 MCP Server 到当前工作区
 
 约束：安装 MCP Server 优先用 `InstallMCPServer`，不要手动构造 curl 命令。
+
+**安装示例**：
+
+从外部市场安装（读取到 `{source_id, item_id}` 的 JSON 后，直接调用）：
+```
+InstallMCPServer(item_id="HRPAAA/weather", source_id="modelscope")
+```
+
+从本地仓库安装（先用 ListMCPServers 查看可用列表）：
+```
+InstallMCPServer(name="server-name")
+```
 
 ### 代码执行
 - `RunCode`：执行 Python 代码片段（适合快速实验）
@@ -161,6 +192,7 @@ ManageNotebook(action="edit", notebook_path="analysis.ipynb", edit_operation="pa
 | 搜索 MCP Server | `SearchMCPMarket` | 浏览器/手动 curl |
 | 安装 MCP Server | `InstallMCPServer` | 手动 curl |
 | 创建数据表 | `CreateDataTable` | Shell `sqlite3` |
+| 查询数据表 | `QueryDataTable` | Shell `sqlite3` |
 | 数据库查询 | `DatabaseQuery` | 裸 `psycopg2.connect` |
 | 创建自动任务 | `CreateAutoTask` | Shell `curl` 调 API |
 

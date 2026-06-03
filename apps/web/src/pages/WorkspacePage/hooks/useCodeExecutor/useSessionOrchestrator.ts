@@ -265,9 +265,10 @@ export function useSessionOrchestrator({
 
     // 非破坏性切换到新 session
     const currentSessionId = sessionId;
+    // 先同步所有子系统的 active session，避免中间状态不一致
+    setActiveStreamSession(targetSessionId);
     switchChatSession(currentSessionId, targetSessionId);
     switchMultiTaskSession(currentSessionId, targetSessionId);
-    setActiveStreamSession(targetSessionId);
 
     clearChat();
     clearFiles();

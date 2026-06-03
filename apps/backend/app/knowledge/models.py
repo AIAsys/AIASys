@@ -1,7 +1,8 @@
 """
 知识库数据模型 (Pydantic)
 
-元数据存储在 SQLite (通过 app.core.database)，向量存储在 SQLite + sqlite-vec
+元数据与向量均存储在自包含的 SQLite（每个知识库独立的 {kb_id}.db），
+不再通过 app.core.database 维护。
 """
 
 from datetime import datetime

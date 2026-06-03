@@ -1,13 +1,20 @@
 template_id = "competition-research"
 name = "竞赛攻关"
-description = "数据竞赛与算法竞赛的完整研究闭环。预置实验跟踪、baseline 管理、文献索引和示例竞赛数据。"
+description = "数据竞赛与算法竞赛的完整研究闭环。预置实验跟踪框架、baseline 管理、文献索引、自动实验脚本和示例目录结构。"
 icon = "trophy"
 category = "科研"
 default_title = "竞赛攻关"
 default_description = "针对数据竞赛或算法竞赛建立 baseline、持续实验优化。"
 initial_conversation_title = "开始竞赛研究"
 env_kind = "uv"
-recommended_skills = ["competition-research-skill", "competition-runtime-prep-skill", "competition-parallel-research-skill", "arxiv-search-skill", "aiasys-tool-usage-skill"]
+recommended_skills = [
+    "competition-research-skill",
+    "competition-runtime-prep-skill",
+    "competition-parallel-research-skill",
+    "arxiv-search-skill",
+    "aiasys-canvas-skill",
+    "aiasys-tool-usage-skill",
+]
 
 [[files]]
 relative_path = "README.md"
@@ -20,26 +27,26 @@ source_path = "AGENTS.md"
 [[files]]
 relative_path = "experiments/index.json"
 content = """{
-  "competition": "House Prices - Advanced Regression Techniques",
-  "metric": "RMSE",
-  "direction": "minimize",
-  "best_score": 0.14235,
-  "best_version": "ensemble_b003_xgb_lgb_stack",
-  "trusted_best_score": 0.14567,
-  "trusted_best_version": "ensemble_b002_xgb_lgb",
-  "highest_observed_score": 0.14235,
-  "highest_observed_version": "ensemble_b003_xgb_lgb_stack",
-  "current_phase": "ensemble",
-  "last_updated": "2024-07-15",
-  "knowledge_graph_id": "house-prices-kg",
+  "competition": "<请替换为实际竞赛名称>",
+  "metric": "<评估指标，如 RMSE / Accuracy / F1>",
+  "direction": "<minimize 或 maximize>",
+  "best_score": null,
+  "best_version": null,
+  "trusted_best_score": null,
+  "trusted_best_version": null,
+  "highest_observed_score": null,
+  "highest_observed_version": null,
+  "current_phase": "literature",
+  "last_updated": null,
+  "knowledge_graph_id": null,
   "knowledge_graph_db_path": "knowledge_graph/state.db",
   "knowledge_graph_file": "knowledge_graph/graph.json",
   "research_dashboard_path": "research_views/current.html",
   "paper_registry_path": "references/index.json",
   "auto_task_status": "paused",
   "runner_status": "idle",
-  "latest_version": "ensemble_b003_xgb_lgb_stack",
-  "next_candidate_version": "ensemble_b004_add_catboost",
+  "latest_version": null,
+  "next_candidate_version": null,
   "runner": {
     "type": "builtin_experiment",
     "command": "python3 scripts/experiment.py --mode run --experiments experiments/index.json --workspace . --version {version}",
@@ -55,81 +62,32 @@ content = """{
   "runtime_contract": {
     "mode": "stable_bound_environment",
     "env_id": null,
-    "preflight_imports": ["pandas", "numpy", "sklearn", "xgboost", "lightgbm"],
+    "preflight_imports": ["pandas", "numpy"],
     "large_dependency_policy": "pause_and_request_runtime_prep",
     "observation_path": "outputs/observations/auto-research.md"
   },
   "auto_task_ids": [],
-  "experiments": [
-    {
-      "version": "baseline_b001_naive_mean",
-      "family": "baseline",
-      "description": "最简单的 baseline：用训练集房价均值作为预测",
-      "hypothesis": "即使是最简单的策略也能给出一个可比较的起点",
-      "features": [],
-      "model": "ConstantPredictor",
-      "params": {},
-      "score": 0.42351,
-      "status": "discarded",
-      "conclusion": "确认 runner 和评分流程正常，后续所有版本都应显著优于此 baseline",
-      "log_path": "outputs/logs/baseline_b001_naive_mean.log",
-      "created_at": "2024-07-01"
-    },
-    {
-      "version": "feature_b001_fillna_median",
-      "family": "feature",
-      "description": "数值缺失值用中位数填充，类别缺失值用众数填充",
-      "hypothesis": "合理的缺失值填充可以提升模型对不完整数据的处理能力",
-      "features": ["LotArea", "OverallQual", "YearBuilt", "TotalBsmtSF"],
-      "model": "XGBoost",
-      "params": {"n_estimators": 100, "max_depth": 3, "learning_rate": 0.1},
-      "score": 0.19876,
-      "status": "discarded",
-      "conclusion": "相比 baseline 显著提升，但特征工程空间还很大",
-      "log_path": "outputs/logs/feature_b001_fillna_median.log",
-      "created_at": "2024-07-03"
-    },
-    {
-      "version": "ensemble_b002_xgb_lgb",
-      "family": "ensemble",
-      "description": "XGBoost + LightGBM 平均融合",
-      "hypothesis": "不同算法的偏差互补，融合可以稳定提升",
-      "features": ["LotArea", "OverallQual", "YearBuilt", "TotalBsmtSF", "GrLivArea", "GarageCars"],
-      "model": "Ensemble(XGB+LGB)",
-      "params": {"weights": [0.5, 0.5]},
-      "score": 0.14567,
-      "status": "trusted_best",
-      "conclusion": "融合策略有效，已通过稳定性检查",
-      "log_path": "outputs/logs/ensemble_b002_xgb_lgb.log",
-      "created_at": "2024-07-10"
-    },
-    {
-      "version": "ensemble_b003_xgb_lgb_stack",
-      "family": "ensemble",
-      "description": "XGBoost + LightGBM stacking，用 Ridge 回归做元学习器",
-      "hypothesis": "stacking 比简单平均更能捕捉模型间的互补信息",
-      "features": ["LotArea", "OverallQual", "YearBuilt", "TotalBsmtSF", "GrLivArea", "GarageCars", "FullBath"],
-      "model": "Stacking(XGB+LGB→Ridge)",
-      "params": {"meta_model": "RidgeCV"},
-      "score": 0.14235,
-      "status": "keep",
-      "conclusion": "当前最优，但 stacking 可能过拟合，需要交叉验证确认稳定性",
-      "log_path": "outputs/logs/ensemble_b003_xgb_lgb_stack.log",
-      "created_at": "2024-07-14"
-    }
-  ],
-  "anti_patterns": [
-    "不探索数据直接上复杂模型",
-    "不做交叉验证就相信单次运行的分数",
-    "在测试集上调参",
-    "特征工程不做记录，无法复现",
-    "盲目堆叠模型而不分析融合增益来源"
-  ],
+  "experiments": [],
+  "anti_patterns": [],
   "priority_queue": [
-    "尝试 CatBoost 作为第三个基模型",
-    "做特征重要性分析，剔除冗余特征",
-    "尝试目标编码处理高基数类别特征",
-    "分析 stacking 的 out-of-fold 预测稳定性"
+    {
+      "rank": 1,
+      "direction": "数据探索与 baseline 建立",
+      "hypothesis": "先理解数据分布、特征质量和目标变量，再建立 v0 baseline",
+      "expected_outcome": "一份 data_exploration 报告 + 一个可运行的 baseline"
+    },
+    {
+      "rank": 2,
+      "direction": "特征工程",
+      "hypothesis": "通过特征变换、编码和构造提升模型输入质量",
+      "expected_outcome": "feature 家族的新版本，CV 分数有提升"
+    },
+    {
+      "rank": 3,
+      "direction": "模型调参与集成",
+      "hypothesis": "通过模型选择、超参优化和集成策略提升最终指标",
+      "expected_outcome": "model 或 ensemble 家族的新版本"
+    }
   ]
 }
 """
@@ -137,33 +95,72 @@ content = """{
 [[files]]
 relative_path = "references/index.json"
 content = """{
-  "project": "House Prices - Advanced Regression Techniques",
-  "last_updated": "2024-07-15",
-  "papers": [
-    {
-      "title": "XGBoost: A Scalable Tree Boosting System",
-      "authors": "Chen & Guestrin",
-      "year": 2016,
-      "venue": "KDD",
-      "relevance": "核心基模型，需深入理解其正则化机制",
-      "read": true
-    },
-    {
-      "title": "LightGBM: A Highly Efficient Gradient Boosting Decision Tree",
-      "authors": "Ke et al.",
-      "year": 2017,
-      "venue": "NIPS",
-      "relevance": "与 XGBoost 互补， leaf-wise 生长策略不同",
-      "read": true
-    },
-    {
-      "title": "Feature Engineering and Selection: A Practical Approach",
-      "authors": "Kuhn & Johnson",
-      "year": 2019,
-      "venue": "Book",
-      "relevance": "特征工程方法论，特别是类别编码和目标编码",
-      "read": false
-    }
-  ]
+  "project": "<请替换为实际竞赛或研究项目名称>",
+  "last_updated": null,
+  "papers": []
 }
 """
+
+[[files]]
+relative_path = "scripts/experiment.py"
+source_path = "scripts/experiment.py"
+
+[[files]]
+relative_path = "scripts/baseline_names.py"
+source_path = "scripts/baseline_names.py"
+
+[[files]]
+relative_path = "data/.gitkeep"
+content = ""
+
+[[files]]
+relative_path = "data/raw/.gitkeep"
+content = ""
+
+[[files]]
+relative_path = "data/processed/.gitkeep"
+content = ""
+
+[[files]]
+relative_path = "baselines/.gitkeep"
+content = ""
+
+[[files]]
+relative_path = "baseline_history/.gitkeep"
+content = ""
+
+[[files]]
+relative_path = "outputs/.gitkeep"
+content = ""
+
+[[files]]
+relative_path = "outputs/submissions/.gitkeep"
+content = ""
+
+[[files]]
+relative_path = "outputs/logs/.gitkeep"
+content = ""
+
+[[files]]
+relative_path = "outputs/reports/.gitkeep"
+content = ""
+
+[[files]]
+relative_path = "outputs/observations/.gitkeep"
+content = ""
+
+[[files]]
+relative_path = "research_views/.gitkeep"
+content = ""
+
+[[files]]
+relative_path = "research_views/data_exploration/.gitkeep"
+content = ""
+
+[[files]]
+relative_path = "statement/.gitkeep"
+content = ""
+
+[[files]]
+relative_path = "knowledge_graph/.gitkeep"
+content = ""

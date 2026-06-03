@@ -20,7 +20,7 @@ export function AiMessageContent() {
     meta,
   } = useChatAreaContext();
   // AiMessageContent 只在 MessageItem 内部使用，item 一定是 MessageChatItem
-  const msgItem = item as import("@/pages/DataAnalysisPage/types").MessageChatItem;
+  const msgItem = item as import("@/pages/WorkspacePage/types").MessageChatItem;
 
   // 确保 content 是字符串
   const contentStr =

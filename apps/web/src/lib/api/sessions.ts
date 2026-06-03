@@ -1,6 +1,6 @@
 import { API_ENDPOINTS } from "@/config/api";
 import { apiRequest } from "@/lib/api/httpClient";
-import type { SessionHistoryMessage, SessionStatusInfo } from "@/pages/DataAnalysisPage/types";
+import type { SessionHistoryMessage, SessionStatusInfo } from "@/pages/WorkspacePage/types";
 
 export interface RewriteSessionMessageResponse {
   success: boolean;
@@ -38,4 +38,22 @@ export async function rewriteSessionFromMessage(
       confirm_drop_tail: params.confirmDropTail,
     },
   });
+}
+
+export async function exportConversation(
+  userId: string,
+  sessionId: string,
+): Promise<Blob> {
+  const response = await fetch(
+    API_ENDPOINTS.SESSION_EXPORT(userId, sessionId) + "?scope=conversation",
+    {
+      method: "GET",
+      credentials: "include",
+    },
+  );
+  if (!response.ok) {
+    const detail = await response.text().catch(() => "导出失败");
+    throw new Error(detail);
+  }
+  return response.blob();
 }

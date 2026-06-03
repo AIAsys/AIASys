@@ -19,7 +19,7 @@ function resolveWorkspaceImage(src: string, sessionId?: string): string {
   // 优先使用传入的 sessionId，否则尝试从 URL 解析
   if (!sessionId) {
     const pathname = window.location.pathname;
-    const match = pathname.match(/\/analysis\/([^/]+)/);
+    const match = pathname.match(/\/workspace\/([^/]+)/);
     sessionId = match?.[1];
   }
 

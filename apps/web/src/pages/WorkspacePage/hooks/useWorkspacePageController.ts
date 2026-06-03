@@ -168,9 +168,12 @@ export function useWorkspacePageController({
   const {
     workspaces,
     isLoadingWorkspaces,
+    isLoadingMore,
+    hasMore,
     currentWorkspaceId,
     currentWorkspace,
     loadWorkspaces,
+    loadMoreWorkspaces,
   } = useTaskWorkspaces({
     currentSessionId: sessionId || undefined,
   });
@@ -268,9 +271,12 @@ export function useWorkspacePageController({
     executor,
     workspaces,
     isLoadingWorkspaces,
+    isLoadingMore,
+    hasMore,
     currentWorkspaceId,
     currentWorkspace,
     loadWorkspaces,
+    loadMoreWorkspaces,
     sessionLifecycle,
     runtimeControls,
     overlayState,

@@ -81,7 +81,7 @@ KNOWLEDGE_BASE_READ_TOOL_PATHS: tuple[str, ...] = (
 DATA_TABLE_TOOL_PATHS: tuple[str, ...] = (
     "app.agents.tools.data_table_tool:CreateDataTable",
     "app.agents.tools.data_table_tool:ReadDataTableSchema",
-    "app.agents.tools.data_table_tool:ReadDataTableRecords",
+    "app.agents.tools.data_table_tool:QueryDataTable",
     "app.agents.tools.data_table_tool:InsertDataTableRecords",
     "app.agents.tools.data_table_tool:UpdateDataTableRecord",
     "app.agents.tools.data_table_tool:DeleteDataTableRecord",

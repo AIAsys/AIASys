@@ -1,20 +1,22 @@
-# Kaggle House Prices — 竞赛攻关
+# 竞赛攻关项目
 
-## 竞赛信息
+## 项目信息
 
-- **竞赛名称**：House Prices - Advanced Regression Techniques
-- **评估指标**：RMSE（均方根误差）
-- **优化方向**：minimize（越小越好）
-- **数据来源**：Ames Housing dataset，包含 79 个解释变量描述爱荷华州艾姆斯市的住宅特征
-- **提交格式**：CSV，包含 Id 和 SalePrice 两列
-- **时间预算**：2 周
+请在创建项目后替换以下内容：
+
+- **竞赛名称**：`<请替换>`
+- **评估指标**：`<如 RMSE / Accuracy / F1>`
+- **优化方向**：`<minimize 或 maximize>`
+- **数据来源**：`<请描述>`
+- **提交格式**：`<如 CSV 含 Id 和 Target 两列>`
+- **时间预算**：`<如 2 周>`
 
 ## 当前状态
 
-- 竞赛类型：回归预测（房价）
-- 是否已有 baseline：是（v0 已完成）
-- 当前最优分数：0.14235 RMSE
-- 当前阶段：ensemble（模型融合优化）
+- 竞赛类型：`<分类 / 回归 / 排序 / 对抗 ...>`
+- 是否已有 baseline：`<否 / 是>`
+- 当前最优分数：`<暂无>`
+- 当前阶段：`literature`（文献调研 → baseline → 特征 → 模型 → 集成）
 - 项目 runner：`scripts/experiment.py`
 
 ## 目录结构
@@ -23,10 +25,10 @@
 .
 ├── statement/          # 赛题描述和数据说明
 ├── data/               # 数据目录
-│   ├── raw/            # 原始数据（train.csv, test.csv）
-│   └── processed/      # 处理后数据（特征工程产物）
+│   ├── raw/            # 原始数据
+│   └── processed/      # 处理后数据
 ├── baselines/          # baseline 版本目录
-├── baseline_history/   # baseline 历史记录和对比
+├── baseline_history/   # baseline 历史记录
 ├── experiments/        # 实验索引（experiments/index.json）
 ├── references/         # 文献与参考方法
 ├── scripts/            # 项目脚本
@@ -35,30 +37,24 @@
 ├── outputs/            # 输出产物
 │   ├── submissions/    # 提交文件
 │   ├── logs/           # 运行日志
-│   └── reports/        # 实验报告
+│   ├── reports/        # 实验报告
+│   └── observations/   # 自动研究观察记录
 └── research_views/     # 研究看板与可视化
+    └── data_exploration/  # 数据探索报告
 ```
 
-## 数据探索报告
+## 快速开始
 
-见 `research_views/data_exploration/report.md`
-
-关键发现：
-- 训练集 1460 条，测试集 1459 条
-- 缺失值最多的特征：PoolQC（99.5% 缺失）、MiscFeature（96.3% 缺失）、Alley（93.8% 缺失）
-- 目标变量 SalePrice 右偏，取对数后接近正态分布
-- OverallQual 与 SalePrice 相关性最强（0.79）
+1. 将竞赛数据放入 `data/raw/`
+2. 在 `statement/` 中记录赛题描述和规则
+3. 运行 `python3 scripts/experiment.py --mode status` 查看项目状态
+4. 建立第一个 baseline，命名为 `baseline_b001_<描述>`
+5. 用 `experiments/index.json` 跟踪实验历史
 
 ## 实验记录
 
 见 `experiments/index.json`
 
-当前最优版本：`ensemble_b003_xgb_lgb_stack`（0.14235 RMSE）
-
-## 文献索引
-
-见 `references/index.json`
-
 ---
 
-*以上竞赛信息为示例（基于 Kaggle House Prices 竞赛），请替换为你实际参与的竞赛。*
+*首次使用时请替换所有 `<...>` 占位符为实际项目信息。*

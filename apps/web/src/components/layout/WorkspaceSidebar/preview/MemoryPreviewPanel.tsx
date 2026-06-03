@@ -22,7 +22,7 @@ import {
   type MemoryPipelineStatusResponse,
 } from "@/lib/api/memory";
 import type { AssetResourceNode } from "../assetPreviewFactory";
-import { CanvasActionMenu } from "@/pages/DataAnalysisPage/components/AnalysisWorkspaceLayout/components/CanvasActionMenu";
+import { CanvasActionMenu } from "@/components/workspace/CanvasActionMenu";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 

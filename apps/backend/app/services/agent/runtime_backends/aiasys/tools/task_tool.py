@@ -122,7 +122,7 @@ _TASK_PARAMETERS = {
     "properties": {
         "subagent_name": {
             "type": "string",
-            "description": "要调用的子 Agent 名称（如 worker, coder, researcher, reviewer）",
+            "description": "要调用的子 Agent 名称。可用预设角色: worker, coder, researcher, reviewer, data_analyst。也可使用自定义子 Agent 名称。",
         },
         "description": {
             "type": "string",
@@ -569,6 +569,15 @@ class TaskTool(AiasysTool):
         final_content = ""
         final_is_error = False
         timeout_seconds = collaboration_policy.get("timeout_policy", {}).get("default_seconds", 300)
+
+        # 同步主控 contextvar 到子 Agent，确保文件工具正确解析路径
+        _workspace_token = current_workspace.set(
+            workspace if workspace and str(workspace) else session_root
+        )
+        _session_root_token = current_session_root.set(session_root)
+        _user_id_token = current_user_id.set(user_id)
+        _session_id_token = current_session_id.set(agent_id)
+
         try:
             prompt_iter = subagent_session.prompt(prompt).__aiter__()
             while True:
@@ -631,6 +640,16 @@ class TaskTool(AiasysTool):
             final_content = f"子 Agent 执行异常: {exc}"
             storage.update_status("failed")
         finally:
+            # 确保缓冲数据落盘（异常路径）
+            try:
+                await storage.flush()
+            except Exception:
+                logger.warning("子 Agent 缓冲刷盘失败", exc_info=True)
+            # 重置子 Agent 的 contextvar
+            current_workspace.reset(_workspace_token)
+            current_session_root.reset(_session_root_token)
+            current_user_id.reset(_user_id_token)
+            current_session_id.reset(_session_id_token)
             # 注销注册表
             registry.unregister(agent_id)
             # 关闭子 Agent session
@@ -660,7 +679,13 @@ class TaskTool(AiasysTool):
                 }
             )
 
-        # 10. yield 最终结果
+        # 10. 强制刷盘（正常收尾路径的 write 可能未达阈值）
+        try:
+            await storage.flush()
+        except Exception:
+            logger.warning("子 Agent 收尾刷盘失败", exc_info=True)
+
+        # 11. yield 最终结果
         yield ToolResult(
             content=final_content or "子 Agent 执行完成",
             is_error=final_is_error,

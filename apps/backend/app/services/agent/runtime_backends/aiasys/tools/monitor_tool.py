@@ -25,6 +25,7 @@ from typing import Any
 from app.agents.tools.local_ipython_box import build_sanitized_kernel_env
 from app.core.agent_tool import AiasysTool
 from app.core.config import WORKSPACE_DIR
+from app.core.encoding_utils import smart_decode
 from app.core.tool_result import ToolResult
 from app.services.history import current_session_id, current_user_id, current_workspace
 from app.services.runtime.runtime_execution import (
@@ -491,7 +492,7 @@ class MonitorService:
         if not raw:
             return False
 
-        data = raw.decode("utf-8", errors="replace")
+        data = smart_decode(raw)
 
         # 如果进程还在运行，只处理完整行（以 \n 结尾）
         if not is_ended and not data.endswith("\n"):

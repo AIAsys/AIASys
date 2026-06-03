@@ -134,7 +134,7 @@ def test_capability_registry_includes_mode_presets(monkeypatch) -> None:
     assert "native.graphrag_document_upload" in analysis_preset.capability_ids
     assert "native.create_data_table" in analysis_preset.capability_ids
     assert "native.read_data_table_schema" in analysis_preset.capability_ids
-    assert "native.read_data_table_records" in analysis_preset.capability_ids
+    assert "native.query_data_table" in analysis_preset.capability_ids
     assert "native.insert_data_table_records" in analysis_preset.capability_ids
     assert "native.update_data_table_record" in analysis_preset.capability_ids
     assert "native.delete_data_table_record" in analysis_preset.capability_ids

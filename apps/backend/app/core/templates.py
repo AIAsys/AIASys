@@ -269,9 +269,39 @@ def _list_user_template_dirs(user_id: str) -> list[Path]:
         return []
 
 
+def _default_template_sort_key(t: WorkspaceTemplate) -> tuple[int, str]:
+    """默认模板排序键：official-default → blank-workspace → 其余按名称。"""
+    if t.template_id == "official-default":
+        return (0, "")
+    if t.template_id == "blank-workspace":
+        return (1, "")
+    return (2, t.name)
+
+
+def apply_template_order(
+    templates: list[WorkspaceTemplate],
+    order: list[str] | None,
+) -> list[WorkspaceTemplate]:
+    """按用户自定义顺序重排模板。
+
+    - order 中存在的模板按 order 中的位置排列
+    - order 中不存在的模板按默认规则排在后面
+    """
+    if not order:
+        return templates
+
+    order_map = {tid: idx for idx, tid in enumerate(order)}
+    mentioned = [t for t in templates if t.template_id in order_map]
+    mentioned.sort(key=lambda t: order_map[t.template_id])
+    unmentioned = [t for t in templates if t.template_id not in order_map]
+    unmentioned.sort(key=_default_template_sort_key)
+    return mentioned + unmentioned
+
+
 def list_workspace_templates(
     user_id: str | None = None,
     installed_only: bool = False,
+    template_order: list[str] | None = None,
 ) -> list[WorkspaceTemplate]:
     """扫描并返回模板列表。
 
@@ -279,8 +309,10 @@ def list_workspace_templates(
         user_id: 用户 ID，用于扫描用户自定义模板。
         installed_only: 为 True 时只返回用户目录中的模板（已安装）。
                         为 False 时返回系统内置 + 用户自定义（用户自定义覆盖同名）。
+        template_order: 用户自定义模板顺序列表，可选。
 
-    返回列表按名称排序，空白模板始终排在最前面。
+    返回列表默认按 official-default → blank-workspace → 其余按名称排序。
+    传入 template_order 时，order 中存在的模板按 order 排列，其余保持默认顺序追加到末尾。
     """
     by_id: dict[str, WorkspaceTemplate] = {}
 
@@ -299,8 +331,11 @@ def list_workspace_templates(
                 by_id[tmpl.template_id] = tmpl
 
     templates = list(by_id.values())
-    # 空白模板始终排在最前面
-    templates.sort(key=lambda t: "" if t.template_id == "blank-workspace" else t.name)
+    templates.sort(key=_default_template_sort_key)
+
+    if template_order:
+        templates = apply_template_order(templates, template_order)
+
     return templates
 
 

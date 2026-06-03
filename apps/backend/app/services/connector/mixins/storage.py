@@ -70,6 +70,8 @@ class StorageMixin:
                     connectors.append(
                         {
                             "connector_id": r.connector_id,
+                            "workspace_id": r.workspace_id,
+                            "scope": r.scope,
                             "name": r.name,
                             "db_type": r.db_type,
                             "connection_mode": r.connection_mode,
@@ -117,6 +119,8 @@ class StorageMixin:
                     orm = DatabaseConnectorORM(
                         connector_id=record.get("connector_id", f"dbc_{uuid4().hex[:16]}"),
                         user_id=user_id,
+                        workspace_id=record.get("workspace_id"),
+                        scope=record.get("scope", "global"),
                         name=record.get("name", ""),
                         db_type=record.get("db_type", "postgres"),
                         connection_mode=record.get("connection_mode", "fields"),

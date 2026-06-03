@@ -37,6 +37,24 @@ export function BasicInfoFields({
       </div>
 
       <div className="space-y-2">
+        <Label htmlFor="connector-scope">可见范围</Label>
+        <Select
+          value={form.scope}
+          onValueChange={(value) =>
+            onFormChange({ scope: value as "global" | "workspace" })
+          }
+        >
+          <SelectTrigger id="connector-scope">
+            <SelectValue placeholder="选择可见范围" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="workspace">仅当前工作区</SelectItem>
+            <SelectItem value="global">全局共享</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="space-y-2">
         <Label htmlFor="connector-db-type">数据库类型</Label>
         <Select
           value={form.db_type}

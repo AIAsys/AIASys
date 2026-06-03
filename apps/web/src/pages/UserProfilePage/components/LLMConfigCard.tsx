@@ -16,7 +16,7 @@ interface LLMConfigCardProps {
   onNavigate?: (path: string) => void;
 }
 
-const MODEL_SETTINGS_PATH = "/analysis";
+const MODEL_SETTINGS_PATH = "/workspace";
 
 export function LLMConfigCard({ onNavigate }: LLMConfigCardProps) {
   const handleConfig = () => {

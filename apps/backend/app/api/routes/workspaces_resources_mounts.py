@@ -36,12 +36,13 @@ async def get_workspace_database_mounts(
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail="Operation failed") from exc
 
-    # 数据库连接器已改为全局资源，返回全部可用 connectors 且都标记为 mounted=True
     connector_service = DatabaseConnectorService(
         service.base_dir,
         session_manager=service.session_manager,
     )
-    available_connectors = connector_service.list_connectors(current_user.user_id)
+    available_connectors = connector_service.list_connectors(
+        current_user.user_id, workspace_id=workspace_id
+    )
     all_connector_ids = [
         str(getattr(conn, "connector_id", ""))
         for conn in available_connectors
@@ -78,12 +79,13 @@ async def update_workspace_database_mounts(
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail="Operation failed") from exc
 
-    # 数据库连接器已改为全局资源，PUT 变为空操作，直接返回全部可用 connectors
     connector_service = DatabaseConnectorService(
         service.base_dir,
         session_manager=service.session_manager,
     )
-    available_connectors = connector_service.list_connectors(current_user.user_id)
+    available_connectors = connector_service.list_connectors(
+        current_user.user_id, workspace_id=workspace_id
+    )
     all_connector_ids = [
         str(getattr(conn, "connector_id", ""))
         for conn in available_connectors

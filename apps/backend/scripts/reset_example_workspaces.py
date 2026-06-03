@@ -683,135 +683,159 @@ def build_dense_embedding(text: str, dimension: int = 1536) -> list[float]:
 def reset_example_knowledge_bases(user_id: str) -> None:
     import sqlite3
 
-    from app.core.database import (
-        Document as DocumentORM,
-        DocumentChunk as DocumentChunkORM,
-        KnowledgeBase as KnowledgeBaseORM,
-        SessionLocal,
-        init_db,
-    )
     from app.core.sqlite_vec import load_vec_extension
 
-    init_db()
-    db = SessionLocal()
     kb_dir = BACKEND_ROOT / "data" / "global_assets" / "knowledge"
     kb_dir.mkdir(parents=True, exist_ok=True)
 
-    try:
-        managed_ids = set(MANAGED_KNOWLEDGE_BASE_IDS)
-        existing_kbs = (
-            db.query(KnowledgeBaseORM)
-            .filter(
-                KnowledgeBaseORM.user_id == user_id,
-                KnowledgeBaseORM.id.in_(managed_ids),
+    managed_ids = set(MANAGED_KNOWLEDGE_BASE_IDS)
+
+    # 删除旧的 sqlite-vec 数据库文件
+    for kb_id in managed_ids:
+        db_path = kb_dir / f"{kb_id}.db"
+        if db_path.exists():
+            db_path.unlink()
+
+    timestamp = datetime.utcnow().isoformat()
+    dimension = 1536
+
+    for seed in build_example_knowledge_base_seeds():
+        db_path = kb_dir / f"{seed.knowledge_base_id}.db"
+        conn = sqlite3.connect(str(db_path))
+        load_vec_extension(conn)
+
+        # kb_metadata
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS kb_metadata(
+                key TEXT PRIMARY KEY,
+                value TEXT,
+                updated_at TEXT NOT NULL
             )
-            .all()
+        """)
+        # kb_documents
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS kb_documents (
+                id TEXT PRIMARY KEY,
+                knowledge_base_id TEXT NOT NULL,
+                filename TEXT NOT NULL,
+                file_type TEXT NOT NULL,
+                file_size INTEGER NOT NULL,
+                status TEXT NOT NULL,
+                chunk_count INTEGER NOT NULL DEFAULT 0,
+                error_message TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            )
+        """)
+        # kb_chunks
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS kb_chunks (
+                id TEXT PRIMARY KEY,
+                document_id TEXT NOT NULL,
+                chunk_index INTEGER NOT NULL,
+                content TEXT NOT NULL,
+                meta_json TEXT,
+                chunk_id TEXT NOT NULL
+            )
+        """)
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_kb_chunks_doc_id ON kb_chunks(document_id)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_kb_chunks_chunk_id ON kb_chunks(chunk_id)")
+
+        # vec0 + FTS5
+        conn.execute(f"""
+            CREATE VIRTUAL TABLE IF NOT EXISTS chunks USING vec0(
+                chunk_id TEXT,
+                document_id TEXT,
+                chunk_index INTEGER,
+                meta_json TEXT,
+                embedding float[{dimension}]
+            )
+        """)
+        conn.execute("""
+            CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(
+                chunk_id UNINDEXED,
+                document_id UNINDEXED,
+                content
+            )
+        """)
+
+        # 写入 kb_metadata
+        meta_rows = [
+            ("schema_version", "1", timestamp),
+            ("knowledge_base_id", seed.knowledge_base_id, timestamp),
+            ("name", seed.name, timestamp),
+            ("description", seed.description or "", timestamp),
+            ("user_id", user_id, timestamp),
+            ("kind", "document", timestamp),
+            ("scope", "global", timestamp),
+            ("embedding_model", seed.embedding_model, timestamp),
+            ("chunk_size", "512", timestamp),
+            ("chunk_overlap", "50", timestamp),
+            ("default_search_mode", "hybrid", timestamp),
+            ("init_status", "ready", timestamp),
+            ("config_complete", "true", timestamp),
+            ("config_version", "1", timestamp),
+            ("last_indexed_config_version", "1", timestamp),
+            ("created_at", timestamp, timestamp),
+            ("updated_at", timestamp, timestamp),
+        ]
+        conn.executemany(
+            "INSERT INTO kb_metadata(key, value, updated_at) VALUES (?, ?, ?)",
+            meta_rows,
         )
-        for kb in existing_kbs:
-            db.delete(kb)
-        db.commit()
 
-        # 删除旧的 sqlite-vec 数据库文件
-        for kb_id in managed_ids:
-            db_path = kb_dir / f"{kb_id}.db"
-            if db_path.exists():
-                db_path.unlink()
+        for index, document_seed in enumerate(seed.documents, start=1):
+            file_type = Path(document_seed.filename).suffix.lstrip(".") or "md"
+            file_size = len(document_seed.content.encode("utf-8"))
+            chunk_id = f"{document_seed.document_id}-chunk-1"
+            chunk_row_id = f"chunk-{document_seed.document_id}"
+            meta_json = json.dumps({
+                "doc_id": document_seed.document_id,
+                "filename": document_seed.filename,
+                "kb_id": seed.knowledge_base_id,
+                "example": True,
+            })
 
-        timestamp = datetime.utcnow()
-        for seed in build_example_knowledge_base_seeds():
-            kb = KnowledgeBaseORM(
-                id=seed.knowledge_base_id,
-                name=seed.name,
-                description=seed.description,
-                user_id=user_id,
-                embedding_model=seed.embedding_model,
-                chunk_size=512,
-                chunk_overlap=50,
-                created_at=timestamp,
-                updated_at=timestamp,
+            # kb_documents
+            conn.execute(
+                """
+                INSERT INTO kb_documents(
+                    id, knowledge_base_id, filename, file_type, file_size,
+                    status, chunk_count, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                [
+                    document_seed.document_id, seed.knowledge_base_id,
+                    document_seed.filename, file_type, file_size,
+                    "completed", 1, timestamp, timestamp,
+                ],
             )
-            db.add(kb)
 
-            # 初始化 sqlite-vec 数据库
-            db_path = kb_dir / f"{seed.knowledge_base_id}.db"
-            conn = sqlite3.connect(str(db_path))
-            load_vec_extension(conn)
+            # kb_chunks
+            conn.execute(
+                """
+                INSERT INTO kb_chunks(id, document_id, chunk_index, content, meta_json, chunk_id)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                [chunk_row_id, document_seed.document_id, 0, document_seed.content, meta_json, chunk_id],
+            )
 
-            # 示例 embedding 维度固定为 1536（与 build_dense_embedding 默认值一致）
-            dimension = 1536
-            conn.execute(f'''
-                CREATE VIRTUAL TABLE IF NOT EXISTS chunks USING vec0(
-                    chunk_id TEXT,
-                    document_id TEXT,
-                    chunk_index INTEGER,
-                    meta_json TEXT,
-                    embedding float[{dimension}]
-                )
-            ''')
-            conn.execute('''
-                CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(
-                    chunk_id UNINDEXED,
-                    document_id UNINDEXED,
-                    content
-                )
-            ''')
+            # vec0 + FTS5
+            embedding = build_dense_embedding(
+                f"{seed.name}:{index}:{document_seed.content}",
+                dimension=dimension,
+            )
+            conn.execute(
+                "INSERT INTO chunks(chunk_id, document_id, chunk_index, meta_json, embedding) VALUES (?, ?, ?, ?, ?)",
+                [chunk_id, document_seed.document_id, 0, meta_json, json.dumps(embedding)],
+            )
+            conn.execute(
+                "INSERT INTO chunks_fts(chunk_id, document_id, content) VALUES (?, ?, ?)",
+                [chunk_id, document_seed.document_id, document_seed.content],
+            )
 
-            for index, document_seed in enumerate(seed.documents, start=1):
-                doc = DocumentORM(
-                    id=document_seed.document_id,
-                    knowledge_base_id=seed.knowledge_base_id,
-                    filename=document_seed.filename,
-                    file_type=Path(document_seed.filename).suffix.lstrip(".") or "md",
-                    file_size=len(document_seed.content.encode("utf-8")),
-                    status="completed",
-                    chunk_count=1,
-                    created_at=timestamp,
-                    updated_at=timestamp,
-                )
-                db.add(doc)
-
-                chunk_id = f"{document_seed.document_id}-chunk-1"
-                chunk = DocumentChunkORM(
-                    id=f"chunk-{document_seed.document_id}",
-                    document_id=document_seed.document_id,
-                    chunk_index=0,
-                    content=document_seed.content,
-                    meta_info={
-                        "doc_id": document_seed.document_id,
-                        "filename": document_seed.filename,
-                        "kb_id": seed.knowledge_base_id,
-                        "example": True,
-                    },
-                    chunk_id=chunk_id,
-                    created_at=timestamp,
-                )
-                db.add(chunk)
-
-                embedding = build_dense_embedding(
-                    f"{seed.name}:{index}:{document_seed.content}",
-                    dimension=dimension,
-                )
-                meta_json = json.dumps({
-                    "doc_id": document_seed.document_id,
-                    "filename": document_seed.filename,
-                    "kb_id": seed.knowledge_base_id,
-                    "example": True,
-                })
-                conn.execute(
-                    "INSERT INTO chunks(chunk_id, document_id, chunk_index, meta_json, embedding) VALUES (?, ?, ?, ?, ?)",
-                    [chunk_id, document_seed.document_id, 0, meta_json, json.dumps(embedding)],
-                )
-                conn.execute(
-                    "INSERT INTO chunks_fts(chunk_id, document_id, content) VALUES (?, ?, ?)",
-                    [chunk_id, document_seed.document_id, document_seed.content],
-                )
-
-            conn.commit()
-            conn.close()
-
-        db.commit()
-    finally:
-        db.close()
+        conn.commit()
+        conn.close()
 
 
 def reset_example_knowledge_graphs() -> None:

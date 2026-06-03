@@ -16,9 +16,12 @@ export interface WorkspaceLayoutProps {
   executor: UseCodeExecutorReturn;
   workspaces: TaskWorkspaceSummary[];
   isLoadingWorkspaces: boolean;
+  isLoadingMore?: boolean;
+  hasMore?: boolean;
   currentWorkspaceId?: string;
   currentWorkspace?: TaskWorkspaceSummary;
   loadWorkspaces: () => Promise<unknown>;
+  loadMoreWorkspaces?: () => Promise<void>;
   runtimeControls: RuntimeControlsState;
   sessionLifecycle: UseSessionLifecycleManagerReturn;
   userModels: LLMModelConfig[];

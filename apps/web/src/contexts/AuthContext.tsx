@@ -302,7 +302,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       }
       if (getAuthMode() === "local") {
         await refreshSession();
-        window.location.href = "/analysis";
+        window.location.href = "/workspace";
         return;
       }
       window.location.href = "/home";

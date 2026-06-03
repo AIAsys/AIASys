@@ -43,7 +43,7 @@ import type {
   GraphVisualizationResponse,
 } from "@/types/graphrag";
 import { getText } from "./ResourcePreviewShared";
-import { CanvasActionMenu } from "@/pages/DataAnalysisPage/components/AnalysisWorkspaceLayout/components/CanvasActionMenu";
+import { CanvasActionMenu } from "@/components/workspace/CanvasActionMenu";
 
 const LazyPixiExplorer = lazy(() =>
   import("@/pages/Knowledge/GraphPage/PixiExplorer").then((module) => ({
