@@ -158,9 +158,14 @@ class CapabilitySourceRegistry:
         return manifest
 
     def _find_in_source(self, cap_id: str, source: str) -> CapabilityManifest | None:
-        base_dir = _BUILTIN_SOURCES_DIR if source == "builtin" else _STORE_SOURCES_DIR
         for kind, subdir_name in _KIND_SUBDIRS.items():
-            cap_dir = base_dir / subdir_name / cap_id
+            if kind == CapabilityKind.SKILL_PACK:
+                # skill 类型从 skills/ 目录扫描
+                base_dir = _SKILL_BUILTIN_DIR if source == "builtin" else _SKILL_STORE_DIR
+                cap_dir = base_dir / cap_id
+            else:
+                base_dir = _BUILTIN_SOURCES_DIR if source == "builtin" else _STORE_SOURCES_DIR
+                cap_dir = base_dir / subdir_name / cap_id
             if cap_dir.exists() and cap_dir.is_dir():
                 manifest = self._read_manifest(cap_dir, kind, source)
                 if manifest is not None:
