@@ -111,9 +111,12 @@ function WorkspacePageContent({
         executor={controller.executor}
         workspaces={controller.workspaces}
         isLoadingWorkspaces={controller.isLoadingWorkspaces}
+        isLoadingMore={controller.isLoadingMore}
+        hasMore={controller.hasMore}
         currentWorkspaceId={controller.currentWorkspaceId}
         currentWorkspace={controller.currentWorkspace}
         loadWorkspaces={controller.loadWorkspaces}
+        loadMoreWorkspaces={controller.loadMoreWorkspaces}
         runtimeControls={controller.runtimeControls}
         sessionLifecycle={controller.sessionLifecycle}
         userModels={controller.userModels}

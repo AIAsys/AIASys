@@ -13,7 +13,7 @@ import {
   ShieldCheck,
   Wrench,
 } from "lucide-react";
-import { goToAnalysis } from "../navigation";
+import { goToWorkspace } from "../navigation";
 import type {
   CapabilityCard,
   EntryCard,
@@ -26,7 +26,7 @@ import type {
 export const surfacePreviewCards: SurfacePreviewCard[] = [
   {
     title: "分析主链路",
-    route: "/analysis",
+    route: "/workspace",
     summary:
       "从一个具体问题出发，Host Agent 自动拆解为子任务，多 Agent 并行执行，全程可视化追踪。",
     bullets: [
@@ -36,11 +36,11 @@ export const surfacePreviewCards: SurfacePreviewCard[] = [
     ],
     kind: "analysis",
     actionLabel: "进入分析工作台",
-    onClick: () => goToAnalysis("knowledge_base"),
+    onClick: () => goToWorkspace("knowledge_base"),
   },
   {
     title: "知识库",
-    route: "/analysis?overlay=knowledge_base",
+    route: "/workspace?overlay=knowledge_base",
     summary:
       "在分析过程中随时调取知识库——上传文档、检索内容、把可用资源挂载到当前任务。",
     bullets: [
@@ -50,11 +50,11 @@ export const surfacePreviewCards: SurfacePreviewCard[] = [
     ],
     kind: "knowledge",
     actionLabel: "在分析中打开",
-    onClick: () => goToAnalysis("knowledge_base"),
+    onClick: () => goToWorkspace("knowledge_base"),
   },
   {
     title: "知识图谱探索",
-    route: "/analysis?overlay=knowledge_graph",
+    route: "/workspace?overlay=knowledge_graph",
     summary:
       "把零散信息连成关系网络，用 GraphRAG 在实体之间穿行，快速定位关键脉络。",
     bullets: [
@@ -64,11 +64,11 @@ export const surfacePreviewCards: SurfacePreviewCard[] = [
     ],
     kind: "graph",
     actionLabel: "在分析中探索",
-    onClick: () => goToAnalysis("knowledge_graph"),
+    onClick: () => goToWorkspace("knowledge_graph"),
   },
   {
     title: "技能市场",
-    route: "/analysis",
+    route: "/workspace",
     summary:
       "在分析工作台中浏览、安装技能，装完即刻生效，无需重启或切换页面。",
     bullets: [
@@ -78,7 +78,7 @@ export const surfacePreviewCards: SurfacePreviewCard[] = [
     ],
     kind: "skills",
     actionLabel: "在分析中使用",
-    onClick: () => goToAnalysis(),
+    onClick: () => goToWorkspace(),
   },
 ];
 
@@ -331,25 +331,25 @@ export const entryCards: EntryCard[] = [
   {
     title: "开始分析",
     description: "进入主分析链路，围绕当前任务展开会话、执行与沉淀。",
-    action: "进入 /analysis",
-    onClick: () => goToAnalysis(),
+    action: "进入 /workspace",
+    onClick: () => goToWorkspace(),
   },
   {
     title: "知识库",
     description: "在分析工作台中打开知识库，管理文档、智能检索。",
-    action: "在 /analysis 中使用",
-    onClick: () => goToAnalysis(),
+    action: "在 /workspace 中使用",
+    onClick: () => goToWorkspace(),
   },
   {
     title: "知识图谱",
     description: "在分析工作台内打开图谱，探索 GraphRAG 实体关系与知识脉络。",
-    action: "打开 /analysis?overlay=knowledge_graph",
-    onClick: () => goToAnalysis("knowledge_graph"),
+    action: "打开 /workspace?overlay=knowledge_graph",
+    onClick: () => goToWorkspace("knowledge_graph"),
   },
   {
     title: "技能市场",
     description: "在分析工作台中浏览技能市场，安装技能并立即使用。",
-    action: "在 /analysis 中使用",
-    onClick: () => goToAnalysis(),
+    action: "在 /workspace 中使用",
+    onClick: () => goToWorkspace(),
   },
 ];
