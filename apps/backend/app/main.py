@@ -67,7 +67,6 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.error(f" 数据库初始化失败: {e}")
 
-
     if AUTH_CONFIG.mode == "local":
         try:
             local_user = ensure_local_default_user_exists()

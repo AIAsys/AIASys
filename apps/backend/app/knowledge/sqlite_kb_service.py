@@ -133,7 +133,8 @@ class SQLiteKBService:
     @classmethod
     def _scan_kb_dirs(cls, user_id: str, workspace_dirs: list[Path] | None = None) -> list[Path]:
         """扫描用户所有知识库 .db 文件（对标 _scan_graph_dirs）。"""
-        from app.core.config import WORKSPACE_DIR as _WS_DIR, get_user_global_resources_dir
+        from app.core.config import WORKSPACE_DIR as _WS_DIR
+        from app.core.config import get_user_global_resources_dir
 
         search_dirs: list[Path] = []
         if workspace_dirs:

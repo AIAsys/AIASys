@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import sqlite3
 from pathlib import Path
 from typing import Any, Literal
 
@@ -10,8 +11,6 @@ from pydantic import BaseModel, Field, field_validator
 
 from app.core.agent_tool import AiasysTool
 from app.core.tool_result import ToolResult
-import sqlite3
-
 from app.services.data_table_service import (
     DataTableColumnDef,
     DataTableCreateRequest,
@@ -164,14 +163,19 @@ class QueryDataTableParams(DataTablePathParams):
     def _validate_select_only(cls, value: str) -> str:
         stripped = value.strip()
         # 简单拦截：必须以 SELECT 开头（允许前导注释/空白）
-        upper = stripped.upper()
         # 跳过前导注释行
-        lines = [line for line in stripped.splitlines() if line.strip() and not line.strip().startswith("--")]
+        lines = [
+            line
+            for line in stripped.splitlines()
+            if line.strip() and not line.strip().startswith("--")
+        ]
         if not lines:
             raise ValueError("SQL 不能为空")
         first = lines[0].strip().upper()
         if not first.startswith("SELECT"):
-            raise ValueError("QueryDataTable 仅支持 SELECT 查询，禁止 INSERT/UPDATE/DELETE/ALTER/DROP 等写操作")
+            raise ValueError(
+                "QueryDataTable 仅支持 SELECT 查询，禁止 INSERT/UPDATE/DELETE/ALTER/DROP 等写操作"
+            )
         return stripped
 
 

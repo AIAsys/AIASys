@@ -150,17 +150,13 @@ class WorkspaceExportService:
                 results.append((conversation_id, messages))
         return results
 
-    def _read_conversation_history(
-        self, user_id: str, session_id: str
-    ) -> list[dict[str, Any]]:
+    def _read_conversation_history(self, user_id: str, session_id: str) -> list[dict[str, Any]]:
         """读取单个 session 的完整对话历史（context.jsonl）。
 
         过滤内部 SDK 消息和 system-reminder。
         """
         session_dir = self.workspace_root / user_id / session_id
-        context_file = (
-            session_dir / ".aiasys" / "session" / session_id / "context.jsonl"
-        )
+        context_file = session_dir / ".aiasys" / "session" / session_id / "context.jsonl"
         if not context_file.exists():
             return []
 

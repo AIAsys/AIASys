@@ -444,13 +444,16 @@ async def list_workspaces(
     offset: int = Query(0, ge=0, description="跳过前 N 条"),
     current_user: UserInfo = Depends(require_auth()),
 ):
+    def _unwrap_query(val: Any) -> Any:
+        return val.default if hasattr(val, "default") else val
+
     service = get_workspace_registry_service()
     workspaces = service.list_workspaces(
         current_user.user_id,
         include_conversations=False,
         summary_only=summary_only,
-        limit=limit,
-        offset=offset,
+        limit=_unwrap_query(limit),
+        offset=_unwrap_query(offset),
     )
     return WorkspaceListResponse(workspaces=workspaces, total=len(workspaces))
 

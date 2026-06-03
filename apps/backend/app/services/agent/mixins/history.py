@@ -144,9 +144,7 @@ def _is_empty_assistant_message(msg: Dict[str, Any]) -> bool:
     content = msg.get("content")
     has_text = bool(content) and (
         (isinstance(content, str) and content.strip())
-        or (isinstance(content, list) and any(
-            (item.get("text") or "").strip() for item in content
-        ))
+        or (isinstance(content, list) and any((item.get("text") or "").strip() for item in content))
     )
     has_reasoning = bool(msg.get("reasoning_content", "").strip())
     # tool_calls-only 的消息也被视为空（从展示角度）
@@ -274,13 +272,19 @@ class HistoryMixin:
                                 try:
                                     msg = json.loads(line)
                                     # 过滤内部 SDK 消息和 system-reminder 消息
-                                    if msg.get("role") in ("_checkpoint", "_usage", "_system_prompt"):
+                                    if msg.get("role") in (
+                                        "_checkpoint",
+                                        "_usage",
+                                        "_system_prompt",
+                                    ):
                                         continue
                                     # 内联 system-reminder 检测，避免依赖 EventsMixin
                                     if (
                                         msg.get("role") == "user"
                                         and isinstance(msg.get("content"), str)
-                                        and msg.get("content", "").strip().startswith("<system-reminder>")
+                                        and msg.get("content", "")
+                                        .strip()
+                                        .startswith("<system-reminder>")
                                     ):
                                         continue
                                     history.append(msg)
