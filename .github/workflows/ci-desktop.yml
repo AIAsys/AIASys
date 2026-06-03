@@ -44,6 +44,7 @@ jobs:
         with:
           name: web-dist
           path: apps/web/dist/
+          retention-days: 1
 
   build-desktop:
     needs: build-web
@@ -113,6 +114,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact-name }}
+          retention-days: 1
           path: |
             ${{ matrix.artifact-path }}
             ${{ matrix.artifact-path2 }}
