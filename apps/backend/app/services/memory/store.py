@@ -11,51 +11,14 @@ import os
 import tempfile
 from contextlib import contextmanager
 from pathlib import Path
-from typing import IO, Callable
+from typing import Callable
+
+from filelock import FileLock
 
 from app.services.memory.models import MemorySnapshotRecord
 from app.services.memory.security import scan_memory_content
 
 logger = logging.getLogger(__name__)
-
-
-class _MemoryFileLock:
-    """跨平台文件锁，用于保护 Markdown memory 读写。"""
-
-    def __init__(self, lock_path: Path):
-        self.lock_path = Path(lock_path)
-        self._file: IO[str] | None = None
-
-    def __enter__(self) -> "_MemoryFileLock":
-        self.lock_path.parent.mkdir(parents=True, exist_ok=True)
-        self._file = self.lock_path.open("a+", encoding="utf-8")
-        if os.name == "nt":
-            import msvcrt
-
-            self._file.seek(0)
-            msvcrt.locking(self._file.fileno(), msvcrt.LK_LOCK, 1)
-        else:
-            import fcntl
-
-            fcntl.flock(self._file.fileno(), fcntl.LOCK_EX)
-        return self
-
-    def __exit__(self, exc_type, exc, tb) -> None:
-        if self._file is None:
-            return
-        try:
-            if os.name == "nt":
-                import msvcrt
-
-                self._file.seek(0)
-                msvcrt.locking(self._file.fileno(), msvcrt.LK_UNLCK, 1)
-            else:
-                import fcntl
-
-                fcntl.flock(self._file.fileno(), fcntl.LOCK_UN)
-        finally:
-            self._file.close()
-            self._file = None
 
 
 def _atomic_write_text(path: Path, content: str) -> None:
@@ -119,7 +82,7 @@ class MemoryStore:
 
     @contextmanager
     def _file_lock(self):
-        with _MemoryFileLock(self._lock_path):
+        with FileLock(str(self._lock_path)):
             yield
 
     # ------------------------------------------------------------------
