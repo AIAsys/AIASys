@@ -138,7 +138,9 @@ export function useExecutionSubmit(props: UseExecutionSubmitProps) {
   ) => {
     // 只检查当前 session 是否运行，不再全局阻止
     const effectiveInput = (overridePrompt ?? inputValue).trim();
-    if (!effectiveInput || isSessionRunning(sessionId)) return;
+    // 使用最新的 sessionId，避免闭包中 sessionId 过时
+    const latestSessionId = activeSessionIdRef.current || sessionId;
+    if (!effectiveInput || isSessionRunning(latestSessionId)) return;
 
     const userContent = effectiveInput;
     const attachmentPaths =
@@ -182,7 +184,7 @@ export function useExecutionSubmit(props: UseExecutionSubmitProps) {
       currentWorkspaceIdRef?.current ?? currentWorkspaceId ?? getRouteWorkspaceId();
 
     // 捕获 sessionId 避免闭包中 sessionId 变化
-    const currentSessionId = sessionId;
+    const currentSessionId = latestSessionId;
 
     // 通知执行树：流即将开始，触发首次刷新以感知 host running 并启动 polling
     eventBus.emit(EVENTS.EXECUTION_ACTIVITY, {
@@ -378,6 +380,9 @@ export function useExecutionSubmit(props: UseExecutionSubmitProps) {
   ]);
 
   const handleStop = useCallback(async () => {
+    // 使用最新的 sessionId，避免闭包中 sessionId 过时
+    const latestSessionId = activeSessionIdRef.current || sessionId;
+
     // 1. 先调用后端 API 真正停止会话
     try {
       await apiRequest<{ success?: boolean; message?: string }>(
@@ -385,7 +390,7 @@ export function useExecutionSubmit(props: UseExecutionSubmitProps) {
         {
           method: "POST",
           body: {
-            session_id: sessionId,
+            session_id: latestSessionId,
           },
         },
       );
@@ -394,10 +399,10 @@ export function useExecutionSubmit(props: UseExecutionSubmitProps) {
     }
 
     // 2. 更新前端状态
-    const slot = getSessionSlot(sessionId);
+    const slot = getSessionSlot(latestSessionId);
     const msgId = slot.streamingMessageId;
 
-    updateChatItems(sessionId, (prev: ChatItem[]) => {
+    updateChatItems(latestSessionId, (prev: ChatItem[]) => {
       const aiMsgIdx = msgId
         ? prev.findIndex((item) => item.id === msgId)
         : prev.findIndex((item) => item.type === "message" && item.sender === "ai" && item.isStreaming);
@@ -411,7 +416,7 @@ export function useExecutionSubmit(props: UseExecutionSubmitProps) {
     });
 
     // 只停止当前 session 的流，不影响其他 session
-    stopSession(sessionId);
+    stopSession(latestSessionId);
 
     slot.streamingSegments = [];
     slot.streamingMessageId = null;

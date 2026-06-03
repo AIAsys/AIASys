@@ -887,12 +887,12 @@ export const FileTreeView: React.FC<FileTreeViewProps> = ({
     setExpandedFolders(new Set());
   }, [collapseAllSignal]);
 
-  // 默认展开第一层目录
+  // 默认展开第一层目录（排除 .aiasys）
   useEffect(() => {
     if (!expandFirstLevel || !treeDataWithLoadedChildren || treeDataWithLoadedChildren.length === 0) return;
     const firstLevelPaths = new Set<string>();
     treeDataWithLoadedChildren.forEach((node) => {
-      if (node.isDirectory) firstLevelPaths.add(node.path);
+      if (node.isDirectory && node.name !== ".aiasys") firstLevelPaths.add(node.path);
     });
     if (firstLevelPaths.size > 0) {
       setExpandedFolders((current) => {
