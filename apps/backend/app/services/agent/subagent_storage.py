@@ -178,46 +178,14 @@ class SubAgentStorage:
             return None
 
     def _upsert_instance_record(self, meta: dict[str, Any]) -> None:
-        """把运行实例镜像到 SQLite，文件系统记录仍是兼容主线。"""
-        try:
-            from app.core.database import SubAgentInstanceORM, db_session, engine
+        """SQLite 镜像已废弃。
 
-            SubAgentInstanceORM.__table__.create(bind=engine, checkfirst=True)
-            launch_spec = (
-                meta.get("launch_spec") if isinstance(meta.get("launch_spec"), dict) else {}
-            )
-            with db_session() as db:
-                try:
-                    db.query(SubAgentInstanceORM).filter(
-                        SubAgentInstanceORM.agent_id == self.agent_id
-                    ).delete(synchronize_session=False)
-                    db.add(
-                        SubAgentInstanceORM(
-                            agent_id=self.agent_id,
-                            user_id=self.user_id,
-                            workspace_id=meta.get("workspace_id"),
-                            host_session_id=str(meta.get("host_session_id") or self.session_id),
-                            parent_agent_id=meta.get("parent_agent_id"),
-                            parent_tool_call_id=meta.get("last_task_id"),
-                            subagent_type=str(meta.get("subagent_type") or "unknown"),
-                            agent_path=meta.get("agent_path"),
-                            depth=int(meta.get("depth") or 0),
-                            status=str(meta.get("status") or "running"),
-                            model=launch_spec.get("effective_model"),
-                            nickname=meta.get("nickname"),
-                            meta_info=meta,
-                        )
-                    )
-                    db.commit()
-                except Exception:
-                    db.rollback()
-                    raise
-        except Exception:
-            logger.debug(
-                "镜像子 Agent 实例到 SQLite 失败: agent_id=%s",
-                self.agent_id,
-                exc_info=True,
-            )
+        子 Agent 实例信息通过文件系统主存储提供：
+        subagents/{agent_id}/meta.json、wire.jsonl、context.jsonl。
+        SubAgentTrackingService 直接扫描文件系统，不查询 SQLite。
+        保留此空方法以避免调用方改动。
+        """
+        pass
 
     async def append_wire_event(
         self,
