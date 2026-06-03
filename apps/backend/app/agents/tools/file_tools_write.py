@@ -6,10 +6,11 @@
 from __future__ import annotations
 
 import asyncio
+import json
 from pathlib import Path
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from app.core.agent_tool import AiasysTool
 from app.core.tool_result import ToolResult
@@ -166,6 +167,20 @@ class StrReplaceFileParams(BaseModel):
     edit: FileEdit | list[FileEdit] = Field(
         description="要应用的编辑操作。可以传入单个 edit 或 edit 列表"
     )
+
+    @model_validator(mode="before")
+    @classmethod
+    def _parse_edit_json(cls, values: Any) -> Any:
+        if not isinstance(values, dict):
+            return values
+        edit = values.get("edit")
+        if isinstance(edit, str):
+            try:
+                parsed = json.loads(edit)
+                values["edit"] = parsed
+            except json.JSONDecodeError:
+                pass  # 让 model_validate 报原来的错误
+        return values
 
 
 class StrReplaceFile(AiasysTool):
