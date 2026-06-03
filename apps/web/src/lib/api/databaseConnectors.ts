@@ -183,8 +183,12 @@ export function getDatabaseConnectorErrorMessage(
   return actionLabel ? `${actionLabel}：${message}` : message;
 }
 
-async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await apiFetch(buildApiUrl(path), {
+async function requestJson<T>(
+  path: string,
+  init?: RequestInit,
+  query?: Record<string, string | undefined | null>,
+): Promise<T> {
+  const response = await apiFetch(buildApiUrl(path, query), {
     headers: {
       "Content-Type": "application/json",
       ...(init?.headers ?? {}),
@@ -212,36 +216,51 @@ export function listDatabaseConnectorCapabilities() {
   );
 }
 
-export function listDatabaseConnectors() {
-  return requestJson<DatabaseConnector[]>("/api/database-connectors", {
-    headers: undefined,
-  });
+export function listDatabaseConnectors(workspaceId?: string) {
+  return requestJson<DatabaseConnector[]>(
+    "/api/database-connectors",
+    { headers: undefined },
+    workspaceId ? { workspace_id: workspaceId } : undefined,
+  );
 }
 
-export function createDatabaseConnector(payload: DatabaseConnectorDraftPayload) {
-  return requestJson<DatabaseConnector>("/api/database-connectors", {
-    method: "POST",
-    body: JSON.stringify(payload),
-  });
+export function createDatabaseConnector(
+  payload: DatabaseConnectorDraftPayload,
+  workspaceId?: string,
+) {
+  return requestJson<DatabaseConnector>(
+    "/api/database-connectors",
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+    workspaceId ? { workspace_id: workspaceId } : undefined,
+  );
 }
 
 export function updateDatabaseConnector(
   connectorId: string,
   payload: UpdateDatabaseConnectorPayload,
+  workspaceId?: string,
 ) {
-  return requestJson<DatabaseConnector>(`/api/database-connectors/${connectorId}`, {
-    method: "PATCH",
-    body: JSON.stringify(payload),
-  });
+  return requestJson<DatabaseConnector>(
+    `/api/database-connectors/${connectorId}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    },
+    workspaceId ? { workspace_id: workspaceId } : undefined,
+  );
 }
 
-export function deleteDatabaseConnector(connectorId: string) {
+export function deleteDatabaseConnector(connectorId: string, workspaceId?: string) {
   return requestJson<{ success: boolean; message: string }>(
     `/api/database-connectors/${connectorId}`,
     {
       method: "DELETE",
       headers: undefined,
     },
+    workspaceId ? { workspace_id: workspaceId } : undefined,
   );
 }
 
@@ -252,13 +271,14 @@ export function testDatabaseConnectorDraft(payload: DatabaseConnectorDraftPayloa
   });
 }
 
-export function testSavedDatabaseConnector(connectorId: string) {
+export function testSavedDatabaseConnector(connectorId: string, workspaceId?: string) {
   return requestJson<DatabaseConnectorTestResult>(
     `/api/database-connectors/${connectorId}/test`,
     {
       method: "POST",
       headers: undefined,
     },
+    workspaceId ? { workspace_id: workspaceId } : undefined,
   );
 }
 

@@ -22,6 +22,7 @@ import type { DatabaseConnectionsManagerPanelProps } from "./types";
 
 export function DatabaseConnectionsManagerPanel({
   sessionId,
+  workspaceId,
   onBackToSession,
   compact = false,
   openCreateOnMount = false,
@@ -56,7 +57,7 @@ export function DatabaseConnectionsManagerPanel({
     openCreateDialog,
     openEditDialog,
     attachmentByConnectorId,
-  } = useDatabaseConnectionsManager({ sessionId });
+  } = useDatabaseConnectionsManager({ sessionId, workspaceId });
   const didOpenCreateOnMountRef = useRef(false);
   const handleCreateRequest = onRequestCreate ?? openCreateDialog;
 

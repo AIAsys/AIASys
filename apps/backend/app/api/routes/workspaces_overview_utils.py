@@ -239,7 +239,9 @@ async def _build_workspace_overview(
             service.base_dir,
             session_manager=service.session_manager,
         )
-        database_connector_count = len(connector_service.list_connectors(user_id))
+        database_connector_count = len(
+            connector_service.list_connectors(user_id, workspace_id=workspace_id)
+        )
         if current_session_id:
             database_attachment_ids = [
                 item.connector_id

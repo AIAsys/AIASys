@@ -101,6 +101,10 @@ class DatabaseConnectorDraft(BaseModel):
         le=10000,
         description="默认返回行数上限",
     )
+    scope: str = Field(
+        default="workspace",
+        description="范围：global（全局共享）或 workspace（仅当前工作区可见）",
+    )
 
     @model_validator(mode="after")
     def validate_payload(self) -> "DatabaseConnectorDraft":
@@ -148,6 +152,10 @@ class UpdateDatabaseConnectorRequest(BaseModel):
     allowed_tables: Optional[list[str]] = Field(default=None)
     query_timeout_seconds: Optional[int] = Field(default=None, ge=1, le=60)
     row_limit: Optional[int] = Field(default=None, ge=1, le=10000)
+    scope: Optional[str] = Field(
+        default=None,
+        description="范围：global（全局共享）或 workspace（仅当前工作区可见）",
+    )
 
 
 class DatabaseConnectorCapability(BaseModel):
@@ -200,6 +208,13 @@ class DatabaseConnector(BaseModel):
     )
     last_test_message: Optional[str] = Field(default=None, description="最近一次测试信息")
     last_tested_at: Optional[str] = Field(default=None, description="最近测试时间")
+    workspace_id: Optional[str] = Field(
+        default=None, description="所属工作区 ID；null 表示全局连接器"
+    )
+    scope: str = Field(
+        default="global",
+        description="范围：global（全局共享）或 workspace（仅当前工作区可见）",
+    )
     created_at: str = Field(
         default_factory=_utcnow_iso,
         description="创建时间",

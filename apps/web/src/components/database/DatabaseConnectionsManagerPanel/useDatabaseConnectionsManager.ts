@@ -25,9 +25,10 @@ import type {
 
 interface UseDatabaseConnectionsManagerOptions {
   sessionId?: string | null;
+  workspaceId?: string | null;
 }
 
-export function useDatabaseConnectionsManager({ sessionId }: UseDatabaseConnectionsManagerOptions) {
+export function useDatabaseConnectionsManager({ sessionId, workspaceId }: UseDatabaseConnectionsManagerOptions) {
   const [reloadToken, setReloadToken] = useState(0);
   const [connectors, setConnectors] = useState<DatabaseConnector[]>([]);
   const [attachments, setAttachments] = useState<SessionDatabaseAttachment[]>([]);
@@ -56,7 +57,7 @@ export function useDatabaseConnectionsManager({ sessionId }: UseDatabaseConnecti
       try {
         const [capabilityList, connectorList, attachmentList] = await Promise.all([
           listDatabaseConnectorCapabilities(),
-          listDatabaseConnectors(),
+          listDatabaseConnectors(workspaceId ?? undefined),
           sessionId ? listSessionDatabaseAttachments(sessionId) : Promise.resolve([]),
         ]);
 
@@ -127,7 +128,10 @@ export function useDatabaseConnectionsManager({ sessionId }: UseDatabaseConnecti
               editingConnector.connector_id,
               payload as UpdateDatabaseConnectorPayload,
             )
-          : await createDatabaseConnector(payload as DatabaseConnectorDraftPayload);
+          : await createDatabaseConnector(
+              payload as DatabaseConnectorDraftPayload,
+              workspaceId ?? undefined,
+            );
         setIsDialogOpen(false);
         setEditingConnector(null);
         return savedConnector;

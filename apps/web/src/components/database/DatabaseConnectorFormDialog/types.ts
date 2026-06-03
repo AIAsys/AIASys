@@ -24,6 +24,7 @@ export interface DatabaseConnectorFormDialogProps {
 
 export interface ConnectorFormState {
   name: string;
+  scope: "global" | "workspace";
   db_type: DatabaseType;
   host: string;
   port: string;

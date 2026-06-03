@@ -61,22 +61,24 @@ async def list_database_capabilities():
 @router.get("", response_model=list[DatabaseConnector])
 async def list_database_connectors(
     user_id: Optional[str] = Query(None, description="用户 ID，仅管理员可指定"),
+    workspace_id: Optional[str] = Query(None, description="工作区 ID，指定后仅返回该工作区可见的连接器"),
     current_user: UserInfo = Depends(require_auth()),
 ):
     """列出当前用户的数据库连接器。"""
     resolved_user_id = _resolve_user_scope(user_id, current_user)
-    return _CONNECTOR_SERVICE.list_connectors(resolved_user_id)
+    return _CONNECTOR_SERVICE.list_connectors(resolved_user_id, workspace_id=workspace_id)
 
 
 @router.post("", response_model=DatabaseConnector)
 async def create_database_connector(
     request: DatabaseConnectorDraft,
     user_id: Optional[str] = Query(None, description="用户 ID，仅管理员可指定"),
+    workspace_id: Optional[str] = Query(None, description="工作区 ID，scope=workspace 时生效"),
     current_user: UserInfo = Depends(require_auth()),
 ):
     """创建数据库连接器。"""
     resolved_user_id = _resolve_user_scope(user_id, current_user)
-    return _CONNECTOR_SERVICE.create_connector(resolved_user_id, request)
+    return _CONNECTOR_SERVICE.create_connector(resolved_user_id, request, workspace_id=workspace_id)
 
 
 @router.post("/test", response_model=DatabaseConnectorTestResult)
@@ -252,11 +254,14 @@ async def detach_database_connector_from_session(
 async def get_database_connector(
     connector_id: str,
     user_id: Optional[str] = Query(None, description="用户 ID，仅管理员可指定"),
+    workspace_id: Optional[str] = Query(None, description="工作区 ID，指定后检查连接器是否对该工作区可见"),
     current_user: UserInfo = Depends(require_auth()),
 ):
     """读取单个数据库连接器详情。"""
     resolved_user_id = _resolve_user_scope(user_id, current_user)
-    connector = _CONNECTOR_SERVICE.get_connector(resolved_user_id, connector_id)
+    connector = _CONNECTOR_SERVICE.get_connector(
+        resolved_user_id, connector_id, workspace_id=workspace_id
+    )
     if connector is None:
         raise HTTPException(status_code=404, detail="数据库连接器不存在")
     return connector
@@ -267,6 +272,7 @@ async def update_database_connector(
     connector_id: str,
     request: UpdateDatabaseConnectorRequest,
     user_id: Optional[str] = Query(None, description="用户 ID，仅管理员可指定"),
+    workspace_id: Optional[str] = Query(None, description="工作区 ID，指定后检查连接器是否对该工作区可见"),
     current_user: UserInfo = Depends(require_auth()),
 ):
     """更新数据库连接器。"""
@@ -276,6 +282,7 @@ async def update_database_connector(
             resolved_user_id,
             connector_id,
             request,
+            workspace_id=workspace_id,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail="Operation failed") from exc
@@ -288,10 +295,16 @@ async def update_database_connector(
 async def delete_database_connector(
     connector_id: str,
     user_id: Optional[str] = Query(None, description="用户 ID，仅管理员可指定"),
+    workspace_id: Optional[str] = Query(None, description="工作区 ID，指定后检查连接器是否对该工作区可见"),
     current_user: UserInfo = Depends(require_auth()),
 ):
     """删除数据库连接器。"""
     resolved_user_id = _resolve_user_scope(user_id, current_user)
+    connector = _CONNECTOR_SERVICE.get_connector(
+        resolved_user_id, connector_id, workspace_id=workspace_id
+    )
+    if connector is None:
+        raise HTTPException(status_code=404, detail="数据库连接器不存在")
     success = _CONNECTOR_SERVICE.delete_connector(resolved_user_id, connector_id)
     if not success:
         raise HTTPException(status_code=404, detail="数据库连接器不存在")
@@ -302,10 +315,16 @@ async def delete_database_connector(
 async def test_saved_database_connector(
     connector_id: str,
     user_id: Optional[str] = Query(None, description="用户 ID，仅管理员可指定"),
+    workspace_id: Optional[str] = Query(None, description="工作区 ID，指定后检查连接器是否对该工作区可见"),
     current_user: UserInfo = Depends(require_auth()),
 ):
     """测试已保存的数据库连接器。"""
     resolved_user_id = _resolve_user_scope(user_id, current_user)
+    connector = _CONNECTOR_SERVICE.get_connector(
+        resolved_user_id, connector_id, workspace_id=workspace_id
+    )
+    if connector is None:
+        raise HTTPException(status_code=404, detail="数据库连接器不存在")
     result = _CONNECTOR_SERVICE.test_connector(resolved_user_id, connector_id)
     if result is None:
         raise HTTPException(status_code=404, detail="数据库连接器不存在")
