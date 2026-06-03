@@ -24,6 +24,8 @@ import {
 import type { LLMModelConfig } from "@/lib/api/llm";
 import { API_ENDPOINTS, getCurrentUserId } from "@/config/api";
 import { extractClipboardFiles } from "@/utils/clipboardFiles";
+import { useDragDrop } from "@/hooks/useDragDrop";
+import { cn } from "@/lib/utils";
 import { ModelSelector } from "./ModelSelector";
 import { HistoryIcon } from "./chatShellIcons";
 
@@ -179,6 +181,16 @@ export function InputArea({
     };
   }, [showAttachments]);
 
+  // 拖拽上传文件到工作区
+  const handleWorkspaceDrop = useCallback(
+    (files: FileList) => {
+      if (!onUploadToWorkspace || isUploading || isPrewarming || isInitializingEnvironment) return;
+      void onUploadToWorkspace(files);
+    },
+    [onUploadToWorkspace, isUploading, isPrewarming, isInitializingEnvironment],
+  );
+  const { isDragging, dragProps } = useDragDrop(handleWorkspaceDrop);
+
   // 上传文件到工作区（独立入口，不加入消息附件）
   const workspaceUploadInputRef = useRef<HTMLInputElement>(null);
   const handleWorkspaceUploadChange = useCallback(
@@ -241,8 +253,15 @@ export function InputArea({
         : currentEnv?.image || "Python";
 
   return (
-    <div className="p-4 md:p-6 bg-muted relative">
-      <div className="max-w-4xl mx-auto rounded-xl border shadow-sm p-4 min-h-[120px] relative flex flex-col transition-colors bg-muted border-border">
+    <div className="p-4 md:p-6 bg-muted relative" {...dragProps}>
+      <div
+        className={cn(
+          "max-w-4xl mx-auto rounded-xl border shadow-sm p-4 min-h-[120px] relative flex flex-col transition-colors",
+          isDragging
+            ? "bg-primary/5 border-primary/30 ring-1 ring-primary/20"
+            : "bg-muted border-border",
+        )}
+      >
         {/* 待发送附件预览 */}
         {uploadedFiles.length > 0 && (
           <div className="flex flex-wrap gap-2 mb-2">

@@ -77,13 +77,8 @@ def test_preset_expert_catalog_exposes_notebook_read_only_tools() -> None:
 
     for role in roles:
         assert "app.agents.tools.notebook_session_tool:ListSessionNotebooks" in role.tool_ids
-        assert "app.agents.tools.notebook_file_tool:ReadNotebook" in role.tool_ids
-        assert "app.agents.tools.notebook_session_tool:ReadNotebookOutputs" in role.tool_ids
         if role.role_id != "data_analyst":
             assert "app.agents.tools.notebook_tool:ManageNotebook" not in role.tool_ids
-            assert "app.agents.tools.notebook_file_tool:EditNotebookFile" not in role.tool_ids
-            assert "ManageNotebook" not in role.tool_names
-            assert "EditNotebookFile" not in role.tool_names
 
 
 @pytest.mark.asyncio

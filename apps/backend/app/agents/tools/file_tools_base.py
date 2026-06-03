@@ -62,6 +62,21 @@ def _resolve_file_path(path_str: str) -> Path:
             raise ValueError(f"路径 `{path_str}` 解析后超出全局工作区范围。")
         return resolved
 
+    # 处理 /workspace/... 前缀（上传 API 返回的路径格式）
+    if normalized.startswith("/workspace/"):
+        workspace = _resolve_workspace_root()
+        if workspace is None:
+            raise ValueError(f"路径 `{path_str}` 指向工作区，但当前上下文未设置工作区。")
+        relative_part = normalized[len("/workspace/") :]
+        p = Path(relative_part)
+        if ".." in p.parts:
+            raise ValueError(f"路径 `{path_str}` 包含非法的 .. 逃逸。")
+        resolved = (workspace / p).resolve()
+        workspace_resolved = workspace.resolve()
+        if not (resolved == workspace_resolved or resolved.is_relative_to(workspace_resolved)):
+            raise ValueError(f"路径 `{path_str}` 解析后超出工作区范围。")
+        return resolved
+
     p = Path(normalized)
 
     if p.is_absolute():

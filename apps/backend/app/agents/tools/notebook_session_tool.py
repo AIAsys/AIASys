@@ -146,7 +146,7 @@ class ListSessionNotebooksParams(BaseModel):
 
 class ListSessionNotebooks(AiasysTool):
     name: str = "ListSessionNotebooks"
-    description: str = """列出当前逻辑工作区中的 notebook 文件。
+    description: str = """列出当前工作区中的 Jupyter notebook（.ipynb）文件。
 
 适用场景：
 - 查看当前工作区已有哪些 notebook
@@ -225,11 +225,15 @@ class CreateSessionNotebookParams(BaseModel):
 
 class CreateSessionNotebook(AiasysTool):
     name: str = "CreateSessionNotebook"
-    description: str = """在当前逻辑工作区中创建 notebook。
+    description: str = """在当前工作区中创建 Jupyter notebook（.ipynb 文件）。
 
 适用场景：
+- 创建新的 notebook 文件
+- 在 notebook 中添加代码单元格（code cell）或 Markdown 单元格
 - 为本轮实验创建 scratch notebook
 - 在执行前先搭好 notebook 文档骨架
+
+注意：此工具创建的是标准 .ipynb JSON 格式文件，不是纯文本文件。
 """
     params: type[BaseModel] = CreateSessionNotebookParams
 

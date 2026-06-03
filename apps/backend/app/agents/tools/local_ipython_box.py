@@ -60,7 +60,6 @@ from app.services.runtime.runtime_execution import (
 )
 
 try:
-    from jupyter_client.manager import start_new_kernel
     from jupyter_client.multikernelmanager import MultiKernelManager
 
     JUPYTER_AVAILABLE = True
@@ -240,6 +239,7 @@ Kernel 索引规则：
     _kernel_managers: dict[str, MultiKernelManager] = {}
     _clients: dict[str, Any] = {}
     _last_activity: dict[str, float] = {}
+    _lock: asyncio.Lock = asyncio.Lock()
     _IDLE_KERNEL_TTL_SECONDS: int = 30 * 60  # 30 分钟无活跃则自动关闭
 
     def __init__(self):
@@ -464,17 +464,32 @@ Kernel 索引规则：
         try:
             custom_vars = current_runtime_env_vars.get()
             from jupyter_client.kernelspec import KernelSpecManager
+            from jupyter_client.manager import KernelManager
 
             kernel_spec_manager = KernelSpecManager(
                 kernel_dirs=runtime_kernel_dirs(),
             )
-            kernel_manager, client = await asyncio.to_thread(
-                start_new_kernel,
-                kernel_name=kernel_name,
-                cwd=cwd,
-                env=build_sanitized_kernel_env(custom_env_vars=custom_vars),
-                kernel_spec_manager=kernel_spec_manager,
-            )
+
+            def _start_kernel():
+                km = KernelManager(
+                    kernel_name=kernel_name,
+                    kernel_spec_manager=kernel_spec_manager,
+                )
+                km.start_kernel(
+                    cwd=cwd,
+                    env=build_sanitized_kernel_env(custom_env_vars=custom_vars),
+                )
+                kc = km.client()
+                kc.start_channels()
+                try:
+                    kc.wait_for_ready(timeout=60)
+                except RuntimeError:
+                    kc.stop_channels()
+                    km.shutdown_kernel()
+                    raise
+                return km, kc
+
+            kernel_manager, client = await asyncio.to_thread(_start_kernel)
 
             # 初始化环境
             cls._init_kernel_env(client)
@@ -646,7 +661,7 @@ Kernel 索引规则：
                 plan=plan,
             )
             helper_env = self._resolve_runtime_helper_env()
-            _, client = self._get_or_create_kernel(
+            _, client = await self._get_or_create_kernel(
                 session_id=session_id,
                 notebook_path=notebook_path,
                 user_id=user_id,
@@ -660,7 +675,7 @@ Kernel 索引规则：
                 self.shutdown_kernel(
                     session_id, notebook_path, user_id, kernel_name=self.kernel_name
                 )
-                _, client = self._get_or_create_kernel(
+                _, client = await self._get_or_create_kernel(
                     session_id=session_id,
                     notebook_path=notebook_path,
                     user_id=user_id,
@@ -812,7 +827,7 @@ Kernel 索引规则：
         )
         helper_env = self._resolve_runtime_helper_env()
 
-        _kernel_manager, client = self._get_or_create_kernel(
+        _kernel_manager, client = await self._get_or_create_kernel(
             session_id=session_id,
             notebook_path=notebook_path,
             user_id=user_id,
@@ -823,7 +838,7 @@ Kernel 索引规则：
         if restart:
             logger.info("[LocalIPythonBox] notebook workbench 请求重启内核")
             self.shutdown_kernel(session_id, notebook_path, user_id, kernel_name=self.kernel_name)
-            _kernel_manager, client = self._get_or_create_kernel(
+            _kernel_manager, client = await self._get_or_create_kernel(
                 session_id=session_id,
                 notebook_path=notebook_path,
                 user_id=user_id,
@@ -871,7 +886,7 @@ Kernel 索引规则：
         )
         helper_env = self._resolve_runtime_helper_env()
 
-        _, client = self._get_or_create_kernel(
+        _, client = await self._get_or_create_kernel(
             session_id=session_id,
             notebook_path=notebook_path,
             user_id=user_id,

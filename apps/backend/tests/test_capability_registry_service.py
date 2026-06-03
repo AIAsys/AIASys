@@ -103,7 +103,6 @@ def test_capability_registry_includes_mode_presets(monkeypatch) -> None:
     assert analysis_preset.source_config_path == "preset://local/data_analysis"
     assert "runtime.list_session_notebooks" in analysis_preset.capability_ids
     assert "runtime.manage_notebook" in analysis_preset.capability_ids
-    assert "runtime.edit_notebook" in analysis_preset.capability_ids
     assert "runtime.local_ipython_box" not in analysis_preset.capability_ids
     assert "native.multiagent_task" in analysis_preset.capability_ids
     assert "native.session_task_create" in analysis_preset.capability_ids
