@@ -6,7 +6,7 @@
 
 - **`ui/`**: 存放基于 Shadcn UI 或 Radix UI 封装的基础原子组件（如 Button, Input, Dialog 等）。
 - **`ui_design/`**: 存放特定设计风格的侧边栏或其他设计相关的复合组件。
-- **`layout/WorkspaceSidebar/`**: `/analysis` 工作区侧栏与中间工作台资源面板。
+- **`layout/WorkspaceSidebar/`**: `/workspace` 工作区侧栏与中间工作台资源面板。
 
 ## 核心组件说明
 
