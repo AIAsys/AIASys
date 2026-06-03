@@ -49,6 +49,8 @@ export interface DatabaseConnectorCapability extends DatabaseConnectorShapeMeta 
 
 export interface DatabaseConnector extends DatabaseConnectorShapeMeta {
   connector_id: string;
+  workspace_id?: string | null;
+  scope: "global" | "workspace";
   name: string;
   connection_mode: ConnectionMode;
   host?: string | null;
@@ -90,6 +92,7 @@ export interface DatabaseConnectorDraftPayload extends DatabaseConnectorShapeMet
   allowed_tables: string[];
   query_timeout_seconds: number;
   row_limit: number;
+  scope?: "global" | "workspace";
 }
 
 export interface UpdateDatabaseConnectorPayload {
@@ -108,6 +111,7 @@ export interface UpdateDatabaseConnectorPayload {
   allowed_tables?: string[];
   query_timeout_seconds?: number;
   row_limit?: number;
+  scope?: "global" | "workspace";
 }
 
 export interface DatabaseConnectorTestResult {

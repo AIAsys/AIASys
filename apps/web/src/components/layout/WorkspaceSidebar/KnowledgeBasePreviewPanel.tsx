@@ -47,7 +47,7 @@ import type {
   UpdateKnowledgeBaseRequest,
 } from "@/types/knowledge";
 import { getNumber, getText } from "./ResourcePreviewShared";
-import { CanvasActionMenu } from "@/pages/DataAnalysisPage/components/AnalysisWorkspaceLayout/components/CanvasActionMenu";
+import { CanvasActionMenu } from "@/components/workspace/CanvasActionMenu";
 
 type KbTab = "documents" | "search" | "settings" | "data";
 

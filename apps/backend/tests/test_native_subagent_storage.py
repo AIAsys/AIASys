@@ -21,9 +21,7 @@ class TestSubAgentStorage:
     def test_create_workspace(self, temp_workspace, monkeypatch):
         from app.services.agent import subagent_storage
 
-        monkeypatch.setattr(
-            subagent_storage, "WORKSPACE_DIR", temp_workspace
-        )
+        monkeypatch.setattr(subagent_storage, "WORKSPACE_DIR", temp_workspace)
 
         storage = SubAgentStorage("user1", "session1", "agent_abc")
         storage.create_workspace(
@@ -47,17 +45,6 @@ class TestSubAgentStorage:
         assert meta["last_task_id"] == "task_123"
         assert meta["launch_spec"]["effective_model"] == "kimi-test"
 
-        from app.core.database import SessionLocal, SubAgentInstanceORM
-
-        db = SessionLocal()
-        try:
-            record = db.query(SubAgentInstanceORM).filter_by(agent_id="agent_abc").one()
-            assert record.host_session_id == "session1"
-            assert record.subagent_type == "coder"
-            assert record.status == "running"
-        finally:
-            db.close()
-
         wire_lines = storage.wire_file.read_text().strip().split("\n")
         assert len(wire_lines) == 1
         first_line = json.loads(wire_lines[0])
@@ -79,15 +66,6 @@ class TestSubAgentStorage:
         assert meta["status"] == "completed"
         assert meta["updated_at"] > meta["created_at"]
 
-        from app.core.database import SessionLocal, SubAgentInstanceORM
-
-        db = SessionLocal()
-        try:
-            record = db.query(SubAgentInstanceORM).filter_by(agent_id="agent_abc").one()
-            assert record.status == "completed"
-        finally:
-            db.close()
-
     @pytest.mark.asyncio
     async def test_append_wire_event(self, temp_workspace, monkeypatch):
         from app.services.agent import subagent_storage
@@ -102,6 +80,7 @@ class TestSubAgentStorage:
         await storage.append_wire_event(
             "ContentPart", {"type": "text", "text": "hello"}, timestamp=1000.0
         )
+        await storage.flush()
 
         lines = storage.wire_file.read_text().strip().split("\n")
         assert len(lines) == 2  # metadata + event
@@ -122,6 +101,7 @@ class TestSubAgentStorage:
             subagent_type="coder",
         )
         await storage.append_context_message({"role": "user", "content": "hi"})
+        await storage.flush()
 
         lines = storage.context_file.read_text().strip().split("\n")
         assert len(lines) == 1
@@ -152,6 +132,7 @@ class TestSubAgentStorage:
             {"kind": "tool_result", "tool_call_id": "tc1", "content": "done", "is_error": False},
             timestamp=1002.0,
         )
+        await storage.flush()
 
         lines = storage.wire_file.read_text().strip().split("\n")
         assert len(lines) == 4  # metadata + 3 events

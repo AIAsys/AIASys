@@ -21,7 +21,7 @@ import {
   useState,
 } from "react";
 import { ArrowDown } from "lucide-react";
-import type { ChatItem } from "@/pages/DataAnalysisPage/types";
+import type { ChatItem } from "@/pages/WorkspacePage/types";
 import type { PreviewFile } from "@/components/layout/WorkspaceSidebar/preview";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";

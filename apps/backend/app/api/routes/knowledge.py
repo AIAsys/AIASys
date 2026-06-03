@@ -280,7 +280,10 @@ async def health_check(
     try:
         knowledge_bases = service.list_knowledge_bases(user.user_id, skip=0, limit=1)
         health_path = (
-            service._db_path(user.user_id, knowledge_bases[0].id).parent
+            service._db_path(
+                service._resolve_workspace_root_for_kb(user.user_id, knowledge_bases[0].id),
+                knowledge_bases[0].id,
+            ).parent
             if knowledge_bases
             else "knowledge"
         )

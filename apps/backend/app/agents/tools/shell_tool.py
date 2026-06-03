@@ -16,6 +16,7 @@ from pydantic import BaseModel, Field
 
 from app.agents.tools.local_ipython_box import build_sanitized_kernel_env
 from app.core.agent_tool import AiasysTool
+from app.core.encoding_utils import smart_decode
 from app.core.tool_result import ToolResult
 from app.services.history import current_runtime_env_vars, current_session_root, current_workspace
 from app.services.runtime.runtime_execution import (
@@ -280,8 +281,8 @@ class Shell(AiasysTool):
         except Exception as e:
             return ToolResult(content=f"执行异常: {e}", is_error=True)
 
-        stdout = stdout_data.decode("utf-8", errors="replace")
-        stderr = stderr_data.decode("utf-8", errors="replace")
+        stdout = smart_decode(stdout_data)
+        stderr = smart_decode(stderr_data)
 
         # 合并输出
         output = stdout

@@ -7,229 +7,45 @@ default_title = "数据分析"
 default_description = "对数据集进行探索、清洗、分析和可视化。"
 initial_conversation_title = "开始分析"
 env_kind = "uv"
-recommended_skills = ["aiasys-platform-skill", "aiasys-canvas-skill", "uv-runtime-skill", "pymupdf4llm-pdf-to-markdown-skill", "paddleocr-skill", "aiasys-tool-usage-skill"]
+recommended_skills = [
+    "aiasys-platform-skill",
+    "aiasys-canvas-skill",
+    "uv-runtime-skill",
+    "tabular-data-preview-skill",
+    "pymupdf4llm-pdf-to-markdown-skill",
+    "paddleocr-skill",
+    "arxiv-search-skill",
+    "aiasys-tool-usage-skill",
+]
 
 [[files]]
 relative_path = "README.md"
-content = """# 电商用户行为数据分析
-
-## 数据集说明
-
-- **来源**：某电商平台 2024 年 6 月用户行为日志（模拟数据）
-- **样本量**：约 50,000 条记录
-- **字段说明**：
-  - `user_id`：用户唯一标识
-  - `event_type`：行为类型（view / cart / purchase）
-  - `product_id`：商品标识
-  - `category`：商品类目
-  - `price`：商品价格（元）
-  - `timestamp`：行为发生时间
-
-## 分析目标
-
-1. 用户行为漏斗分析：从浏览到加购到购买的转化率
-2. 热销类目识别：哪些类目的浏览量和转化率最高
-3. 用户价值分层：基于购买频次和金额划分用户群体
-4. 时段分析：一天中哪些时段用户最活跃
-
-## 数据清洗记录
-
-- 去除 `price` 为负值或缺失的记录
-- 将 `timestamp` 转换为 datetime 类型
-- 对 `event_type` 做标准化（统一为小写）
-
-## 探索性分析发现
-
-- 浏览→加购转化率约 12%，加购→购买转化率约 35%
-- 电子产品和服装类目流量最大，但美妆类目的购买转化率最高
-- 晚间 20:00-22:00 是用户活跃高峰
-- 存在约 15% 的用户只看不买（零购买记录）
-
-## 结论与建议
-
-- 优化加购流程：当前 88% 的浏览用户没有加购，可能存在商品信息展示不足的问题
-- 针对美妆类目加大投放：虽然流量不如电子产品和服装，但转化效率更高
-- 晚间时段推送促销信息：用户活跃高峰与促销结合可提升转化
-
----
-
-*以上内容为示例，请替换为你自己的数据集和分析结论。*
-"""
+content = "# 电商用户行为数据分析\n\n## 数据集说明\n\n- **来源**：某电商平台 2024 年 6 月用户行为日志（模拟数据）\n- **样本量**：约 50,000 条记录\n- **字段说明**：\n  - `user_id`：用户唯一标识\n  - `event_type`：行为类型（view / cart / purchase）\n  - `product_id`：商品标识\n  - `category`：商品类目\n  - `price`：商品价格（元）\n  - `timestamp`：行为发生时间\n\n## 分析目标\n\n1. 用户行为漏斗分析：从浏览到加购到购买的转化率\n2. 热销类目识别：哪些类目的浏览量和转化率最高\n3. 用户价值分层：基于购买频次和金额划分用户群体\n4. 时段分析：一天中哪些时段用户最活跃\n\n## 数据清洗记录\n\n- 去除 `price` 为负值或缺失的记录\n- 将 `timestamp` 转换为 datetime 类型\n- 对 `event_type` 做标准化（统一为小写）\n\n## 探索性分析发现\n\n- 浏览→加购转化率约 12%，加购→购买转化率约 35%\n- 电子产品和服装类目流量最大，但美妆类目的购买转化率最高\n- 晚间 20:00-22:00 是用户活跃高峰\n- 存在约 15% 的用户只看不买（零购买记录）\n\n## 结论与建议\n\n- 优化加购流程：当前 88% 的浏览用户没有加购，可能存在商品信息展示不足的问题\n- 针对美妆类目加大投放：虽然流量不如电子产品和服装，但转化效率更高\n- 晚间时段推送促销信息：用户活跃高峰与促销结合可提升转化\n\n---\n\n*以上内容为示例，请替换为你自己的数据集和分析结论。*\n"
 
 [[files]]
 relative_path = "requirements.txt"
-content = """pandas>=2.0.0
-numpy>=1.24.0
-matplotlib>=3.7.0
-seaborn>=0.12.0
-plotly>=5.14.0
-scikit-learn>=1.3.0
-openpyxl>=3.1.0
-"""
+content = "pandas>=2.0.0\nnumpy>=1.24.0\nmatplotlib>=3.7.0\nseaborn>=0.12.0\nplotly>=5.14.0\nscikit-learn>=1.3.0\nopenpyxl>=3.1.0\n"
 
 [[files]]
 relative_path = "data/.gitkeep"
-content = """"""
+content = ""
 
 [[files]]
 relative_path = "notebooks/01_exploration.py"
-content = """# %% [markdown]
-# # 数据探索脚本
-#
-# 本脚本演示数据分析的标准流程：加载 → 概览 → 清洗 → 可视化。
-# 基于模拟的电商用户行为数据。
-
-# %%
-import pandas as pd
-import matplotlib.pyplot as plt
-
-# 设置中文字体（Linux 环境常用）
-plt.rcParams["font.sans-serif"] = ["DejaVu Sans"]
-plt.rcParams["axes.unicode_minus"] = False
-
-# %% [markdown]
-# ## 1. 数据加载与概览
-
-# %%
-# 假设数据文件为 data/events.csv
-# df = pd.read_csv("data/events.csv")
-# print(f"记录数: {len(df)}")
-# print(f"字段: {list(df.columns)}")
-# print(df.head())
-# print(df.describe())
-
-# %% [markdown]
-# ## 2. 缺失值与异常检查
-
-# %%
-# print("缺失值统计:")
-# print(df.isnull().sum())
-#
-# print("\\n价格异常值:")
-# print(df[df["price"] < 0])
-
-# %% [markdown]
-# ## 3. 行为分布可视化
-
-# %%
-# event_counts = df["event_type"].value_counts()
-# event_counts.plot(kind="bar", title="用户行为分布")
-# plt.ylabel("次数")
-# plt.tight_layout()
-# plt.savefig("figures/event_distribution.png")
-# plt.show()
-
-# %% [markdown]
-# ## 4. 时段活跃度分析
-
-# %%
-# df["hour"] = pd.to_datetime(df["timestamp"]).dt.hour
-# hourly = df.groupby("hour").size()
-# hourly.plot(kind="line", marker="o", title="各时段活跃用户数")
-# plt.xlabel("小时")
-# plt.ylabel("行为次数")
-# plt.tight_layout()
-# plt.savefig("figures/hourly_activity.png")
-# plt.show()
-
-# %% [markdown]
-# ## 下一步
-#
-# - 完成漏斗分析（view → cart → purchase 的转化）
-# - 做用户 RFM 分层
-# - 识别高价值商品类目
-"""
+content = "# %% [markdown]\n# # 数据探索脚本\n#\n# 本脚本演示数据分析的标准流程：加载 → 概览 → 清洗 → 可视化。\n# 基于模拟的电商用户行为数据。\n\n# %%\nimport pandas as pd\nimport matplotlib.pyplot as plt\n\n# 设置中文字体（Linux 环境常用）\nplt.rcParams[\"font.sans-serif\"] = [\"DejaVu Sans\"]\nplt.rcParams[\"axes.unicode_minus\"] = False\n\n# %% [markdown]\n# ## 1. 数据加载与概览\n\n# %%\n# 假设数据文件为 data/events.csv\n# df = pd.read_csv(\"data/events.csv\")\n# print(f\"记录数: {len(df)}\")\n# print(f\"字段: {list(df.columns)}\")\n# print(df.head())\n# print(df.describe())\n\n# %% [markdown]\n# ## 2. 缺失值与异常检查\n\n# %%\n# print(\"缺失值统计:\")\n# print(df.isnull().sum())\n#\n# print(\"\\n价格异常值:\")\n# print(df[df[\"price\"] < 0])\n\n# %% [markdown]\n# ## 3. 行为分布可视化\n\n# %%\n# event_counts = df[\"event_type\"].value_counts()\n# event_counts.plot(kind=\"bar\", title=\"用户行为分布\")\n# plt.ylabel(\"次数\")\n# plt.tight_layout()\n# plt.savefig(\"figures/event_distribution.png\")\n# plt.show()\n\n# %% [markdown]\n# ## 4. 时段活跃度分析\n\n# %%\n# df[\"hour\"] = pd.to_datetime(df[\"timestamp\"]).dt.hour\n# hourly = df.groupby(\"hour\").size()\n# hourly.plot(kind=\"line\", marker=\"o\", title=\"各时段活跃用户数\")\n# plt.xlabel(\"小时\")\n# plt.ylabel(\"行为次数\")\n# plt.tight_layout()\n# plt.savefig(\"figures/hourly_activity.png\")\n# plt.show()\n\n# %% [markdown]\n# ## 下一步\n#\n# - 完成漏斗分析（view → cart → purchase 的转化）\n# - 做用户 RFM 分层\n# - 识别高价值商品类目\n"
 
 [[files]]
 relative_path = "notebooks/02_funnel.py"
-content = """# %% [markdown]
-# # 漏斗分析
-#
-# 分析用户从浏览到购买的转化路径。
-
-# %%
-import pandas as pd
-
-# %%
-# df = pd.read_csv("data/events.csv")
-# funnel = df["event_type"].value_counts()
-# print("行为分布:")
-# print(funnel)
-#
-# view_count = funnel.get("view", 0)
-# cart_count = funnel.get("cart", 0)
-# purchase_count = funnel.get("purchase", 0)
-#
-# print(f"\\n浏览→加购转化率: {cart_count / view_count:.2%}")
-# print(f"加购→购买转化率: {purchase_count / cart_count:.2%}")
-# print(f"整体转化率: {purchase_count / view_count:.2%}")
-"""
+content = "# %% [markdown]\n# # 漏斗分析\n#\n# 分析用户从浏览到购买的转化路径。\n\n# %%\nimport pandas as pd\n\n# %%\n# df = pd.read_csv(\"data/events.csv\")\n# funnel = df[\"event_type\"].value_counts()\n# print(\"行为分布:\")\n# print(funnel)\n#\n# view_count = funnel.get(\"view\", 0)\n# cart_count = funnel.get(\"cart\", 0)\n# purchase_count = funnel.get(\"purchase\", 0)\n#\n# print(f\"\\n浏览→加购转化率: {cart_count / view_count:.2%}\")\n# print(f\"加购→购买转化率: {purchase_count / cart_count:.2%}\")\n# print(f\"整体转化率: {purchase_count / view_count:.2%}\")\n"
 
 [[files]]
 relative_path = "reports/.gitkeep"
-content = """"""
+content = ""
 
 [[files]]
 relative_path = "figures/.gitkeep"
-content = """"""
+content = ""
 
 [[files]]
 relative_path = "AGENTS.md"
-content = """# 数据分析工作区
-
-## 角色
-
-你是数据分析师，帮助用户完成从数据获取到结论输出的全流程。你的分析应该严谨、可复现、结论有数据支撑。
-
-## 分析工作流
-
-### 阶段 1：数据理解
-- 确认数据来源、样本量、字段含义
-- 检查数据类型是否正确、时间格式是否统一
-- 初步统计：均值、分布、缺失率
-- **产出**：数据质量评估摘要（3-5 句话），记录到 README 的"数据清洗记录"
-
-### 阶段 2：数据清洗
-- 处理缺失值（删除 / 填充 / 插值，说明选择理由）
-- 处理异常值（定义异常标准，记录处理前后的对比）
-- 格式标准化（编码统一、时间解析、数值单位对齐）
-- **产出**：清洗后的数据集 + 清洗步骤文档
-
-### 阶段 3：探索性分析（EDA）
-- 单变量分析：分布、集中趋势、离散程度
-- 双变量分析：相关性、分组对比
-- 异常检测：识别不符合业务常识的数据点
-- **产出**：关键发现列表（带数据支撑），落盘到 README 的"探索性分析发现"
-
-### 阶段 4：可视化
-- 选择合适的图表类型（不要为画图而画图）
-- 添加清晰的标题、轴标签、图例
-- 保存高清图片到 `figures/`
-- **产出**：3-5 张核心图表，每张配一句结论说明
-
-### 阶段 5：洞察提取
-- 从数据中发现业务含义，不只是描述统计结果
-- 区分相关性和因果性，不夸大结论
-- 给出可执行的建议
-- **产出**：结论与建议段落，落盘到 README
-
-### 阶段 6：报告输出
-- 更新 README，确保数据、发现、结论一一对应
-- 将分析脚本整理为可复现的 notebook
-- **产出**：完整的分析报告 + 可运行代码
-
-## 工具使用
-
-- pandas：数据处理（优先用向量化操作，少用循环）
-- matplotlib / seaborn：静态可视化
-- plotly：交互式图表
-- scikit-learn：建模和评估
-
-## 硬性规则
-
-- 所有清洗步骤必须可复现，记录处理逻辑
-- 可视化图表必须有标题和轴标签
-- 结论必须有数据支撑，不说"可能""大概"
-- 不篡改数据来迎合预期结论
-- 不确定的数据问题先向用户确认
-"""
+content = "# 数据分析工作区\n\n## 角色\n\n你是数据分析师，帮助用户完成从数据获取到结论输出的全流程。你的分析应该严谨、可复现、结论有数据支撑。\n\n## 分析工作流\n\n### 阶段 1：数据理解\n- 确认数据来源、样本量、字段含义\n- 检查数据类型是否正确、时间格式是否统一\n- 初步统计：均值、分布、缺失率\n- **产出**：数据质量评估摘要（3-5 句话），记录到 README 的\"数据清洗记录\"\n\n### 阶段 2：数据清洗\n- 处理缺失值（删除 / 填充 / 插值，说明选择理由）\n- 处理异常值（定义异常标准，记录处理前后的对比）\n- 格式标准化（编码统一、时间解析、数值单位对齐）\n- **产出**：清洗后的数据集 + 清洗步骤文档\n\n### 阶段 3：探索性分析（EDA）\n- 单变量分析：分布、集中趋势、离散程度\n- 双变量分析：相关性、分组对比\n- 异常检测：识别不符合业务常识的数据点\n- **产出**：关键发现列表（带数据支撑），落盘到 README 的\"探索性分析发现\"\n\n### 阶段 4：可视化\n- 选择合适的图表类型（不要为画图而画图）\n- 添加清晰的标题、轴标签、图例\n- 保存高清图片到 `figures/`\n- **产出**：3-5 张核心图表，每张配一句结论说明\n\n### 阶段 5：洞察提取\n- 从数据中发现业务含义，不只是描述统计结果\n- 区分相关性和因果性，不夸大结论\n- 给出可执行的建议\n- **产出**：结论与建议段落，落盘到 README\n\n### 阶段 6：报告输出\n- 更新 README，确保数据、发现、结论一一对应\n- 将分析脚本整理为可复现的 notebook\n- **产出**：完整的分析报告 + 可运行代码\n\n## 工具使用\n\n- pandas：数据处理（优先用向量化操作，少用循环）\n- matplotlib / seaborn：静态可视化\n- plotly：交互式图表\n- scikit-learn：建模和评估\n\n## 硬性规则\n\n- 所有清洗步骤必须可复现，记录处理逻辑\n- 可视化图表必须有标题和轴标签\n- 结论必须有数据支撑，不说\"可能\"\"大概\"\n- 不篡改数据来迎合预期结论\n- 不确定的数据问题先向用户确认\n"

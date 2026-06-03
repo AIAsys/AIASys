@@ -203,8 +203,15 @@ class BatchCanvasOperations(AiasysTool):
 
 参数：
 - canvas_path: Canvas 文件路径，支持相对路径、/workspace/... 或 /global/...。
-- operations: 操作列表，每个操作是一个 {"action": "...", "data": {...}} 对象。
-  支持 action: add_node、update_node、remove_node、add_edge、update_edge、remove_edge。
+- operations: 操作列表，每个操作是一个 {"type": "...", "node": {...}, "edge": {...}, "node_id": "...", "edge_id": "..."} 对象。
+  支持 type: add_node、update_node、remove_node、add_edge、update_edge、remove_edge。
+
+操作格式示例：
+- 添加节点: {"type": "add_node", "node": {"id": "node-1", "type": "text", "text": "Hello"}}
+- 更新节点: {"type": "update_node", "node": {"id": "node-1", "type": "text", "text": "World"}}
+- 删除节点: {"type": "remove_node", "node_id": "node-1"}
+- 添加边: {"type": "add_edge", "edge": {"id": "edge-1", "fromNode": "node-1", "toNode": "node-2"}}
+- 删除边: {"type": "remove_edge", "edge_id": "edge-1"}
 
 为什么用 BatchCanvasOperations 而不是 WriteFile：
 - **批量操作**：一次调用可以完成多个增删改，避免反复读写 .canvas 文件

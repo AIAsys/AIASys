@@ -91,13 +91,27 @@ async def test_read_file_not_found(tmp_workspace: Path) -> None:
 
 @pytest.mark.asyncio
 async def test_read_file_binary_rejected(tmp_workspace: Path) -> None:
-    (tmp_workspace / "binary.bin").write_bytes(b"\x00\x01\x02\x03")
+    # 使用无黑名单扩展名的文件，验证 NUL 字节兜底检测
+    (tmp_workspace / "binary.data").write_bytes(b"\x00\x01\x02\x03")
 
     tool = ReadFile()
-    result = await tool.invoke(**ReadFileParams(path="binary.bin").model_dump())
+    result = await tool.invoke(**ReadFileParams(path="binary.data").model_dump())
 
     assert result.is_error
     assert "二进制" in result.message
+
+
+@pytest.mark.asyncio
+async def test_read_file_non_text_suffix_rejected(tmp_workspace: Path) -> None:
+    """验证已知非文本扩展名会被直接拒绝并给出替代建议。"""
+    (tmp_workspace / "report.xlsx").write_bytes(b"\x00mock excel")
+
+    tool = ReadFile()
+    result = await tool.invoke(**ReadFileParams(path="report.xlsx").model_dump())
+
+    assert result.is_error
+    assert "Excel" in result.message
+    assert "pandas" in result.message or "openpyxl" in result.message
 
 
 @pytest.mark.asyncio
@@ -327,13 +341,13 @@ async def test_global_path_escape_rejected(tmp_global_workspace: Path) -> None:
 
 @pytest.mark.asyncio
 async def test_read_file_workspace_prefix(tmp_workspace: Path) -> None:
-    (tmp_workspace / "A-Attachment.xlsx").write_text("mock excel content", encoding="utf-8")
+    (tmp_workspace / "A-Attachment.txt").write_text("mock attachment content", encoding="utf-8")
 
     tool = ReadFile()
-    result = await tool.invoke(**ReadFileParams(path="/workspace/A-Attachment.xlsx").model_dump())
+    result = await tool.invoke(**ReadFileParams(path="/workspace/A-Attachment.txt").model_dump())
 
     assert not result.is_error
-    assert "mock excel content" in result.output
+    assert "mock attachment content" in result.output
 
 
 @pytest.mark.asyncio

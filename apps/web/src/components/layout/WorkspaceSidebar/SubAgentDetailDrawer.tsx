@@ -38,7 +38,7 @@ import { AiMessageContent } from "@/components/chat/AiMessageContent";
 import { ToolPreviewPopover } from "@/components/ToolPreviewPopover";
 import { resolveToolPreviewFromEvents } from "@/lib/toolPreview";
 import type { ExecutionEvent, SubAgentDetail } from "@/hooks/useExecutionTree";
-import type { ChatSegment } from "@/pages/DataAnalysisPage/types";
+import type { ChatSegment } from "@/pages/WorkspacePage/types";
 
 interface SubAgentDetailDrawerProps {
   subagent: SubAgentDetail | null;

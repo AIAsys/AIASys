@@ -1,5 +1,7 @@
 Read media content from a file.
 
+**用途**：当用户要求"查看图片""分析图片内容""看看这张图片""描述视频内容"等涉及图片或视频理解的任务时，**优先使用此工具**。此工具直接让模型理解媒体内容，比 Shell 运行 Python/PIL、ImageMagick 或 ffmpeg 更直接。
+
 **Tips:**
 - Make sure you follow the description of each tool parameter.
 - A `<system>` tag will be given before the read file content.

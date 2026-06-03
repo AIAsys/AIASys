@@ -18,7 +18,9 @@ from .file_tools import (
     MAX_BYTES,
     MAX_LINE_LENGTH,
     MAX_LINES,
+    _get_non_text_hint,
     _is_binary_file,
+    _is_non_text_by_suffix,
     _truncate_line,
 )
 from .file_tools_base import _resolve_file_path
@@ -57,24 +59,27 @@ class ReadFile(AiasysTool):
     """读取当前工作区或全局工作区内的文本文件。"""
 
     name: str = "ReadFile"
-    description: str = f"""读取当前工作区或全局工作区中的文本文件内容。
+    description: str = f"""读取当前工作区或全局工作区中的**纯文本文件**。
+
+本工具只能读取文本文件（如 .py、.md、.json、.csv、.txt、.yml、.html 等）。
+遇到以下类型的文件时，请改用其他方式处理，不要调用 ReadFile：
+- Excel 表格（.xlsx / .xls / .xlsm）→ 用 Shell 工具运行 Python（pandas / openpyxl）读取
+- PDF（.pdf）→ 用 Shell 工具运行 Python（PyPDF2 / pdfplumber）提取文本
+- Office 文档（.docx / .doc / .pptx / .ppt）→ 用 Shell 工具运行 Python（python-docx 等）提取
+- 图片（.png / .jpg / .gif 等）→ 用 ReadMediaFile 工具
+- 视频（.mp4 / .avi / .mov 等）→ 用 ReadMediaFile 工具
+- 压缩包（.zip / .tar.gz / .7z 等）→ 用 Shell 工具解压后读取
+- 可执行文件、数据库文件等二进制文件 → 不适用
 
 支持分页读取：通过 line_offset 和 n_lines 控制读取范围。
 - line_offset 为正值时从文件头部计数（1-based）
 - line_offset 为负值时从文件尾部计数（如 -100 读取最后100行）
 - 输出带行号（cat -n 格式），方便 Agent 定位
 
-为什么用 ReadFile 而不是 Shell cat：
-- 自动做路径安全校验，防止越界到 /etc、/root 等系统目录
-- 支持 `/global/` 前缀访问全局工作区文件（Shell 做不到）
-- 自动记录文件访问历史，便于审计和回溯
-- 支持从文件尾部倒读（Shell tail 需要额外参数且不带行号）
-- 自动拒绝敏感文件（.env、密钥文件等），避免意外泄露
-
 限制：
 - 单次最多读取 {MAX_LINES} 行或 {MAX_BYTES} 字节
 - 单行超过 {MAX_LINE_LENGTH} 字符会被截断
-- 拒绝读取二进制文件（图片、视频、可执行文件等）
+- 拒绝读取非文本文件（含二进制文件和已知非文本格式）
 """
     params: type[BaseModel] = ReadFileParams
 
@@ -115,10 +120,20 @@ class ReadFile(AiasysTool):
         if not file_path.is_file():
             return ToolResult(content=f"`{params.path}` 不是文件", is_error=True)
 
-        # 二进制检查
+        # 已知非文本扩展名检查（优先于 NUL 字节检测，可给出更精确的替代建议）
+        if _is_non_text_by_suffix(file_path):
+            return ToolResult(
+                content=_get_non_text_hint(file_path),
+                is_error=True,
+            )
+
+        # NUL 字节兜底检测（覆盖扩展名黑名单未涵盖的二进制文件）
         if _is_binary_file(file_path):
             return ToolResult(
-                content=f"`{params.path}` 是二进制文件，请使用其他工具读取。",
+                content=(
+                    f"`{params.path}` 是二进制文件，ReadFile 只能读取纯文本文件。"
+                    "如需提取内容，请用 Shell 工具运行对应的解析命令。"
+                ),
                 is_error=True,
             )
 

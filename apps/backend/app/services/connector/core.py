@@ -134,20 +134,48 @@ class DatabaseConnectorService(
 
     # ==================== 连接器 CRUD ====================
 
-    def list_connectors(self, user_id: str) -> list[DatabaseConnector]:
+    @staticmethod
+    def _is_connector_visible(record: dict[str, Any], workspace_id: str | None) -> bool:
+        """判断连接器是否对指定工作区可见。
+
+        规则：
+        - workspace_id 为 None 时，返回所有（全局 + 所有工作区）
+        - scope == "global" 时，对所有工作区可见
+        - scope == "workspace" 时，仅对所属工作区可见
+        """
+        if workspace_id is None:
+            return True
+        scope = record.get("scope", "global")
+        if scope == "global":
+            return True
+        return record.get("workspace_id") == workspace_id
+
+    def list_connectors(
+        self, user_id: str, workspace_id: str | None = None
+    ) -> list[DatabaseConnector]:
         """列出指定用户的数据库连接器。"""
         payload = self._load_user_config(user_id)
-        connectors = [self._to_public_connector(record) for record in payload.get("connectors", [])]
+        connectors = [
+            self._to_public_connector(record)
+            for record in payload.get("connectors", [])
+            if self._is_connector_visible(record, workspace_id)
+        ]
         return sorted(connectors, key=lambda item: item.updated_at, reverse=True)
 
-    def get_connector(self, user_id: str, connector_id: str) -> Optional[DatabaseConnector]:
+    def get_connector(
+        self, user_id: str, connector_id: str, workspace_id: str | None = None
+    ) -> Optional[DatabaseConnector]:
         """获取单个连接器。"""
         record = self._find_connector_record(user_id, connector_id)
         if record is None:
             return None
+        if not self._is_connector_visible(record, workspace_id):
+            return None
         return self._to_public_connector(record)
 
-    def create_connector(self, user_id: str, request: DatabaseConnectorDraft) -> DatabaseConnector:
+    def create_connector(
+        self, user_id: str, request: DatabaseConnectorDraft, workspace_id: str | None = None
+    ) -> DatabaseConnector:
         """创建数据库连接器。"""
         payload = self._load_user_config(user_id)
         now = _utcnow_iso()
@@ -160,6 +188,17 @@ class DatabaseConnectorService(
             last_test_message=None,
             last_tested_at=None,
         )
+        # 根据 scope 设置 workspace_id
+        scope = record.get("scope", "global")
+        if scope == "workspace":
+            # workspace 级连接器必须绑定到具体工作区；若未提供则回退到 global
+            if workspace_id:
+                record["workspace_id"] = workspace_id
+            else:
+                record["scope"] = "global"
+                record["workspace_id"] = None
+        elif scope == "global":
+            record["workspace_id"] = None
         payload.setdefault("connectors", []).append(record)
         self._save_user_config(user_id, payload)
         return self._to_public_connector(record)
@@ -169,6 +208,7 @@ class DatabaseConnectorService(
         user_id: str,
         connector_id: str,
         request: UpdateDatabaseConnectorRequest,
+        workspace_id: str | None = None,
     ) -> Optional[DatabaseConnector]:
         """更新数据库连接器。"""
         payload = self._load_user_config(user_id)
@@ -177,6 +217,9 @@ class DatabaseConnectorService(
         for index, existing in enumerate(payload.get("connectors", [])):
             if existing.get("connector_id") != connector_id:
                 continue
+
+            if not self._is_connector_visible(existing, workspace_id):
+                return None
 
             merged_payload = self._merge_connector_record(existing, updates)
             draft = DatabaseConnectorDraft(**merged_payload)
@@ -189,6 +232,12 @@ class DatabaseConnectorService(
                 last_test_message=None,
                 last_tested_at=None,
             )
+            # 根据 scope 变更同步 workspace_id
+            scope = normalized.get("scope", existing.get("scope", "global"))
+            if scope == "global":
+                normalized["workspace_id"] = None
+            elif scope == "workspace" and workspace_id:
+                normalized["workspace_id"] = workspace_id
             payload["connectors"][index] = normalized
             self._save_user_config(user_id, payload)
             self._rebuild_connector_credentials_for_user_connector(
@@ -199,12 +248,17 @@ class DatabaseConnectorService(
 
         return None
 
-    def delete_connector(self, user_id: str, connector_id: str) -> bool:
+    def delete_connector(
+        self, user_id: str, connector_id: str, workspace_id: str | None = None
+    ) -> bool:
         """删除数据库连接器，并清理所有会话挂载。"""
         payload = self._load_user_config(user_id)
         original_connectors = payload.get("connectors", [])
         filtered = [
-            record for record in original_connectors if record.get("connector_id") != connector_id
+            record
+            for record in original_connectors
+            if record.get("connector_id") != connector_id
+            or not self._is_connector_visible(record, workspace_id)
         ]
 
         if len(filtered) == len(original_connectors):
@@ -319,6 +373,8 @@ class DatabaseConnectorService(
             "allowed_tables": allowed_tables,
             "query_timeout_seconds": payload.get("query_timeout_seconds", 15),
             "row_limit": payload.get("row_limit", 1000),
+            "scope": payload.get("scope", "global"),
+            "workspace_id": payload.get("workspace_id"),
             "last_test_status": last_test_status,
             "last_test_message": last_test_message,
             "last_tested_at": last_tested_at,
@@ -376,6 +432,8 @@ class DatabaseConnectorService(
             last_test_status=record.get("last_test_status", "untested"),
             last_test_message=record.get("last_test_message"),
             last_tested_at=record.get("last_tested_at"),
+            workspace_id=record.get("workspace_id"),
+            scope=record.get("scope", "global"),
             created_at=record.get("created_at", _utcnow_iso()),
             updated_at=record.get("updated_at", _utcnow_iso()),
         )

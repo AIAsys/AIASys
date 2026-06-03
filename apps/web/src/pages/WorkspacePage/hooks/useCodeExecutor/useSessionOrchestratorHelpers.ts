@@ -58,12 +58,19 @@ function getCurrentWorkspaceId(): string | null {
   return new URLSearchParams(globalThis.location.search).get("workspace_id");
 }
 
+function getCurrentRoutePrefix(): string {
+  const path = globalThis.location.pathname.replace(/\/+$/, "");
+  if (path === "/workspace") return "/workspace";
+  return "/workspace";
+}
+
 export function navigateToAnalysisSession(
   _sessionId: string,
   options?: NavigateToAnalysisSessionOptions,
 ) {
   const withAppNavigate = globalThis as AppNavigateWindow;
-  const url = new URL("/workspace", globalThis.location.origin);
+  const routePrefix = getCurrentRoutePrefix();
+  const url = new URL(routePrefix, globalThis.location.origin);
   const workspaceId =
     options?.workspaceId === undefined
       ? getCurrentWorkspaceId()

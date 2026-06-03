@@ -20,13 +20,18 @@ export function navigateWithApp(path: string) {
   withAppNavigate.appNavigate?.(path) || (globalThis.location.href = path);
 }
 
-export function goToAnalysis(overlay?: string) {
+export function goToWorkspace(overlay?: string) {
   const query = overlay ? `?overlay=${encodeURIComponent(overlay)}` : "";
-  navigateWithApp(`/analysis${query}`);
+  navigateWithApp(`/workspace${query}`);
+}
+
+/** @deprecated 使用 goToWorkspace */
+export function goToAnalysis(overlay?: string) {
+  return goToWorkspace(overlay);
 }
 
 export function goToWorkspaceHome() {
-  navigateWithApp("/analysis");
+  navigateWithApp("/workspace");
 }
 
 export function scrollToHomeSection(sectionId: HomeSectionId) {

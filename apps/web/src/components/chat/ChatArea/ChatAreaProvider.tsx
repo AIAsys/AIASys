@@ -9,7 +9,7 @@ import {
   type ChatAreaActions,
   type ChatAreaMeta,
 } from "./context";
-import type { ChatItem } from "@/pages/DataAnalysisPage/types";
+import type { ChatItem } from "@/pages/WorkspacePage/types";
 
 interface ChatAreaProviderProps {
   children: ReactNode;

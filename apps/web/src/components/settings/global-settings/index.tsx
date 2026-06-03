@@ -21,7 +21,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import type { TaskWorkspaceSummary } from "@/pages/DataAnalysisPage/types";
+import type { TaskWorkspaceSummary } from "@/pages/WorkspacePage/types";
 import type { LLMModelConfig } from "@/lib/api/llm";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -496,12 +496,12 @@ const LazyStorageSettingsDialog = lazy(() =>
   }))
 );
 const LazyGlobalAutoTaskDialog = lazy(() =>
-  import("@/pages/DataAnalysisPage/components/GlobalAutoTaskDialog").then((m) => ({
+  import("@/components/workspace/dialogs/GlobalAutoTaskDialog").then((m) => ({
     default: m.default,
   }))
 );
 const LazyGlobalMonitorDialog = lazy(() =>
-  import("@/pages/DataAnalysisPage/components/GlobalMonitorDialog").then((m) => ({
+  import("@/components/workspace/dialogs/GlobalMonitorDialog").then((m) => ({
     default: m.default,
   }))
 );

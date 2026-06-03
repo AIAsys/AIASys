@@ -80,6 +80,7 @@ export function useCodeExecutor({
     setActiveSession: setActiveStreamSession,
     isSessionRunning,
     runningSessionIds,
+    removeSession: removeAgentStreamSession,
   } = useAgentStream();
   const {
     taskList,
@@ -659,6 +660,7 @@ export function useCodeExecutor({
       removeChatSession(id);
       removeMultiTaskSession(id);
       removeUploadSession(id);
+      removeAgentStreamSession(id);
       unregisterHiddenSession(id);
     },
     uploadedFiles,

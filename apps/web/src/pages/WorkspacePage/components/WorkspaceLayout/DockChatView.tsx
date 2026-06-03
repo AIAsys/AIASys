@@ -1,9 +1,11 @@
 import { ChatArea } from "@/components/chat/ChatArea";
 import { TokenUsageBar } from "@/components/chat/TokenUsageBar";
+import { SessionTaskPanel } from "@/components/session/SessionTaskPanel";
 import type { ChatItem } from "../../types";
 import type { PreviewFile } from "@/components/layout/WorkspaceSidebar/preview";
 import type { LLMModelConfig } from "@/lib/api/llm";
 import type { RuntimeControlsState } from "./types";
+import type { SessionTaskItem, SessionPlanState } from "@/components/session/SessionTaskPanel";
 import { InputArea } from "../InputArea";
 
 interface UploadedFile {
@@ -71,6 +73,8 @@ interface DockChatViewProps {
   sessionInputFocusSignal?: number;
   tokenUsageRefreshSignal?: number | string;
   onUploadToWorkspace?: (files: FileList | File[]) => Promise<void> | void;
+  tasks?: SessionTaskItem[];
+  planState?: SessionPlanState | null;
 }
 
 export function DockChatView({
@@ -115,6 +119,8 @@ export function DockChatView({
   sessionInputFocusSignal,
   tokenUsageRefreshSignal,
   onUploadToWorkspace,
+  tasks,
+  planState,
 }: DockChatViewProps) {
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
@@ -122,6 +128,7 @@ export function DockChatView({
         sessionId={currentSessionId || undefined}
         refreshSignal={tokenUsageRefreshSignal}
       />
+      <SessionTaskPanel tasks={tasks} planState={planState} />
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-muted/15">
         <ChatArea
           items={chatItems}

@@ -40,6 +40,7 @@ class EventMixin:
             "pending_tool_call": None,
             "turn_started": False,
             "turn_n": 0,
+            "turn_has_content": False,
             "current_host_step": 0,
             "pending_host_step": False,
         }
@@ -293,6 +294,8 @@ class EventMixin:
             flushed_event = self._flush_pending_tool_call(state)
             if flushed_event is not None:
                 events.append(flushed_event)
+                if state.get("turn_started"):
+                    state["turn_has_content"] = True
 
         control_events = self._project_host_control_event(item, state)
         if control_events:
@@ -310,6 +313,8 @@ class EventMixin:
                 "arguments_text": (getattr(func, "arguments", None) if func is not None else None),
                 "arguments_parts": [],
             }
+            if state.get("turn_started"):
+                state["turn_has_content"] = True
             return events
 
         runtime_event = (
@@ -325,6 +330,13 @@ class EventMixin:
                 if event.get("type") == "tool_call":
                     self._maybe_prepend_host_step_for_tool_call(state, events)
             events.append(event)
+            # 标记当前 turn 产生了实质内容
+            if state.get("turn_started"):
+                event_type = event.get("type")
+                if event_type in {"content", "tool_call", "tool_result", "monitor"}:
+                    state["turn_has_content"] = True
+                elif event_type == "worker.lifecycle.changed" and event.get("scope") == "host":
+                    state["turn_has_content"] = True
 
         if runtime_event.kind == "tool_call":
             tool_call_id = str(runtime_event.tool_call_id or "").strip()
@@ -371,8 +383,15 @@ class EventMixin:
         state: dict[str, Any],
     ) -> list[dict[str, Any]]:
         if _is_turn_begin_item(item):
+            # 如果上一个 turn 还没有产生任何实质内容，则复用当前 turn_n，
+            # 避免发送空的 turn_begin 事件造成前端大量空白分隔线
+            if state.get("turn_started") and not state.get("turn_has_content"):
+                state["pending_host_step"] = False
+                state["turn_has_content"] = False
+                return []
             state["turn_started"] = True
             state["pending_host_step"] = False
+            state["turn_has_content"] = False
             state["turn_n"] = state.get("turn_n", 0) + 1
             return [{"type": "turn_begin", "turn_n": state["turn_n"]}]
 
@@ -401,6 +420,7 @@ class EventMixin:
             return
         state["turn_started"] = True
         state["turn_n"] = state.get("turn_n", 0) + 1
+        state["turn_has_content"] = False
         events.append({"type": "turn_begin", "turn_n": state["turn_n"]})
 
     def _maybe_prepend_host_step_for_tool_call(

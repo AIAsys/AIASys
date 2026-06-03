@@ -8,7 +8,7 @@ import type {
   TaskWorkspaceSummary,
   WorkspaceRuntimeBindingSummary,
   WorkspaceConversationSummary,
-} from "@/pages/DataAnalysisPage/types";
+} from "@/pages/WorkspacePage/types";
 import type {
   GlobalAutoTaskSummaryResponse,
   GlobalAutoTaskListResponse,
@@ -127,8 +127,26 @@ function normalizeWorkspaceSummary<T extends TaskWorkspaceSummary>(workspace: T)
   };
 }
 
-export async function listTaskWorkspaces(): Promise<TaskWorkspaceSummary[]> {
-  const data = await apiRequest<WorkspaceListResponse>(API_ENDPOINTS.WORKSPACES_LIST, {
+export async function listTaskWorkspaces(
+  summaryOnly: boolean = true,
+  limit?: number,
+  offset?: number,
+): Promise<TaskWorkspaceSummary[]> {
+  const params = new URLSearchParams();
+  if (summaryOnly) {
+    params.set("summary_only", "true");
+  }
+  if (limit !== undefined) {
+    params.set("limit", String(limit));
+  }
+  if (offset !== undefined) {
+    params.set("offset", String(offset));
+  }
+  const query = params.toString();
+  const url = query
+    ? `${API_ENDPOINTS.WORKSPACES_LIST}?${query}`
+    : API_ENDPOINTS.WORKSPACES_LIST;
+  const data = await apiRequest<WorkspaceListResponse>(url, {
     cache: "no-store",
   });
   return Array.isArray(data.workspaces)

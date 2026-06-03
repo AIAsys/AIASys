@@ -214,8 +214,9 @@ def resolve_current_session_database_resource_summaries(
     *,
     user_id: str | None = None,
     session_id: str | None = None,
+    workspace_id: str | None = None,
 ) -> list[dict[str, Any]]:
-    """数据库连接器已改为全局资源，直接返回用户全部可用 connectors。"""
+    """返回当前会话/工作区可见的数据库连接器摘要。"""
     resolved_user_id = _resolve_user_id(user_id)
     if not resolved_user_id:
         return []
@@ -223,6 +224,7 @@ def resolve_current_session_database_resource_summaries(
     try:
         connectors = DatabaseConnectorService(WORKSPACE_DIR).list_connectors(
             resolved_user_id,
+            workspace_id=workspace_id,
         )
     except Exception as exc:
         logger.warning("读取数据库连接器列表失败: %s", exc)
@@ -300,9 +302,11 @@ def build_task_resource_context(
         user_id=user_id,
         workspace_dir=resolved_workspace,
     )
+    workspace_id = resolved_workspace.name if resolved_workspace else None
     current_session_database_resources = resolve_current_session_database_resource_summaries(
         user_id=user_id,
         session_id=session_id,
+        workspace_id=workspace_id,
     )
     normalized_attached_files = [
         normalized
