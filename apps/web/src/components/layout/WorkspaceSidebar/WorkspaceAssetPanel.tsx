@@ -65,7 +65,7 @@ const LazyFileHistoryDialog = lazy(() =>
 );
 import { AssetTreePanelHeader } from "./AssetTreePanelHeader";
 import { getWorkspaceRuntimeEnvironments } from "@/lib/api/workspaces";
-import type { TaskWorkspaceSummary } from "@/pages/DataAnalysisPage/types";
+import type { TaskWorkspaceSummary } from "@/pages/WorkspacePage/types";
 import type {
   WorkspaceRuntimeEnvironment,
   WorkspaceRuntimeEnvironmentRegistry,

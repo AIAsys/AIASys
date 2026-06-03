@@ -3,7 +3,7 @@
  *
  * 使用 Compound Components 模式组合各个部分
  */
-import type { ChatItem } from "@/pages/DataAnalysisPage/types";
+import type { ChatItem } from "@/pages/WorkspacePage/types";
 import { ChatAreaProvider } from "./ChatAreaProvider";
 import type { ChatAreaActions } from "./context";
 import { MessageLayout } from "./MessageLayout";
@@ -31,7 +31,7 @@ export function MessageItem({
   isRunning = false,
 }: MessageItemProps) {
   // MessageItem 只在 ChatAreaList 中对 type="message" 的项调用
-  const msgItem = item as import("@/pages/DataAnalysisPage/types").MessageChatItem;
+  const msgItem = item as import("@/pages/WorkspacePage/types").MessageChatItem;
   const isUser = msgItem.sender === "user" || msgItem.role === "user";
 
   return (

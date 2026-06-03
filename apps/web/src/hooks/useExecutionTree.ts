@@ -9,7 +9,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { apiRequest } from "@/lib/api/httpClient";
 import { eventBus, EVENTS } from "@/lib/eventBus";
 import { getExecutionRecordSeed } from "@/lib/runtimeToolEvents";
-import type { SessionExecutionRecord } from "@/pages/DataAnalysisPage/types";
+import type { SessionExecutionRecord } from "@/pages/WorkspacePage/types";
 import type { ExpertRoleSummary } from "@/types/expertRoles";
 const EXECUTION_MATCH_WINDOW_MS = 5 * 60 * 1000;
 

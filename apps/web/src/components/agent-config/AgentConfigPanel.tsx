@@ -46,7 +46,7 @@ import {
   updateTools,
 } from "@/lib/api/agentConfig";
 import type { AgentMode } from "@/types/agentConfig";
-import type { SessionStatusInfo } from "@/pages/DataAnalysisPage/types";
+import type { SessionStatusInfo } from "@/pages/WorkspacePage/types";
 import type { CapabilityDescriptor } from "@/types/capability";
 import {
   AlertTriangle,

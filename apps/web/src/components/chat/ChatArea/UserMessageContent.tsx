@@ -36,7 +36,7 @@ export function UserMessageContent() {
     meta: { sessionId, isRunning = false },
   } = useChatAreaContext();
   // UserMessageContent 只在 MessageItem 内部渲染 type="message" 的用户消息
-  const msgItem = item as import("@/pages/DataAnalysisPage/types").MessageChatItem;
+  const msgItem = item as import("@/pages/WorkspacePage/types").MessageChatItem;
   const attachments = msgItem.attachments || [];
   const imageAttachments = attachments.filter((value: string) =>
     /\.(png|jpe?g|gif|webp)$/i.test(value),

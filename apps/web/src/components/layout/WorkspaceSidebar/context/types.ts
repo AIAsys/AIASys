@@ -8,7 +8,7 @@ import type { WorkspaceFile } from "@/types/task";
 import type {
   SessionStatusInfo,
   TaskWorkspaceSummary,
-} from "@/pages/DataAnalysisPage/types";
+} from "@/pages/WorkspacePage/types";
 import type { SubAgentTask } from "../SubAgentTaskCard";
 
 export type SidebarTab =

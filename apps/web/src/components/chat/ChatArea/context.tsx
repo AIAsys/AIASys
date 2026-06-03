@@ -4,7 +4,7 @@
  * 遵循 State-Context-Interface 模式，将状态管理从 UI 中解耦
  */
 import { createContext, useContext } from "react";
-import type { ChatItem } from "@/pages/DataAnalysisPage/types";
+import type { ChatItem } from "@/pages/WorkspacePage/types";
 import type { PreviewFile } from "@/components/layout/WorkspaceSidebar/preview";
 
 // Context 状态接口

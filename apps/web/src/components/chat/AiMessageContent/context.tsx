@@ -4,7 +4,7 @@
  * 提供 AI 消息内容渲染所需的状态和动作
  */
 import { createContext, useContext } from "react";
-import type { ChatSegment, WorkerRecord } from "@/pages/DataAnalysisPage/types";
+import type { ChatSegment, WorkerRecord } from "@/pages/WorkspacePage/types";
 import type { PreviewFile } from "@/components/layout/WorkspaceSidebar/preview";
 
 // Context 状态接口
