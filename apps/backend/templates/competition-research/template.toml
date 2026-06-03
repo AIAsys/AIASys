@@ -7,7 +7,7 @@ default_title = "竞赛攻关"
 default_description = "针对数据竞赛或算法竞赛建立 baseline、持续实验优化。"
 initial_conversation_title = "开始竞赛研究"
 env_kind = "uv"
-recommended_skills = ["competition-research-skill"]
+recommended_skills = ["competition-research-skill", "competition-runtime-prep-skill", "competition-parallel-research-skill", "arxiv-search-skill", "aiasys-tool-usage-skill"]
 
 [[files]]
 relative_path = "README.md"

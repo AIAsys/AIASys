@@ -7,6 +7,7 @@ default_title = "知识管理"
 default_description = "构建和管理可积累的结构化知识库。"
 initial_conversation_title = "开始知识管理"
 env_kind = "none"
+recommended_skills = ["aiasys-platform-skill", "aiasys-canvas-skill", "aiasys-memory-organizer-skill", "pymupdf4llm-pdf-to-markdown-skill", "paddleocr-skill", "aiasys-tool-usage-skill"]
 
 [[files]]
 relative_path = "README.md"

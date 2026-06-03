@@ -7,6 +7,7 @@ default_title = "代码开发"
 default_description = "进行代码编写、重构或功能实现。"
 initial_conversation_title = "开始开发"
 env_kind = "uv"
+recommended_skills = ["aiasys-platform-skill", "aiasys-canvas-skill", "uv-runtime-skill", "skill-creator-skill", "aiasys-tool-usage-skill"]
 
 [[files]]
 relative_path = "README.md"

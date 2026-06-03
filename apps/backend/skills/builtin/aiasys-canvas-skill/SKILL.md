@@ -8,7 +8,14 @@ description = "AIASys 内置 Canvas 编辑能力。操作 JSON Canvas 格式的 
 
 操作 JSON Canvas 格式的 `.canvas` 文件。AIASys 只依赖核心字段，未知扩展字段只做透传，不把研究状态写成通用 Canvas 能力。
 
-运行时如果已经有 Agent 工具面，优先使用 `ReadCanvas`、`WriteCanvas`、`BatchCanvasOperations` 读写和批量修改 `.canvas` 文件。这个 skill 继续提供脚本化编辑、命令行批处理和格式说明；工具面不可用时再使用下方脚本。
+## 工具优先原则（最高优先级）
+
+如果当前 Agent 拥有 `ReadCanvas`、`WriteCanvas`、`BatchCanvasOperations` 工具，**必须优先使用这些工具**，不要调用脚本或手写 JSON：
+- 创建/覆盖 canvas → `WriteCanvas`
+- 读取 canvas → `ReadCanvas`
+- 批量增删改节点和边 → `BatchCanvasOperations`
+
+只有在**确认没有上述工具**时，才使用下方脚本化方案。
 
 这是 AIASys 内置特殊 skill。使用前如果当前工作区没有启用它，先调用 `EnableSkill(skill_name="aiasys-canvas-skill")`，再读取或执行脚本。
 
@@ -26,9 +33,9 @@ description = "AIASys 内置 Canvas 编辑能力。操作 JSON Canvas 格式的 
 
 ## 核心规则
 
-### 规则 1：始终通过脚本操作，不要手写 JSON
+### 规则 1：优先使用工具，工具不可用时通过脚本操作，不要手写 JSON
 
-`.canvas` 文件的节点和边有严格的 ID 关联。直接手写 JSON 容易破坏一致性。普通增删改用 `scripts/modify.py`。
+`.canvas` 文件的节点和边有严格的 ID 关联。直接手写 JSON 容易破坏一致性。如果 Agent 有 `WriteCanvas` 和 `BatchCanvasOperations` 工具，用它们操作；否则普通增删改用 `scripts/modify.py`。
 
 ### 规则 2：编辑后必须校验
 
