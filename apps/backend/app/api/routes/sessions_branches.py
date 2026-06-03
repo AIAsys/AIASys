@@ -216,6 +216,41 @@ async def create_session(request: CreateSessionRequest, user: UserInfo = Depends
             execution_policy=request.execution_policy,
         )
 
+        # 绑定工作区：若提供了 workspace_id 则绑定到指定工作区，
+        # 否则自动创建一个同名工作区并绑定，确保 RuntimeEnvironment 等工具正常工作
+        try:
+            registry = get_workspace_registry_service()
+            workspace_id = request.workspace_id
+            if workspace_id:
+                # 验证工作区存在
+                registry.get_workspace(user_id, workspace_id, include_conversations=False)
+            else:
+                # 自动创建同名工作区
+                workspace_id = request.session_id
+                try:
+                    registry.get_workspace(user_id, workspace_id, include_conversations=False)
+                except FileNotFoundError:
+                    registry.create_workspace(
+                        user_id=user_id,
+                        title=request.title or "新会话",
+                        workspace_id=workspace_id,
+                        workspace_kind="task",
+                        env_id="workspace-default",
+                        sandbox_mode="local",
+                    )
+            # 写入 session -> workspace 反向索引
+            registry._write_session_index(user_id, request.session_id, workspace_id)
+            # 将 session 作为对话加入工作区
+            registry.add_conversation_to_workspace(
+                user_id=user_id,
+                workspace_id=workspace_id,
+                conversation_id=request.session_id,
+                conversation_title=request.title or "新会话",
+                make_current=True,
+            )
+        except Exception as e:
+            logger.warning(f"会话工作区绑定失败（不影响会话创建）: {e}")
+
         return SessionResponse(
             session_id=metadata.session_id,
             title=metadata.title,

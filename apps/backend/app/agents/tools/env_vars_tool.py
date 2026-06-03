@@ -79,6 +79,21 @@ def _resolve_workspace_scope(
                 return user_id, candidate
             except FileNotFoundError:
                 pass
+            # 路径存在但不是注册 workspace（例如 session 目录），自动创建 workspace
+            p = Path(str(workspace_path))
+            if p.exists() and p.is_dir():
+                try:
+                    registry.create_workspace(
+                        user_id=user_id,
+                        title=candidate,
+                        workspace_id=candidate,
+                    )
+                except ValueError as exc:
+                    if "工作区已存在" in str(exc):
+                        pass  # 已存在，继续
+                    else:
+                        raise
+                return user_id, candidate
 
     return "当前会话没有绑定可解析的工作区，无法管理工作区环境变量。"
 
@@ -93,16 +108,24 @@ class ListEnvVars(AiasysTool):
     """列出当前会话运行态可用的环境变量名。"""
 
     name: str = "ListEnvVars"
-    description: str = """列出当前会话运行态可用的环境变量名。
+    description: str = """列出当前工作区的环境变量名。
+
+适用场景：
+- 查看当前工作区设置了哪些环境变量
+- 列出环境变量名称列表
 
 返回内容：
 - count: 变量名数量
 - env_vars: 按字母序排列的环境变量名列表
 
+为什么用 ListEnvVars 而不是 Shell `env`：
+- 返回结构化 JSON，方便后续处理
+- 包含工作区持久化环境变量 + 当前会话注入的变量，范围明确
+- Shell `env` 输出是纯文本，需要额外解析
+
 限制：
 - 只返回变量名，不返回变量值
-- 包含当前会话注入的自定义环境变量名
-- 不适合用来读取密钥值；读取具体变量值请由代码运行环境自行按需访问
+- 不适合用来读取密钥值；读取具体变量值请用 GetEnvVar 或由代码运行环境自行按需访问
 """
     params: type[BaseModel] = ListEnvVarsParams
 
@@ -143,13 +166,21 @@ class GetEnvVarParams(BaseModel):
 
 
 class GetEnvVar(AiasysTool):
-    """读取当前会话运行态中某个环境变量的值。"""
+    """读取当前工作区中某个环境变量的值。"""
 
     name: str = "GetEnvVar"
-    description: str = """读取当前会话运行态中某个环境变量的值。
+    description: str = """读取当前工作区中某个环境变量的值。
 
-返回指定环境变量的当前值。如果变量名匹配敏感 key 模式（含 KEY/SECRET/TOKEN 等），
-值会被脱敏显示（仅显示前4位和后4位）。
+适用场景：
+- 查询某个环境变量的当前值
+- 验证环境变量是否已正确设置
+
+为什么用 GetEnvVar 而不是 Shell `echo $VAR`：
+- 返回结构化 JSON，包含变量名、值、是否脱敏等完整信息
+- 自动检测敏感变量名（含 KEY/SECRET/TOKEN 等）并脱敏显示，降低泄露风险
+- 读取的是工作区持久化环境变量，不只是当前 Shell 进程的临时值
+
+返回指定环境变量的当前值。如果变量名匹配敏感 key 模式，值会被脱敏显示（仅显示前4位和后4位）。
 """
     params: type[BaseModel] = GetEnvVarParams
 
@@ -158,6 +189,8 @@ class GetEnvVar(AiasysTool):
         ctx: dict[str, Any] | None = None,
         **kwargs: Any,
     ) -> ToolResult:
+        if "key" in kwargs and "name" not in kwargs:
+            kwargs["name"] = kwargs.pop("key")
         params = GetEnvVarParams.model_validate(kwargs)
         del ctx
 
@@ -216,9 +249,19 @@ class SetEnvVar(AiasysTool):
     """设置工作区级别的环境变量。"""
 
     name: str = "SetEnvVar"
-    description: str = """设置工作区级别的环境变量。变量写入当前工作区 runtime_binding.env_vars。
+    description: str = """设置/修改当前工作区的环境变量。变量写入当前工作区 runtime_binding.env_vars。
 
-设置后，当前会话的下一次工具调用会使用新值。
+适用场景：
+- 为当前工作区设置新的环境变量
+- 修改已有环境变量的值
+- 配置 API Key、数据库连接串等任务专属配置
+
+为什么用 SetEnvVar 而不是 Shell `export`：
+- **持久化**：设置后写入工作区，跨会话可用。Shell export 只在当前进程生效，Shell 关闭后丢失
+- **隔离性**：只作用于当前工作区，不影响其他工作区或全局环境变量
+- **安全性**：设置后自动同步到当前会话运行环境，下一次工具调用和代码执行都会使用新值
+
+设置后，当前会话的下一次工具调用和代码执行会使用新值。
 注意：只作用于当前工作区，不影响其他工作区或全局环境变量。
 """
     params: type[BaseModel] = SetEnvVarParams
@@ -228,6 +271,9 @@ class SetEnvVar(AiasysTool):
         ctx: dict[str, Any] | None = None,
         **kwargs: Any,
     ) -> ToolResult:
+        # Agent 有时会传 key 而不是 name，做容错映射
+        if "key" in kwargs and "name" not in kwargs:
+            kwargs["name"] = kwargs.pop("key")
         params = SetEnvVarParams.model_validate(kwargs)
 
         scope = _resolve_workspace_scope(ctx)
@@ -275,7 +321,18 @@ class DeleteEnvVar(AiasysTool):
     """删除工作区级别的环境变量。"""
 
     name: str = "DeleteEnvVar"
-    description: str = """删除工作区级别的环境变量（从当前工作区 runtime_binding.env_vars 中移除）。
+    description: str = """删除/移除当前工作区的环境变量（从当前工作区 runtime_binding.env_vars 中永久移除）。
+
+适用场景：
+- 删除不再使用的环境变量
+- 清理临时配置
+
+为什么用 DeleteEnvVar 而不是 Shell `unset`：
+- **永久删除**：从工作区注册表中永久删除，跨会话生效。Shell `unset` 只在当前 Shell 进程生效，关闭 Shell 后变量仍然存在，下次打开新 Shell 时变量还会存在
+- **精确性**：只删除工作区级别的变量，不会误删系统环境变量
+- **同步性**：删除后自动同步到当前会话运行环境，立即生效
+
+重要：不要用 Shell `unset` 或 `export VAR=` 来删除环境变量，这不会持久化到工作区。必须用此工具才能永久删除。
 
 注意：只能删除工作区级别的环境变量，无法删除全局环境变量或系统环境变量。
 """
@@ -286,6 +343,8 @@ class DeleteEnvVar(AiasysTool):
         ctx: dict[str, Any] | None = None,
         **kwargs: Any,
     ) -> ToolResult:
+        if "key" in kwargs and "name" not in kwargs:
+            kwargs["name"] = kwargs.pop("key")
         params = DeleteEnvVarParams.model_validate(kwargs)
 
         scope = _resolve_workspace_scope(ctx)
