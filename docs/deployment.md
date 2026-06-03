@@ -121,7 +121,7 @@ VITE_AUTH_MODE=local
 ## 6. 访问地址
 
 - 前端首页：`http://localhost:13000`
-- 分析页：`http://localhost:13000/analysis`
+- 分析页：`http://localhost:13000/workspace`
 - 后端健康检查：`http://localhost:13001/health`
 
 ## 7. 构建前端

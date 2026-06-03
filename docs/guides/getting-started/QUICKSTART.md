@@ -74,7 +74,7 @@ cd ../..
 
 推荐从界面配置：
 
-1. 打开 `http://localhost:13000/analysis`。
+1. 打开 `http://localhost:13000/workspace`。
 2. 点击左侧边栏底部的`工作区工具`，进入`模型配置`。
 3. 点击`添加服务商`，填写服务商的 API 连接信息。
 4. 在服务商卡片中点击`测试`，确认 Base URL 和 API Key 可用。
@@ -188,7 +188,7 @@ npm run dev
 服务启动后，可以通过以下方式验证（以下 URL 为默认值）：
 
 - 前端界面：[http://localhost:13000](http://localhost:13000)
-- 分析页：[http://localhost:13000/analysis](http://localhost:13000/analysis)
+- 分析页：[http://localhost:13000/workspace](http://localhost:13000/workspace)
 - 后端健康检查：
 
   ```bash
@@ -230,6 +230,6 @@ npm run dev
 启动成功后，你可以访问：
 
 - 首页：`http://localhost:13000`
-- 分析工作区：`http://localhost:13000/analysis`
+- 分析工作区：`http://localhost:13000/workspace`
 
 分析工作区是当前主界面，左侧 Activity Bar 提供文件管理、数据查询、自动化任务等功能，右侧聊天侧栏用于与 Agent 对话和查看执行上下文。
