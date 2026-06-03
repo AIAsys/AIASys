@@ -319,3 +319,54 @@ async def test_global_path_escape_rejected(tmp_global_workspace: Path) -> None:
 
     assert result.is_error
     assert "非法" in result.message or "超出" in result.message
+
+
+# ---------------------------------------------------------------------------
+# /workspace/ prefix support (upload API returns this format)
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_read_file_workspace_prefix(tmp_workspace: Path) -> None:
+    (tmp_workspace / "A-Attachment.xlsx").write_text("mock excel content", encoding="utf-8")
+
+    tool = ReadFile()
+    result = await tool.invoke(**ReadFileParams(path="/workspace/A-Attachment.xlsx").model_dump())
+
+    assert not result.is_error
+    assert "mock excel content" in result.output
+
+
+@pytest.mark.asyncio
+async def test_write_file_workspace_prefix(tmp_workspace: Path) -> None:
+    tool = WriteFile()
+    result = await tool.invoke(
+        **WriteFileParams(path="/workspace/uploaded.txt", content="from upload").model_dump()
+    )
+
+    assert not result.is_error
+    assert (tmp_workspace / "uploaded.txt").read_text(encoding="utf-8") == "from upload"
+
+
+@pytest.mark.asyncio
+async def test_str_replace_file_workspace_prefix(tmp_workspace: Path) -> None:
+    (tmp_workspace / "edit.txt").write_text("hello workspace", encoding="utf-8")
+
+    tool = StrReplaceFile()
+    result = await tool.invoke(
+        **StrReplaceFileParams(
+            path="/workspace/edit.txt",
+            edit=FileEdit(old="workspace", new="world"),
+        ).model_dump()
+    )
+
+    assert not result.is_error
+    assert (tmp_workspace / "edit.txt").read_text(encoding="utf-8") == "hello world"
+
+
+@pytest.mark.asyncio
+async def test_workspace_prefix_escape_rejected(tmp_workspace: Path) -> None:
+    tool = ReadFile()
+    result = await tool.invoke(**ReadFileParams(path="/workspace/../etc/passwd").model_dump())
+
+    assert result.is_error
+    assert "非法" in result.message or "超出" in result.message
