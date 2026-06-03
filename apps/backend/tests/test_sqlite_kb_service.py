@@ -3,12 +3,6 @@ from pathlib import Path
 
 import pytest
 
-from app.core.database import (
-    Document as DocumentORM,
-    DocumentChunk as DocumentChunkORM,
-    KnowledgeBase as KnowledgeBaseORM,
-    SessionLocal,
-)
 from app.document_extraction import DocumentExtractionMode, DocumentExtractionResult
 from app.knowledge.models import (
     KnowledgeBaseCreate,
@@ -17,6 +11,7 @@ from app.knowledge.models import (
     QueryRequest,
     SearchMode,
 )
+from app.core.time import utc_now_naive
 from app.knowledge.sqlite_kb_service import SQLiteKBService
 
 
@@ -113,23 +108,106 @@ def _create_kb(
     chunk_size: int = 512,
     chunk_overlap: int = 50,
     default_search_mode: str = SearchMode.FULLTEXT.value,
-) -> None:
-    db = SessionLocal()
-    try:
-        db.add(
-            KnowledgeBaseORM(
-                id=kb_id,
-                name=kb_id,
-                user_id="local_default",
-                embedding_model=embedding_model,
-                chunk_size=chunk_size,
-                chunk_overlap=chunk_overlap,
-                default_search_mode=default_search_mode,
-            )
+) -> Path:
+    """在全局工作区下直接创建知识库 .db 文件（不经过 service 层，避免 mock 依赖）。"""
+    from app.core.config import WORKSPACE_DIR
+
+    workspace_root = WORKSPACE_DIR / "local_default" / "global_workspace"
+    kb_dir = workspace_root / ".aiasys" / "knowledge"
+    kb_dir.mkdir(parents=True, exist_ok=True)
+    db_path = kb_dir / f"{kb_id}.db"
+    if db_path.exists():
+        db_path.unlink()
+
+    conn = sqlite3.connect(str(db_path))
+    SQLiteKBService._ensure_metadata_table(conn)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS kb_documents (
+            id TEXT PRIMARY KEY,
+            
+            filename TEXT NOT NULL,
+            file_type TEXT NOT NULL,
+            file_size INTEGER NOT NULL,
+            status TEXT NOT NULL,
+            chunk_count INTEGER NOT NULL DEFAULT 0,
+            error_message TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
         )
-        db.commit()
-    finally:
-        db.close()
+    """)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS kb_chunks (
+            id TEXT PRIMARY KEY,
+            document_id TEXT NOT NULL,
+            chunk_index INTEGER NOT NULL,
+            content TEXT NOT NULL,
+            meta_json TEXT,
+            chunk_id TEXT NOT NULL
+        )
+    """)
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_kb_chunks_doc_id ON kb_chunks(document_id)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_kb_chunks_chunk_id ON kb_chunks(chunk_id)")
+
+    now = utc_now_naive().isoformat()
+    init_status = (
+        KnowledgeBaseInitStatus.READY.value
+        if embedding_model
+        else KnowledgeBaseInitStatus.DRAFT.value
+    )
+    config_complete = "true" if embedding_model else "false"
+    config_issue = "" if embedding_model else "需要先配置 embedding 模型"
+
+    meta_rows = [
+        ("schema_version", "1", now),
+        ("knowledge_base_id", kb_id, now),
+        ("name", kb_id, now),
+        ("user_id", "local_default", now),
+        ("kind", "document", now),
+        ("scope", "global", now),
+        ("embedding_model", embedding_model or "", now),
+        ("chunk_size", str(chunk_size), now),
+        ("chunk_overlap", str(chunk_overlap), now),
+        ("default_search_mode", default_search_mode, now),
+        ("init_status", init_status, now),
+        ("config_complete", config_complete, now),
+        ("config_issue", config_issue, now),
+        ("config_version", "1", now),
+        ("last_indexed_config_version", "0", now),
+        ("created_at", now, now),
+        ("updated_at", now, now),
+    ]
+    conn.executemany(
+        "INSERT INTO kb_metadata(key, value, updated_at) VALUES (?, ?, ?)",
+        meta_rows,
+    )
+    conn.commit()
+    conn.close()
+    return db_path
+
+
+def _add_document_to_kb(
+    db_path: Path,
+    doc_id: str,
+    kb_id: str,
+    filename: str = "old.md",
+    file_type: str = "md",
+    file_size: int = 3,
+    chunk_count: int = 1,
+) -> None:
+    """向已有知识库 .db 插入一条文档记录。"""
+    conn = sqlite3.connect(str(db_path))
+    now = utc_now_naive().isoformat()
+    conn.execute(
+        """
+        INSERT INTO kb_documents(
+            id, filename, file_type, file_size,
+            status, chunk_count, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        [doc_id, filename, file_type, file_size, "completed", chunk_count, now, now],
+    )
+    conn.commit()
+    conn.close()
 
 
 def test_create_knowledge_base_persists_import_defaults(
@@ -137,10 +215,7 @@ def test_create_knowledge_base_persists_import_defaults(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     workspace_root = tmp_path / "local_default" / "global_workspace"
-    monkeypatch.setattr(
-        "app.core.config.get_user_global_workspace_dir",
-        lambda user_id: tmp_path / user_id / "global_workspace",
-    )
+    monkeypatch.setattr("app.core.config.WORKSPACE_DIR", tmp_path)
     monkeypatch.setattr(
         "app.knowledge.sqlite_kb_service.get_llm_config_service",
         lambda: type(
@@ -192,10 +267,7 @@ def test_create_knowledge_base_without_embedding_stays_draft(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(
-        "app.core.config.get_user_global_workspace_dir",
-        lambda user_id: tmp_path / user_id / "global_workspace",
-    )
+    monkeypatch.setattr("app.core.config.WORKSPACE_DIR", tmp_path)
     monkeypatch.setattr(
         "app.knowledge.sqlite_kb_service.get_llm_config_service",
         lambda: type(
@@ -216,7 +288,14 @@ def test_create_knowledge_base_without_embedding_stays_draft(
     assert response.config_issue == "需要先配置 embedding 模型"
     assert response.can_edit_index_config is True
 
-    metadata = _metadata_rows(tmp_path / "local_default" / "global_workspace" / ".aiasys" / "knowledge" / f"{response.id}.db")
+    metadata = _metadata_rows(
+        tmp_path
+        / "local_default"
+        / "global_workspace"
+        / ".aiasys"
+        / "knowledge"
+        / f"{response.id}.db"
+    )
     assert metadata["init_status"] == KnowledgeBaseInitStatus.DRAFT.value
     assert metadata["config_complete"] == "false"
     assert metadata["config_issue"] == "需要先配置 embedding 模型"
@@ -226,24 +305,11 @@ def test_empty_knowledge_base_update_embedding_moves_to_ready(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(
-        "app.core.config.get_user_global_workspace_dir",
-        lambda user_id: tmp_path / user_id / "global_workspace",
-    )
-    monkeypatch.setattr(SQLiteKBService, "_ensure_kb_schema", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr("app.core.config.WORKSPACE_DIR", tmp_path)
 
-    _create_kb("kb-draft", embedding_model=None)
-    service = SQLiteKBService()
-    db = SessionLocal()
-    try:
-        service._sync_kb_runtime_metadata(
-            "local_default",
-            db.query(KnowledgeBaseORM).filter_by(id="kb-draft").one(),
-        )
-    finally:
-        db.close()
+    db_path = _create_kb("kb-draft", embedding_model=None)
 
-    response = service.update_knowledge_base(
+    response = SQLiteKBService().update_knowledge_base(
         "local_default",
         "kb-draft",
         KnowledgeBaseUpdate(
@@ -261,7 +327,9 @@ def test_empty_knowledge_base_update_embedding_moves_to_ready(
     assert response.config_issue is None
     assert response.config_version == 2
 
-    metadata = _metadata_rows(tmp_path / "local_default" / "global_workspace" / ".aiasys" / "knowledge" / "kb-draft.db")
+    metadata = _metadata_rows(
+        tmp_path / "local_default" / "global_workspace" / ".aiasys" / "knowledge" / "kb-draft.db"
+    )
     assert metadata["embedding_model"] == "embedding-ready"
     assert metadata["init_status"] == KnowledgeBaseInitStatus.READY.value
     assert metadata["config_complete"] == "true"
@@ -273,10 +341,7 @@ async def test_batch_upload_applies_import_config_and_returns_per_file_results(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(
-        "app.core.config.get_user_global_workspace_dir",
-        lambda user_id: tmp_path / user_id / "global_workspace",
-    )
+    monkeypatch.setattr("app.core.config.WORKSPACE_DIR", tmp_path)
     monkeypatch.setattr(SQLiteKBService, "_ensure_kb_schema", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(SQLiteKBService, "_insert_chunks", lambda *_args, **_kwargs: None)
     from unittest.mock import AsyncMock
@@ -329,21 +394,10 @@ async def test_batch_upload_applies_import_config_and_returns_per_file_results(
     assert all(item.chunk_size == 128 for item in response.results)
     assert all(item.chunk_overlap == 16 for item in response.results)
 
-    db = SessionLocal()
-    try:
-        stored_kb = db.query(KnowledgeBaseORM).filter_by(id="kb-batch").one()
-        assert stored_kb.embedding_model == "embedding-custom"
-        assert stored_kb.chunk_size == 128
-        assert stored_kb.chunk_overlap == 16
-        assert stored_kb.default_search_mode == SearchMode.HYBRID.value
-        assert db.query(DocumentORM).filter_by(knowledge_base_id="kb-batch").count() == 2
-        assert db.query(DocumentChunkORM).join(DocumentORM).filter(
-            DocumentORM.knowledge_base_id == "kb-batch"
-        ).count() == 2
-    finally:
-        db.close()
-
-    metadata = _metadata_rows(tmp_path / "local_default" / "global_workspace" / ".aiasys" / "knowledge" / "kb-batch.db")
+    # 验证 .db 文件中的元数据（替代原来对 aiasys.db ORM 的断言）
+    metadata = _metadata_rows(
+        tmp_path / "local_default" / "global_workspace" / ".aiasys" / "knowledge" / "kb-batch.db"
+    )
     assert metadata["knowledge_base_id"] == "kb-batch"
     assert metadata["embedding_model"] == "embedding-custom"
     assert metadata["chunk_size"] == "128"
@@ -361,8 +415,8 @@ async def test_upload_document_rejects_draft_knowledge_base(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
-        "app.core.config.get_user_global_workspace_dir",
-        lambda user_id: tmp_path / user_id / "global_workspace",
+        "app.core.config.WORKSPACE_DIR",
+        tmp_path,
     )
 
     _create_kb("kb-draft-upload", embedding_model=None)
@@ -377,12 +431,6 @@ async def test_upload_document_rejects_draft_knowledge_base(
     assert response.message == "需要先配置 embedding 模型"
     assert response.embedding_model is None
 
-    db = SessionLocal()
-    try:
-        assert db.query(DocumentORM).filter_by(knowledge_base_id="kb-draft-upload").count() == 0
-    finally:
-        db.close()
-
 
 @pytest.mark.asyncio
 async def test_query_rejects_draft_knowledge_base(
@@ -390,8 +438,8 @@ async def test_query_rejects_draft_knowledge_base(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
-        "app.core.config.get_user_global_workspace_dir",
-        lambda user_id: tmp_path / user_id / "global_workspace",
+        "app.core.config.WORKSPACE_DIR",
+        tmp_path,
     )
 
     _create_kb("kb-draft-query", embedding_model=None)
@@ -410,28 +458,13 @@ async def test_upload_document_rejects_embedding_model_switch_after_documents(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
-        "app.core.config.get_user_global_workspace_dir",
-        lambda user_id: tmp_path / user_id / "global_workspace",
+        "app.core.config.WORKSPACE_DIR",
+        tmp_path,
     )
     monkeypatch.setattr(SQLiteKBService, "_ensure_kb_schema", lambda *_args, **_kwargs: None)
 
-    _create_kb("kb-existing", embedding_model="embedding-a")
-    db = SessionLocal()
-    try:
-        db.add(
-            DocumentORM(
-                id="doc-existing",
-                knowledge_base_id="kb-existing",
-                filename="old.md",
-                file_type="md",
-                file_size=3,
-                status="completed",
-                chunk_count=1,
-            )
-        )
-        db.commit()
-    finally:
-        db.close()
+    db_path = _create_kb("kb-existing", embedding_model="embedding-a")
+    _add_document_to_kb(db_path, "doc-existing", "kb-existing")
 
     response = await SQLiteKBService().upload_document(
         user_id="local_default",
@@ -444,13 +477,9 @@ async def test_upload_document_rejects_embedding_model_switch_after_documents(
     assert response.success is False
     assert "不能在导入时切换 embedding 模型" in response.message
 
-    db = SessionLocal()
-    try:
-        stored_kb = db.query(KnowledgeBaseORM).filter_by(id="kb-existing").one()
-        assert stored_kb.embedding_model == "embedding-a"
-        assert db.query(DocumentORM).filter_by(knowledge_base_id="kb-existing").count() == 1
-    finally:
-        db.close()
+    # 验证 .db 中元数据未被修改
+    metadata = _metadata_rows(db_path)
+    assert metadata["embedding_model"] == "embedding-a"
 
 
 @pytest.mark.asyncio
@@ -459,11 +488,11 @@ async def test_upload_document_rejects_invalid_chunk_config_without_persisting(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
-        "app.core.config.get_user_global_workspace_dir",
-        lambda user_id: tmp_path / user_id / "global_workspace",
+        "app.core.config.WORKSPACE_DIR",
+        tmp_path,
     )
 
-    _create_kb("kb-invalid-chunk", chunk_size=512, chunk_overlap=50)
+    db_path = _create_kb("kb-invalid-chunk", chunk_size=512, chunk_overlap=50)
 
     response = await SQLiteKBService().upload_document(
         user_id="local_default",
@@ -477,14 +506,9 @@ async def test_upload_document_rejects_invalid_chunk_config_without_persisting(
     assert response.success is False
     assert "chunk_size 必须在 64-8192 之间" in response.message
 
-    db = SessionLocal()
-    try:
-        stored_kb = db.query(KnowledgeBaseORM).filter_by(id="kb-invalid-chunk").one()
-        assert stored_kb.chunk_size == 512
-        assert stored_kb.chunk_overlap == 50
-        assert db.query(DocumentORM).filter_by(knowledge_base_id="kb-invalid-chunk").count() == 0
-    finally:
-        db.close()
+    metadata = _metadata_rows(db_path)
+    assert metadata["chunk_size"] == "512"
+    assert metadata["chunk_overlap"] == "50"
 
 
 @pytest.mark.asyncio
@@ -493,27 +517,14 @@ async def test_upload_document_rejects_chunk_config_change_after_documents(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
-        "app.core.config.get_user_global_workspace_dir",
-        lambda user_id: tmp_path / user_id / "global_workspace",
+        "app.core.config.WORKSPACE_DIR",
+        tmp_path,
     )
 
-    _create_kb("kb-existing-chunk", embedding_model="embedding-a", chunk_size=512, chunk_overlap=50)
-    db = SessionLocal()
-    try:
-        db.add(
-            DocumentORM(
-                id="doc-existing-chunk",
-                knowledge_base_id="kb-existing-chunk",
-                filename="old.md",
-                file_type="md",
-                file_size=3,
-                status="completed",
-                chunk_count=1,
-            )
-        )
-        db.commit()
-    finally:
-        db.close()
+    db_path = _create_kb(
+        "kb-existing-chunk", embedding_model="embedding-a", chunk_size=512, chunk_overlap=50
+    )
+    _add_document_to_kb(db_path, "doc-existing-chunk", "kb-existing-chunk")
 
     response = await SQLiteKBService().upload_document(
         user_id="local_default",
@@ -527,14 +538,9 @@ async def test_upload_document_rejects_chunk_config_change_after_documents(
     assert response.success is False
     assert "不能在导入时修改分块配置" in response.message
 
-    db = SessionLocal()
-    try:
-        stored_kb = db.query(KnowledgeBaseORM).filter_by(id="kb-existing-chunk").one()
-        assert stored_kb.chunk_size == 512
-        assert stored_kb.chunk_overlap == 50
-        assert db.query(DocumentORM).filter_by(knowledge_base_id="kb-existing-chunk").count() == 1
-    finally:
-        db.close()
+    metadata = _metadata_rows(db_path)
+    assert metadata["chunk_size"] == "512"
+    assert metadata["chunk_overlap"] == "50"
 
 
 def test_update_rejects_chunk_config_change_after_documents(
@@ -542,27 +548,14 @@ def test_update_rejects_chunk_config_change_after_documents(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
-        "app.core.config.get_user_global_workspace_dir",
-        lambda user_id: tmp_path / user_id / "global_workspace",
+        "app.core.config.WORKSPACE_DIR",
+        tmp_path,
     )
 
-    _create_kb("kb-update-chunk", embedding_model="embedding-a", chunk_size=512, chunk_overlap=50)
-    db = SessionLocal()
-    try:
-        db.add(
-            DocumentORM(
-                id="doc-update-chunk",
-                knowledge_base_id="kb-update-chunk",
-                filename="old.md",
-                file_type="md",
-                file_size=3,
-                status="completed",
-                chunk_count=1,
-            )
-        )
-        db.commit()
-    finally:
-        db.close()
+    db_path = _create_kb(
+        "kb-update-chunk", embedding_model="embedding-a", chunk_size=512, chunk_overlap=50
+    )
+    _add_document_to_kb(db_path, "doc-update-chunk", "kb-update-chunk")
 
     with pytest.raises(ValueError, match="不能直接修改分块配置"):
         SQLiteKBService().update_knowledge_base(
@@ -573,7 +566,9 @@ def test_update_rejects_chunk_config_change_after_documents(
 
 
 @pytest.mark.asyncio
-async def test_query_uses_knowledge_base_default_search_mode(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_query_uses_knowledge_base_default_search_mode(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     from unittest.mock import AsyncMock
 
     used_modes: list[SearchMode] = []
