@@ -203,6 +203,7 @@ class CreateDataTable(AiasysTool):
 创建多维数据表。
 
 多维表以 SQLite .table.db 文件存储，可放在当前工作区或全局工作区。
+支持 CRUD 操作和列管理，但不支持直接 SQL 查询。需要聚合计算时，先用 ReadDataTableRecords 读取数据，再用 RunCode 处理。
 
 参数：
 - name: 表格展示名称。
@@ -306,6 +307,8 @@ class ReadDataTableRecords(AiasysTool):
     name: str = "ReadDataTableRecords"
     description: str = """
 读取多维表记录。
+
+返回完整记录列表。如需聚合（平均值、排序、过滤等），先读取记录再用 RunCode 处理，DataTable 本身不支持 SQL 查询。
 
 参数：
 - table_path: 多维表路径，支持相对路径、/workspace/... 或 /global/...。
