@@ -634,9 +634,7 @@ class WorkspaceRegistryService:
             bound_host_session_id=payload.get("bound_host_session_id"),
             auto_task_id=payload.get("auto_task_id"),
             automation_continuation_id=payload.get("automation_continuation_id"),
-            automation_continuation_target_kind=payload.get(
-                "automation_continuation_target_kind"
-            ),
+            automation_continuation_target_kind=payload.get("automation_continuation_target_kind"),
         )
 
     def get_workspace_root(

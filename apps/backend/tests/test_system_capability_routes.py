@@ -107,7 +107,7 @@ async def test_system_capability_registry_route_exposes_runtime_disabled_tools(
     assert "native.graphrag_document_upload" in analysis_preset.capability_ids
     assert "native.create_data_table" in analysis_preset.capability_ids
     assert "native.read_data_table_schema" in analysis_preset.capability_ids
-    assert "native.read_data_table_records" in analysis_preset.capability_ids
+    assert "native.query_data_table" in analysis_preset.capability_ids
     assert "native.insert_data_table_records" in analysis_preset.capability_ids
     assert "native.update_data_table_record" in analysis_preset.capability_ids
     assert "native.delete_data_table_record" in analysis_preset.capability_ids
@@ -209,7 +209,7 @@ async def test_system_tool_categories_return_functional_capability_mappings(
     ].capability_ids
     assert "native.create_data_table" in categories["data-tables"].capability_ids
     assert "native.read_data_table_schema" in categories["data-tables"].capability_ids
-    assert "native.read_data_table_records" in categories["data-tables"].capability_ids
+    assert "native.query_data_table" in categories["data-tables"].capability_ids
     assert "native.insert_data_table_records" in categories["data-tables"].capability_ids
     assert "native.update_data_table_record" in categories["data-tables"].capability_ids
     assert "native.delete_data_table_record" in categories["data-tables"].capability_ids

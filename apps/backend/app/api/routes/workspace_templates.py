@@ -16,12 +16,12 @@ from app.core.templates import (
     get_workspace_template,
     list_workspace_templates,
 )
-from app.services.session.config_projection import read_user_ui_settings
 from app.models.external_template_market import (
     ExternalTemplateMarketListResponse,
     InstallExternalTemplateRequest,
 )
 from app.models.user import UserInfo
+from app.services.session.config_projection import read_user_ui_settings
 from app.services.template_external_market_service import (
     get_external_template_market_service,
 )

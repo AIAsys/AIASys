@@ -44,7 +44,7 @@ def test_task_resource_context_formats_mounted_resources_and_attachments(
     monkeypatch.setattr(
         "app.services.task_resource_context.DatabaseConnectorService",
         lambda *_args, **_kwargs: SimpleNamespace(
-            list_connectors=lambda user_id: [
+            list_connectors=lambda user_id, **kwargs: [
                 SimpleNamespace(
                     connector_id="dbc-a",
                     name="订单库",

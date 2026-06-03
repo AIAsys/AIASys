@@ -16,64 +16,66 @@ MEDIA_SNIFF_BYTES = 8192
 
 # 常见非文本文件扩展名（不区分大小写）。
 # 被此集合命中的文件会被 ReadFile 直接拒绝，并给出具体的替代建议。
-_NON_TEXT_SUFFIXES = frozenset({
-    # Office
-    ".xlsx",
-    ".xls",
-    ".xlsm",
-    ".docx",
-    ".doc",
-    ".pptx",
-    ".ppt",
-    # PDF
-    ".pdf",
-    # 压缩
-    ".zip",
-    ".rar",
-    ".7z",
-    ".tar",
-    ".gz",
-    ".bz2",
-    ".xz",
-    # 图片（SVG 是文本，不在此列）
-    ".png",
-    ".jpg",
-    ".jpeg",
-    ".gif",
-    ".bmp",
-    ".webp",
-    ".ico",
-    ".tiff",
-    ".tif",
-    # 视频
-    ".mp4",
-    ".avi",
-    ".mov",
-    ".mkv",
-    ".flv",
-    ".wmv",
-    # 音频
-    ".mp3",
-    ".wav",
-    ".flac",
-    ".aac",
-    ".ogg",
-    ".wma",
-    # 可执行 / 库
-    ".exe",
-    ".dll",
-    ".so",
-    ".dylib",
-    ".bin",
-    # 数据库
-    ".db",
-    ".sqlite",
-    ".sqlite3",
-    # 其他设计 / 二进制格式
-    ".psd",
-    ".ai",
-    ".sketch",
-})
+_NON_TEXT_SUFFIXES = frozenset(
+    {
+        # Office
+        ".xlsx",
+        ".xls",
+        ".xlsm",
+        ".docx",
+        ".doc",
+        ".pptx",
+        ".ppt",
+        # PDF
+        ".pdf",
+        # 压缩
+        ".zip",
+        ".rar",
+        ".7z",
+        ".tar",
+        ".gz",
+        ".bz2",
+        ".xz",
+        # 图片（SVG 是文本，不在此列）
+        ".png",
+        ".jpg",
+        ".jpeg",
+        ".gif",
+        ".bmp",
+        ".webp",
+        ".ico",
+        ".tiff",
+        ".tif",
+        # 视频
+        ".mp4",
+        ".avi",
+        ".mov",
+        ".mkv",
+        ".flv",
+        ".wmv",
+        # 音频
+        ".mp3",
+        ".wav",
+        ".flac",
+        ".aac",
+        ".ogg",
+        ".wma",
+        # 可执行 / 库
+        ".exe",
+        ".dll",
+        ".so",
+        ".dylib",
+        ".bin",
+        # 数据库
+        ".db",
+        ".sqlite",
+        ".sqlite3",
+        # 其他设计 / 二进制格式
+        ".psd",
+        ".ai",
+        ".sketch",
+    }
+)
 
 
 def _is_binary_file(path: Path) -> bool:
@@ -118,13 +120,11 @@ def _get_non_text_hint(path: Path) -> str:
         )
     if suffix in (".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp", ".ico", ".tiff", ".tif"):
         return (
-            f"`{name}` 是图片文件，ReadFile 不能直接读取。"
-            "请使用 ReadMediaFile 工具查看图片内容。"
+            f"`{name}` 是图片文件，ReadFile 不能直接读取。请使用 ReadMediaFile 工具查看图片内容。"
         )
     if suffix in (".mp4", ".avi", ".mov", ".mkv", ".flv", ".wmv"):
         return (
-            f"`{name}` 是视频文件，ReadFile 不能直接读取。"
-            "请使用 ReadMediaFile 工具查看视频内容。"
+            f"`{name}` 是视频文件，ReadFile 不能直接读取。请使用 ReadMediaFile 工具查看视频内容。"
         )
     if suffix in (".mp3", ".wav", ".flac", ".aac", ".ogg", ".wma"):
         return f"`{name}` 是音频文件，当前不支持直接读取音频内容。"
