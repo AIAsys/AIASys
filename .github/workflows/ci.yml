@@ -8,7 +8,7 @@ on:
   workflow_dispatch: {}
 
 jobs:
-  web-build:
+  web-check:
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -35,12 +35,6 @@ jobs:
 
       - name: Build
         run: npm run build
-
-      - name: Upload web dist
-        uses: actions/upload-artifact@v4
-        with:
-          name: web-dist
-          path: apps/web/dist/
 
   backend:
     runs-on: ubuntu-latest
@@ -78,19 +72,23 @@ jobs:
         run: uv run pytest -v || true
 
   desktop-check:
-    needs: [web-build, backend]
+    needs: [web-check, backend]
     runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Download web dist
-        uses: actions/download-artifact@v4
-        with:
-          name: web-dist
-          path: apps/web/dist/
-
       - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: apps/web/package-lock.json
+
+      - name: Build web dist (in-job)
+        run: cd apps/web && npm ci && npm run build
+
+      - name: Setup Node.js for desktop
         uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -119,9 +117,3 @@ jobs:
 
       - name: Build desktop (Linux dir)
         run: cd apps/desktop && npm run dist:ci:linux
-
-      - name: Upload desktop artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: desktop-linux-dir
-          path: apps/desktop/dist/linux-unpacked/
