@@ -24,11 +24,11 @@ GET_ENV_VAR_TOOL_PATH = "app.agents.tools.env_vars_tool:GetEnvVar"
 SET_ENV_VAR_TOOL_PATH = "app.agents.tools.env_vars_tool:SetEnvVar"
 DELETE_ENV_VAR_TOOL_PATH = "app.agents.tools.env_vars_tool:DeleteEnvVar"
 RUNTIME_ENVIRONMENT_TOOL_PATH = "app.agents.tools.runtime_environment_tool:RuntimeEnvironment"
-NOTEBOOK_READ_ONLY_TOOL_PATHS: tuple[str, ...] = (
+NOTEBOOK_LIST_TOOL_PATHS: tuple[str, ...] = (
     "app.agents.tools.notebook_session_tool:ListSessionNotebooks",
-    "app.agents.tools.notebook_file_tool:ReadNotebook",
-    "app.agents.tools.notebook_session_tool:ReadNotebookOutputs",
 )
+# 旧常量保留兼容
+NOTEBOOK_READ_ONLY_TOOL_PATHS = NOTEBOOK_LIST_TOOL_PATHS
 SESSION_TASK_PLAN_TOOL_PATHS: tuple[str, ...] = (
     "app.agents.tools.task_plan_tools:TaskCreateTool",
     "app.agents.tools.task_plan_tools:TaskUpdateTool",
@@ -221,7 +221,6 @@ _ROLE_TYPE_TOOL_MAP: dict[str, tuple[str, ...]] = {
             READ_MEDIA_TOOL_PATH,
             *NOTEBOOK_READ_ONLY_TOOL_PATHS,
             "app.agents.tools.notebook_tool:ManageNotebook",
-            "app.agents.tools.notebook_file_tool:EditNotebookFile",
             "app.agents.tools.code_execution_tool:RunCode",
             "app.agents.tools.code_execution_tool:ListKernelEnvsTool",
             "app.agents.tools.code_execution_tool:RegisterKernelEnvTool",
@@ -248,6 +247,10 @@ _ROLE_TYPE_TOOL_MAP: dict[str, tuple[str, ...]] = {
             "app.agents.tools.skill_tools:SearchStoreSkills",
             "app.agents.tools.skill_tools:EnableSkill",
             "app.agents.tools.skill_tools:DisableSkill",
+            # MCP 工具
+            "app.agents.tools.mcp_tools:ListMCPServers",
+            "app.agents.tools.mcp_tools:SearchMCPMarket",
+            "app.agents.tools.mcp_tools:InstallMCPServer",
             # 数据库工具
             "app.agents.tools.database_query_tool:DatabaseQuery",
             "app.agents.tools.database_query_tool:ListDatabaseConnectors",
@@ -427,8 +430,6 @@ DATA_ANALYSIS_BASELINE = SystemAgentBaseline(
             "app.agents.tools.code_execution_tool:ListKernelEnvsTool",
             "app.agents.tools.code_execution_tool:RegisterKernelEnvTool",
             "app.agents.tools.code_execution_tool:RemoveKernelEnvTool",
-            "app.agents.tools.notebook_file_tool:ReadNotebook",
-            "app.agents.tools.notebook_file_tool:EditNotebookFile",
             "app.agents.tools.ask_user.tool:AskUser",
             *SESSION_TASK_PLAN_TOOL_PATHS,
             *AUTO_TASK_TOOL_PATHS,
@@ -451,6 +452,9 @@ DATA_ANALYSIS_BASELINE = SystemAgentBaseline(
             "app.agents.tools.skill_tools:SearchStoreSkills",
             "app.agents.tools.skill_tools:EnableSkill",
             "app.agents.tools.skill_tools:DisableSkill",
+            "app.agents.tools.mcp_tools:ListMCPServers",
+            "app.agents.tools.mcp_tools:SearchMCPMarket",
+            "app.agents.tools.mcp_tools:InstallMCPServer",
             "app.agents.tools.database_query_tool:DatabaseQuery",
             "app.agents.tools.database_query_tool:ListDatabaseConnectors",
             "app.agents.tools.database_query_tool:ListDatabaseTables",
