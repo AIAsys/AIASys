@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { apiRequest } from "@/lib/api/httpClient";
-import type { TaskWorkspaceSummary } from "@/pages/DataAnalysisPage/types";
+import type { TaskWorkspaceSummary } from "@/pages/WorkspacePage/types";
 
 interface EnvVarsPanelProps {
   workspaceSummary?: TaskWorkspaceSummary;

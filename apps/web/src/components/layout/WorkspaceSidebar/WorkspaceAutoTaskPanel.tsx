@@ -21,7 +21,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { LLMModelConfig } from "@/lib/api/llm";
 import type { TaskExecutionPolicySummary } from "@/types/autoTask";
-import type { WorkspaceConversationSummary } from "@/pages/DataAnalysisPage/types";
+import type { WorkspaceConversationSummary } from "@/pages/WorkspacePage/types";
 
 import {
   AutoTaskCategorySelector,
