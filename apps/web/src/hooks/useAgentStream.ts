@@ -74,6 +74,8 @@ export interface UseAgentStreamResult {
   isSessionRunning: (sessionId: string) => boolean;
   /** 当前所有正在运行的 session ID 集合 */
   runningSessionIds: Set<string>;
+  /** 移除指定 session 的 entry */
+  removeSession: (sessionId: string) => void;
 }
 
 /**
@@ -136,8 +138,8 @@ export function useAgentStream(): UseAgentStreamResult {
         next.delete(sessionId);
         return next;
       });
-      // Clean up session entry from Map to prevent memory leak
-      sessionsRef.current.delete(sessionId);
+      // 不在这里删除 entry，保留 completed/error 状态供切回时读取
+      // 明确的 session 删除由调用方通过 removeSession 处理
     },
     [],
   );
@@ -183,6 +185,22 @@ export function useAgentStream(): UseAgentStreamResult {
     const entry = sessionsRef.current.get(sessionId);
     return entry?.state.isRunning ?? false;
   };
+
+  /** 移除指定 session 的 entry（在 session 被删除时调用） */
+  const removeSession = useCallback((sessionId: string) => {
+    const entry = sessionsRef.current.get(sessionId);
+    if (entry?.abortController) {
+      entry.abortController.abort();
+      entry.abortController = null;
+    }
+    sessionsRef.current.delete(sessionId);
+    setRunningSessionIds((prev) => {
+      if (!prev.has(sessionId)) return prev;
+      const next = new Set(prev);
+      next.delete(sessionId);
+      return next;
+    });
+  }, []);
 
   // 组件卸载时停止所有流并清理内存
   useEffect(() => {
@@ -288,8 +306,7 @@ export function useAgentStream(): UseAgentStreamResult {
             next.delete(sessionId);
             return next;
           });
-          // Clean up session entry from Map to prevent memory leak
-          sessionsRef.current.delete(sessionId);
+          // 保留 entry 不删除，切回 session 时仍能读取最终状态
         };
 
         while (true) {
@@ -405,10 +422,7 @@ export function useAgentStream(): UseAgentStreamResult {
         ) {
           entry.abortController = null;
         }
-        // Clean up session entry if stream ended with error
-        if (!entry.state.isRunning && !entry.state.isConnected) {
-          sessionsRef.current.delete(sessionId);
-        }
+        // 保留 entry 不删除，只有明确的 removeSession 才清理
       }
     },
     [stopSession],
@@ -423,5 +437,6 @@ export function useAgentStream(): UseAgentStreamResult {
     setActiveSession,
     isSessionRunning,
     runningSessionIds,
+    removeSession,
   };
 }
