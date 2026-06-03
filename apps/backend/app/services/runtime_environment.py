@@ -615,7 +615,7 @@ for dist in metadata.distributions():
     if name:
         packages.append({"name": name, "version": version})
 packages.sort(key=lambda item: item["name"].lower())
-logger.debug(json.dumps(packages))
+print(json.dumps(packages))
 """
         try:
             completed = subprocess.run(
