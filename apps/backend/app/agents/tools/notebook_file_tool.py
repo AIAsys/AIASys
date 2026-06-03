@@ -84,12 +84,13 @@ def _make_cell_payload(cell: NotebookCellInput) -> dict[str, Any]:
 
 
 class ReadNotebook(AiasysTool):
-    """读取逻辑工作区中的 notebook 文件摘要。"""
+    """读取工作区中的 notebook 文件内容。"""
 
     name: str = "ReadNotebook"
     description: str = (
-        "读取逻辑工作区中的 `.ipynb` notebook 文件，返回 cell 摘要。"
+        "读取当前工作区中的 `.ipynb` notebook 文件，返回 cell 摘要和内容。"
         "支持分页读取避免上下文爆炸，可选返回完整 notebook JSON。"
+        "适用于查看 notebook 结构、读取代码单元格内容、查看执行结果。"
     )
     parameters = {
         "type": "object",
@@ -270,13 +271,13 @@ class EditNotebookParams(BaseModel):
 
 
 class EditNotebookFile(AiasysTool):
-    """编辑逻辑工作区中的 notebook 文件。
+    """编辑工作区中的 notebook 文件。
 
     支持 read、replace、upsert_cell、delete_cell、update_metadata、clear_cell_outputs、patch_cell 操作。
     """
 
     name: str = "EditNotebookFile"
-    description: str = """编辑逻辑工作区中的 `.ipynb` notebook 文件。
+    description: str = """编辑当前工作区中的 `.ipynb` notebook 文件。
 
 支持操作：
 - `read`：读取 notebook 摘要，可分页，可选返回清洗后的完整 notebook
@@ -287,8 +288,14 @@ class EditNotebookFile(AiasysTool):
 - `clear_cell_outputs`：清空指定 code cell 的 outputs 和 execution_count
 - `patch_cell`：对指定 cell 的 source 做局部 find/replace 修改
 
+适用场景：
+- 修改 notebook 中的代码单元格内容
+- 添加新的代码或 Markdown 单元格
+- 删除不需要的单元格
+- 修改单元格中的特定字符串（类似 StrReplaceFile 但针对 notebook cell）
+
 限制：
-- 只允许编辑当前逻辑工作区中的 `.ipynb` 文件
+- 只允许编辑当前工作区中的 `.ipynb` 文件
 - 不允许越界路径或 `.session` 内部路径
 """
     params: type[BaseModel] = EditNotebookParams
