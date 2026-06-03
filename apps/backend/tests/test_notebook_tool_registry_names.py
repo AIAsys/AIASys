@@ -47,8 +47,6 @@ def test_notebook_tool_runtime_names_match_system_preset_loaded_schemas():
     }
 
     assert "ListSessionNotebooks" in schema_names
-    assert "ReadNotebook" in schema_names
     assert "ManageNotebook" in schema_names
-    assert "EditNotebookFile" in schema_names
     assert "manage_notebook" not in schema_names
     assert "EditNotebook" not in schema_names

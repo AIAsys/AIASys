@@ -539,7 +539,7 @@ async def test_rewrite_session_from_message_truncates_tail_and_archives(
     payload = await sessions_execution_module.rewrite_session_from_message(
         user_id,
         session_id,
-        sessions_module.RewriteMessageRequest(
+        sessions_execution_module.RewriteMessageRequest(
             message_id=target_message_id,
             content="fixed prompt",
             confirm_drop_tail=True,
@@ -614,7 +614,7 @@ async def test_rewrite_session_from_message_requires_tail_confirmation(
         await sessions_execution_module.rewrite_session_from_message(
             user_id,
             session_id,
-            sessions_module.RewriteMessageRequest(
+            sessions_execution_module.RewriteMessageRequest(
                 message_id=target_message_id,
                 content="new prompt",
                 confirm_drop_tail=False,
@@ -673,7 +673,7 @@ async def test_rewrite_session_from_message_uses_visible_history_message_ids(
     payload = await sessions_execution_module.rewrite_session_from_message(
         user_id,
         session_id,
-        sessions_module.RewriteMessageRequest(
+        sessions_execution_module.RewriteMessageRequest(
             message_id=target_message_id,
             content="你好，改写后",
             confirm_drop_tail=True,
@@ -912,7 +912,7 @@ async def test_update_session_recovery_policy_updates_session_status(
     payload = await sessions_execution_module.update_session_recovery_policy(
         user_id,
         session_id,
-        sessions_module.UpdateRecoveryPolicyRequest(
+        sessions_execution_module.UpdateRecoveryPolicyRequest(
             recovery_policy="manual_replay"
         ),
         current_user=CURRENT_USER,
@@ -977,7 +977,7 @@ async def test_update_session_recovery_policy_rejects_started_session(
         await sessions_execution_module.update_session_recovery_policy(
             user_id,
             session_id,
-            sessions_module.UpdateRecoveryPolicyRequest(
+            sessions_execution_module.UpdateRecoveryPolicyRequest(
                 recovery_policy="manual_replay"
             ),
             current_user=CURRENT_USER,
@@ -1009,7 +1009,7 @@ async def test_manual_replay_requires_manual_replay_policy(
         await sessions_execution_module.manual_replay_session_records(
             user_id,
             session_id,
-            sessions_module.ManualReplayRequest(),
+            sessions_execution_module.ManualReplayRequest(),
             current_user=CURRENT_USER,
         )
 
@@ -1061,7 +1061,7 @@ async def test_manual_replay_replays_completed_records_and_returns_status(
     payload = await sessions_execution_module.manual_replay_session_records(
         user_id,
         session_id,
-        sessions_module.ManualReplayRequest(),
+        sessions_execution_module.ManualReplayRequest(),
         current_user=CURRENT_USER,
     )
 
@@ -1138,7 +1138,7 @@ async def test_manual_replay_selected_sequences_must_be_prefix(
         await sessions_execution_module.manual_replay_session_records(
             user_id,
             session_id,
-            sessions_module.ManualReplayRequest(selected_sequences=[2]),
+            sessions_execution_module.ManualReplayRequest(selected_sequences=[2]),
             current_user=CURRENT_USER,
         )
 
@@ -1199,7 +1199,7 @@ async def test_manual_replay_returns_partial_failed_status_and_remaining_sequenc
     payload = await sessions_execution_module.manual_replay_session_records(
         user_id,
         session_id,
-        sessions_module.ManualReplayRequest(selected_sequences=[1, 2]),
+        sessions_execution_module.ManualReplayRequest(selected_sequences=[1, 2]),
         current_user=CURRENT_USER,
     )
 
@@ -1267,7 +1267,7 @@ async def test_manual_replay_helper_disables_execution_record_append(
     metadata = isolated_session_manager.get_session(session_id, user_id)
     assert metadata is not None
 
-    replay_result = await sessions_module._manual_replay_records(
+    replay_result = await sessions_execution_module._manual_replay_records(
         user_id=user_id,
         session_id=session_id,
         session_dir=session_dir,
