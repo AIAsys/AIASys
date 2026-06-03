@@ -3,8 +3,6 @@ import {
   CheckCircle2,
   ChevronDown,
   ChevronUp,
-  Eye,
-  FilePlus,
   FileText,
   FolderPlus,
   Loader2,
@@ -13,7 +11,6 @@ import {
   Puzzle,
   Plug,
 } from "lucide-react";
-import { TEMPLATE_ICON_MAP } from "@/lib/templateIcons";
 
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -52,6 +49,9 @@ import {
   type UvStatusResponse,
 } from "@/lib/api/uv";
 import { type NewTaskLifecycleState, type NewTaskStage } from "@/types/workspace";
+import { useAuthState } from "@/contexts/AuthContext";
+import { saveUserUISettings } from "@/lib/api/uiSettings";
+import { TemplateSortableGrid } from "@/components/TemplateSortableGrid";
 
 import { NewWorkspaceProgressBanner } from "./NewWorkspaceProgressBanner";
 import { TemplatePreviewFileTree } from "./TemplatePreviewFileTree";
@@ -161,6 +161,7 @@ export function NewWorkspaceDialog({
   }, [selectedCapabilities, selectedTemplateId, templates]);
 
   const selectableRegisteredEnvs = listBindableKernelEnvs(registeredPythonEnvs);
+  const { user } = useAuthState();
 
   // 加载模板列表
   useEffect(() => {
@@ -183,6 +184,17 @@ export function NewWorkspaceDialog({
       })
       .finally(() => setIsLoadingTemplates(false));
   }, [isOpen]);
+
+  // 拖拽排序后保存
+  const handleTemplateReorder = (newItems: WorkspaceTemplateItem[]) => {
+    setTemplates(newItems);
+    if (user?.id) {
+      const order = newItems.map((t) => t.template_id);
+      saveUserUISettings(user.id, { templateOrder: order }).catch(() => {
+        // 保存失败静默处理
+      });
+    }
+  };
 
   // 检查全局 UV 安装状态
   useEffect(() => {
@@ -534,64 +546,14 @@ export function NewWorkspaceDialog({
               <div className="text-sm text-muted-foreground">暂无可用模板</div>
             ) : (
               <>
-                <div className="grid grid-cols-3 gap-2">
-                  {templates.map((template) => (
-                    <button
-                      key={template.template_id}
-                      type="button"
-                      onClick={() => setSelectedTemplateId(template.template_id)}
-                      disabled={effectiveLifecycleState.isBusy}
-                      className={cn(
-                        "relative flex flex-col items-center gap-1.5 rounded-lg border px-2 py-3 text-center transition-colors",
-                        selectedTemplateId === template.template_id
-                          ? "border-primary bg-primary/5"
-                          : "border-border bg-background hover:bg-muted/50",
-                        effectiveLifecycleState.isBusy && "cursor-not-allowed opacity-60",
-                      )}
-                    >
-                      {template.template_id !== "blank-workspace" &&
-                        template.files &&
-                        template.files.length > 0 && (
-                          <span
-                            role="button"
-                            tabIndex={0}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setPreviewingTemplate(template);
-                            }}
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter" || e.key === " ") {
-                                e.stopPropagation();
-                                setPreviewingTemplate(template);
-                              }
-                            }}
-                            className="absolute right-1.5 top-1.5 flex h-5 w-5 cursor-pointer items-center justify-center rounded text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                            title="预览模板"
-                          >
-                            <Eye className="h-3 w-3" />
-                          </span>
-                        )}
-                      <div
-                        className={cn(
-                          "flex h-8 w-8 shrink-0 items-center justify-center rounded-md",
-                          selectedTemplateId === template.template_id
-                            ? "bg-primary/10 text-primary"
-                            : "bg-muted text-muted-foreground",
-                        )}
-                      >
-                        {TEMPLATE_ICON_MAP[template.icon] ?? <FilePlus className="h-5 w-5" />}
-                      </div>
-                      <div className="min-w-0">
-                        <div className="text-xs font-medium">{template.name}</div>
-                        {template.env_kind && template.env_kind !== "none" && (
-                          <div className="mt-0.5 text-[10px] text-muted-foreground">
-                            {ENV_LABEL_MAP[template.env_kind] ?? template.env_kind}
-                          </div>
-                        )}
-                      </div>
-                    </button>
-                  ))}
-                </div>
+                <TemplateSortableGrid
+                  templates={templates}
+                  selectedTemplateId={selectedTemplateId}
+                  isBusy={effectiveLifecycleState.isBusy}
+                  onSelect={(templateId) => setSelectedTemplateId(templateId)}
+                  onPreview={(template) => setPreviewingTemplate(template)}
+                  onReorder={handleTemplateReorder}
+                />
 
                 {/* 模板预览 */}
                 {selectedTemplate &&
