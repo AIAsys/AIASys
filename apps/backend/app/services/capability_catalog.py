@@ -272,12 +272,12 @@ _TOOL_METADATA: dict[str, dict[str, Any]] = {
         "provider": "aiasys",
         "description": "读取多维数据表的元数据和列定义。",
     },
-    "app.agents.tools.data_table_tool:ReadDataTableRecords": {
-        "capability_id": "native.read_data_table_records",
-        "display_name": "Read Data Table Records",
+    "app.agents.tools.data_table_tool:QueryDataTable": {
+        "capability_id": "native.query_data_table",
+        "display_name": "Query Data Table",
         "kind": CapabilityKind.NATIVE_TOOL,
         "provider": "aiasys",
-        "description": "读取多维数据表记录。",
+        "description": "对多维数据表执行只读 SQL 查询。",
     },
     "app.agents.tools.data_table_tool:InsertDataTableRecords": {
         "capability_id": "native.insert_data_table_records",
@@ -650,7 +650,7 @@ _TOOL_CATEGORY_CAPABILITY_IDS: dict[str, tuple[str, ...]] = {
     "data-tables": (
         "native.create_data_table",
         "native.read_data_table_schema",
-        "native.read_data_table_records",
+        "native.query_data_table",
         "native.insert_data_table_records",
         "native.update_data_table_record",
         "native.delete_data_table_record",
