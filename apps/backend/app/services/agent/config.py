@@ -5,15 +5,27 @@ Agent 配置管理模块
 """
 
 import logging
+import platform
+import shutil
 import tomllib
 from copy import deepcopy
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 import tomli_w
 from jinja2 import Environment as JinjaEnvironment
 from jinja2 import StrictUndefined
+
+
+def _strip_none_values(obj: Any) -> Any:
+    """递归移除字典中的 None 值，避免 TOML 序列化失败。"""
+    if isinstance(obj, dict):
+        return {k: _strip_none_values(v) for k, v in obj.items() if v is not None}
+    if isinstance(obj, list):
+        return [_strip_none_values(v) for v in obj]
+    return obj
+
 
 from app.core.config import SANDBOX_DEFAULT_MODE, WORKSPACE_DIR, is_sandbox_mode_enabled
 from app.core.workspace_path import WorkspacePath
@@ -300,12 +312,28 @@ def _resolve_bound_python_env(
         return None, None, None
 
 
+def _get_available_shells() -> List[str]:
+    """检测当前系统可用的 shell 列表。"""
+    shells = []
+    candidates = ["bash", "sh", "cmd", "powershell", "pwsh", "zsh", "fish"]
+    for shell in candidates:
+        if shutil.which(shell):
+            shells.append(shell)
+    return shells
+
+
 def _get_execution_env_info(
     session_id: str | None = None,
     user_id: str | None = None,
 ) -> Dict[str, str]:
     """按当前工作区真实绑定生成提示词环境变量。"""
     env, workspace_id, env_id = _resolve_bound_python_env(session_id, user_id)
+    available_shells = _get_available_shells()
+    platform_info = {
+        "PLATFORM": platform.system(),
+        "PLATFORM_VERSION": platform.release(),
+        "AVAILABLE_SHELLS": ", ".join(available_shells) if available_shells else "未检测到",
+    }
     if env is None:
         return {
             "PYTHON_ENV_SECTION": (
@@ -318,6 +346,7 @@ def _get_execution_env_info(
             "BASE_IMAGE": "none",
             "PACKAGE_LIST": "未绑定 Python 环境",
             "PACKAGE_DETAILS": "当前任务未绑定 Python 环境。",
+            **platform_info,
         }
 
     package_list, package_details = _format_package_list(env)
@@ -345,6 +374,7 @@ def _get_execution_env_info(
         "BASE_IMAGE": env.kind,
         "PACKAGE_LIST": package_list,
         "PACKAGE_DETAILS": package_details,
+        **platform_info,
     }
 
 
@@ -836,7 +866,9 @@ async def generate_dynamic_agent_config(
             temp_subagent_path = temp_agent_config_dir / temp_subagent_filename
 
             with open(temp_subagent_path, "w", encoding="utf-8") as f:
-                f.write(tomli_w.dumps({"version": 1, "agent": embedded_manifest}))
+                f.write(
+                    tomli_w.dumps({"version": 1, "agent": _strip_none_values(embedded_manifest)})
+                )
 
             rewritten_subagent = {
                 key: value
@@ -851,7 +883,7 @@ async def generate_dynamic_agent_config(
     temp_agent_path = temp_agent_config_dir / temp_agent_filename
 
     with open(temp_agent_path, "w", encoding="utf-8") as f:
-        f.write(tomli_w.dumps(agent_config))
+        f.write(tomli_w.dumps(_strip_none_values(agent_config)))
 
     logger.info(
         "生成动态 agent 配置: session=%s, prompt_chars=%s, subagents=%s",
