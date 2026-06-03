@@ -1,5 +1,5 @@
 import { useAuthContext } from "@/contexts/AuthContext";
-import type { ChatSegment } from "@/pages/DataAnalysisPage/types";
+import type { ChatSegment } from "@/pages/WorkspacePage/types";
 import { Brain, ChevronDown, Loader2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { PreviewFile } from "@/components/layout/WorkspaceSidebar/preview";

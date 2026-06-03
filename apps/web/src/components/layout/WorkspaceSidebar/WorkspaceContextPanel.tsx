@@ -19,7 +19,7 @@ import { cn } from "@/lib/utils";
 import type {
   SessionStatusInfo,
   TaskWorkspaceSummary,
-} from "@/pages/DataAnalysisPage/types";
+} from "@/pages/WorkspacePage/types";
 import { ActivityBar, type ActivityBarItem } from "./ActivityBar";
 import { ActivitySidebar } from "./ActivitySidebar";
 import {

@@ -30,7 +30,7 @@ import { createWorkspacePreviewFile } from "@/utils/workspaceFiles";
 import type {
   SessionStatusInfo,
   TaskWorkspaceSummary,
-} from "@/pages/DataAnalysisPage/types";
+} from "@/pages/WorkspacePage/types";
 import type { PreviewFile } from "./preview";
 import type { SidebarTab } from "./context/types";
 
