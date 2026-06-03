@@ -381,6 +381,9 @@ class WorkspaceRegistryService:
         *,
         include_conversations: bool = False,
         include_hidden_conversations: bool = False,
+        summary_only: bool = False,
+        limit: int | None = None,
+        offset: int = 0,
     ) -> list[WorkspaceDetailResponse]:
         user_dir = self._get_user_dir(user_id)
         workspaces: list[WorkspaceDetailResponse] = []
@@ -393,18 +396,32 @@ class WorkspaceRegistryService:
 
             workspace_id = candidate.name
             try:
-                workspaces.append(
-                    self.get_workspace(
-                        user_id,
-                        workspace_id,
-                        include_conversations=include_conversations,
-                        include_hidden_conversations=include_hidden_conversations,
+                if summary_only:
+                    workspaces.append(
+                        self._get_workspace_summary(
+                            user_id,
+                            workspace_id,
+                            include_hidden_conversations=include_hidden_conversations,
+                        )
                     )
-                )
+                else:
+                    workspaces.append(
+                        self.get_workspace(
+                            user_id,
+                            workspace_id,
+                            include_conversations=include_conversations,
+                            include_hidden_conversations=include_hidden_conversations,
+                        )
+                    )
             except (FileNotFoundError, ValueError):
                 continue
 
         workspaces.sort(key=lambda item: item.updated_at, reverse=True)
+
+        if offset > 0:
+            workspaces = workspaces[offset:]
+        if limit is not None:
+            workspaces = workspaces[:limit]
         return workspaces
 
     def get_workspace(
@@ -509,6 +526,116 @@ class WorkspaceRegistryService:
         if not include_conversations:
             return WorkspaceDetailResponse(**common, conversations=[])
         return WorkspaceDetailResponse(**common, conversations=conversations)
+
+    def _get_workspace_summary(
+        self,
+        user_id: str,
+        workspace_id: str,
+        *,
+        include_hidden_conversations: bool = False,
+    ) -> WorkspaceDetailResponse:
+        """仅读取 workspace.json 和 conversations.json，不读取会话元数据。
+
+        用于工作区列表的快速加载。对话摘要只包含 conversations.json 中已有的字段，
+        不查询 session_manager 获取实时状态。
+        """
+        meta = self._read_workspace_meta(user_id, workspace_id)
+        conversation_payloads = self._read_conversation_payloads(user_id, workspace_id)
+        visible_payloads = (
+            conversation_payloads
+            if include_hidden_conversations
+            else [
+                payload
+                for payload in conversation_payloads
+                if not self._is_hidden_conversation_payload(user_id, payload)
+            ]
+        )
+
+        current_conversation_id = meta.get("current_conversation_id")
+        current_conversation: WorkspaceConversationSummary | None = None
+
+        # 从 conversations.json 的 payload 直接构建轻量摘要，不读 session 元数据
+        if visible_payloads:
+            target_payload = None
+            if current_conversation_id:
+                target_payload = next(
+                    (
+                        payload
+                        for payload in visible_payloads
+                        if payload.get("conversation_id") == current_conversation_id
+                    ),
+                    None,
+                )
+            if target_payload is None:
+                target_payload = max(
+                    visible_payloads,
+                    key=lambda p: p.get("updated_at") or p.get("created_at") or "",
+                )
+            current_conversation = self._build_conversation_summary_from_payload(
+                workspace_id, target_payload
+            )
+            current_conversation_id = current_conversation.conversation_id
+
+        raw_kind = str(meta.get("workspace_kind") or "").strip()
+        workspace_kind = raw_kind if raw_kind in ("task", "claw") else "task"
+
+        return WorkspaceDetailResponse(
+            workspace_id=workspace_id,
+            title=str(meta.get("title") or "新任务"),
+            description=(
+                str(meta.get("description")).strip()
+                if meta.get("description") not in (None, "")
+                else None
+            ),
+            created_at=str(meta.get("created_at") or _now_iso()),
+            updated_at=str(meta.get("updated_at") or meta.get("created_at") or _now_iso()),
+            workspace_kind=workspace_kind,
+            execution_policy=normalize_execution_policy(meta.get("execution_policy")),
+            runtime_binding=_normalize_workspace_runtime_binding(meta.get("runtime_binding")),
+            status=str(meta.get("status") or "active"),
+            current_conversation_id=current_conversation_id,
+            conversation_count=len(visible_payloads),
+            current_conversation=current_conversation,
+            conversations=[],
+        )
+
+    def _build_conversation_summary_from_payload(
+        self,
+        workspace_id: str,
+        payload: dict[str, Any],
+    ) -> WorkspaceConversationSummary:
+        """仅从 conversations.json payload 构建对话摘要，不查询 session_manager。"""
+        conversation_id = str(payload.get("conversation_id") or payload.get("session_id") or "")
+        session_id = str(payload.get("session_id") or payload.get("conversation_id") or "")
+        if not conversation_id:
+            logger.warning(
+                "conversations.json payload 缺少 conversation_id 和 session_id: workspace=%s",
+                workspace_id,
+            )
+            raise ValueError("conversation payload 缺少 conversation_id 和 session_id")
+        created_at = payload.get("created_at") or _now_iso()
+        updated_at = payload.get("updated_at") or created_at
+        return WorkspaceConversationSummary(
+            workspace_id=workspace_id,
+            conversation_id=conversation_id,
+            session_id=session_id,
+            title=str(payload.get("title") or "新对话"),
+            created_at=str(created_at),
+            updated_at=str(updated_at),
+            execution_policy=normalize_execution_policy(payload.get("execution_policy")),
+            message_count=int(payload.get("message_count") or 0),
+            status=str(payload.get("status") or "draft"),
+            branched_from_conversation_id=payload.get("branched_from_conversation_id"),
+            last_execution_status=payload.get("last_execution_status"),
+            last_execution_record_id=payload.get("last_execution_record_id"),
+            execution_record_count=int(payload.get("execution_record_count") or 0),
+            source=payload.get("source"),
+            conversation_type=payload.get("conversation_type"),
+            bound_host_session_id=payload.get("bound_host_session_id"),
+            auto_task_id=payload.get("auto_task_id"),
+            automation_continuation_id=payload.get("automation_continuation_id"),
+            automation_continuation_target_kind=payload.get("automation_continuation_target_kind"),
+        )
 
     def get_workspace_root(
         self,

@@ -1,5 +1,6 @@
 import {
   Check,
+  ChevronDown,
   Download,
   FolderOpen,
   History,
@@ -11,8 +12,8 @@ import {
   X,
   LayoutTemplate,
 } from "lucide-react";
-import { useState, lazy, Suspense } from "react";
-import type { TaskWorkspaceSummary } from "@/pages/DataAnalysisPage/types";
+import { useState, lazy, Suspense, useRef, useEffect, useCallback } from "react";
+import type { TaskWorkspaceSummary } from "@/pages/WorkspacePage/types";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -37,6 +38,8 @@ interface DesignSidebarHistorySectionProps {
   filteredWorkspaces?: TaskWorkspaceSummary[];
   currentWorkspaceId?: string;
   isLoadingHistory: boolean;
+  isLoadingMore?: boolean;
+  hasMore?: boolean;
   searchQuery: string;
   onSearchQueryChange: (value: string) => void;
   onClearSearch: () => void;
@@ -49,6 +52,7 @@ interface DesignSidebarHistorySectionProps {
     workspaceId: string,
     patch: { title?: string; description?: string | null },
   ) => Promise<void> | void;
+  onLoadMore?: () => void;
 }
 
 export function DesignSidebarHistorySection({
@@ -56,6 +60,8 @@ export function DesignSidebarHistorySection({
   filteredWorkspaces = [],
   currentWorkspaceId,
   isLoadingHistory,
+  isLoadingMore = false,
+  hasMore = false,
   searchQuery,
   onSearchQueryChange,
   onClearSearch,
@@ -63,6 +69,7 @@ export function DesignSidebarHistorySection({
   onDeleteWorkspace,
   onDeleteSelectedWorkspaces,
   onUpdateWorkspace,
+  onLoadMore,
 }: DesignSidebarHistorySectionProps) {
   const [editingWorkspaceId, setEditingWorkspaceId] = useState<string | null>(
     null,
@@ -74,6 +81,7 @@ export function DesignSidebarHistorySection({
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [exportingWorkspaceId, setExportingWorkspaceId] = useState<string | null>(null);
   const [dialogExportWorkspaceId, setDialogExportWorkspaceId] = useState<string | null>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   const hasSearchQuery = searchQuery.trim().length > 0;
   const displayedWorkspaces = hasSearchQuery ? filteredWorkspaces : workspaces;
@@ -139,8 +147,28 @@ export function DesignSidebarHistorySection({
     exitMultiSelectMode();
   };
 
+  const handleScroll = useCallback(() => {
+    const container = scrollContainerRef.current;
+    if (!container || isLoadingMore || !hasMore || hasSearchQuery) {
+      return;
+    }
+    const { scrollTop, scrollHeight, clientHeight } = container;
+    if (scrollHeight - scrollTop - clientHeight < 60) {
+      onLoadMore?.();
+    }
+  }, [isLoadingMore, hasMore, hasSearchQuery, onLoadMore]);
+
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+    container.addEventListener("scroll", handleScroll, { passive: true });
+    return () => {
+      container.removeEventListener("scroll", handleScroll);
+    };
+  }, [handleScroll]);
+
   return (
-    <div className="px-4 flex-1 overflow-y-auto">
+    <div ref={scrollContainerRef} className="px-4 flex-1 overflow-y-auto">
       {isMultiSelectMode ? (
         <div className="flex items-center justify-end mb-3 gap-2">
           <button
@@ -393,6 +421,22 @@ export function DesignSidebarHistorySection({
             正在加载工作区...
           </div>
         ) : null}
+
+        {!hasSearchQuery && hasMore && !isLoadingHistory && (
+          <div className="mt-1 flex w-full items-center justify-center gap-1 rounded-lg py-1.5 text-xs text-muted-foreground">
+            {isLoadingMore ? (
+              <>
+                <Loader2 className="h-3 w-3 animate-spin" />
+                加载中...
+              </>
+            ) : (
+              <>
+                <ChevronDown className="h-3 w-3" />
+                向下滚动加载更多
+              </>
+            )}
+          </div>
+        )}
 
         {displayedWorkspaces.length > 0 ? null : hasSearchQuery ? (
           <div className="text-muted-foreground text-xs italic py-2">

@@ -439,12 +439,21 @@ async def delete_global_expert(
 
 @router.get("", response_model=WorkspaceListResponse)
 async def list_workspaces(
+    summary_only: bool = Query(True, description="仅返回摘要信息，不读取每个对话的详细元数据"),
+    limit: int | None = Query(None, ge=1, description="限制返回数量，为空时返回全部"),
+    offset: int = Query(0, ge=0, description="跳过前 N 条"),
     current_user: UserInfo = Depends(require_auth()),
 ):
+    def _unwrap_query(val: Any) -> Any:
+        return val.default if hasattr(val, "default") else val
+
     service = get_workspace_registry_service()
     workspaces = service.list_workspaces(
         current_user.user_id,
         include_conversations=False,
+        summary_only=summary_only,
+        limit=_unwrap_query(limit),
+        offset=_unwrap_query(offset),
     )
     return WorkspaceListResponse(workspaces=workspaces, total=len(workspaces))
 

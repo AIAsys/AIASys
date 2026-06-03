@@ -6,27 +6,56 @@
 
 ## 当前项目状态（运行时刷新）
 
-- 竞赛：House Prices - Advanced Regression Techniques
-- 最优版本：ensemble_b003_xgb_lgb_stack（0.14235 RMSE）
-- 可信最优版本：ensemble_b002_xgb_lgb（0.14567 RMSE）
-- 当前阶段：ensemble
-- 最近实验：ensemble_b003_xgb_lgb_stack，stacking 策略有效但需验证稳定性
+首次启动时请运行 `scripts/experiment.py --mode status` 获取最新状态。
+
+## 分析工作流
+
+### 阶段 1：理解赛题
+- 阅读 `statement/` 下的赛题描述
+- 明确评估指标、优化方向、数据格式和提交要求
+- 确认时间预算和资源约束
+- **产出**：赛题理解摘要（3-5 句话）
+
+### 阶段 2：数据探索
+- 加载 `data/raw/` 下的数据
+- 统计：样本量、特征数、缺失率、目标变量分布
+- 检查数据质量：异常值、重复样本、特征类型
+- 分析特征与目标的关系
+- **产出**：`research_views/data_exploration/report.md`
+
+### 阶段 3：建立 baseline
+- 建立最简单的可行方案（如均值预测、随机森林默认参数）
+- 确保 runner 能执行、留下日志、输出可评分产物
+- 用 `{family}_b{NNN}_{slug}` 命名版本
+- **产出**：第一个可运行的 baseline + 分数
+
+### 阶段 4：迭代优化
+- 每次实验只做一个清晰假设
+- 从 `trusted_best_version` 派生新版本
+- 运行前检查环境、依赖和 runner 路径
+- 记录：版本名、假设、修改、分数、结论
+- **产出**：`experiments/index.json` 更新 + 实验日志
+
+### 阶段 5：提交与总结
+- 选择最优版本生成最终提交
+- 撰写实验总结报告
+- 更新 README 和 AGENTS.md
 
 ## 反模式
 
-以下错误已经验证不可行，避免重复踩坑：
+以下做法会降低竞赛效率，应避免：
 
 1. **不探索数据直接上复杂模型**
    - 后果：错过关键特征关系，模型性能低于预期
    - 正确做法：先完成数据探索报告，再建模
 
 2. **不做交叉验证就相信单次运行的分数**
-   - 后果：LB 上分但 CV 下降，最终排名下滑
-   - 正确做法：以 5-fold CV 为主要评估标准
+   - 后果：Leaderboard 上分但 CV 下降，最终排名下滑
+   - 正确做法：以交叉验证为主要评估标准
 
 3. **在测试集上调参**
-   - 后果：严重过拟合，无法泛化到 private LB
-   - 正确做法：只用训练集做 CV，测试集只用于最终提交
+   - 后果：严重过拟合，无法泛化
+   - 正确做法：只用训练集做验证，测试集只用于最终提交
 
 4. **特征工程不做记录，无法复现**
    - 后果：无法回到之前有效的版本
@@ -36,30 +65,7 @@
    - 后果：模型复杂度增加但分数不升
    - 正确做法：分析各基模型的相关性，差异大的模型融合增益高
 
-## 优先队列
-
-当前待验证的方向（按优先级排序）：
-
-1. **尝试 CatBoost 作为第三个基模型**
-   - 假设：CatBoost 对类别特征的处理优于 XGB/LGB，可能带来互补增益
-   - 预期产出：catboost_b001 版本，目标分数 < 0.145
-
-2. **做特征重要性分析，剔除冗余特征**
-   - 假设：当前特征过多，部分冗余特征引入噪声
-   - 预期产出：精简特征子集 + 模型简化
-
-3. **尝试目标编码处理高基数类别特征**
-   - 假设：Neighborhood（25 个类别）等特征用 one-hot 太稀疏
-   - 预期产出：target_encoding_b001 版本
-
-4. **分析 stacking 的 out-of-fold 预测稳定性**
-   - 假设：stacking 可能在某些 fold 上过拟合
-   - 预期产出：稳定性报告，决定是否需要回退到简单平均
-
 ## 工具与脚本
-
-以下脚本通常由 `competition-research-skill` 提供或根据项目需要自行创建。
-如果已安装该 skill，可从 skill 示例目录复制相关脚本到本项目 `scripts/` 目录。
 
 ```bash
 # 验证 baseline 命名
@@ -68,28 +74,15 @@ python3 scripts/baseline_names.py --mode validate
 # 查看实验状态
 python3 scripts/experiment.py --mode status
 
+# 生成实验计划
+python3 scripts/experiment.py --mode plan
+
 # 运行指定版本
 python3 scripts/experiment.py --mode run --version <version>
 
 # 记录实验结果
-python3 scripts/experiment.py --mode record
-
-# 更新研究视图
-python3 scripts/update_research_views.py
-
-# 搜索论文
-python3 scripts/arxiv_search.py --query "gradient boosting regression"
-
-# 生成 ECharts 图表
-python3 scripts/generate_echarts.py
-
-# 导出图表 PNG
-python3 scripts/export_echarts_png.py
+python3 scripts/experiment.py --mode record --version <version> --score <score>
 ```
-
-## HTML 看板
-
-`research_views/current.html`
 
 ## baseline 命名规则
 
@@ -105,7 +98,9 @@ python3 scripts/export_echarts_png.py
 ## 硬性规则
 
 - 严禁拟造训练数据，缺数据时暂停并请用户提供
-- 建立 baseline 前必须完成系统性数据探索（research_views/data_exploration/）
+- 建立 baseline 前必须完成系统性数据探索
 - 每轮实验必须有明确假设、版本名、运行日志、分数和结论
 - 最终 keep/discard 以竞赛最终指标为准，代理指标只做辅助诊断
 - 特征工程步骤必须可复现，记录在 experiments/index.json
+- 已证伪方向写入 anti_patterns，避免重复消耗
+- 长耗时 runner 必须可观测，按阶段打印进度

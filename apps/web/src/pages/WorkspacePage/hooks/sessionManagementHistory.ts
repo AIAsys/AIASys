@@ -49,13 +49,31 @@ function getHistoryAttachmentPaths(
   return results;
 }
 
+function _hasSubstantiveContent(msg: HistoryMessage): boolean {
+  const content = msg.content;
+  const hasText =
+    (typeof content === "string" && content.trim().length > 0) ||
+    (Array.isArray(content) &&
+      content.some(
+        (item) =>
+          (item.type === "text" && (item.text || "").trim().length > 0) ||
+          (item.type === "think" && (item.think || "").trim().length > 0),
+      ));
+  const hasReasoning =
+    typeof msg.reasoning_content === "string" &&
+    msg.reasoning_content.trim().length > 0;
+  const hasToolCalls = (msg.tool_calls?.length || 0) > 0;
+  return hasText || hasReasoning || hasToolCalls;
+}
+
 function buildSegmentsFromSDKMessage(
   msg: HistoryMessage,
   turnN?: number,
 ): ChatSegment[] | undefined {
   const segments: ChatSegment[] = [];
 
-  if (turnN !== undefined) {
+  // 只有 assistant 消息有实质内容时才生成 turn 分隔线
+  if (turnN !== undefined && _hasSubstantiveContent(msg)) {
     segments.push({
       type: "turn",
       content: `Turn ${turnN}`,
@@ -229,8 +247,11 @@ export function restoreChatItemsFromHistory(
     }
 
     if (msg.role === "assistant") {
-      turnIndex++;
-      const segments = buildSegmentsFromSDKMessage(msg, turnIndex);
+      const hasContent = _hasSubstantiveContent(msg);
+      if (hasContent) {
+        turnIndex++;
+      }
+      const segments = buildSegmentsFromSDKMessage(msg, hasContent ? turnIndex : undefined);
       const lastItem = restoredItems[restoredItems.length - 1];
 
       if (lastItem && lastItem.type === "message" && lastItem.sender === "ai") {

@@ -41,16 +41,21 @@ function copyPathIfExists(sourcePath, targetPath, options = {}) {
 /**
  * 递归清理目录下的 __pycache__ 和 .pyc 文件。
  * 避免工具类名变更后缓存不一致，同时减小打包体积。
+ * 跳过 .venv 和 node_modules，避免清理第三方包缓存（耗时且无必要）。
  */
 function cleanPycache(dirPath) {
   if (!fs.existsSync(dirPath)) {
     return;
   }
 
+  const skipDirs = new Set([".venv", "node_modules", ".git"]);
   const entries = fs.readdirSync(dirPath, { withFileTypes: true });
   for (const entry of entries) {
     const fullPath = path.join(dirPath, entry.name);
     if (entry.isDirectory()) {
+      if (skipDirs.has(entry.name)) {
+        continue;
+      }
       if (entry.name === "__pycache__") {
         console.log(`[aiasys-desktop] 清理: ${fullPath}`);
         fs.rmSync(fullPath, { recursive: true, force: true });
@@ -73,6 +78,19 @@ function prepareWebRuntime() {
 
   const scriptsCommittedRoot = path.join(webRoot, "scripts", "committed");
   copyPathIfExists(scriptsCommittedRoot, path.join(webStageRoot, "scripts", "committed"));
+}
+
+function readPyvenvHome(pyvenvPath) {
+  try {
+    const content = fs.readFileSync(pyvenvPath, "utf-8");
+    const match = content.match(/^home\s*=\s*(.+)$/m);
+    if (match) {
+      return match[1].trim();
+    }
+  } catch {
+    // ignore
+  }
+  return null;
 }
 
 function prepareBackendRuntime() {
@@ -115,6 +133,22 @@ function prepareBackendRuntime() {
   fs.mkdirSync(path.join(backendStageRoot, "data", "workspaces"), { recursive: true });
   fs.mkdirSync(path.join(backendStageRoot, "logs"), { recursive: true });
   fs.mkdirSync(path.join(backendStageRoot, "workspaces"), { recursive: true });
+
+  // Windows: 将 pyvenv.cfg 指向的完整 Python 运行时复制到嵌入目录
+  // 避免目标机器上没有系统 Python 时 venv 无法启动
+  if (process.platform === "win32") {
+    const pyvenvPath = path.join(backendStageRoot, ".venv", "pyvenv.cfg");
+    const homePath = readPyvenvHome(pyvenvPath);
+    if (homePath && fs.existsSync(homePath)) {
+      const embedPythonRoot = path.join(backendStageRoot, ".venv", "python");
+      if (!fs.existsSync(embedPythonRoot)) {
+        console.log(`[aiasys-desktop] 嵌入完整 Python 运行时: ${homePath} -> ${embedPythonRoot}`);
+        fs.cpSync(homePath, embedPythonRoot, { recursive: true, preserveTimestamps: true });
+      }
+    } else {
+      console.warn("[aiasys-desktop] 未找到 pyvenv.cfg home 路径，嵌入 Python 可能不完整");
+    }
+  }
 }
 
 function main() {

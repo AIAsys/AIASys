@@ -3,6 +3,7 @@ import { apiRequest } from "./httpClient";
 
 export interface UISettingsData {
   activityBarOrder?: string[];
+  templateOrder?: string[];
   [key: string]: unknown;
 }
 

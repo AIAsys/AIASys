@@ -42,6 +42,9 @@ function getWorkspaceActivityTimestamp(workspace: TaskWorkspaceSummary): number 
   );
 }
 
+const INITIAL_PAGE_SIZE = 5;
+const LOAD_MORE_PAGE_SIZE = 10;
+
 export function useTaskWorkspaces({
   currentSessionId,
 }: UseTaskWorkspacesOptions) {
@@ -49,12 +52,22 @@ export function useTaskWorkspaces({
   // 首次渲染前还没有完成工作区列表首轮拉取，必须视作 loading，
   // 否则 /workspace?workspace_id=... 会在首帧被误判成无效路由并提前清掉。
   const [isLoadingWorkspaces, setIsLoadingWorkspaces] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
   const latestLoadRequestRef = useRef(0);
   const routeWorkspaceId =
     typeof window === "undefined" ||
     window.location.pathname.replace(/\/+$/, "") !== "/workspace"
       ? undefined
       : new URLSearchParams(window.location.search).get("workspace_id") || undefined;
+
+  const fetchWorkspaces = useCallback(
+    async (limit: number, offset: number): Promise<TaskWorkspaceSummary[]> => {
+      const next = await listTaskWorkspaces(true, limit, offset);
+      return next;
+    },
+    [],
+  );
 
   const loadWorkspaces = useCallback(async (): Promise<TaskWorkspaceSummary[]> => {
     const requestId = latestLoadRequestRef.current + 1;
@@ -68,8 +81,9 @@ export function useTaskWorkspaces({
         : new URLSearchParams(window.location.search).get("workspace_id") || undefined;
 
     setIsLoadingWorkspaces(true);
+    setHasMore(true);
     try {
-      const next = await listTaskWorkspaces();
+      const next = await fetchWorkspaces(INITIAL_PAGE_SIZE, 0);
       const routeWorkspace = currentRouteWorkspaceId
         ? next.find((workspace) => workspace.workspace_id === currentRouteWorkspaceId)
         : undefined;
@@ -102,12 +116,14 @@ export function useTaskWorkspaces({
       );
       if (requestId === latestLoadRequestRef.current) {
         setWorkspaces(next);
+        setHasMore(next.length >= INITIAL_PAGE_SIZE);
       }
       return next;
     } catch (error) {
       console.error("Failed to load workspaces:", error);
       if (requestId === latestLoadRequestRef.current) {
         setWorkspaces([]);
+        setHasMore(false);
       }
       return [];
     } finally {
@@ -115,7 +131,41 @@ export function useTaskWorkspaces({
         setIsLoadingWorkspaces(false);
       }
     }
-  }, [currentSessionId]);
+  }, [currentSessionId, fetchWorkspaces]);
+
+  const loadMoreWorkspaces = useCallback(async () => {
+    if (isLoadingMore || !hasMore) {
+      return;
+    }
+    setIsLoadingMore(true);
+    try {
+      const next = await fetchWorkspaces(LOAD_MORE_PAGE_SIZE, workspaces.length);
+      next.sort(
+        (left, right) => getWorkspaceActivityTimestamp(right) - getWorkspaceActivityTimestamp(left),
+      );
+      setWorkspaces((previous) => {
+        const merged = [...previous, ...next];
+        // 去重并重新排序
+        const seen = new Set<string>();
+        const deduped: TaskWorkspaceSummary[] = [];
+        for (const ws of merged) {
+          if (!seen.has(ws.workspace_id)) {
+            seen.add(ws.workspace_id);
+            deduped.push(ws);
+          }
+        }
+        deduped.sort(
+          (left, right) => getWorkspaceActivityTimestamp(right) - getWorkspaceActivityTimestamp(left),
+        );
+        return deduped;
+      });
+      setHasMore(next.length >= LOAD_MORE_PAGE_SIZE);
+    } catch (error) {
+      console.error("Failed to load more workspaces:", error);
+    } finally {
+      setIsLoadingMore(false);
+    }
+  }, [fetchWorkspaces, hasMore, isLoadingMore, workspaces.length]);
 
   useEffect(() => {
     void loadWorkspaces();
@@ -202,8 +252,11 @@ export function useTaskWorkspaces({
   return {
     workspaces,
     isLoadingWorkspaces,
+    isLoadingMore,
+    hasMore,
     currentWorkspaceId,
     currentWorkspace,
     loadWorkspaces,
+    loadMoreWorkspaces,
   };
 }

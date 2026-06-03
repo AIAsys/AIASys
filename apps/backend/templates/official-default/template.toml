@@ -7,7 +7,7 @@ default_title = "新任务"
 default_description = ""
 initial_conversation_title = "开始工作"
 env_kind = "uv"
-recommended_skills = ["aiasys-platform-skill", "aiasys-canvas-skill", "uv-runtime-skill", "aiasys-tool-usage-skill"]
+recommended_skills = ["aiasys-platform-skill", "aiasys-canvas-skill", "uv-runtime-skill", "aiasys-tool-usage-skill", "tabular-data-preview-skill"]
 
 [[files]]
 relative_path = "README.md"
@@ -22,6 +22,8 @@ content = """# 工作区
 | aiasys-platform-skill | AIASys 平台使用指南 |
 | aiasys-canvas-skill | Canvas 可视化编辑 |
 | uv-runtime-skill | Python/UV 运行环境管理 |
+| aiasys-tool-usage-skill | 工具使用规范与协作约定 |
+| tabular-data-preview-skill | Excel / CSV 表格数据预览与概览 |
 
 ## 快速开始
 

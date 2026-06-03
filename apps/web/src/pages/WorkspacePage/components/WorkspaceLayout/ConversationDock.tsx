@@ -192,7 +192,6 @@ export function ConversationDock({
         currentSessionTitle={currentSessionTitle}
         workspace={workspace}
         currentSessionId={currentSessionId}
-        sessionStatus={sessionStatus}
         onNewConversation={onNewConversation}
         onClose={onClose}
         onSelectConversation={onSelectConversation}
@@ -244,6 +243,8 @@ export function ConversationDock({
         sessionInputFocusSignal={sessionInputFocusSignal}
         tokenUsageRefreshSignal={tokenUsageRefreshSignal}
         onUploadToWorkspace={onUploadToWorkspace}
+        tasks={sessionStatus?.tasks}
+        planState={sessionStatus?.plan_state}
       />
     </aside>
   );

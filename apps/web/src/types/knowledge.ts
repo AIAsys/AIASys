@@ -5,8 +5,9 @@
 export interface KnowledgeBase {
   id: string;
   name: string;
-  description?: string;
+  description?: string | null;
   user_id: string;
+  kind: string;
   embedding_model?: string | null;
   chunk_size: number;
   chunk_overlap: number;
@@ -21,6 +22,8 @@ export interface KnowledgeBase {
   last_indexed_config_version: number;
   can_edit_index_config: boolean;
   requires_reindex: boolean;
+  scope: string;
+  workspace_id?: string | null;
   created_at: string;
   updated_at: string;
 }

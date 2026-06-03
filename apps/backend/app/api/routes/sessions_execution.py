@@ -1,5 +1,6 @@
 import logging
 from datetime import datetime
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
@@ -722,8 +723,9 @@ async def rebuild_session_runtime(
 async def get_session_history(
     user_id: str,
     session_id: str,
+    limit: int = Query(0, ge=0, description="限制返回最近 N 条消息，0 表示不限制"),
     current_user: UserInfo = Depends(require_auth()),
-):
+) -> dict[str, Any]:
     """
     获取 Agent 会话历史记录
 
@@ -741,7 +743,7 @@ async def get_session_history(
             session_id,
             user_id,
         )
-        sdk_history = await agent_service.get_session_history(user_id, session_id)
+        sdk_history = await agent_service.get_session_history(user_id, session_id, limit=limit)
         current_messages = _filter_visible_history_messages(sdk_history)
         current_messages = session_manager.assign_history_message_ids(
             session_id,
@@ -769,6 +771,12 @@ async def get_session_history(
         # 只过滤掉系统内部消息，保留用于 UI 展示的 system 分隔线
         messages.extend(current_messages)
 
+        # 分页：只保留最近 limit 条消息（从 current_messages 尾部截取）
+        total_messages = len(messages)
+        limit_int = int(limit.default) if hasattr(limit, "default") else int(limit) if limit else 0
+        if limit_int > 0 and total_messages > limit_int:
+            messages = messages[-limit_int:]
+
         # 直接返回原始格式
         return {
             "user_id": user_id,
@@ -776,7 +784,9 @@ async def get_session_history(
             "messages": messages,
             "current_messages": current_messages,
             "archived_batches": conversation_batches,
-            "can_resume": len(messages) > 0,
+            "can_resume": total_messages > 0,
+            "total_messages": total_messages,
+            "has_more": limit_int > 0 and total_messages > limit_int,
         }
     except Exception as e:
         logger.error(f"获取历史失败: {e}")

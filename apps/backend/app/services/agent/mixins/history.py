@@ -133,6 +133,70 @@ def _select_reasoning_turn_index(
     return best_index
 
 
+def _is_empty_assistant_message(msg: Dict[str, Any]) -> bool:
+    """判断 assistant 消息是否没有实质展示内容（无 text、无 reasoning、无 tool_calls）。
+
+    注意：tool_calls-only 的消息（无 text、无 reasoning）也被视为"空"，
+    因为 tool_calls 的展示应该合并到相邻的有内容 turn 中，而不是单独生成空白分隔线。
+    """
+    if msg.get("role") != "assistant":
+        return False
+    content = msg.get("content")
+    has_text = bool(content) and (
+        (isinstance(content, str) and content.strip())
+        or (isinstance(content, list) and any((item.get("text") or "").strip() for item in content))
+    )
+    has_reasoning = bool(msg.get("reasoning_content", "").strip())
+    # tool_calls-only 的消息也被视为空（从展示角度）
+    return not has_text and not has_reasoning
+
+
+def _merge_empty_assistant_messages(
+    history: List[Dict[str, Any]],
+) -> List[Dict[str, Any]]:
+    """合并连续的空白 assistant 消息到相邻的有内容消息中。
+
+    策略：遍历消息列表，当遇到空 assistant 消息时，将其 tool_calls（如有）
+    合并到前一个或后一个有内容的 assistant 消息中，自身被丢弃。
+    这避免了前端历史恢复时为无实质内容的 ReAct 轮次生成空白 Turn 分隔线。
+    """
+    merged: List[Dict[str, Any]] = []
+    pending_empty: List[Dict[str, Any]] = []
+
+    def _flush_pending() -> None:
+        nonlocal merged
+        if not pending_empty:
+            return
+        # 尝试把 pending_empty 的 tool_calls 合并到最后一个非空 assistant
+        tool_calls_to_merge: List[Dict[str, Any]] = []
+        for m in pending_empty:
+            if m.get("tool_calls"):
+                tool_calls_to_merge.extend(m["tool_calls"])
+        if tool_calls_to_merge:
+            for i in range(len(merged) - 1, -1, -1):
+                if merged[i].get("role") == "assistant":
+                    existing = merged[i].get("tool_calls") or []
+                    merged[i]["tool_calls"] = existing + tool_calls_to_merge
+                    break
+        pending_empty.clear()
+
+    for msg in history:
+        if _is_empty_assistant_message(msg):
+            pending_empty.append(dict(msg))
+            continue
+
+        _flush_pending()
+
+        if msg.get("role") == "assistant" and pending_empty:
+            # 不应该走到这里，因为上面已经 continue 了
+            pending_empty.clear()
+
+        merged.append(dict(msg))
+
+    _flush_pending()
+    return merged
+
+
 def _backfill_reasoning_content_from_wire(
     history: List[Dict[str, Any]],
     session_dir: Path,
@@ -172,7 +236,7 @@ class HistoryMixin:
     """历史记录功能"""
 
     async def get_session_history(
-        self: "AgentService", user_id: str, session_id: str
+        self: "AgentService", user_id: str, session_id: str, limit: int = 0
     ) -> List[Dict[str, Any]]:
         """
         获取会话历史记录
@@ -180,6 +244,10 @@ class HistoryMixin:
         存储位置:
         - SDK 原始历史: workspaces/{user_id}/{session_id}/.aiasys/session/{session_id}/context.jsonl
         - UI 展示历史: workspaces/{user_id}/{session_id}/.aiasys/session/{session_id}/display_history.jsonl
+
+        Args:
+            limit: 限制返回最近 N 条消息，0 表示不限制。
+                   实现方式为从文件尾部读取，避免全量加载大文件。
         """
         try:
             work_dir = get_work_dir(user_id, session_id)
@@ -193,22 +261,39 @@ class HistoryMixin:
 
             history = []
             if session_file.exists():
-                with open(session_file, "r", encoding="utf-8") as f:
-                    for line in f:
-                        line = line.strip()
-                        if line:
-                            try:
-                                msg = json.loads(line)
-                                # 过滤内部 SDK 消息和 system-reminder 消息
-                                if msg.get("role") in ("_checkpoint", "_usage", "_system_prompt"):
+                if limit > 0:
+                    # 从文件尾部读取最近 N 条有效消息，避免全量解析
+                    history = self._read_history_tail(session_file, limit)
+                else:
+                    with open(session_file, "r", encoding="utf-8") as f:
+                        for line in f:
+                            line = line.strip()
+                            if line:
+                                try:
+                                    msg = json.loads(line)
+                                    # 过滤内部 SDK 消息和 system-reminder 消息
+                                    if msg.get("role") in (
+                                        "_checkpoint",
+                                        "_usage",
+                                        "_system_prompt",
+                                    ):
+                                        continue
+                                    # 内联 system-reminder 检测，避免依赖 EventsMixin
+                                    if (
+                                        msg.get("role") == "user"
+                                        and isinstance(msg.get("content"), str)
+                                        and msg.get("content", "")
+                                        .strip()
+                                        .startswith("<system-reminder>")
+                                    ):
+                                        continue
+                                    history.append(msg)
+                                except json.JSONDecodeError:
                                     continue
-                                if self._is_system_reminder_message(msg):
-                                    continue
-                                history.append(msg)
-                            except json.JSONDecodeError:
-                                continue
             display_entries = load_display_history_entries(StdPath(str(work_dir)), session_id)
             if history:
+                # 先合并连续的空白 assistant 消息，避免前端生成空白 Turn 分隔线
+                history = _merge_empty_assistant_messages(history)
                 hydrated_history = apply_display_content_to_history(
                     history,
                     display_entries,
@@ -223,6 +308,98 @@ class HistoryMixin:
         except Exception as e:
             logger.error(f"读取会话历史失败: {e}")
             return []
+
+    def _read_history_tail(
+        self: "AgentService", session_file: Path, limit: int
+    ) -> List[Dict[str, Any]]:
+        """从 context.jsonl 尾部读取最近 limit 条有效消息。"""
+        import mmap
+
+        def _should_skip(msg: dict) -> bool:
+            """过滤内部 SDK 消息和 system-reminder 消息。"""
+            if msg.get("role") in ("_checkpoint", "_usage", "_system_prompt"):
+                return True
+            if msg.get("role") == "user":
+                content = msg.get("content")
+                if isinstance(content, str) and content.strip().startswith("<system-reminder>"):
+                    return True
+            return False
+
+        history: List[Dict[str, Any]] = []
+        try:
+            with open(session_file, "r+b") as f:
+                try:
+                    mm = mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ)
+                except (ValueError, OSError):
+                    # 空文件或无法 mmap，回退到普通读取
+                    f.seek(0)
+                    lines = f.readlines()
+                    for line in reversed(lines):
+                        line = line.strip()
+                        if not line:
+                            continue
+                        try:
+                            msg = json.loads(line)
+                            if _should_skip(msg):
+                                continue
+                            history.insert(0, msg)
+                            if len(history) >= limit:
+                                break
+                        except json.JSONDecodeError:
+                            continue
+                    return history
+
+                # 从文件末尾向前扫描，找到最近的 limit 条有效消息
+                file_size = mm.size()
+                pos = file_size
+                line_buffer = bytearray()
+
+                while pos > 0 and len(history) < limit:
+                    pos -= 1
+                    byte = mm[pos]
+                    if byte == ord(b"\n"):
+                        if line_buffer:
+                            line = line_buffer[::-1].decode("utf-8", errors="replace").strip()
+                            if line:
+                                try:
+                                    msg = json.loads(line)
+                                    if not _should_skip(msg):
+                                        history.insert(0, msg)
+                                except json.JSONDecodeError:
+                                    pass
+                            line_buffer = bytearray()
+                    else:
+                        line_buffer.append(byte)
+
+                # 处理最后一行（文件开头没有换行符的情况）
+                if line_buffer and len(history) < limit:
+                    line = line_buffer[::-1].decode("utf-8", errors="replace").strip()
+                    if line:
+                        try:
+                            msg = json.loads(line)
+                            if not _should_skip(msg):
+                                history.insert(0, msg)
+                        except json.JSONDecodeError:
+                            pass
+
+                mm.close()
+        except Exception as e:
+            logger.warning(f"尾部读取历史失败，回退到全量读取: {e}")
+            # 回退到普通读取
+            with open(session_file, "r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if line:
+                        try:
+                            msg = json.loads(line)
+                            if _should_skip(msg):
+                                continue
+                            history.append(msg)
+                        except json.JSONDecodeError:
+                            continue
+                if len(history) > limit:
+                    history = history[-limit:]
+        return history
 
     async def get_session_execution_events(
         self: "AgentService", user_id: str, session_id: str

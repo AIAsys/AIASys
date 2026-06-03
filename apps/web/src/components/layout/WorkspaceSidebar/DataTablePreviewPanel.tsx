@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Table, Loader2, AlertCircle, Database, Plus, Trash2, Check, X, Settings2 } from "lucide-react";
-import { CanvasActionMenu } from "@/pages/DataAnalysisPage/components/AnalysisWorkspaceLayout/components/CanvasActionMenu";
+import { CanvasActionMenu } from "@/components/workspace/CanvasActionMenu";
 import { API_ENDPOINTS } from "@/config/api";
 import { useAuthContext } from "@/contexts/AuthContext";
 import { apiRequest } from "@/lib/api/httpClient";

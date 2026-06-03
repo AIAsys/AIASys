@@ -11,7 +11,7 @@ import type { WorkspaceFile } from "@/types/task";
 import type {
   SessionStatusInfo,
   TaskWorkspaceSummary,
-} from "@/pages/DataAnalysisPage/types";
+} from "@/pages/WorkspacePage/types";
 import { API_ENDPOINTS, getCurrentUserId } from "@/config/api";
 import { apiFetch } from "@/lib/api/httpClient";
 import { SidebarContext } from "./context";

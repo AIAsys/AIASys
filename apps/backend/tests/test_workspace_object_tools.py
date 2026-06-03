@@ -47,9 +47,9 @@ async def test_data_table_tools_manage_workspace_table(workspace_context) -> Non
         records=[{"实验名": "baseline", "准确率": 0.82}],
     )
     record_id = insert_result.artifacts[0]["data_table_insert"]["inserted_ids"][0]
-    records_result = await data_table_tool.ReadDataTableRecords().invoke(
+    records_result = await data_table_tool.QueryDataTable().invoke(
         table_path=table_path,
-        limit=10,
+        sql="SELECT * FROM records LIMIT 10",
     )
     update_result = await data_table_tool.UpdateDataTableRecord().invoke(
         table_path=table_path,

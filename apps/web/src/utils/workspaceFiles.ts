@@ -46,7 +46,7 @@ function resolveFileApiBaseUrl(preferDirectBackend = false): string {
   return "";
 }
 
-function inferAnalysisSessionId(sessionId?: string): string | undefined {
+function inferWorkspaceSessionId(sessionId?: string): string | undefined {
   if (sessionId) {
     return sessionId;
   }
@@ -55,7 +55,7 @@ function inferAnalysisSessionId(sessionId?: string): string | undefined {
     return undefined;
   }
 
-  const match = window.location.pathname.match(/\/analysis\/([^/]+)/);
+  const match = window.location.pathname.match(/\/workspace\/([^/]+)/);
   return match?.[1];
 }
 
@@ -170,7 +170,7 @@ export function resolveWorkspaceFileUrl(
     return appendAccessToken(cleanPath, token);
   }
 
-  const resolvedSessionId = inferAnalysisSessionId(sessionId);
+  const resolvedSessionId = inferWorkspaceSessionId(sessionId);
   if (!resolvedSessionId) {
     return appendAccessToken(cleanPath, token);
   }

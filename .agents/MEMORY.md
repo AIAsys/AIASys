@@ -64,6 +64,8 @@
 - 代码风格：遵循各语言社区惯例
 - Git 分支策略：feature 分支开发，PR 合并到 dev，dev 合并到 main
 - Memory 维护：Architect 在 session 结束时更新 `.agents/MEMORY.md`（不是根目录！），遵循 `project-memory` skill 规范
+- **工具 vs Skill 取舍** (2026-06-02)：高频、稳定、原子性强的操作走工具化（如 ReadFile、EnableSkill）；低频、变化快、需要 Agent 自主决策的操作走 Skill 化（如扩展发现与安装）。Agent 已有 Shell/RunCode 通用工具时，不要为每个后端 API 都建专用工具——专用工具是枷锁，灵活性优先。具体见 Task Session `2026-06-02-feature-skill-skill`。
+- **本地认证模式下 Agent 调用后端 API 不需要 token** (2026-06-02)：`LocalAuthProvider` 始终返回 `local_default` 用户，忽略所有 credentials。Agent 直接用 `curl http://localhost:13001/api/...` 即可。
 
 ---
 
