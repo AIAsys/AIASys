@@ -77,20 +77,35 @@ export function useMultiTaskEventStream(): UseMultiTaskEventStreamReturn {
 
       if (fromId) {
         const fromData = getPerSessionData(fromId);
+        // 深拷贝 tasks Map，避免跨 session 共享 TaskState 引用
+        const deepTasks = new Map<string, typeof stateRef.current.tasks extends Map<string, infer V> ? V : never>();
+        stateRef.current.tasks.forEach((task, taskId) => {
+          deepTasks.set(taskId, {
+            ...task,
+            events: task.events.map((e) => ({ ...e })),
+          });
+        });
         fromData.state = {
           ...stateRef.current,
-          tasks: new Map(stateRef.current.tasks),
+          tasks: deepTasks,
         };
-        fromData.files = workspaceFilesRef.current;
+        fromData.files = workspaceFilesRef.current.map((f) => ({ ...f }));
       }
 
       const toData = getPerSessionData(toId);
+      const toDeepTasks = new Map<string, typeof toData.state.tasks extends Map<string, infer V> ? V : never>();
+      toData.state.tasks.forEach((task, taskId) => {
+        toDeepTasks.set(taskId, {
+          ...task,
+          events: task.events.map((e) => ({ ...e })),
+        });
+      });
       setState({
-        tasks: new Map(toData.state.tasks),
+        tasks: toDeepTasks,
         taskOrder: [...toData.state.taskOrder],
         selectedTaskId: toData.state.selectedTaskId,
       });
-      setWorkspaceFiles(toData.files);
+      setWorkspaceFiles(toData.files.map((f) => ({ ...f })));
       activeSessionIdRef.current = toId;
     },
     [getPerSessionData],
