@@ -9,14 +9,42 @@ Session execution journal 服务。
 
 from __future__ import annotations
 
-import fcntl
 import json
 import logging
+import os
 import re
 import shutil
+from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional
+
+
+# 跨平台文件锁：POSIX 用 fcntl；Windows 用 msvcrt.locking
+if os.name == "nt":
+    import msvcrt
+
+    @contextmanager
+    def _file_lock(file_obj):
+        original_pos = file_obj.tell()
+        file_obj.seek(0)
+        try:
+            msvcrt.locking(file_obj.fileno(), msvcrt.LK_LOCK, 1)
+            yield
+        finally:
+            file_obj.seek(0)
+            msvcrt.locking(file_obj.fileno(), msvcrt.LK_UNLCK, 1)
+            file_obj.seek(original_pos)
+else:
+    import fcntl
+
+    @contextmanager
+    def _file_lock(file_obj):
+        fcntl.flock(file_obj.fileno(), fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(file_obj.fileno(), fcntl.LOCK_UN)
 
 from app.models.session import (
     ExecutionOrigin,
@@ -281,11 +309,8 @@ class SessionExecutionJournal:
         )
 
         with open(self.records_path, "a", encoding="utf-8") as f:
-            fcntl.flock(f.fileno(), fcntl.LOCK_EX)
-            try:
+            with _file_lock(f):
                 f.write(json.dumps(record.model_dump(), ensure_ascii=False) + "\n")
-            finally:
-                fcntl.flock(f.fileno(), fcntl.LOCK_UN)
 
         self._write_json(
             self.index_path,
@@ -354,11 +379,8 @@ class SessionExecutionJournal:
         }
 
         with open(self.replay_runs_path, "a", encoding="utf-8") as f:
-            fcntl.flock(f.fileno(), fcntl.LOCK_EX)
-            try:
+            with _file_lock(f):
                 f.write(json.dumps(payload, ensure_ascii=False) + "\n")
-            finally:
-                fcntl.flock(f.fileno(), fcntl.LOCK_UN)
 
         return payload
 

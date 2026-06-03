@@ -25,10 +25,53 @@ function resolveRepoRoot() {
   return path.resolve(__dirname, "..", "..", "..");
 }
 
+function fixPyvenvHomeIfNeeded(backendRoot) {
+  if (process.platform !== "win32") {
+    return;
+  }
+  const pyvenvPath = path.join(backendRoot, ".venv", "pyvenv.cfg");
+  if (!fs.existsSync(pyvenvPath)) {
+    return;
+  }
+  const embedPythonDir = path.join(backendRoot, ".venv", "python");
+  if (!fs.existsSync(embedPythonDir)) {
+    return;
+  }
+
+  let content;
+  try {
+    content = fs.readFileSync(pyvenvPath, "utf-8");
+  } catch {
+    return;
+  }
+
+  const homeMatch = content.match(/^home\s*=\s*(.+)$/m);
+  const currentHome = homeMatch ? homeMatch[1].trim() : null;
+  const expectedHome = embedPythonDir;
+
+  // 如果 home 已经正确，无需修改
+  if (currentHome && path.resolve(currentHome) === path.resolve(expectedHome)) {
+    return;
+  }
+
+  // 如果当前 home 指向的路径不存在，或不是嵌入目录，则修复
+  if (!currentHome || !fs.existsSync(currentHome)) {
+    const newContent = content.replace(/^home\s*=\s*.+$/m, `home = ${expectedHome}`);
+    try {
+      fs.writeFileSync(pyvenvPath, newContent, "utf-8");
+      console.log(`[aiasys-desktop] 已修复 pyvenv.cfg home 路径: ${expectedHome}`);
+    } catch (error) {
+      console.warn("[aiasys-desktop] 修复 pyvenv.cfg 失败:", error);
+    }
+  }
+}
+
 function resolvePythonExecutable(backendRoot) {
   const platformCandidates =
     process.platform === "win32"
       ? [
+          // 优先使用嵌入的完整 Python 运行时
+          path.join(backendRoot, ".venv", "python", "python.exe"),
           path.join(backendRoot, ".venv", "Scripts", "python.exe"),
           path.join(backendRoot, ".venv", "Scripts", "python"),
         ]
@@ -597,6 +640,11 @@ class DesktopServiceManager {
 
   async ensureBackend() {
     this.preparePackagedRuntimeState();
+
+    // Windows 打包环境：修复 pyvenv.cfg 的 home 路径为嵌入目录
+    if (this.isPackaged && process.platform === "win32") {
+      fixPyvenvHomeIfNeeded(this.backendRoot);
+    }
 
     const backendResolution = await this.resolveDesiredPort({
       requestedPort: this.backendPort,
