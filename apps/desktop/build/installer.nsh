@@ -9,9 +9,7 @@
   nsExec::ExecToStack 'tasklist /FI "IMAGENAME eq AIASys Desktop.exe" 2>NUL | find /I "AIASys Desktop.exe"'
   Pop $R0
   ${If} $R0 == "0"
-    MessageBox MB_OKCANCEL|MB_ICONEXCLAMATION "AIASys Desktop 正在运行。安装前需要关闭该应用。$
-$
-点击"确定"自动关闭并继续安装，点击"取消"退出安装程序。" IDOK closeApp IDCANCEL cancelInstall
+    MessageBox MB_OKCANCEL|MB_ICONEXCLAMATION "AIASys Desktop 正在运行。安装前需要关闭该应用。$\r$\n$\r$\n点击「确定」自动关闭并继续安装，点击「取消」退出安装程序。" IDOK closeApp IDCANCEL cancelInstall
 
     closeApp:
       nsExec::ExecToStack 'taskkill /F /IM "AIASys Desktop.exe" 2>NUL'
