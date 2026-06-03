@@ -69,6 +69,23 @@ def _is_dangerous_command(command: str) -> bool:
     return False
 
 
+async def _create_shell_process(command: str, **kwargs: Any) -> asyncio.subprocess.Process:
+    """跨平台创建 shell 子进程。
+
+    Windows 下默认 asyncio.create_subprocess_shell 调用 cmd.exe，
+    无法执行 ls/cat/2>/dev/null 等 POSIX 命令。
+    若系统存在 bash（如 Git Bash）则显式使用 bash -c 执行命令。
+    Linux/macOS 保持原行为。
+    """
+    if os.name == "nt":
+        import shutil
+
+        bash_path = shutil.which("bash")
+        if bash_path:
+            return await asyncio.create_subprocess_exec(bash_path, "-c", command, **kwargs)
+    return await asyncio.create_subprocess_shell(command, **kwargs)
+
+
 # ---------------------------------------------------------------------------
 # MonitorSession —— 单个后台进程的状态
 # ---------------------------------------------------------------------------
@@ -330,7 +347,7 @@ class MonitorService:
             merged_env = dict(env) if env is not None else os.environ.copy()
             stdout_f = open(stdout_path, "wb")
             stderr_f = open(stderr_path, "wb")
-            process = await asyncio.create_subprocess_shell(
+            process = await _create_shell_process(
                 command,
                 stdout=stdout_f,
                 stderr=stderr_f,
