@@ -1,0 +1,8 @@
+capability_id = "tabular-data-preview-skill"
+display_name = "表格数据预览"
+description = "读取和预览 Excel、CSV 等表格文件的标准化方法论。提供多 sheet 概览、列名数据类型检查、滑动窗口数据预览、数值统计摘要等能力。"
+version = "1.0.0"
+author = "AIASys"
+dependencies = []
+config_schema = {}
+min_platform_version = "0.1.0"
