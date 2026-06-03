@@ -1,11 +1,11 @@
-import { CheckCircle2, ChevronDown, ListTodo, Map, PanelRightClose } from "lucide-react";
+import { ChevronDown, PanelRightClose } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import type { SessionStatusInfo, TaskWorkspaceSummary } from "../../types";
+import type { TaskWorkspaceSummary } from "../../types";
 import { GitBranchPlusIcon, MessageSquareIcon } from "../chatShellIcons";
 import { DockStatusChip } from "./DockComponents";
 import { WorkspaceConversationPanel } from "./WorkspaceConversationPanel";
@@ -14,7 +14,6 @@ interface DockHeaderProps {
   currentSessionTitle: string;
   workspace?: TaskWorkspaceSummary;
   currentSessionId?: string;
-  sessionStatus?: SessionStatusInfo | null;
   onNewConversation: () => void;
   onClose: () => void;
   onSelectConversation: (sessionId: string) => void;
@@ -27,7 +26,6 @@ export function DockHeader({
   currentSessionTitle,
   workspace,
   currentSessionId,
-  sessionStatus,
   onNewConversation,
   onClose,
   onSelectConversation,
@@ -35,18 +33,6 @@ export function DockHeader({
   onRenameConversation,
   onDeleteConversation,
 }: DockHeaderProps) {
-  const tasks = sessionStatus?.tasks ?? [];
-  const activeTasks = tasks.filter((task) =>
-    task.status === "pending" || task.status === "in_progress",
-  );
-  const inProgressTask = tasks.find((task) => task.status === "in_progress");
-  const completedTaskCount =
-    sessionStatus?.task_counts?.completed ??
-    tasks.filter((task) => task.status === "completed").length;
-  const planState = sessionStatus?.plan_state ?? null;
-  const isPlanModeActive = planState?.mode === "active";
-  const isPlanPendingApproval = planState?.approval_status === "pending_approval";
-
   const conversationCount = workspace?.conversations?.length ?? 0;
   const conversationSummaryLabel =
     conversationCount > 0 ? `${conversationCount} 个对话` : "暂无对话";
@@ -125,40 +111,6 @@ export function DockHeader({
         >
           {conversationSummaryLabel}
         </DockStatusChip>
-        {isPlanModeActive ? (
-          <DockStatusChip className="border-primary/25 bg-primary-container text-on-primary-container">
-            <Map className="mr-1 h-3 w-3" />
-            规划模式
-          </DockStatusChip>
-        ) : isPlanPendingApproval ? (
-          <DockStatusChip className="border-warning/25 bg-warning-container text-on-warning-container">
-            <Map className="mr-1 h-3 w-3" />
-            计划待批
-          </DockStatusChip>
-        ) : null}
-        {tasks.length > 0 ? (
-          <DockStatusChip>
-            <ListTodo className="mr-1 h-3 w-3" />
-            {completedTaskCount}/{tasks.length} 任务
-          </DockStatusChip>
-        ) : null}
-        {inProgressTask ? (
-          <DockStatusChip className="max-w-[180px]">
-            <ListTodo className="mr-1 h-3 w-3 shrink-0" />
-            <span className="truncate">{inProgressTask.content}</span>
-          </DockStatusChip>
-        ) : activeTasks.length > 0 ? (
-          <DockStatusChip>
-            <ListTodo className="mr-1 h-3 w-3" />
-            待处理 {activeTasks.length} 项
-          </DockStatusChip>
-        ) : null}
-        {planState?.current_plan_file ? (
-          <DockStatusChip className="max-w-[180px]">
-            <CheckCircle2 className="mr-1 h-3 w-3 shrink-0" />
-            <span className="truncate">{planState.current_plan_file}</span>
-          </DockStatusChip>
-        ) : null}
       </div>
     </div>
   );

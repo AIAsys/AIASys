@@ -192,7 +192,6 @@ export function ConversationDock({
         currentSessionTitle={currentSessionTitle}
         workspace={workspace}
         currentSessionId={currentSessionId}
-        sessionStatus={sessionStatus}
         onNewConversation={onNewConversation}
         onClose={onClose}
         onSelectConversation={onSelectConversation}

@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import {
   CheckCircle2,
   ChevronDown,
@@ -155,6 +155,7 @@ function TaskRow({ task }: { task: SessionTaskItem }) {
 
 export function SessionTaskPanel({ tasks = [], planState }: SessionTaskPanelProps) {
   const [isExpanded, setIsExpanded] = useLocalStorageState(STORAGE_KEY, true);
+  const [showAll, setShowAll] = useState(false);
 
   const isPlanModeActive = planState?.mode === "active";
   const isPlanPendingApproval = planState?.approval_status === "pending_approval";
@@ -162,6 +163,7 @@ export function SessionTaskPanel({ tasks = [], planState }: SessionTaskPanelProp
 
   const toggleExpanded = useCallback(() => {
     setIsExpanded((v) => !v);
+    setShowAll(false);
   }, [setIsExpanded]);
 
   // Nothing to show
@@ -176,6 +178,8 @@ export function SessionTaskPanel({ tasks = [], planState }: SessionTaskPanelProp
   ).length;
 
   const { visible, hidden } = selectVisibleTasks(tasks);
+  const displayTasks = showAll ? tasks : visible;
+  const displayHidden = showAll ? 0 : hidden;
 
   // Collapsed mode — single-line summary
   if (!isExpanded) {
@@ -269,15 +273,28 @@ export function SessionTaskPanel({ tasks = [], planState }: SessionTaskPanelProp
       )}
 
       {/* Task list */}
-      {!isPlanModeActive && visible.length > 0 && (
+      {!isPlanModeActive && displayTasks.length > 0 && (
         <div className="mt-2 space-y-1">
-          {visible.map((task) => (
+          {displayTasks.map((task) => (
             <TaskRow key={task.id} task={task} />
           ))}
-          {hidden > 0 && (
-            <div className="pl-[22px] text-[11px] text-muted-foreground">
-              +{hidden} 更多
-            </div>
+          {displayHidden > 0 && (
+            <button
+              type="button"
+              onClick={() => setShowAll(true)}
+              className="pl-[22px] text-[11px] text-muted-foreground transition-colors hover:text-foreground"
+            >
+              +{displayHidden} 更多
+            </button>
+          )}
+          {showAll && tasks.length > MAX_VISIBLE && (
+            <button
+              type="button"
+              onClick={() => setShowAll(false)}
+              className="pl-[22px] text-[11px] text-muted-foreground transition-colors hover:text-foreground"
+            >
+              收起
+            </button>
           )}
         </div>
       )}
