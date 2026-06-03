@@ -3,7 +3,7 @@ import { Suspense, lazy, useCallback, useEffect, useState } from "react";
 import { PublicRoute, ProtectedRoute } from "./components/auth/RouteGuard";
 
 const HomePage = lazy(() => import("./pages/HomePage"));
-const DataAnalysisPage = lazy(() => import("./pages/DataAnalysisPage"));
+const WorkspacePage = lazy(() => import("./pages/WorkspacePage"));
 
 const UserProfilePage = lazy(() => import("@/pages/UserProfilePage"));
 
@@ -17,7 +17,7 @@ function RouteLoading() {
 
 /**
  * 应用程序根组件
- * 
+ *
  * 当前默认按单机默认用户模式运行。
  */
 function App() {
@@ -30,9 +30,11 @@ function App() {
     pathname.endsWith("/") && pathname.length > 1
       ? pathname.slice(0, -1)
       : pathname;
-  const isAnalysisRoute = normalizedPathname === "/analysis";
-  const initialAnalysisSessionId =
-    isAnalysisRoute
+
+  const isWorkspaceRoute =
+    normalizedPathname === "/workspace" || normalizedPathname === "/analysis";
+  const initialWorkspaceSessionId =
+    isWorkspaceRoute
       ? new URLSearchParams(locationState.search).get("session_id")
       : null;
 
@@ -71,7 +73,14 @@ function App() {
     };
   }, [navigate]);
 
+  // 将旧 /analysis 路由重定向到 /workspace
   useEffect(() => {
+    if (normalizedPathname === "/analysis") {
+      const nextSearch = locationState.search;
+      navigate(nextSearch ? `/workspace${nextSearch}` : "/workspace", { replace: true });
+      return;
+    }
+
     const analysisSessionPrefix = "/analysis/";
     if (!normalizedPathname.startsWith(analysisSessionPrefix)) {
       return;
@@ -84,13 +93,13 @@ function App() {
       nextSearch.set("session_id", sessionIdFromPath);
     }
     const query = nextSearch.toString();
-    navigate(query ? `/analysis?${query}` : "/analysis", { replace: true });
+    navigate(query ? `/workspace?${query}` : "/workspace", { replace: true });
   }, [locationState.search, navigate, normalizedPathname]);
 
   // 路由匹配
   const routeConfig = {
     isHome: normalizedPathname === "/" || normalizedPathname === "/home",
-    isAnalysis: isAnalysisRoute,
+    isWorkspace: normalizedPathname === "/workspace",
     isProfile: normalizedPathname === "/profile",
   };
 
@@ -105,12 +114,12 @@ function App() {
     );
   }
 
-  // 分析页面 - 需要登录
-  if (routeConfig.isAnalysis) {
+  // 工作区页面 - 需要登录
+  if (routeConfig.isWorkspace) {
     return (
-      <ProtectedRoute fallbackUrl="/analysis">
+      <ProtectedRoute fallbackUrl="/workspace">
         <Suspense fallback={<RouteLoading />}>
-          <DataAnalysisPage initialSessionId={initialAnalysisSessionId} />
+          <WorkspacePage initialSessionId={initialWorkspaceSessionId} />
         </Suspense>
       </ProtectedRoute>
     );
