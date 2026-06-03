@@ -12,7 +12,7 @@ import zipfile
 from datetime import datetime
 from fnmatch import fnmatch
 from pathlib import Path
-from typing import Any, List, Optional, Tuple
+from typing import Any, Optional
 
 from app.core.config import WORKSPACE_DIR
 
@@ -129,13 +129,78 @@ class WorkspaceExportService:
     def _get_workspace_dir(self, user_id: str, workspace_id: str) -> Path:
         return self.workspace_root / user_id / workspace_id
 
+    def _collect_conversation_histories(
+        self,
+        user_id: str,
+        conversation_payloads: list[dict[str, Any]],
+    ) -> list[tuple[str, list[dict[str, Any]]]]:
+        """按 conversation_payloads 中的 session_id 读取完整对话历史。
+
+        返回 [(conversation_id, messages), ...]。
+        """
+        results: list[tuple[str, list[dict[str, Any]]]] = []
+        for payload in conversation_payloads:
+            session_id = payload.get("session_id")
+            conversation_id = payload.get("conversation_id")
+            if not session_id or not conversation_id:
+                continue
+
+            messages = self._read_conversation_history(user_id, session_id)
+            if messages:
+                results.append((conversation_id, messages))
+        return results
+
+    def _read_conversation_history(
+        self, user_id: str, session_id: str
+    ) -> list[dict[str, Any]]:
+        """读取单个 session 的完整对话历史（context.jsonl）。
+
+        过滤内部 SDK 消息和 system-reminder。
+        """
+        session_dir = self.workspace_root / user_id / session_id
+        context_file = (
+            session_dir / ".aiasys" / "session" / session_id / "context.jsonl"
+        )
+        if not context_file.exists():
+            return []
+
+        messages: list[dict[str, Any]] = []
+        try:
+            with open(context_file, "r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        msg = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+
+                    role = msg.get("role")
+                    if role in ("_checkpoint", "_usage", "_system_prompt"):
+                        continue
+
+                    # 过滤 system-reminder（user 消息中以 <system-reminder> 开头）
+                    if role == "user":
+                        content = msg.get("content")
+                        if isinstance(content, str) and content.strip().startswith(
+                            "<system-reminder>"
+                        ):
+                            continue
+
+                    messages.append(msg)
+        except Exception:
+            pass
+
+        return messages
+
     def _collect_files(
         self,
         workspace_dir: Path,
         *,
         exclude_rules: list[str] | None = None,
         selected_files: list[str] | None = None,
-    ) -> Tuple[List[Tuple[str, Path]], List[str]]:
+    ) -> tuple[list[tuple[str, Path]], list[str]]:
         """收集工作区文件，返回 (文件列表, 跳过的敏感文件列表)。
 
         文件列表每项为 (相对路径, 绝对路径)。
@@ -189,7 +254,7 @@ class WorkspaceExportService:
         include_conversations: bool = False,
         selected_files: list[str] | None = None,
         exclude_rules: list[str] | None = None,
-    ) -> Tuple[io.BytesIO, str]:
+    ) -> tuple[io.BytesIO, str]:
         """构建工作区导出 ZIP 包。
 
         返回 (zip_buffer, download_filename)。
@@ -210,9 +275,13 @@ class WorkspaceExportService:
         entries = ["manifest.json", "workspace.json", "conversations.json"]
         entries.extend(f"workspace_files/{r}" for r, _ in files)
 
+        conversation_exports: list[tuple[str, list[dict[str, Any]]]] = []
         if include_conversations:
-            # TODO: 第二阶段实现对话记录导出
-            pass
+            conversation_exports = self._collect_conversation_histories(
+                user_id, conversation_payloads
+            )
+            for conv_id, _ in conversation_exports:
+                entries.append(f"conversations/{conv_id}.json")
 
         manifest: dict[str, Any] = {
             "feature": "workspace_export",
@@ -255,6 +324,22 @@ class WorkspaceExportService:
 
             for relative_path, abs_path in files:
                 zf.write(abs_path, f"workspace_files/{relative_path}")
+
+            if conversation_exports:
+                for conv_id, messages in conversation_exports:
+                    zf.writestr(
+                        f"conversations/{conv_id}.json",
+                        json.dumps(
+                            {
+                                "_schema_version": 1,
+                                "conversation_id": conv_id,
+                                "message_count": len(messages),
+                                "messages": messages,
+                            },
+                            indent=2,
+                            ensure_ascii=False,
+                        ),
+                    )
 
         zip_buffer.seek(0)
         safe_title = "".join(

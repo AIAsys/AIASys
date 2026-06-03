@@ -383,13 +383,12 @@ export function ExportWorkspaceDialog({
             <div className="space-y-0.5">
               <Label className="text-[11px]">包含对话记录</Label>
               <p className="text-[10px] text-muted-foreground">
-                即将支持
+                导出所有对话的完整消息内容
               </p>
             </div>
             <Switch
               checked={includeConversations}
               onCheckedChange={setIncludeConversations}
-              disabled={true}
             />
           </div>
         </div>
