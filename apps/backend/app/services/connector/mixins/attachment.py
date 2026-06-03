@@ -30,6 +30,13 @@ def _utcnow_iso() -> str:
 class AttachmentMixin:
     """附件管理功能"""
 
+    def _resolve_session_workspace_id(
+        self: "DatabaseConnectorService", user_id: str, session_id: str
+    ) -> str | None:
+        """从会话元数据解析所属工作区 ID。"""
+        session = self.session_manager.get_session(session_id, user_id)
+        return session.workspace_id if session else None
+
     def list_session_attachments(
         self: "DatabaseConnectorService",
         user_id: str,
@@ -37,9 +44,11 @@ class AttachmentMixin:
     ) -> list[SessionDatabaseAttachment]:
         """列出会话已挂载的数据库连接器。"""
         self._ensure_session_exists(user_id, session_id)
+        workspace_id = self._resolve_session_workspace_id(user_id, session_id)
         payload = self._load_session_attachments(user_id, session_id)
         connectors = {
-            connector.connector_id: connector for connector in self.list_connectors(user_id)
+            connector.connector_id: connector
+            for connector in self.list_connectors(user_id, workspace_id=workspace_id)
         }
         attachments: list[SessionDatabaseAttachment] = []
         normalized_items: list[dict[str, Any]] = []
@@ -76,7 +85,8 @@ class AttachmentMixin:
     ) -> SessionDatabaseAttachment:
         """向会话挂载数据库连接器。"""
         self._ensure_session_exists(user_id, session_id)
-        connector = self.get_connector(user_id, connector_id)
+        workspace_id = self._resolve_session_workspace_id(user_id, session_id)
+        connector = self.get_connector(user_id, connector_id, workspace_id=workspace_id)
         if connector is None:
             raise ValueError("数据库连接器不存在")
 
@@ -151,9 +161,11 @@ class AttachmentMixin:
         self._ensure_session_exists(user_id, source_session_id)
         self._ensure_session_exists(user_id, target_session_id)
 
+        source_workspace_id = self._resolve_session_workspace_id(user_id, source_session_id)
         source_payload = self._load_session_attachments(user_id, source_session_id)
         connectors = {
-            connector.connector_id: connector for connector in self.list_connectors(user_id)
+            connector.connector_id: connector
+            for connector in self.list_connectors(user_id, workspace_id=source_workspace_id)
         }
         cloned_records: list[dict[str, Any]] = []
         attachments: list[SessionDatabaseAttachment] = []
@@ -222,9 +234,10 @@ class AttachmentMixin:
         """根据当前会话挂载的连接器重建凭据配置文件。"""
         path = get_connector_credentials_path(session_id)
         attachments = self.list_session_attachments(user_id, session_id)
+        workspace_id = self._resolve_session_workspace_id(user_id, session_id)
         creds: dict[str, Any] = {}
         for att in attachments:
-            connector = self.get_connector(user_id, att.connector_id)
+            connector = self.get_connector(user_id, att.connector_id, workspace_id=workspace_id)
             if not connector or not connector.allow_notebook_access:
                 continue
             record = self._find_connector_record(user_id, att.connector_id)

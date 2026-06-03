@@ -13,6 +13,7 @@ import type { ConnectorFormState } from "./types";
 export function createEmptyFormState(): ConnectorFormState {
   return {
     name: "",
+    scope: "workspace",
     db_type: "postgres",
     host: "",
     port: "",
@@ -27,6 +28,7 @@ export function createEmptyFormState(): ConnectorFormState {
 export function connectorToFormState(connector: DatabaseConnector): ConnectorFormState {
   return {
     name: connector.name,
+    scope: connector.scope === "global" ? "global" : "workspace",
     db_type: connector.db_type,
     host: connector.host ?? "",
     port: connector.port ? String(connector.port) : "",
@@ -51,6 +53,7 @@ export function buildDraftPayload(form: ConnectorFormState): DatabaseConnectorDr
   const isInfluxDb3 = form.db_type === "influxdb3";
   return {
     name: form.name.trim(),
+    scope: form.scope,
     db_type: form.db_type,
     connection_mode: "fields",
     host: form.host.trim() || null,
@@ -72,6 +75,7 @@ export function buildUpdatePayload(form: ConnectorFormState): UpdateDatabaseConn
   const isInfluxDb3 = form.db_type === "influxdb3";
   const payload: UpdateDatabaseConnectorPayload = {
     name: form.name.trim(),
+    scope: form.scope,
     connection_mode: "fields",
     host: form.host.trim() || null,
     port: parseNumberInput(form.port),

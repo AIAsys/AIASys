@@ -142,9 +142,10 @@ class DatabaseAccessBroker:
         sandbox_mode: str | None = None,
     ) -> RuntimeDatabaseHandlesResponse:
         self._ensure_session_exists(user_id, session_id)
-        # 数据库连接器已改为全局资源，直接返回用户所有可用 connectors
+        session = self.session_manager.get_session(session_id, user_id)
+        workspace_id = session.workspace_id if session else None
         connector_handles: list[RuntimeDatabaseHandleInfo] = []
-        for conn in self.connector_service.list_connectors(user_id):
+        for conn in self.connector_service.list_connectors(user_id, workspace_id=workspace_id):
             connector_handles.append(
                 RuntimeDatabaseHandleInfo(
                     handle=f"connector:{conn.connector_id}",

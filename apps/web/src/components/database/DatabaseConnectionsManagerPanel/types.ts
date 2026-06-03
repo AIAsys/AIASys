@@ -5,6 +5,7 @@ import type {
 
 export interface DatabaseConnectionsManagerPanelProps {
   sessionId?: string | null;
+  workspaceId?: string | null;
   onBackToSession?: (() => void) | null;
   compact?: boolean;
   openCreateOnMount?: boolean;
