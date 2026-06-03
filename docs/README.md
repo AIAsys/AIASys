@@ -16,7 +16,7 @@
 | [guides/getting-started/SYSTEM_USAGE.md](./guides/getting-started/SYSTEM_USAGE.md) | 系统使用教程，覆盖全部功能的操作指南 |
 | [guides/getting-started/desktop-app.md](./guides/getting-started/desktop-app.md) | 桌面应用（Electron）使用与打包 |
 | [deployment.md](./deployment.md) | 部署与运行说明 |
-| [getting-started.md](./getting-started.md) | 跑起来后怎么使用 `/analysis`，带完整界面截图 |
+| [getting-started.md](./getting-started.md) | 跑起来后怎么使用 `/workspace`，带完整界面截图 |
 | [guides/operations/docker-network-configuration.md](./guides/operations/docker-network-configuration.md) | Docker 运行时访问后端 broker 的网络排障 |
 | [changelog/](./changelog/) | 历史版本记录 |
 
@@ -42,7 +42,7 @@
 
 AIASys 当前按单机单用户产品设计。核心对象是长期任务工作区，会话是工作区内的一条任务推进线。
 
-`/analysis` 当前主壳按三栏组织：
+`/workspace` 当前主壳按三栏组织：
 
 ```text
 左侧工作区导航 | 中间主画布 | 右侧当前会话侧栏
