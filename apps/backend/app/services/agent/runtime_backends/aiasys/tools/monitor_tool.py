@@ -491,7 +491,7 @@ class MonitorService:
         if not raw:
             return False
 
-        data = raw.decode("utf-8", errors="replace")
+        data = smart_decode(raw)
 
         # 如果进程还在运行，只处理完整行（以 \n 结尾）
         if not is_ended and not data.endswith("\n"):
