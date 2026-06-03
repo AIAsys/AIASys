@@ -63,12 +63,19 @@ Commit 后悔分两类：
 
 CI 等价检查清单（push 前必须全部通过）：
 
-- 后端：`ruff check app/` + `ruff format --check app/`
-- 前端：`npm run lint` + `npm run type-check`
-- 如有 test 则必须跑过
+- 后端：`ruff check app/` + `ruff format --check app/` + `pytest -v`
+- 前端：`npm run lint` + `npx tsc --noEmit` + `npm run build`
 - 如有新文件需确认 `.gitignore` 规则正确（不会被误排除）
 - 如有 lock 文件变更需确认依赖安装成功
 - **文档同步检查**：见下文"提交前文档与 skill 同步检查"
+
+远端 CI（`ci.yml`）对应的 job 名称：
+- `web-check`：前端 lint + type-check + build（无 artifact 上传）
+- `backend`：后端 ruff + pylint + mypy + pytest
+- `desktop-check`：验证桌面版可构建（in-job 构建 web dist，无 artifact 上传）
+- `scan`：密钥扫描
+
+`ci.yml` 不上传任何 artifact，配额问题已从根源消除。`ci-desktop.yml`（tag push 触发）才会上传 artifact 并发布到 Release，artifact 保留期 1 天。
 
 **为什么 push 前必须本地验证（而非 push 后看 CI）：**
 
@@ -473,7 +480,7 @@ echo "(正确) 安全检查完成"
 # 前端检查
 cd apps/web
 npm run lint
-npm run type-check
+npx tsc --noEmit
 npm run build
 
 # 后端检查
@@ -585,6 +592,50 @@ git branch -d feature/mcp-config
 
 ---
 
+## GitHub Actions Artifact 管理
+
+### 两个 CI Workflow 的分工
+
+| Workflow | 触发条件 | 是否上传 artifact | 用途 |
+|----------|----------|-------------------|------|
+| `ci.yml` | PR/push to dev,main | 否 | 代码质量验证（lint/type-check/test/build） |
+| `ci-desktop.yml` | push tag `v*` / 手动 | 是（保留 1 天） | 三端桌面构建 + 发布 Pre-release |
+
+`ci.yml` 不做 artifact 上传，配额问题从根源消除。`ci-desktop.yml` 的 artifact 仅作跨 job 中转（web dist → 三端构建 → Release），1 天保留期足够。
+
+### 查看 artifact 占用
+
+```bash
+# 列出所有 artifact
+gh api repos/AIAsys/AIASys/actions/artifacts --jq '.artifacts[] | {id, name, size_in_bytes, created_at}'
+
+# 按大小排序
+gh api repos/AIAsys/AIASys/actions/artifacts --jq '.artifacts | sort_by(.size_in_bytes) | reverse | .[] | {name, size_in_bytes}'
+```
+
+### 清理 artifact
+
+```bash
+# 删除单个
+gh api repos/AIAsys/AIASys/actions/artifacts/<id> -X DELETE
+
+# 批量删除（按创建时间排序，保留最新 N 个）
+gh api repos/AIAsys/AIASys/actions/artifacts --jq '.artifacts | sort_by(.created_at) | .[:-10] | .[].id' | while read id; do
+  gh api repos/AIAsys/AIASys/actions/artifacts/$id -X DELETE
+done
+```
+
+注意：GitHub 的 artifact 存储配额统计有 6-12 小时延迟，删除后不会立即释放配额。
+
+### 配额说明
+
+- GitHub Free 计划 artifact 存储上限 500MB
+- 单个桌面构建产物 130-630MB，几轮 push 就能跑满
+- `ci.yml` 不上传 artifact 后，配额只在 `ci-desktop.yml` 运行时临时占用
+- artifact 过期时间 = 上传时间 + retention-days，默认 90 天
+
+---
+
 ## PR 管理
 
 PR 的创建和审核统一使用 `gh` CLI，不再依赖浏览器手动操作。
@@ -661,6 +712,35 @@ docs/changelog/vX.Y.Z_YYYY-MM-DD.md
 - 在 PR 描述中写"修复若干问题""各种改动"等空泛描述
 - CI 等价检查未通过就创建 PR
 - changelog 未更新就提功能变更的 PR
+
+### CI 未通过时的处理
+
+PR 创建后远端 CI 可能因非代码原因失败。常见场景和判断：
+
+| 失败原因 | 表现 | 处理 |
+|----------|------|------|
+| artifact 配额满 | `Artifact storage quota has been hit` | 删除旧 artifact 释放配额，重新触发 CI |
+| 网络超时 | npm install / uv sync 失败 | 重新触发 CI |
+| 平台差异 | macOS/Windows runner 特有错误 | 检查是否是代码问题，不是则忽略 |
+| 代码问题 | lint / type-check / test 失败 | 本地复现并修复 |
+
+判断原则：
+- lint/type-check/test 失败 → 一定是代码问题，必须修复
+- artifact 上传失败但 build 通过 → 非代码问题，可 `--admin` 合并
+- 代码检查全部通过但某个 job 因配额/网络/runner 问题失败 → 非代码问题
+
+**使用 `--admin` 合并（跳过 CI 检查）：**
+
+```bash
+gh pr merge <number> --merge --admin --body "CI 失败原因说明"
+```
+
+仅在以下条件全部满足时使用：
+1. 所有代码检查 job（lint/type-check/test/build）结论为 SUCCESS
+2. 失败 job 的原因已确认为非代码问题（配额、网络、runner）
+3. merge body 中必须说明失败原因
+
+禁止在代码检查未通过时使用 `--admin` 绕过。
 
 ### Review PR
 
@@ -783,6 +863,30 @@ gh issue reopen <number> --comment "问题复现，需要重新处理"
 ## Tag 管理
 
 Tag 是版本发布的锚点，让每个 changelog 版本在 Git 历史中可定位、可回溯。
+
+### 版本号分布与同步
+
+项目中所有版本号必须保持一致。发布前确认以下位置的版本号已同步：
+
+| 位置 | 文件 | 说明 |
+|------|------|------|
+| **前端（主版本号来源）** | `apps/web/package.json` | 产品主版本号。后端 `APP_VERSION` 从这里读取 |
+| **后端 Python 包** | `apps/backend/pyproject.toml` | `version = "X.Y.Z"`，须与前端一致 |
+| **桌面端** | `apps/desktop/package.json` | Electron 应用版本，electron-builder 打包直接用它 |
+| **后端运行时** | `apps/backend/app/core/config.py` → `APP_VERSION` | 自动从 `web/package.json` 读取，**不需要手动改** |
+| **FastAPI /health** | `apps/backend/app/main.py` | 返回 `APP_VERSION`，自动同步 |
+| **数据格式** | `apps/backend/app/core/config.py` → `DATA_FORMAT_VERSION` | 独立管理，破坏性存储变更时才递增 |
+
+**Bump version 操作清单**：
+
+1. 修改 `apps/web/package.json` 的 `version`（主版本号来源）
+2. 同步修改 `apps/backend/pyproject.toml` 的 `version`
+3. 同步修改 `apps/desktop/package.json` 的 `version`
+4. 确认 `apps/backend/app/core/config.py` 中的 `_load_app_version()` 逻辑未变（自动读取 web/package.json）
+5. 更新 `docs/changelog/vX.Y.Z_YYYY-MM-DD.md`
+6. 不需要改 `apps/web/src/lib/version.ts`（它只是格式化函数）
+
+**注意**：`DATA_FORMAT_VERSION` 与产品版本号独立，不要混为一谈。
 
 ### 版本号规则
 
@@ -931,11 +1035,18 @@ main 维护者: dev → main (PR) → main 上打 tag → 正式 Release
 
 ### CI 自动 Beta Release 策略
 
-`ci-desktop.yml` 在 push to `dev` 时自动构建三平台桌面版并发布 pre-release。以下规则避免版本混乱：
+`ci-desktop.yml` 在 push tag（`v*`）或手动触发时构建三平台桌面版并发布 pre-release。以下规则避免版本混乱：
 
 **触发条件：**
-- 仅当 `apps/desktop/**`、`apps/backend/**`、`apps/web/**`、`.github/workflows/ci-desktop.yml` 变更时触发
-- 纯文档（`docs/`）、skill（`.agents/skills/`）、配置（`.gitignore`）变更**不会**触发
+- push tag 匹配 `v*` 时自动触发
+- `workflow_dispatch` 手动触发（可选择 beta 或 stable 类型）
+- 不是 push to dev 自动触发，需要手动打 tag 或手动触发 workflow
+
+**Artifact 中转机制：**
+- `build-web` job 构建 web dist，上传到 artifact（保留 1 天）
+- `build-desktop` job（三平台矩阵）下载 web dist 构建各平台桌面版，上传到 artifact（保留 1 天）
+- `publish-beta` job 下载所有 artifact，创建 GitHub Pre-release 并上传安装包
+- artifact 仅作跨 job 中转，1 天保留期足够完成构建→发布流程，不会长期占配额
 
 **版本号模型：**
 

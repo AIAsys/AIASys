@@ -248,12 +248,17 @@ class DatabaseConnectorService(
 
         return None
 
-    def delete_connector(self, user_id: str, connector_id: str) -> bool:
+    def delete_connector(
+        self, user_id: str, connector_id: str, workspace_id: str | None = None
+    ) -> bool:
         """删除数据库连接器，并清理所有会话挂载。"""
         payload = self._load_user_config(user_id)
         original_connectors = payload.get("connectors", [])
         filtered = [
-            record for record in original_connectors if record.get("connector_id") != connector_id
+            record
+            for record in original_connectors
+            if record.get("connector_id") != connector_id
+            or not self._is_connector_visible(record, workspace_id)
         ]
 
         if len(filtered) == len(original_connectors):
