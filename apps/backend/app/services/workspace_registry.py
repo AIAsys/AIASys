@@ -685,6 +685,24 @@ class WorkspaceRegistryService:
                 ]
                 capability_warnings.extend(_template_warnings)
 
+            # 默认安装 aiasys-tool-usage-skill（所有工作区通用工具指南）
+            try:
+                from app.capabilities import get_capability_manager
+
+                mgr = get_capability_manager()
+                default_skill_result = mgr.install(
+                    "aiasys-tool-usage-skill",
+                    workspace_dir,
+                    scope="workspace",
+                )
+                if not default_skill_result.success:
+                    logger.warning(
+                        "默认 skill 安装失败: %s",
+                        default_skill_result.message,
+                    )
+            except Exception:
+                logger.warning("默认 skill 安装异常", exc_info=True)
+
             meta = {
                 "workspace_id": resolved_workspace_id,
                 "title": normalized_title,
