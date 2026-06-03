@@ -45,6 +45,132 @@ Electron Main Process
 | macOS | `dmg` | `npm run dist:mac` | 配置完成，待验证 |
 | macOS | `zip` | `npm run dist:mac` | 配置完成 |
 
+## Windows 打包工作流
+
+Windows 安装包必须在 Windows 侧构建。根据代码存放位置不同，有两种工作模式。
+
+---
+
+### 模式 A：代码在 WSL，Windows 侧编译（推荐）
+
+AIASys 日常开发在 WSL，代码放在 WSL 文件系统里。Windows 通过 `\\wsl$\` 访问同一份代码，两边实时同步。
+
+**环境分工**
+
+| 环境 | 职责 | 为什么 |
+|------|------|--------|
+| WSL | 代码编辑、前后端服务调试、git 操作 | 开发主阵地 |
+| Windows | Electron 主进程调试、安装包构建 | 必须验证真实的 Windows 行为 |
+
+**前置条件（Windows 侧）**
+
+- Node.js >= 20
+- Python 3.11+（用于创建 Windows 版 .venv）
+- Git（可选）
+
+**完整构建步骤**
+
+```powershell
+# 1. 进入项目路径（通过 \\wsl$\ 访问 WSL 文件）
+cd "\\wsl$\Ubuntu\home\ke\projects\AIASys\apps\desktop"
+
+# 2. 安装 desktop 的 node_modules（Windows 侧独立安装，不和 WSL 共享）
+npm install
+
+# 3. 准备后端 .venv（必须在 Windows 上创建，不能复用 WSL 的）
+cd "..\backend"
+Remove-Item -Recurse -Force .venv -ErrorAction SilentlyContinue
+python -m venv .venv
+.venv\Scripts\activate
+uv pip install -e .
+# 或: pip install -e .
+
+# 4. 构建前端（WSL 里做也行，Windows 做也行）
+cd "..\web"
+npm install
+npm run build
+
+# 5. 准备运行时
+cd "..\desktop"
+npm run prepare:runtime
+# 预期输出：
+# [aiasys-desktop] 嵌入完整 Python 运行时: ... -> ...\.dist\backend\.venv\python
+
+# 6. 验证嵌入 Python
+ls .dist\backend\.venv\python\python.exe
+
+# 7. 打包
+npm run dist:win
+# 产物：dist\AIASys Desktop Setup 0.4.0.exe
+```
+
+**关键注意**
+
+- .venv 必须在 Windows 上重建（WSL 的是 Linux 版）
+- node_modules 不跨环境共享（WSL 和 Windows 各自独立安装）
+- prepare-runtime 必须在 Windows 上执行（才会嵌入 Windows 版 Python）
+- WSL 修改的代码 Windows 实时可见，修改后重启 Electron 即可
+
+---
+
+### 模式 B：代码在 Windows 本地，直接编译
+
+代码直接 clone 到 Windows 本地目录（如 `C:\Users\ke\projects\AIASys`），不涉及 WSL。
+
+**适用场景**
+
+- 团队成员只在 Windows 上工作
+- CI/CD 在 Windows runner 上执行
+- 不需要 WSL 开发环境
+
+**前置条件**
+
+- Node.js >= 20
+- Python 3.11+
+- Git
+
+**完整构建步骤**
+
+```powershell
+# 1. 克隆代码（或进入已有目录）
+cd "C:\Users\ke\projects"
+git clone https://github.com/AIAsys/AIASys.git
+cd AIASys\apps\desktop
+
+# 2. 安装 desktop 依赖
+npm install
+
+# 3. 准备后端 .venv
+cd "..\backend"
+python -m venv .venv
+.venv\Scripts\activate
+uv pip install -e .
+# 或: pip install -e .
+
+# 4. 构建前端
+cd "..\web"
+npm install
+npm run build
+
+# 5. 准备运行时并打包
+cd "..\desktop"
+npm run prepare:runtime
+npm run dist:win
+```
+
+**两种模式对比**
+
+| 项 | 模式 A（WSL 代码） | 模式 B（Windows 本地） |
+|----|-------------------|----------------------|
+| 代码位置 | WSL 文件系统 | Windows 本地磁盘 |
+| 进入路径 | `\\wsl$\Ubuntu\...` | `C:\Users\ke\...` |
+| 代码编辑 | WSL 侧（vim/vscode） | Windows 侧（任意编辑器） |
+| git 操作 | WSL 侧 | Windows 侧 |
+| 前后端调试 | WSL 侧 `npm run dev` | Windows 侧 `npm run dev` |
+| 打包 | Windows 侧 `npm run dist:win` | Windows 侧 `npm run dist:win` |
+
+两种模式的打包命令和验证流程完全一致，唯一区别是代码存放位置和日常开发环境。
+
 ## 构建流程
 
 ```bash
@@ -97,6 +223,11 @@ npm run dist:win
 
 **解决**: 每个平台必须在对应平台上构建，或在 CI 中使用对应平台的 runner。`service-manager.cjs` 会检测平台不匹配并抛出明确错误。
 
+**WSL + Windows 双环境开发时的具体做法**：
+- WSL 负责代码编辑和前后端服务调试
+- Windows 负责 `python -m venv .venv`、`.venv\Scripts\activate`、`npm run dist:win`
+- 详见上文"模式 A：代码在 WSL，Windows 侧编译"
+
 ### 2. Windows 控制台黑窗
 
 **问题**: `spawn` 默认在 Windows 会弹出 cmd 窗口。
@@ -140,6 +271,30 @@ npm run dist:win
 - [ ] 卸载后无残留进程
 - [ ] （Windows）安装时可选目录
 - [ ] （Windows）卸载时询问是否删数据
+
+### Windows 安装包专项验证
+
+在无 Python 环境的 Windows 机器（或虚拟机）上测试：
+
+1. **安装前确认目标机器没有 Python**
+   ```powershell
+   python --version
+   # 应该报错"python 不是内部或外部命令"
+   ```
+
+2. **安装并启动**
+   - 双击 `.exe` 安装包，确认能选择安装目录
+   - 从开始菜单启动，等待 10~30 秒，确认主界面正常显示
+
+3. **嵌入 Python 验证**
+   - 检查安装目录 `resources/backend/.venv/python/python.exe` 存在
+   - 检查 `%APPDATA%\AIASys Desktop\backend-runtime\logs\backend-spawn.log` 无 Python 路径错误
+
+4. **功能验证**
+   - 关闭窗口 → 托盘图标仍在
+   - 托盘右键菜单含：显示窗口 / 打开日志目录 / 打开用户配置 / 打开工作区目录 / 退出
+   - 托盘 → 退出 → 任务管理器无残留进程
+   - 卸载 → 弹窗询问是否删除用户数据 → 选"是" → `%APPDATA%\AIASys Desktop` 被删除
 
 ## 相关文件
 
