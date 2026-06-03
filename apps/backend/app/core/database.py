@@ -140,6 +140,28 @@ class SubAgentConfigORM(Base):
     updated_at = Column(DateTime, default=utc_now_naive, onupdate=utc_now_naive)
 
 
+class SubAgentInstanceORM(Base):
+    """子 Agent 运行实例表，用于后续把文件系统运行记录迁入 SQLite"""
+
+    __tablename__ = "subagent_instances"
+
+    agent_id = Column(String, primary_key=True, index=True)
+    user_id = Column(String, nullable=False, index=True)
+    workspace_id = Column(String, nullable=True, index=True)
+    host_session_id = Column(String, nullable=False, index=True)
+    parent_agent_id = Column(String, nullable=True, index=True)
+    parent_tool_call_id = Column(String, nullable=True, index=True)
+    subagent_type = Column(String, nullable=False, index=True)
+    agent_path = Column(String, nullable=True, index=True)
+    depth = Column(Integer, default=0, nullable=False)
+    status = Column(String, default="running", nullable=False, index=True)
+    model = Column(String, nullable=True)
+    nickname = Column(String, nullable=True)
+    meta_info = Column(JSON, default=dict)
+    created_at = Column(DateTime, default=utc_now_naive)
+    updated_at = Column(DateTime, default=utc_now_naive, onupdate=utc_now_naive)
+
+
 class WorkspaceResourceDefaultORM(Base):
     """工作区默认资源选择表（替代 .aiasys/database-mounts.json）"""
 
