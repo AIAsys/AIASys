@@ -1,0 +1,190 @@
+{
+  "nodes": [
+    {
+      "id": "view-note",
+      "type": "text",
+      "x": 0,
+      "y": -150,
+      "width": 440,
+      "height": 104,
+      "text": "## <competition-name>\nCanvas 显示探索分支进度。状态总览、表格和证据入口见 current.html。",
+      "color": "5"
+    },
+    {
+      "id": "dashboard",
+      "type": "file",
+      "x": 0,
+      "y": 0,
+      "width": 280,
+      "height": 86,
+      "file": "research_views/current.html",
+      "subpath": "#decision",
+      "color": "5"
+    },
+    {
+      "id": "experiments-index",
+      "type": "file",
+      "x": 0,
+      "y": 150,
+      "width": 280,
+      "height": 86,
+      "file": "experiments/index.json",
+      "color": "5"
+    },
+    {
+      "id": "mainline-title",
+      "type": "text",
+      "x": 360,
+      "y": -150,
+      "width": 360,
+      "height": 82,
+      "text": "## 主线轨道\n只放阶段性提升和可信最优，用来看研究主线如何收敛。",
+      "color": "5"
+    },
+    {
+      "id": "mainline-1",
+      "type": "text",
+      "x": 360,
+      "y": 0,
+      "width": 270,
+      "height": 142,
+      "text": "## 主线 1\n<early_keep_version>\nscore: <score>\n\n建立可复用起点。",
+      "color": "5"
+    },
+    {
+      "id": "mainline-2",
+      "type": "text",
+      "x": 665,
+      "y": 0,
+      "width": 270,
+      "height": 142,
+      "text": "## 主线 2\n<trusted_best_version>\nscore: <trusted_best_score>\n\n当前可信最优。",
+      "color": "4"
+    },
+    {
+      "id": "branch-title",
+      "type": "text",
+      "x": 360,
+      "y": 235,
+      "width": 420,
+      "height": 82,
+      "text": "## 探索分支\n这里显示接下来要推进或复核的分支，不把它们塞进状态看板。",
+      "color": "3"
+    },
+    {
+      "id": "branch-p1",
+      "type": "text",
+      "x": 360,
+      "y": 360,
+      "width": 270,
+      "height": 150,
+      "text": "## 分支 P1\n<next_candidate_version>\n阶段: <phase>\n\n方向: <priority_direction>\n依据: <rationale>",
+      "color": "3"
+    },
+    {
+      "id": "branch-p2",
+      "type": "text",
+      "x": 665,
+      "y": 360,
+      "width": 270,
+      "height": 150,
+      "text": "## 分支 P2\n<candidate_version>\n阶段: <phase>\n\n方向: <priority_direction>\n依据: <rationale>",
+      "color": "2"
+    },
+    {
+      "id": "historical-high",
+      "type": "text",
+      "x": 360,
+      "y": 590,
+      "width": 300,
+      "height": 142,
+      "text": "## 历史最高观测\n<highest_observed_version>\nscore: <highest_observed_score>\n\n风险: <holdout_or_leakage_reason>",
+      "color": "2"
+    },
+    {
+      "id": "latest-result",
+      "type": "text",
+      "x": 700,
+      "y": 590,
+      "width": 320,
+      "height": 142,
+      "text": "## 最新结果\n<latest_version>\ndecision: <keep|discard|crash>\n\n<short_finding>",
+      "color": "1"
+    },
+    {
+      "id": "anti-patterns",
+      "type": "text",
+      "x": 1060,
+      "y": 590,
+      "width": 340,
+      "height": 180,
+      "text": "## 已证伪分支\n- <anti-pattern-1>\n- <anti-pattern-2>\n- <anti-pattern-3>",
+      "color": "1"
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge-dashboard-index",
+      "fromNode": "dashboard",
+      "fromSide": "bottom",
+      "toNode": "experiments-index",
+      "toSide": "top",
+      "toEnd": "arrow",
+      "label": "由索引生成"
+    },
+    {
+      "id": "edge-mainline-1-2",
+      "fromNode": "mainline-1",
+      "fromSide": "right",
+      "toNode": "mainline-2",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "label": "提升"
+    },
+    {
+      "id": "edge-mainline-branch-p1",
+      "fromNode": "mainline-2",
+      "fromSide": "bottom",
+      "toNode": "branch-p1",
+      "toSide": "top",
+      "toEnd": "arrow",
+      "label": "下一探索"
+    },
+    {
+      "id": "edge-mainline-branch-p2",
+      "fromNode": "mainline-2",
+      "fromSide": "bottom",
+      "toNode": "branch-p2",
+      "toSide": "top",
+      "toEnd": "arrow",
+      "label": "备选探索"
+    },
+    {
+      "id": "edge-high-branch-p1",
+      "fromNode": "historical-high",
+      "fromSide": "right",
+      "toNode": "branch-p1",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "label": "复核线索"
+    },
+    {
+      "id": "edge-latest-mainline",
+      "fromNode": "latest-result",
+      "fromSide": "top",
+      "toNode": "mainline-2",
+      "toSide": "bottom",
+      "toEnd": "arrow",
+      "label": "是否改变主线"
+    },
+    {
+      "id": "edge-anti-branch-p1",
+      "fromNode": "anti-patterns",
+      "fromSide": "top",
+      "toNode": "branch-p1",
+      "toSide": "bottom",
+      "toEnd": "arrow",
+      "label": "约束"
+    }
+  ]
+}

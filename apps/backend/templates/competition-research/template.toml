@@ -1,0 +1,166 @@
+template_id = "competition-research"
+name = "竞赛攻关"
+description = "数据竞赛与算法竞赛的完整研究闭环。预置实验跟踪框架、baseline 管理、文献索引、自动实验脚本和示例目录结构。"
+icon = "trophy"
+category = "科研"
+default_title = "竞赛攻关"
+default_description = "针对数据竞赛或算法竞赛建立 baseline、持续实验优化。"
+initial_conversation_title = "开始竞赛研究"
+env_kind = "uv"
+recommended_skills = [
+    "competition-research-skill",
+    "competition-runtime-prep-skill",
+    "competition-parallel-research-skill",
+    "arxiv-search-skill",
+    "aiasys-canvas-skill",
+    "aiasys-tool-usage-skill",
+]
+
+[[files]]
+relative_path = "README.md"
+source_path = "README.md"
+
+[[files]]
+relative_path = "AGENTS.md"
+source_path = "AGENTS.md"
+
+[[files]]
+relative_path = "experiments/index.json"
+content = """{
+  "competition": "<请替换为实际竞赛名称>",
+  "metric": "<评估指标，如 RMSE / Accuracy / F1>",
+  "direction": "<minimize 或 maximize>",
+  "best_score": null,
+  "best_version": null,
+  "trusted_best_score": null,
+  "trusted_best_version": null,
+  "highest_observed_score": null,
+  "highest_observed_version": null,
+  "current_phase": "literature",
+  "last_updated": null,
+  "knowledge_graph_id": null,
+  "knowledge_graph_db_path": "knowledge_graph/state.db",
+  "knowledge_graph_file": "knowledge_graph/graph.json",
+  "research_dashboard_path": "research_views/current.html",
+  "paper_registry_path": "references/index.json",
+  "auto_task_status": "paused",
+  "runner_status": "idle",
+  "latest_version": null,
+  "next_candidate_version": null,
+  "runner": {
+    "type": "builtin_experiment",
+    "command": "python3 scripts/experiment.py --mode run --experiments experiments/index.json --workspace . --version {version}",
+    "default_version": null,
+    "output_path": "outputs/{version}/submission.csv",
+    "log_path": "outputs/logs/{version}.log",
+    "score_source": "stdout",
+    "record_policy": "experiment_record",
+    "expected_runtime_minutes": 15,
+    "long_running": false,
+    "background_required": false
+  },
+  "runtime_contract": {
+    "mode": "stable_bound_environment",
+    "env_id": null,
+    "preflight_imports": ["pandas", "numpy"],
+    "large_dependency_policy": "pause_and_request_runtime_prep",
+    "observation_path": "outputs/observations/auto-research.md"
+  },
+  "auto_task_ids": [],
+  "experiments": [],
+  "anti_patterns": [],
+  "priority_queue": [
+    {
+      "rank": 1,
+      "direction": "数据探索与 baseline 建立",
+      "hypothesis": "先理解数据分布、特征质量和目标变量，再建立 v0 baseline",
+      "expected_outcome": "一份 data_exploration 报告 + 一个可运行的 baseline"
+    },
+    {
+      "rank": 2,
+      "direction": "特征工程",
+      "hypothesis": "通过特征变换、编码和构造提升模型输入质量",
+      "expected_outcome": "feature 家族的新版本，CV 分数有提升"
+    },
+    {
+      "rank": 3,
+      "direction": "模型调参与集成",
+      "hypothesis": "通过模型选择、超参优化和集成策略提升最终指标",
+      "expected_outcome": "model 或 ensemble 家族的新版本"
+    }
+  ]
+}
+"""
+
+[[files]]
+relative_path = "references/index.json"
+content = """{
+  "project": "<请替换为实际竞赛或研究项目名称>",
+  "last_updated": null,
+  "papers": []
+}
+"""
+
+[[files]]
+relative_path = "scripts/experiment.py"
+source_path = "scripts/experiment.py"
+
+[[files]]
+relative_path = "scripts/baseline_names.py"
+source_path = "scripts/baseline_names.py"
+
+[[files]]
+relative_path = "data/.gitkeep"
+content = ""
+
+[[files]]
+relative_path = "data/raw/.gitkeep"
+content = ""
+
+[[files]]
+relative_path = "data/processed/.gitkeep"
+content = ""
+
+[[files]]
+relative_path = "baselines/.gitkeep"
+content = ""
+
+[[files]]
+relative_path = "baseline_history/.gitkeep"
+content = ""
+
+[[files]]
+relative_path = "outputs/.gitkeep"
+content = ""
+
+[[files]]
+relative_path = "outputs/submissions/.gitkeep"
+content = ""
+
+[[files]]
+relative_path = "outputs/logs/.gitkeep"
+content = ""
+
+[[files]]
+relative_path = "outputs/reports/.gitkeep"
+content = ""
+
+[[files]]
+relative_path = "outputs/observations/.gitkeep"
+content = ""
+
+[[files]]
+relative_path = "research_views/.gitkeep"
+content = ""
+
+[[files]]
+relative_path = "research_views/data_exploration/.gitkeep"
+content = ""
+
+[[files]]
+relative_path = "statement/.gitkeep"
+content = ""
+
+[[files]]
+relative_path = "knowledge_graph/.gitkeep"
+content = ""

@@ -1,0 +1,12 @@
+capability_id = "aiasys-memory-organizer-skill"
+kind = "skill_pack"
+display_name = "AIASys Memory Organizer"
+description = """整理 AIASys Markdown memory 文件。用于用户明确要求整理 memory、压缩 MEMORY.md、
+刷新 memory_summary.md、合并重复偏好、清理过期工作区记忆时使用。只处理文件化
+memory，不管理结构化 entry，也不接管自动写入链路。"""
+version = "1.0.0"
+author = "AIASys"
+dependencies = []
+min_platform_version = "0.1.0"
+
+[config_schema]

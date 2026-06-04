@@ -1,0 +1,13 @@
+capability_id = "arxiv-search-skill"
+kind = "skill_pack"
+display_name = "arxiv 论文搜索与下载"
+description = """在 arxiv.org 上搜索并下载学术论文。当任务需要查找相关论文、
+进行文献综述或下载 PDF 以供分析时使用。涵盖 arxiv API 搜索、
+论文元数据获取、PDF 下载以及带速率限制保护的批量处理。
+专为自主研究工作流设计，让 Agent 能够自行检索文献。"""
+version = "1.0.0"
+author = "AIASys"
+dependencies = []
+min_platform_version = "0.1.0"
+
+[config_schema]

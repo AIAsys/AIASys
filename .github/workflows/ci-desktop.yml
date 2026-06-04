@@ -1,0 +1,149 @@
+name: Desktop Build & Pre-release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      release_type:
+        description: 'Release type'
+        required: true
+        type: choice
+        options: [beta, stable]
+        default: beta
+
+permissions:
+  contents: write
+
+jobs:
+  create-draft-release:
+    runs-on: ubuntu-latest
+    outputs:
+      tag_name: ${{ steps.resolve_tag.outputs.tag_name }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Resolve release tag
+        id: resolve_tag
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION=$(node -p "require('./apps/desktop/package.json').version")
+            EXISTING=$(gh release list --limit 100 --json tagName --jq ".[].tagName" 2>/dev/null | grep "^v${VERSION}-beta\." | wc -l)
+            N=$((EXISTING + 1))
+            TAG="v${VERSION}-beta.${N}"
+          else
+            TAG="${{ github.ref_name }}"
+          fi
+          echo "tag_name=$TAG" >> $GITHUB_OUTPUT
+          echo "Release tag: $TAG"
+        env:
+          GH_TOKEN: ${{ github.token }}
+      - name: Create draft release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.resolve_tag.outputs.tag_name }}
+          name: "Beta ${{ steps.resolve_tag.outputs.tag_name }}"
+          draft: true
+          prerelease: true
+          generate_release_notes: true
+
+  build-desktop:
+    needs: create-draft-release
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: linux
+            script: dist:ci:linux
+            files: apps/desktop/dist/*.AppImage
+          - os: macos-latest
+            target: mac
+            script: dist:ci:mac
+            files: |
+              apps/desktop/dist/*.dmg
+              apps/desktop/dist/*.zip
+          - os: windows-latest
+            target: win
+            script: dist:ci:win
+            files: |
+              apps/desktop/dist/*.exe
+              apps/desktop/dist/*.zip
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js (web)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: apps/web/package-lock.json
+
+      - name: Build web dist
+        run: |
+          cd apps/web && npm ci && npm run build
+
+      - name: Setup Node.js (desktop)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: apps/desktop/package-lock.json
+
+      - name: Install desktop deps
+        run: cd apps/desktop && npm ci
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: "apps/backend/uv.lock"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version-file: "apps/backend/.python-version"
+
+      - name: Install backend deps
+        run: cd apps/backend && uv sync --frozen
+
+      - name: Prepare runtime
+        run: cd apps/desktop && npm run prepare:runtime
+
+      - name: Remove python3.exe shim (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $shim = "apps/desktop/.dist/backend/.venv/python/python3.exe"
+          if (Test-Path $shim) {
+            Remove-Item -Force $shim
+            Write-Host "Removed python3.exe shim"
+          }
+          $shim2 = "apps/desktop/dist/win-unpacked/resources/backend/.venv/python/python3.exe"
+          if (Test-Path $shim2) {
+            Remove-Item -Force $shim2
+            Write-Host "Removed python3.exe shim from unpacked"
+          }
+
+      - name: Build desktop (${{ matrix.target }})
+        run: cd apps/desktop && npm run ${{ matrix.script }}
+
+      - name: Upload to release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.create-draft-release.outputs.tag_name }}
+          files: ${{ matrix.files }}
+
+  publish-beta:
+    needs: [create-draft-release, build-desktop]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Publish release
+        run: |
+          TAG="${{ needs.create-draft-release.outputs.tag_name }}"
+          gh release edit "$TAG" --draft=false
+        env:
+          GH_TOKEN: ${{ github.token }}

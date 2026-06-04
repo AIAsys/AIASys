@@ -1,0 +1,83 @@
+{
+  "name": "aiasys-desktop",
+  "private": true,
+  "version": "0.4.0",
+  "description": "Electron desktop shell for AIASys",
+  "author": "AIASys",
+  "main": "src/main.cjs",
+  "scripts": {
+    "dev": "node ./scripts/launch.cjs dev",
+    "start": "node ./scripts/launch.cjs preview",
+    "build:web": "npm --prefix ../web run build",
+    "prepare:runtime": "node ./scripts/prepare-runtime.cjs",
+    "dist:linux:dir": "npm run build:web && npm run prepare:runtime && electron-builder --linux dir",
+    "dist:win": "npm run build:web && npm run prepare:runtime && electron-builder --win",
+    "dist:mac": "npm run build:web && npm run prepare:runtime && electron-builder --mac",
+    "dist:ci:linux": "npm run prepare:runtime && electron-builder --linux AppImage --publish=never",
+    "dist:ci:win": "npm run prepare:runtime && electron-builder --win nsis --publish=never",
+    "dist:ci:mac": "npm run prepare:runtime && electron-builder --mac dmg zip --publish=never",
+    "dist:mac:unsigned": "npm run build:web && npm run prepare:runtime && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac dmg --arm64 -c.mac.notarize=false -c.mac.identity=null"
+  },
+  "devDependencies": {
+    "electron": "41.2.0",
+    "electron-builder": "26.0.12",
+    "png-to-ico": "^3.0.1"
+  },
+  "build": {
+    "appId": "com.aiasys.desktop",
+    "productName": "AIASys Desktop",
+    "icon": "build/icon",
+    "asar": true,
+    "compression": "maximum",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "src/**/*",
+      "build/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": ".dist/web",
+        "to": "web"
+      },
+      {
+        "from": ".dist/backend",
+        "to": "backend"
+      }
+    ],
+    "linux": {
+      "target": [
+        "dir",
+        "AppImage"
+      ],
+      "category": "Development",
+      "executableArgs": ["--no-sandbox"]
+    },
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "requestedExecutionLevel": "asInvoker"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "license": "build/license.txt",
+      "include": "build/installer.nsh",
+      "deleteAppDataOnUninstall": false,
+      "unicode": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "AIASys Desktop"
+    },
+    "mac": {
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "category": "public.app-category.developer-tools"
+    }
+  }
+}

@@ -1,0 +1,46 @@
+template_id = "knowledge-management"
+name = "知识管理"
+description = "基于 LLM Wiki 模式的知识管理工作区。支持原始资料摄入、知识合成、知识库检索和知识图谱可视化，让知识可以积累而非重复推导。"
+icon = "library"
+category = "知识"
+default_title = "知识管理"
+default_description = "构建和管理可积累的结构化知识库。"
+initial_conversation_title = "开始知识管理"
+env_kind = "none"
+recommended_skills = [
+    "aiasys-platform-skill",
+    "aiasys-canvas-skill",
+    "aiasys-memory-organizer-skill",
+    "pymupdf4llm-pdf-to-markdown-skill",
+    "paddleocr-skill",
+    "arxiv-search-skill",
+    "aiasys-tool-usage-skill",
+]
+
+[[files]]
+relative_path = "README.md"
+content = "# 知识管理工作区\n\n基于 Andrej Karpathy 提出的 LLM Wiki 模式构建，将原始资料转化为可积累、可检索、可关联的结构化知识。\n\n## 核心理念\n\n传统 RAG 每次查询都重新从原始资料中推导答案，没有知识积累。LLM Wiki 模式的核心是**编译知识**：LLM 在资料摄入时就读取、提取、合成，将结果写入结构化的 Markdown wiki。后续查询直接查 wiki，而非反复重读原始资料。\n\n> 原始资料 = 源代码（只读）\n> Wiki 页面 = 编译产物（LLM 维护）\n> 你的提问 = 对编译产物的查询\n\n## 三层架构\n\n### 1. Raw Sources（原始资料层）\n- 路径：`sources/`\n- 内容：论文 PDF、网页存档、会议笔记、访谈记录、书籍摘录等\n- 规则：**只读**。原始资料是真相来源，不直接修改\n\n### 2. Wiki Layer（知识合成层）\n- 路径：`wiki/`\n- 内容：概念页面、人物页面、项目页面、术语表\n- 格式：Markdown + `[[wikilinks]]` 交叉引用 + YAML frontmatter\n- 规则：**由 LLM 维护**。人类审核和提问，LLM 负责写入和更新\n\n### 3. Query & Schema（查询与治理层）\n- 路径：`docs/` 和 AIASys 内置能力\n- 内容：使用指南、检索配置、图谱定义\n- 规则：**由人定义范围**，由 LLM 和系统执行\n\n## 与 AIASys 能力的结合\n\n| 能力 | 作用 | 对应目录/工具 |\n|------|------|---------------|\n| 知识库（KB） | 文档语义检索、全文检索 | 上传 sources/ 资料后使用知识库查询 |\n| 知识图谱（KG） | 实体抽取、关系发现、社区可视化 | 从 wiki 或资料中构建图谱 |\n| Agent 工具 | 自动化摄入、合成、更新 | 使用 `UploadDocumentsToKnowledgeBase`、`SearchKnowledgeGraphEntities` 等 |\n\n## 目录说明\n\n```\n.\n├── sources/          # 原始资料（论文、网页、笔记等）\n├── wiki/             # LLM 维护的知识 wiki\n│   ├── index.md      # 知识目录与标签索引\n│   └── log.md        # 资料摄入日志\n├── docs/             # 使用指南\n│   ├── knowledge-base-guide.md\n│   └── graph-guide.md\n├── README.md         # 本文件\n└── AGENTS.md         # Agent 工作流规范\n```\n\n## 快速开始\n\n1. **放入资料**：将 PDF、网页、笔记等放入 `sources/`\n2. **知识摄入**：让 Agent 读取资料，提取关键概念，在 `wiki/` 中创建或更新概念页面\n3. **建立索引**：将资料上传到 AIASys 知识库，构建向量索引\n4. **构建图谱**：从 wiki 或资料中抽取实体和关系，建立知识图谱\n5. **查询与关联**：通过知识库检索相似内容，或通过图谱查看概念关联\n\n## 工作流示意\n\n```\nsources/资料  →  [Agent 摄入]  →  wiki/概念页面（更新 + 新建）\n                                    ↓\n                             [上传至知识库]  →  语义检索\n                                    ↓\n                             [构建知识图谱]  →  实体关系可视化\n```\n"
+
+[[files]]
+relative_path = "AGENTS.md"
+content = "# 知识管理 Agent 工作流\n\n## 角色与边界\n\n- **人类**：定义知识范围、提出问题、审核 wiki 质量、确认关键决策\n- **LLM Agent**：执行资料摄入、概念提取、页面合成、交叉引用建立、索引更新\n- **系统**：知识库存储向量索引、图谱存储实体关系、文件系统存储 wiki Markdown\n\n## 工作流阶段\n\n### 阶段 1：资料摄入（Ingest）\n\n**输入**：新资料（PDF、网页、文本、图片等）\n**操作**：\n1. 将资料放入 `sources/`，保持原始文件名和格式\n2. Agent 读取资料全文\n3. 在 `wiki/log.md` 中记录摄入时间、来源名称、资料类型\n\n**产出**：`sources/{filename}` + `wiki/log.md` 更新\n\n### 阶段 2：知识路由与合成（Route & Synthesize）\n\n**输入**：已摄入的资料 + 现有 wiki 页面\n**操作**：\n1. Agent 阅读 `wiki/index.md`，了解当前知识范围\n2. 判断资料涉及哪些已有概念，可能触发哪些新概念\n3. 对相关概念页面进行合成：保留已有内容，整合新信息\n4. 对全新概念创建新页面\n5. 在页面底部添加 `## 来源` 段落，记录该资料的贡献\n\n**关键规则**：\n- 合成时必须保留已有知识，不能丢弃旧内容\n- 新信息与旧信息矛盾时，在页面中标注争议点，不直接覆盖\n- 每个概念页面保持单一主题，不要写成资料摘要\n\n**产出**：更新或新建的 `wiki/{concept}.md` 页面\n\n### 阶段 3：索引构建（Index）\n\n**输入**：原始资料 + wiki 页面\n**操作**：\n1. 将原始资料上传到 AIASys 知识库（使用 `UploadDocumentsToKnowledgeBase`）\n2. 选择合适的检索模式：\n   - 概念探索 → `vector`（语义检索）\n   - 精确查找 → `fulltext`（全文检索）\n   - 综合查询 → `hybrid`（混合检索）\n3. 记录知识库 ID 和配置到 `docs/knowledge-base-guide.md`\n\n**产出**：可检索的知识库 + 配置文档更新\n\n### 阶段 4：图谱构建（Graph）\n\n**输入**：wiki 概念页面或原始资料\n**操作**：\n1. 使用 `UploadDocumentsToGraph` 将资料上传到知识图谱\n2. 系统自动抽取实体和关系\n3. Agent 审核抽取结果，手工补充遗漏的重要关系\n4. 使用 `GetCommunityReport` 生成社区报告，发现知识聚类\n5. 记录图谱 ID 和关键实体到 `docs/graph-guide.md`\n\n**产出**：知识图谱 + 社区报告 + 可视化数据\n\n### 阶段 5：查询与关联（Query）\n\n**输入**：用户问题\n**操作**：\n1. 优先查 wiki：Agent 读取相关概念页面直接回答\n2. wiki 不足时，查知识库：使用 `KnowledgeBaseQuery` 做语义检索\n3. 需要关联分析时，查图谱：使用 `SearchKnowledgeGraphEntities` 和 `QueryEntityRelations`\n4. 回答中引用来源，标注 `[[页面名]]` 或知识库文档名\n\n**产出**：带出处标注的完整回答\n\n## 页面规范\n\n每个 wiki 页面必须包含：\n\n```markdown\n---\ntitle: 页面标题\ntags: [标签1, 标签2]\nupdated: YYYY-MM-DD\nsources: [来源文件名1, 来源文件名2]\n---\n\n# 页面标题\n\n## 定义\n（简洁定义，1-3 句话）\n\n## 核心内容\n（详细阐述，可分段）\n\n## 相关概念\n- [[概念A]]\n- [[概念B]]\n\n## 来源\n- `sources/论文.pdf` — 第 3 章\n- `sources/网页存档.md` — 第 2 节\n```\n\n## 硬性规则\n\n- `sources/` 中的原始资料**只读**，不直接修改\n- `wiki/` 中的页面**由 LLM 维护**，人工不直接编辑正文（可评论或提出修改要求）\n- 每次摄入后必须更新 `wiki/index.md` 和 `wiki/log.md`\n- 概念页面必须使用 `[[slug]]` 建立交叉引用\n- 矛盾信息不覆盖，在页面中标注争议\n- 优先使用 wiki 回答，不足时才查原始资料\n- 知识库和图谱配置变更必须记录到 `docs/` 下的对应指南\n"
+
+[[files]]
+relative_path = "sources/.gitkeep"
+content = ""
+
+[[files]]
+relative_path = "wiki/index.md"
+content = "---\ntitle: 知识目录\nupdated: 2026-01-01\n---\n\n# 知识目录\n\n本文件记录当前知识库中所有概念页面及其状态。\n\n## 概念列表\n\n| 页面 | 标签 | 最后更新 | 来源数量 |\n|------|------|----------|----------|\n| （待 Agent 摄入后填充） | | | |\n\n## 标签索引\n\n（待填充。示例标签：算法、架构、产品、人物、论文、工具）\n\n## 最近更新\n\n（按时间倒序列出最近更新的页面）\n\n## 待建页面\n\n（Agent 在摄入时发现的新概念，但尚未创建页面）\n"
+
+[[files]]
+relative_path = "wiki/log.md"
+content = "---\ntitle: 摄入日志\nupdated: 2026-01-01\n---\n\n# 摄入日志\n\n按时间顺序记录所有资料摄入操作和 wiki 变更。\n\n## 日志格式\n\n```\n[YYYY-MM-DD HH:MM] 摄入: {来源名称}\n- 类型: {pdf|web|note|other}\n- 更新页面: [[page1]], [[page2]]\n- 新建页面: [[page3]]\n- 来源路径: sources/{filename}\n- 摘要: {一句话概括资料核心内容}\n```\n\n## 日志条目\n\n（待 Agent 执行摄入后填充）\n"
+
+[[files]]
+relative_path = "docs/knowledge-base-guide.md"
+content = "# AIASys 知识库使用指南\n\n知识库是 AIASys 的向量文档检索系统，支持语义检索、全文检索和混合检索。\n\n## 创建知识库\n\n使用 Agent 工具 `CreateKnowledgeBase` 或前端知识库面板创建。\n\n创建时需指定：\n- `name`：知识库名称\n- `kind`：document（文档型）| structured（结构化）| web（网页型）| code（代码型）\n- `embedding_model`：嵌入模型名称（默认使用系统配置的文本模型）\n- `chunk_size` / `chunk_overlap`：分块大小和重叠量\n\n## 上传文档\n\n使用 `UploadDocumentsToKnowledgeBase` 或 `UploadDocumentsToKnowledgeBaseBatch` 上传。\n\n支持的格式：PDF、TXT、Markdown、DOCX、HTML 等。\n\n## 检索模式\n\n| 模式 | 适用场景 | 说明 |\n|------|----------|------|\n| vector | 概念探索、语义相似查询 | 基于向量相似度，召回语义相近但关键词不同的内容 |\n| fulltext | 精确关键词查找 | 基于 BM25 或 jieba 分词，适合专有名词、代码片段 |\n| hybrid | 综合查询（推荐） | 结合语义和关键词，兼顾召回率和精确度 |\n\n## 查询参数\n\n- `query`：查询文本\n- `mode`：检索模式（vector/fulltext/hybrid）\n- `top_k`：返回结果数量\n- `filters`：按文档名、标签等过滤\n\n## 维护操作\n\n- `ListKnowledgeBaseDocuments`：列出库中文档\n- `DeleteDocumentsFromKnowledgeBase`：删除指定文档\n- `DeleteKnowledgeBase`：删除整个知识库\n\n## 当前工作区知识库配置\n\n（Agent 在创建知识库后填写）\n\n- 知识库名称：\n- 知识库 ID：\n- 检索模式：\n- 文档数量：\n"
+
+[[files]]
+relative_path = "docs/graph-guide.md"
+content = "# AIASys 知识图谱使用指南\n\n知识图谱通过 LLM 自动从文本中抽取实体和关系，构建可交互的关系网络。\n\n## 创建图谱\n\n使用 `CreateKnowledgeGraph` 创建新图谱。\n\n## 添加文档并构图\n\n使用 `UploadDocumentsToGraph` 上传资料。系统会自动：\n1. 抽取实体（人物、组织、概念、事件等）\n2. 抽取关系（属于、创造、影响、位于等）\n3. 实体消歧（合并同名实体）\n4. 更新图谱存储\n\n## 查询方式\n\n### 实体搜索\n`SearchKnowledgeGraphEntities` — 按名称或描述搜索实体。\n\n### 实体详情\n`GetKnowledgeGraphEntityDetail` — 获取实体的完整属性、关系和来源文档。\n\n### 关系查询\n`QueryEntityRelations` — 查询两个实体之间的关系路径。\n\n### 社区发现\n`GetCommunityReport` — 生成社区报告，发现知识聚类和主题分布。\n\n## 手工维护\n\n- `CreateGraphEntity` / `UpdateGraphEntity` / `DeleteGraphEntity`：手工增删改实体\n- `CreateGraphRelation`：手工创建关系\n\n## 可视化\n\n在前端 Knowledge > Graph 页面中可查看：\n- 力导向图布局\n- 社区着色\n- 实体详情面板\n- 关系过滤\n\n## 当前工作区图谱配置\n\n（Agent 在创建图谱后填写）\n\n- 图谱名称：\n- 图谱 ID：\n- 实体数量：\n- 关系数量：\n- 社区数量：\n"

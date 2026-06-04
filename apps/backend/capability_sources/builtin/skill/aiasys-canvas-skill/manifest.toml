@@ -1,0 +1,12 @@
+capability_id = "aiasys-canvas-skill"
+kind = "skill_pack"
+display_name = "AIASys Canvas 编辑 Skill"
+description = """AIASys 内置 Canvas 编辑能力。操作 JSON Canvas 格式的 .canvas 文件。
+当用户需要创建或修改思维导图、流程图、白板笔记、概念图等可视化结构时使用。
+避免手动处理 JSON、UUID 生成和边一致性，并在编辑后校验 Canvas 语法。"""
+version = "1.0.0"
+author = "AIASys"
+dependencies = []
+min_platform_version = "0.1.0"
+
+[config_schema]

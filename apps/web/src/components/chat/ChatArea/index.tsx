@@ -1,0 +1,367 @@
+/**
+ * ChatArea - 聊天消息显示区域
+ *
+ * 重构为 Compound Components 模式：
+ * - 避免 boolean prop 泛滥
+ * - 每个子组件职责单一
+ * - 通过 Context 共享状态
+ *
+ * @example
+ * ```tsx
+ * <ChatArea items={items} actions={actions}>
+ *   <ChatArea.List />
+ * </ChatArea>
+ * ```
+ */
+import {
+  type RefObject,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
+import { ArrowDown } from "lucide-react";
+import type { ChatItem } from "@/pages/WorkspacePage/types";
+import type { PreviewFile } from "@/components/layout/WorkspaceSidebar/preview";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import { MessageItem } from "./MessageItem";
+import { AskUserInlineCard } from "@/components/AskUserInlineCard";
+import { askUserBridge } from "@/lib/askUserBridge";
+import type { ChatAreaActions, ChatAreaLayout } from "./context";
+
+// Context 和 Provider 导出
+export { ChatAreaContext, useChatAreaContext } from "./context";
+export { ChatAreaProvider } from "./ChatAreaProvider";
+
+// 子组件导出
+export { MessageAvatar } from "./MessageAvatar";
+export { MessageBody } from "./MessageBody";
+export { MessageContent } from "./MessageContent";
+export { MessageLayout } from "./MessageLayout";
+export { MessageTimestamp } from "./MessageTimestamp";
+export { UserMessageContent } from "./UserMessageContent";
+export { AiMessageContent } from "./AiMessageContent";
+export { MessageItem } from "./MessageItem";
+
+interface ChatAreaProps {
+  /** 聊天消息列表 */
+  items: ChatItem[];
+  /** 消息列表滚动引用 */
+  messagesEndRef?: RefObject<HTMLDivElement | null>;
+  /** 查看执行空间回调 */
+  onViewExecutionSpace?: (taskId: string) => void;
+  /** Worker 点击回调 */
+  onWorkerClick?: (workerName: string) => void;
+  /** 在主画布打开工作区产物 */
+  onOpenWorkspaceArtifact?: (file: PreviewFile) => void;
+  /** 查看工具调用详情 - 包含触发元素位置用于悬浮窗定位 */
+  onViewToolDetails?: (
+    toolCallId: string,
+    taskId: string | undefined,
+    triggerRect: DOMRect,
+  ) => void;
+  /** 编辑用户消息并从该消息处重新发送 */
+  onRewriteUserMessage?: (
+    messageId: string,
+    content: string,
+    originalContent?: string,
+  ) => Promise<void> | void;
+  /** 当前会话是否正在运行 */
+  isRunning?: boolean;
+  /** 当前会话 ID */
+  sessionId?: string;
+  /** 布局模式 */
+  layout?: ChatAreaLayout;
+  /** 子元素 */
+  children?: React.ReactNode;
+}
+
+/**
+ * ChatArea Root 组件
+ */
+function ChatAreaRoot({
+  items,
+  messagesEndRef,
+  onViewExecutionSpace,
+  onWorkerClick,
+  onOpenWorkspaceArtifact,
+  onViewToolDetails,
+  onRewriteUserMessage,
+  isRunning = false,
+  sessionId,
+  layout = "default",
+  children,
+}: ChatAreaProps) {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const [containerWidth, setContainerWidth] = useState<number | null>(null);
+  const [showScrollToBottom, setShowScrollToBottom] = useState(false);
+  const [hasNewContent, setHasNewContent] = useState(false);
+  const isFollowingBottomRef = useRef(true);
+  const isProgrammaticScrollRef = useRef(false);
+  const programmaticScrollTimerRef = useRef<number | null>(null);
+  const previousItemsRef = useRef<{
+    length: number;
+    lastId?: string;
+    sessionId?: string;
+  }>({
+    length: 0,
+    lastId: undefined,
+    sessionId: undefined,
+  });
+  const actions: ChatAreaActions = {
+    onViewExecutionSpace,
+    onWorkerClick,
+    onOpenWorkspaceArtifact,
+    onViewToolDetails,
+    onRewriteUserMessage,
+  };
+  useEffect(() => {
+    if (layout === "compact" || layout === "rail" || !containerRef.current) {
+      return;
+    }
+
+    const element = containerRef.current;
+    const updateWidth = () => {
+      setContainerWidth(element.clientWidth);
+    };
+
+    updateWidth();
+
+    const observer = new ResizeObserver(() => {
+      updateWidth();
+    });
+    observer.observe(element);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [layout]);
+
+  const isNearBottom = useCallback((element: HTMLDivElement) => {
+    return element.scrollHeight - element.scrollTop - element.clientHeight <= 96;
+  }, []);
+
+  const scrollToBottom = useCallback(
+    (behavior: ScrollBehavior = "auto") => {
+      const container = containerRef.current;
+      if (!container) {
+        messagesEndRef?.current?.scrollIntoView({ behavior, block: "end" });
+        return;
+      }
+
+      if (programmaticScrollTimerRef.current) {
+        window.clearTimeout(programmaticScrollTimerRef.current);
+      }
+      isProgrammaticScrollRef.current = true;
+      programmaticScrollTimerRef.current = window.setTimeout(() => {
+        isProgrammaticScrollRef.current = false;
+        programmaticScrollTimerRef.current = null;
+      }, behavior === "smooth" ? 450 : 0);
+
+      if (behavior === "smooth") {
+        messagesEndRef?.current?.scrollIntoView({
+          behavior: "smooth",
+          block: "end",
+        });
+      } else {
+        container.scrollTop = container.scrollHeight;
+      }
+
+      isFollowingBottomRef.current = true;
+      setShowScrollToBottom(false);
+      setHasNewContent(false);
+    },
+    [messagesEndRef],
+  );
+
+  const handleScroll = useCallback(() => {
+    const container = containerRef.current;
+    if (!container) {
+      return;
+    }
+
+    const atBottom = isNearBottom(container);
+    if (isProgrammaticScrollRef.current) {
+      if (atBottom) {
+        setShowScrollToBottom(false);
+        setHasNewContent(false);
+      }
+      return;
+    }
+
+    isFollowingBottomRef.current = atBottom;
+    setShowScrollToBottom(!atBottom);
+    if (atBottom) {
+      setHasNewContent(false);
+    }
+  }, [isNearBottom]);
+
+  useEffect(() => {
+    isFollowingBottomRef.current = true;
+    setShowScrollToBottom(false);
+    setHasNewContent(false);
+    requestAnimationFrame(() => scrollToBottom("auto"));
+  }, [scrollToBottom, sessionId]);
+
+  useEffect(() => {
+    const previous = previousItemsRef.current;
+    const lastItem = items[items.length - 1];
+    const lastId = lastItem?.id;
+    const sessionChanged = previous.sessionId !== sessionId;
+    const itemCountChanged = previous.length !== items.length;
+    const lastItemChanged = previous.lastId !== lastId;
+    const userSubmitted =
+      lastItem?.type === "message" && lastItem.sender === "user";
+
+    previousItemsRef.current = {
+      length: items.length,
+      lastId,
+      sessionId,
+    };
+
+    if (sessionChanged || userSubmitted) {
+      isFollowingBottomRef.current = true;
+    }
+
+    if (isFollowingBottomRef.current) {
+      requestAnimationFrame(() => scrollToBottom("auto"));
+      return;
+    }
+
+    if (itemCountChanged || lastItemChanged || items.length > 0) {
+      setHasNewContent(true);
+      setShowScrollToBottom(true);
+    }
+  }, [items, scrollToBottom, sessionId]);
+
+  useEffect(() => {
+    return () => {
+      if (programmaticScrollTimerRef.current) {
+        window.clearTimeout(programmaticScrollTimerRef.current);
+      }
+    };
+  }, []);
+
+  const effectiveLayout =
+    layout === "compact" ||
+    layout === "rail" ||
+    (containerWidth !== null && containerWidth <= 560)
+      ? layout === "rail"
+        ? "rail"
+        : "compact"
+      : "default";
+  const isCompactSurface =
+    effectiveLayout === "compact" || effectiveLayout === "rail";
+
+  return (
+    <div className="relative min-h-0 flex-1">
+      <div
+        ref={containerRef}
+        data-testid="chat-scroll-container"
+        onScroll={handleScroll}
+        className={cn(
+          "h-full overflow-y-auto scrollbar-thin scrollbar-thumb-gray-200",
+          isCompactSurface ? "px-2 py-4" : "px-4 py-8 lg:px-8 xl:px-12",
+        )}
+      >
+        <div
+          className={cn(
+            "mx-auto min-w-0",
+            isCompactSurface
+              ? "max-w-none space-y-5 pb-20"
+              : "max-w-4xl space-y-8 pb-24",
+          )}
+        >
+          {children || (
+            <ChatAreaList
+              items={items}
+              actions={actions}
+              sessionId={sessionId}
+              layout={effectiveLayout}
+              isRunning={isRunning}
+            />
+          )}
+          {messagesEndRef && <div ref={messagesEndRef} />}
+        </div>
+      </div>
+      {showScrollToBottom && (
+        <div className="pointer-events-none absolute bottom-4 left-0 right-0 z-20 flex justify-center px-4">
+          <Button
+            type="button"
+            data-testid="chat-scroll-to-bottom"
+            size="sm"
+            variant="secondary"
+            className="pointer-events-auto h-8 rounded-full border border-border bg-background px-3 text-xs shadow-lg hover:bg-muted"
+            onClick={() => scrollToBottom("smooth")}
+            title="回到底部"
+          >
+            <ArrowDown className="h-3.5 w-3.5" />
+            <span>{hasNewContent ? "新内容" : "回到底部"}</span>
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+interface ChatAreaListProps {
+  items: ChatItem[];
+  actions: ChatAreaActions;
+  sessionId?: string;
+  layout?: ChatAreaLayout;
+  isRunning?: boolean;
+}
+
+/**
+ * ChatArea.List - 消息列表组件
+ */
+function ChatAreaList({
+  items,
+  actions,
+  sessionId,
+  layout = "default",
+  isRunning = false,
+}: ChatAreaListProps) {
+  return (
+    <>
+      {items.map((item) => {
+        if (item.type === "message") {
+          return (
+            <MessageItem
+              key={item.id}
+              item={item}
+              actions={actions}
+              sessionId={sessionId}
+              layout={layout}
+              isRunning={isRunning}
+            />
+          );
+        }
+        if (item.type === "ask_user") {
+          return (
+            <AskUserInlineCard
+              key={item.id}
+              request={item.request}
+              status={item.status}
+              onResponse={async (approved, value) => {
+                if (askUserBridge.resolve) {
+                  return await askUserBridge.resolve(item.id, approved, value);
+                }
+                return false;
+              }}
+            />
+          );
+        }
+        return null;
+      })}
+    </>
+  );
+}
+
+// 将子组件附加到根组件
+export const ChatArea = Object.assign(ChatAreaRoot, {
+  List: ChatAreaList,
+});
+
+export default ChatArea;
