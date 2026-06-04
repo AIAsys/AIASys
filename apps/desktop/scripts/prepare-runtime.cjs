@@ -138,8 +138,17 @@ function materializeBinSymlinks(embedPythonRoot) {
     const entryPath = path.join(binDir, entry);
     const realFile = resolveRealFile(entryPath);
     if (realFile && realFile !== entryPath) {
-      fs.copyFileSync(realFile, entryPath);
-      console.log(`[aiasys-desktop] 实体化符号链接: ${entry} -> ${realFile}`);
+      try {
+        // 先删除符号链接，避免 copyFileSync 因权限问题无法覆盖只读链接
+        fs.unlinkSync(entryPath);
+        fs.copyFileSync(realFile, entryPath);
+        // 保持可执行权限
+        const mode = fs.statSync(realFile).mode;
+        fs.chmodSync(entryPath, mode | 0o111);
+        console.log(`[aiasys-desktop] 实体化符号链接: ${entry} -> ${realFile}`);
+      } catch (error) {
+        console.warn(`[aiasys-desktop] 实体化符号链接失败 ${entry}:`, error.message);
+      }
     }
   }
 }
