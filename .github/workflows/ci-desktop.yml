@@ -140,6 +140,7 @@ jobs:
     needs: [create-draft-release, build-desktop]
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
       - name: Publish release
         run: |
           TAG="${{ needs.create-draft-release.outputs.tag_name }}"
