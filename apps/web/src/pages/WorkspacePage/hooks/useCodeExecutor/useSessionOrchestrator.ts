@@ -133,8 +133,11 @@ export function useSessionOrchestrator({
 
       const currentSessionId = sessionId;
       const cachedItems = getSessionChatItems(sid);
+      const hasRunningStream = cachedItems.some(
+        (item) => item.type === "message" && item.isStreaming,
+      );
       const hasVisibleItemsForActiveSession =
-        sid === currentSessionId && cachedItems.length > 0;
+        sid === currentSessionId && hasRunningStream;
 
       if (hasVisibleItemsForActiveSession) {
         // 初始历史恢复可能在用户已经继续当前会话后才返回。
