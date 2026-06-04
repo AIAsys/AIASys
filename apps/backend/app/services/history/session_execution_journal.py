@@ -11,8 +11,10 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import re
 import shutil
+from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional
@@ -283,8 +285,13 @@ class SessionExecutionJournal:
             agent_config_snapshot=agent_config_snapshot,
         )
 
+<<<<<<< HEAD
         with self._records_lock:
             with open(self.records_path, "a", encoding="utf-8") as f:
+=======
+        with open(self.records_path, "a", encoding="utf-8") as f:
+            with _file_lock(f):
+>>>>>>> 2436741cf2f0ec39289199508d4c1b01c790cc44
                 f.write(json.dumps(record.model_dump(), ensure_ascii=False) + "\n")
 
         self._write_json(
@@ -353,8 +360,13 @@ class SessionExecutionJournal:
             "finished_at": finished_at,
         }
 
+<<<<<<< HEAD
         with self._replay_runs_lock:
             with open(self.replay_runs_path, "a", encoding="utf-8") as f:
+=======
+        with open(self.replay_runs_path, "a", encoding="utf-8") as f:
+            with _file_lock(f):
+>>>>>>> 2436741cf2f0ec39289199508d4c1b01c790cc44
                 f.write(json.dumps(payload, ensure_ascii=False) + "\n")
 
         return payload
