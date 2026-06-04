@@ -160,6 +160,17 @@ export function useExecutionSubmit(props: UseExecutionSubmitProps) {
       userContent.slice(0, 30) + (userContent.length > 30 ? "..." : "");
     updateSessionTitle(sessionId, titleFromContent);
 
+    // 清理当前 session 中已被终止的 AI 消息的 isStopped 标志，
+    // 避免新任务启动后旧消息仍显示"任务已终止"
+    updateChatItems(latestSessionId, (prev: ChatItem[]) => {
+      return prev.map((item) => {
+        if (item.type === "message" && item.sender === "ai" && item.isStopped) {
+          return { ...item, isStopped: false };
+        }
+        return item;
+      });
+    });
+
     // 清理当前 session 的 slot 数据
     const slot = getSessionSlot(sessionId);
     slot.taskEventsMap = {};
