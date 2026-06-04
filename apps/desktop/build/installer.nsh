@@ -4,6 +4,11 @@
 ; ==================== 安装前 ====================
 
 !macro customInit
+  ; 安装前检测应用窗口是否正在运行（FindWindow 为 NSIS 内置指令，无需插件）
+  FindWindow $R0 "" "AIASys Desktop"
+  IntCmp $R0 0 continueInstall
+
+  MessageBox MB_OKCANCEL|MB_ICONEXCLAMATION "AIASys Desktop 正在运行。安装前需要关闭该应用。点击确定自动关闭并继续安装，点击取消退出安装程序。" IDOK closeApp IDCANCEL cancelInstall
   ; 安装前检测并终止正在运行的 AIASys Desktop 进程
   ; 使用 taskkill 替代 nsProcess 插件（CI 环境中 nsProcess 插件可能缺失）
   nsExec::ExecToStack 'tasklist /FI "IMAGENAME eq AIASys Desktop.exe" 2>NUL | find /I "AIASys Desktop.exe"'
@@ -20,19 +25,17 @@
       Quit
 
     continueInstall:
-  ${EndIf}
 !macroend
 
 ; ==================== 卸载前 ====================
 
 !macro customUnInit
   ; 卸载前检测并终止正在运行的 AIASys Desktop 进程
-  nsExec::ExecToStack 'tasklist /FI "IMAGENAME eq AIASys Desktop.exe" 2>NUL | find /I "AIASys Desktop.exe"'
-  Pop $R0
-  ${If} $R0 == "0"
+  FindWindow $R0 "" "AIASys Desktop"
+  IntCmp $R0 0 continueUninstall
     nsExec::ExecToStack 'taskkill /F /IM "AIASys Desktop.exe" 2>NUL'
     Sleep 1000
-  ${EndIf}
+  continueUninstall:
 !macroend
 
 ; ==================== 卸载确认 ====================

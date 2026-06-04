@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import os
 import re
+import shutil
 from pathlib import Path
 from typing import Any
 
@@ -30,6 +31,16 @@ DEFAULT_TIMEOUT = 60
 MAX_TIMEOUT = 300  # 5分钟
 
 
+def _resolve_bash_path() -> str | None:
+    """Windows 上查找 Git Bash，排除 WSL bash。"""
+    if os.name != "nt":
+        return "bash"
+    which_bash = shutil.which("bash")
+    if which_bash and "System32" not in which_bash and "system32" not in which_bash:
+        return which_bash
+    return None
+
+
 def _build_shell_exec_env() -> dict[str, str] | None:
     """构建 Shell 执行环境：os.environ 去敏 + 工作区自定义 env vars。"""
     env = build_sanitized_kernel_env()
@@ -40,6 +51,11 @@ def _build_shell_exec_env() -> dict[str, str] | None:
     workspace = current_workspace.get()
     if workspace:
         env["AIASYS_WORKSPACE_ROOT"] = str(workspace)
+    # Windows 中文编码兜底
+    if os.name == "nt":
+        env.setdefault("PYTHONIOENCODING", "utf-8")
+        env.setdefault("LC_ALL", "C.UTF-8")
+        env.setdefault("LANG", "C.UTF-8")
     return env
 
 
@@ -119,6 +135,12 @@ async def _create_shell_process(command: str, **kwargs: Any) -> asyncio.subproce
     若系统存在 bash（如 Git Bash）则显式使用 bash -c 执行命令。
     Linux/macOS 保持原行为。
     """
+    # 强制 UTF-8 编码，避免 Windows 中文乱码
+    env = dict(kwargs.get("env") or {})
+    env.setdefault("LC_ALL", "C.UTF-8")
+    env.setdefault("LANG", "C.UTF-8")
+    kwargs["env"] = env
+
     if os.name == "nt":
         import shutil
 
@@ -141,6 +163,11 @@ async def _create_shell_process_with_interpreter(
         bash_path = shutil.which("bash")
         if not bash_path:
             raise RuntimeError("系统未找到 bash，无法使用 interpreter='bash'")
+        # 强制 UTF-8 编码
+        env = dict(kwargs.get("env") or {})
+        env.setdefault("LC_ALL", "C.UTF-8")
+        env.setdefault("LANG", "C.UTF-8")
+        kwargs["env"] = env
         return await asyncio.create_subprocess_exec(bash_path, "-c", command, **kwargs)
 
     if interpreter == "cmd":
@@ -251,16 +278,30 @@ class Shell(AiasysTool):
                 plan=plan,
             )
 
+        bash_path = _resolve_bash_path() if os.name == "nt" else None
+
         try:
-            proc = await _create_shell_process_with_interpreter(
-                command,
-                interpreter=params.interpreter,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-                stdin=asyncio.subprocess.DEVNULL,  # 立即关闭 stdin
-                cwd=str(cwd),
-                env=env,
-            )
+            if bash_path:
+                # Windows: 使用 Git Bash 执行，避免 cmd.exe 不支持 POSIX 命令
+                proc = await asyncio.create_subprocess_exec(
+                    bash_path,
+                    "-c",
+                    command,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                    stdin=asyncio.subprocess.DEVNULL,  # 立即关闭 stdin
+                    cwd=str(cwd),
+                    env=env,
+                )
+            else:
+                proc = await asyncio.create_subprocess_shell(
+                    command,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                    stdin=asyncio.subprocess.DEVNULL,  # 立即关闭 stdin
+                    cwd=str(cwd),
+                    env=env,
+                )
         except Exception as e:
             return ToolResult(content=f"启动进程失败: {e}", is_error=True)
 

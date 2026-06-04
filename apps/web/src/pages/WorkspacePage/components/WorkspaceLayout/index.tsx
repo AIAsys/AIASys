@@ -117,6 +117,18 @@ export function WorkspaceLayout({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
+  // 监听 Electron 托盘菜单动作
+  useEffect(() => {
+    const desktop = window.__AIASYS_DESKTOP__;
+    if (!desktop?.onTrayAction) return;
+    desktop.onTrayAction((action) => {
+      if (action.type === "open-settings" && action.section) {
+        setGlobalSettingsSection(action.section as import("@/components/settings/global-settings").SettingsSection);
+        setIsGlobalSettingsOpen(true);
+      }
+    });
+  }, []);
+
 
   const { user } = useAuthContext();
 
