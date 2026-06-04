@@ -112,6 +112,21 @@ jobs:
       - name: Prepare runtime
         run: cd apps/desktop && npm run prepare:runtime
 
+      - name: Remove python3.exe shim (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $shim = "apps/desktop/.dist/backend/.venv/python/python3.exe"
+          if (Test-Path $shim) {
+            Remove-Item -Force $shim
+            Write-Host "Removed python3.exe shim"
+          }
+          $shim2 = "apps/desktop/dist/win-unpacked/resources/backend/.venv/python/python3.exe"
+          if (Test-Path $shim2) {
+            Remove-Item -Force $shim2
+            Write-Host "Removed python3.exe shim from unpacked"
+          }
+
       - name: Build desktop (${{ matrix.target }})
         run: cd apps/desktop && npm run ${{ matrix.script }}
 
