@@ -5,6 +5,18 @@ FastAPI 应用入口
 支持认证方式：local/none
 """
 
+# Windows WMI 绕过补丁：防止 platform.machine() 调用 WMI 时卡死
+# 必须在任何可能触发 platform 导入的模块之前执行
+import sys
+
+if sys.platform == "win32":
+    import platform
+
+    def _wmi_query_noop(*args, **kwargs):
+        raise OSError("WMI query disabled to avoid hang on frozen WMI service")
+
+    platform._wmi_query = _wmi_query_noop
+
 import asyncio
 import contextlib
 import logging
