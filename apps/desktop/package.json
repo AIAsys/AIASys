@@ -19,7 +19,7 @@
     "dist:mac:unsigned": "npm run build:web && npm run prepare:runtime && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac dmg --arm64 -c.mac.notarize=false -c.mac.identity=null"
   },
   "devDependencies": {
-    "electron": "41.2.0",
+    "electron": "42.3.3",
     "electron-builder": "26.0.12",
     "png-to-ico": "^3.0.1"
   },
