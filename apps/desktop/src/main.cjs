@@ -139,6 +139,14 @@ function createMainWindow(rendererBaseUrl) {
   void mainWindow.loadURL(initialUrl);
 }
 
+function sendTrayAction(action) {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send("tray-action", action);
+    mainWindow.show();
+    mainWindow.focus();
+  }
+}
+
 function createTray() {
   const iconPath = getWindowIconPath();
   tray = new Tray(iconPath);
@@ -158,6 +166,19 @@ function createTray() {
     },
     { type: "separator" },
     {
+      label: "设置",
+      submenu: [
+        { label: "能力管理", click: () => sendTrayAction({ type: "open-settings", section: "capabilities" }) },
+        { label: "模型配置", click: () => sendTrayAction({ type: "open-settings", section: "llm" }) },
+        { label: "全局环境变量", click: () => sendTrayAction({ type: "open-settings", section: "env-vars" }) },
+        { label: "存储位置", click: () => sendTrayAction({ type: "open-settings", section: "storage" }) },
+        { label: "执行资源", click: () => sendTrayAction({ type: "open-settings", section: "execution-resources" }) },
+        { label: "自动化任务", click: () => sendTrayAction({ type: "open-settings", section: "auto-tasks" }) },
+        { label: "监控任务", click: () => sendTrayAction({ type: "open-settings", section: "monitor-tasks" }) },
+      ],
+    },
+    { type: "separator" },
+    {
       label: "打开日志目录",
       click: () => {
         const logsDir = path.join(runtimeStateRoot, "logs");
@@ -166,9 +187,8 @@ function createTray() {
       },
     },
     {
-      label: "打开用户配置",
+      label: "打开用户配置目录",
       click: () => {
-        // 尝试打开 config.json 所在目录（backend data/config 或 backend 根目录）
         const configPaths = [
           path.join(runtimeStateRoot, "data", "config"),
           path.join(runtimeStateRoot, "data"),
@@ -181,7 +201,6 @@ function createTray() {
             return;
           }
         }
-        // 兜底：打开 userData
         void shell.openPath(app.getPath("userData"));
       },
     },

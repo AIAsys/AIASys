@@ -672,10 +672,9 @@ class DesktopServiceManager {
         env: {
           ...process.env,
           PYTHONUNBUFFERED: "1",
+          PYTHONIOENCODING: "utf-8",
+          PYTHONUTF8: "1",
           AIASYS_RUNTIME_ROOT: this.runtimeStateRoot || this.backendRoot,
-          AIASYS_RUNTIME_DATA_DIR: this.backendDataRoot,
-          AIASYS_RUNTIME_LOGS_DIR: this.backendLogsRoot,
-          AIASYS_RUNTIME_WORKSPACES_DIR: this.backendWorkspacesRoot,
         },
         __logFilePath: this.getLogFilePath("backend"),
       },
@@ -714,6 +713,8 @@ class DesktopServiceManager {
           env: {
             ...process.env,
             PYTHONUNBUFFERED: "1",
+            PYTHONIOENCODING: "utf-8",
+            PYTHONUTF8: "1",
             AIASYS_PREVIEW_HOST: this.host,
             AIASYS_PREVIEW_PORT: String(this.frontendPort),
             AIASYS_PREVIEW_BACKEND_URL: this.backendBaseUrl,

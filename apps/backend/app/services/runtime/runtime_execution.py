@@ -273,6 +273,13 @@ def build_runtime_shell_env(
             env["AIASYS_RUNTIME_DOCKER_CONTAINER_ID"] = container.docker_container_id
         if container.container_name:
             env["AIASYS_RUNTIME_CONTAINER_NAME"] = container.container_name
+
+    # Windows 中文编码兜底
+    if os.name == "nt":
+        env.setdefault("PYTHONIOENCODING", "utf-8")
+        env.setdefault("LC_ALL", "C.UTF-8")
+        env.setdefault("LANG", "C.UTF-8")
+
     return env
 
 
