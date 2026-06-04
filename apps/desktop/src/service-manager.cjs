@@ -641,8 +641,9 @@ class DesktopServiceManager {
   async ensureBackend() {
     this.preparePackagedRuntimeState();
 
-    // Windows 打包环境：修复 pyvenv.cfg 的 home 路径为嵌入目录
-    if (this.isPackaged && process.platform === "win32") {
+    // 打包环境：修复 pyvenv.cfg 的 home 路径为嵌入目录
+    // 避免 venv 的 python 符号链接指向 runner 上的原始路径
+    if (this.isPackaged) {
       fixPyvenvHomeIfNeeded(this.backendRoot);
     }
 
