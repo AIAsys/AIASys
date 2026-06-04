@@ -93,6 +93,39 @@ function readPyvenvHome(pyvenvPath) {
   return null;
 }
 
+function resolvePythonRoot(homePath) {
+  // Unix 上 pyvenv.cfg 的 home 指向 bin/ 目录，Python 安装根目录是其父目录
+  // Windows 上 home 直接指向 Python 安装根目录
+  if (homePath && path.basename(homePath) === "bin") {
+    return path.dirname(homePath);
+  }
+  return homePath;
+}
+
+function materializeBinSymlinks(embedPythonRoot) {
+  const binDir = path.join(embedPythonRoot, "bin");
+  if (!fs.existsSync(binDir)) return;
+
+  for (const entry of fs.readdirSync(binDir)) {
+    const entryPath = path.join(binDir, entry);
+    const lstat = fs.lstatSync(entryPath);
+    if (!lstat.isSymbolicLink()) continue;
+
+    const target = fs.readlinkSync(entryPath);
+    // 绝对路径且指向嵌入目录外 -> 在目标机器上会失效，需要实体化
+    const needsMaterialize = path.isAbsolute(target) && !target.startsWith(embedPythonRoot);
+    if (!needsMaterialize) continue;
+
+    // 尝试用 bin 目录内的同名实际文件替换符号链接
+    const targetName = path.basename(target);
+    const localTarget = path.join(binDir, targetName);
+    if (fs.existsSync(localTarget) && !fs.lstatSync(localTarget).isSymbolicLink()) {
+      fs.copyFileSync(localTarget, entryPath);
+      console.log(`[aiasys-desktop] 实体化符号链接: ${entry} -> ${targetName}`);
+    }
+  }
+}
+
 function prepareBackendRuntime() {
   const requiredEntries = [
     ".venv",
@@ -138,11 +171,15 @@ function prepareBackendRuntime() {
   // 避免目标机器上没有系统 Python 时 venv 无法启动
   const pyvenvPath = path.join(backendStageRoot, ".venv", "pyvenv.cfg");
   const homePath = readPyvenvHome(pyvenvPath);
-  if (homePath && fs.existsSync(homePath)) {
+  const pythonRoot = resolvePythonRoot(homePath);
+  if (pythonRoot && fs.existsSync(pythonRoot)) {
     const embedPythonRoot = path.join(backendStageRoot, ".venv", "python");
     if (!fs.existsSync(embedPythonRoot)) {
-      console.log(`[aiasys-desktop] 嵌入完整 Python 运行时: ${homePath} -> ${embedPythonRoot}`);
-      fs.cpSync(homePath, embedPythonRoot, { recursive: true, preserveTimestamps: true });
+      console.log(`[aiasys-desktop] 嵌入完整 Python 运行时: ${pythonRoot} -> ${embedPythonRoot}`);
+      fs.cpSync(pythonRoot, embedPythonRoot, { recursive: true, preserveTimestamps: true });
+
+      // 实体化指向外部路径的符号链接，避免在目标机器上失效
+      materializeBinSymlinks(embedPythonRoot);
 
       // Windows: 删除 python3.exe shim，避免 7-Zip 打包时报 "directory name is invalid"
       if (process.platform === "win32") {
