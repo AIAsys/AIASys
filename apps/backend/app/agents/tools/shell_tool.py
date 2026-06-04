@@ -40,6 +40,11 @@ def _build_shell_exec_env() -> dict[str, str] | None:
     workspace = current_workspace.get()
     if workspace:
         env["AIASYS_WORKSPACE_ROOT"] = str(workspace)
+    # Windows 中文编码兜底
+    if os.name == "nt":
+        env.setdefault("PYTHONIOENCODING", "utf-8")
+        env.setdefault("LC_ALL", "C.UTF-8")
+        env.setdefault("LANG", "C.UTF-8")
     return env
 
 
@@ -119,6 +124,12 @@ async def _create_shell_process(command: str, **kwargs: Any) -> asyncio.subproce
     若系统存在 bash（如 Git Bash）则显式使用 bash -c 执行命令。
     Linux/macOS 保持原行为。
     """
+    # 强制 UTF-8 编码，避免 Windows 中文乱码
+    env = dict(kwargs.get("env") or {})
+    env.setdefault("LC_ALL", "C.UTF-8")
+    env.setdefault("LANG", "C.UTF-8")
+    kwargs["env"] = env
+
     if os.name == "nt":
         import shutil
 
@@ -141,6 +152,11 @@ async def _create_shell_process_with_interpreter(
         bash_path = shutil.which("bash")
         if not bash_path:
             raise RuntimeError("系统未找到 bash，无法使用 interpreter='bash'")
+        # 强制 UTF-8 编码
+        env = dict(kwargs.get("env") or {})
+        env.setdefault("LC_ALL", "C.UTF-8")
+        env.setdefault("LANG", "C.UTF-8")
+        kwargs["env"] = env
         return await asyncio.create_subprocess_exec(bash_path, "-c", command, **kwargs)
 
     if interpreter == "cmd":
