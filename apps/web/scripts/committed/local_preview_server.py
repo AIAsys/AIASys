@@ -8,6 +8,8 @@ import urllib.request
 from pathlib import Path
 
 
+# 打包后路径: resources/web/scripts/committed/local_preview_server.py
+# dist 目录在 resources/web/dist，需要从 __file__ 向上退 3 级
 ROOT = Path(__file__).resolve().parent.parent.parent / "dist"
 BACKEND = os.environ.get("AIASYS_PREVIEW_BACKEND_URL", "http://127.0.0.1:13001")
 HOST = os.environ.get("AIASYS_PREVIEW_HOST", "127.0.0.1")

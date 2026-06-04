@@ -7,8 +7,10 @@
 from __future__ import annotations
 
 import asyncio
+import locale
 import os
 import re
+import shutil
 from pathlib import Path
 from typing import Any
 
@@ -28,6 +30,35 @@ from app.services.runtime.runtime_execution import (
 MAX_OUTPUT_BYTES = 16_384  # 16KB，参考 Codex CLI
 DEFAULT_TIMEOUT = 60
 MAX_TIMEOUT = 300  # 5分钟
+
+
+def _resolve_bash_path() -> str | None:
+    """Windows 上优先查找 Git Bash，排除 WSL bash。"""
+    if os.name != "nt":
+        return "bash"
+    git_bash_paths = [
+        r"C:\Program Files\Git\bin\bash.exe",
+        r"C:\Program Files (x86)\Git\bin\bash.exe",
+    ]
+    for p in git_bash_paths:
+        if os.path.exists(p):
+            return p
+    which_bash = shutil.which("bash")
+    if which_bash and "System32" not in which_bash and "system32" not in which_bash:
+        return which_bash
+    return None
+
+
+def smart_decode(data: bytes) -> str:
+    """尝试多种编码解码子进程输出，避免 Windows GBK 乱码。"""
+    if not data:
+        return ""
+    for encoding in ("utf-8", locale.getpreferredencoding(False), "gbk", "gb18030"):
+        try:
+            return data.decode(encoding)
+        except (UnicodeDecodeError, LookupError):
+            continue
+    return data.decode("utf-8", errors="replace")
 
 
 def _build_shell_exec_env() -> dict[str, str] | None:
@@ -267,16 +298,30 @@ class Shell(AiasysTool):
                 plan=plan,
             )
 
+        bash_path = _resolve_bash_path() if os.name == "nt" else None
+
         try:
-            proc = await _create_shell_process_with_interpreter(
-                command,
-                interpreter=params.interpreter,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-                stdin=asyncio.subprocess.DEVNULL,  # 立即关闭 stdin
-                cwd=str(cwd),
-                env=env,
-            )
+            if bash_path:
+                # Windows: 使用 Git Bash 执行，避免 cmd.exe 不支持 POSIX 命令
+                proc = await asyncio.create_subprocess_exec(
+                    bash_path,
+                    "-c",
+                    command,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                    stdin=asyncio.subprocess.DEVNULL,  # 立即关闭 stdin
+                    cwd=str(cwd),
+                    env=env,
+                )
+            else:
+                proc = await asyncio.create_subprocess_shell(
+                    command,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                    stdin=asyncio.subprocess.DEVNULL,  # 立即关闭 stdin
+                    cwd=str(cwd),
+                    env=env,
+                )
         except Exception as e:
             return ToolResult(content=f"启动进程失败: {e}", is_error=True)
 
