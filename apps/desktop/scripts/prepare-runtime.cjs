@@ -102,27 +102,79 @@ function resolvePythonRoot(homePath) {
   return homePath;
 }
 
+/**
+ * 递归解析符号链接链，找到最终的实际文件路径。
+ * 如果链中任何环节出错，返回 null。
+ */
+function resolveRealFile(linkPath, visited = new Set()) {
+  try {
+    if (visited.has(linkPath)) return null; // 循环链接
+    visited.add(linkPath);
+
+    const lstat = fs.lstatSync(linkPath);
+    if (!lstat.isSymbolicLink()) {
+      return fs.existsSync(linkPath) ? linkPath : null;
+    }
+
+    const target = fs.readlinkSync(linkPath);
+    const resolved = path.isAbsolute(target)
+      ? target
+      : path.resolve(path.dirname(linkPath), target);
+    return resolveRealFile(resolved, visited);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * 实体化 bin 目录中指向外部路径的符号链接。
+ * 递归解析符号链接链，用最终的实际文件替换链接本身。
+ */
 function materializeBinSymlinks(embedPythonRoot) {
   const binDir = path.join(embedPythonRoot, "bin");
   if (!fs.existsSync(binDir)) return;
 
   for (const entry of fs.readdirSync(binDir)) {
     const entryPath = path.join(binDir, entry);
-    const lstat = fs.lstatSync(entryPath);
-    if (!lstat.isSymbolicLink()) continue;
-
-    const target = fs.readlinkSync(entryPath);
-    // 绝对路径且指向嵌入目录外 -> 在目标机器上会失效，需要实体化
-    const needsMaterialize = path.isAbsolute(target) && !target.startsWith(embedPythonRoot);
-    if (!needsMaterialize) continue;
-
-    // 尝试用 bin 目录内的同名实际文件替换符号链接
-    const targetName = path.basename(target);
-    const localTarget = path.join(binDir, targetName);
-    if (fs.existsSync(localTarget) && !fs.lstatSync(localTarget).isSymbolicLink()) {
-      fs.copyFileSync(localTarget, entryPath);
-      console.log(`[aiasys-desktop] 实体化符号链接: ${entry} -> ${targetName}`);
+    const realFile = resolveRealFile(entryPath);
+    if (realFile && realFile !== entryPath) {
+      fs.copyFileSync(realFile, entryPath);
+      console.log(`[aiasys-desktop] 实体化符号链接: ${entry} -> ${realFile}`);
     }
+  }
+}
+
+/**
+ * 修复 .venv/bin/python 符号链接，使其指向嵌入的 Python 解释器。
+ * 避免 venv 的 python 链接指向构建机的绝对路径，在目标机器上失效。
+ */
+function fixVenvPythonSymlink(venvRoot, embedPythonRoot) {
+  const venvBinDir = path.join(venvRoot, "bin");
+  const embedBinDir = path.join(embedPythonRoot, "bin");
+  if (!fs.existsSync(venvBinDir) || !fs.existsSync(embedBinDir)) return;
+
+  for (const name of ["python", "python3"]) {
+    const linkPath = path.join(venvBinDir, name);
+    let isSymlink = false;
+    try {
+      isSymlink = fs.lstatSync(linkPath).isSymbolicLink();
+    } catch {
+      continue;
+    }
+    if (!isSymlink) continue;
+
+    const target = fs.readlinkSync(linkPath);
+    // 绝对路径或 broken symlink（指向的文件不存在）都需要修复
+    const needsFix = path.isAbsolute(target) || !fs.existsSync(linkPath);
+    if (!needsFix) continue;
+
+    const embedPython = path.join(embedBinDir, name);
+    if (!fs.existsSync(embedPython)) continue;
+
+    fs.unlinkSync(linkPath);
+    const relativeTarget = path.relative(venvBinDir, embedPython);
+    fs.symlinkSync(relativeTarget, linkPath);
+    console.log(`[aiasys-desktop] 修复 venv 符号链接: ${name} -> ${relativeTarget}`);
   }
 }
 
@@ -180,6 +232,9 @@ function prepareBackendRuntime() {
 
       // 实体化指向外部路径的符号链接，避免在目标机器上失效
       materializeBinSymlinks(embedPythonRoot);
+
+      // 修复 .venv/bin/python 符号链接，使其指向嵌入的 Python
+      fixVenvPythonSymlink(path.join(backendStageRoot, ".venv"), embedPythonRoot);
 
       // Windows: 删除 python3.exe shim，避免 7-Zip 打包时报 "directory name is invalid"
       if (process.platform === "win32") {

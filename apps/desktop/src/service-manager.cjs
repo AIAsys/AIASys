@@ -61,6 +61,34 @@ function fixPyvenvHomeIfNeeded(backendRoot) {
       console.warn("[aiasys-desktop] 修复 pyvenv.cfg 失败:", error);
     }
   }
+
+  // 修复 .venv/bin/python 符号链接，使其指向嵌入的 Python
+  const venvBinDir = path.join(backendRoot, ".venv", "bin");
+  const embedBinDir = path.join(embedPythonDir, "bin");
+  if (fs.existsSync(venvBinDir) && fs.existsSync(embedBinDir)) {
+    for (const name of ["python", "python3"]) {
+      const linkPath = path.join(venvBinDir, name);
+      let isSymlink = false;
+      try {
+        isSymlink = fs.lstatSync(linkPath).isSymbolicLink();
+      } catch {
+        continue;
+      }
+      if (!isSymlink) continue;
+
+      const target = fs.readlinkSync(linkPath);
+      const needsFix = path.isAbsolute(target) || !fs.existsSync(linkPath);
+      if (!needsFix) continue;
+
+      const embedPython = path.join(embedBinDir, name);
+      if (!fs.existsSync(embedPython)) continue;
+
+      fs.unlinkSync(linkPath);
+      const relativeTarget = path.relative(venvBinDir, embedPython);
+      fs.symlinkSync(relativeTarget, linkPath);
+      console.log(`[aiasys-desktop] 已修复 venv 符号链接: ${name} -> ${relativeTarget}`);
+    }
+  }
 }
 
 function resolvePythonExecutable(backendRoot) {
@@ -107,8 +135,28 @@ function resolvePythonExecutable(backendRoot) {
     );
   }
 
+  // 诊断信息：打印每个候选路径的详细状态
+  const diagnostics = platformCandidates.map((candidate) => {
+    let status = "不存在";
+    try {
+      const lstat = fs.lstatSync(candidate);
+      if (lstat.isSymbolicLink()) {
+        const target = fs.readlinkSync(candidate);
+        status = `符号链接 -> ${target}${fs.existsSync(candidate) ? "" : " (broken)"}`;
+      } else if (lstat.isFile()) {
+        status = `文件${lstat.mode & 0o111 ? " (可执行)" : " (不可执行)"}`;
+      } else {
+        status = `其他类型 (${lstat.mode.toString(8)})`;
+      }
+    } catch {
+      status = "不存在或无法访问";
+    }
+    return `  ${candidate}: ${status}`;
+  });
+
   throw new Error(
-    `找不到 backend Python 解释器，请确认已准备好虚拟环境: ${platformCandidates.join(", ")}`,
+    `找不到 backend Python 解释器，请确认已准备好虚拟环境。\n` +
+      `候选路径:\n${diagnostics.join("\n")}`,
   );
 }
 
