@@ -15,7 +15,8 @@
     "dist:mac": "npm run build:web && npm run prepare:runtime && electron-builder --mac",
     "dist:ci:linux": "npm run prepare:runtime && electron-builder --linux AppImage --publish=never",
     "dist:ci:win": "npm run prepare:runtime && electron-builder --win nsis --publish=never",
-    "dist:ci:mac": "npm run prepare:runtime && electron-builder --mac dmg zip --publish=never"
+    "dist:ci:mac": "npm run prepare:runtime && electron-builder --mac dmg zip --publish=never",
+    "dist:mac:unsigned": "npm run build:web && npm run prepare:runtime && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac dmg --arm64 -c.mac.notarize=false -c.mac.identity=null"
   },
   "devDependencies": {
     "electron": "41.2.0",
@@ -26,6 +27,8 @@
     "appId": "com.aiasys.desktop",
     "productName": "AIASys Desktop",
     "icon": "build/icon",
+    "asar": true,
+    "compression": "maximum",
     "directories": {
       "output": "dist"
     },
@@ -49,7 +52,8 @@
         "dir",
         "AppImage"
       ],
-      "category": "Development"
+      "category": "Development",
+      "executableArgs": ["--no-sandbox"]
     },
     "win": {
       "target": [

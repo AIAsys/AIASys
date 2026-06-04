@@ -12,7 +12,8 @@ const remoteDebuggingPort = process.env.AIASYS_DESKTOP_REMOTE_DEBUGGING_PORT;
 const disableGpu =
   process.env.AIASYS_DESKTOP_DISABLE_GPU === "1" ||
   (!process.env.DISPLAY && process.platform === "linux");
-const runtimeStateRoot = path.join(app.getPath("userData"), "backend-runtime");
+const runtimeStateRoot = process.env.AIASYS_DESKTOP_HOME
+  || path.join(app.getPath("userData"), "backend-runtime");
 
 let mainWindow = null;
 let tray = null;
@@ -28,6 +29,10 @@ if (remoteDebuggingPort) {
 if (disableGpu) {
   app.commandLine.appendSwitch("disable-gpu");
   app.disableHardwareAcceleration();
+}
+
+if (process.platform === "linux") {
+  app.commandLine.appendSwitch("no-sandbox");
 }
 
 function logError(message, error) {
