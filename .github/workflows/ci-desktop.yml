@@ -17,12 +17,42 @@ permissions:
   contents: write
 
 jobs:
+  create-draft-release:
+    runs-on: ubuntu-latest
+    outputs:
+      tag_name: ${{ steps.resolve_tag.outputs.tag_name }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Resolve release tag
+        id: resolve_tag
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION=$(node -p "require('./apps/desktop/package.json').version")
+            EXISTING=$(gh release list --limit 100 --json tagName --jq ".[].tagName" 2>/dev/null | grep "^v${VERSION}-beta\." | wc -l)
+            N=$((EXISTING + 1))
+            TAG="v${VERSION}-beta.${N}"
+          else
+            TAG="${{ github.ref_name }}"
+          fi
+          echo "tag_name=$TAG" >> $GITHUB_OUTPUT
+          echo "Release tag: $TAG"
+        env:
+          GH_TOKEN: ${{ github.token }}
+      - name: Create draft release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.resolve_tag.outputs.tag_name }}
+          name: "Beta ${{ steps.resolve_tag.outputs.tag_name }}"
+          draft: true
+          prerelease: true
+          generate_release_notes: true
+
   build-web:
+    needs: create-draft-release
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: apps/web
-
     steps:
       - uses: actions/checkout@v4
 
@@ -47,7 +77,7 @@ jobs:
           retention-days: 1
 
   build-desktop:
-    needs: build-web
+    needs: [create-draft-release, build-web]
     strategy:
       fail-fast: false
       matrix:
@@ -55,20 +85,19 @@ jobs:
           - os: ubuntu-latest
             target: linux
             script: dist:ci:linux
-            artifact-name: desktop-linux
-            artifact-path: apps/desktop/dist/*.AppImage
+            files: apps/desktop/dist/*.AppImage
           - os: macos-latest
             target: mac
             script: dist:ci:mac
-            artifact-name: desktop-mac
-            artifact-path: apps/desktop/dist/*.dmg
-            artifact-path2: apps/desktop/dist/*.zip
+            files: |
+              apps/desktop/dist/*.dmg
+              apps/desktop/dist/*.zip
           - os: windows-latest
             target: win
             script: dist:ci:win
-            artifact-name: desktop-win
-            artifact-path: apps/desktop/dist/*.exe
-            artifact-path2: apps/desktop/dist/*.zip
+            files: |
+              apps/desktop/dist/*.exe
+              apps/desktop/dist/*.zip
     runs-on: ${{ matrix.os }}
 
     steps:
@@ -110,67 +139,19 @@ jobs:
       - name: Build desktop (${{ matrix.target }})
         run: cd apps/desktop && npm run ${{ matrix.script }}
 
-      - name: Upload desktop artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.artifact-name }}
-          retention-days: 1
-          path: |
-            ${{ matrix.artifact-path }}
-            ${{ matrix.artifact-path2 }}
-
-  publish-beta:
-    needs: build-desktop
-    if: always()
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Download Linux artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: desktop-linux
-          path: release-artifacts/linux/
-        continue-on-error: true
-
-      - name: Download macOS artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: desktop-mac
-          path: release-artifacts/mac/
-        continue-on-error: true
-
-      - name: Download Windows artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: desktop-win
-          path: release-artifacts/win/
-        continue-on-error: true
-
-      - name: Generate version tag
-        id: version
-        run: |
-          VERSION=$(node -p "require('./apps/desktop/package.json').version")
-          # 查询该版本已有的 beta tag 数量，自动递增序号
-          EXISTING=$(gh release list --limit 100 --json tagName --jq ".[].tagName" 2>/dev/null | grep "^v${VERSION}-beta\." | wc -l)
-          N=$((EXISTING + 1))
-          TAG="v${VERSION}-beta.${N}"
-          echo "tag=$TAG" >> $GITHUB_OUTPUT
-          echo "Beta number: ${N}"
-        env:
-          GH_TOKEN: ${{ github.token }}
-
-      - name: Create GitHub Pre-release
+      - name: Upload to release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.version.outputs.tag }}
-          name: "Beta ${{ steps.version.outputs.tag }}"
-          prerelease: true
-          generate_release_notes: true
-          files: |
-            release-artifacts/linux/*.AppImage
-            release-artifacts/mac/*.dmg
-            release-artifacts/mac/*.zip
-            release-artifacts/win/*.exe
-            release-artifacts/win/*.zip
+          tag_name: ${{ needs.create-draft-release.outputs.tag_name }}
+          files: ${{ matrix.files }}
+
+  publish-beta:
+    needs: [create-draft-release, build-desktop]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Publish release
+        run: |
+          TAG="${{ needs.create-draft-release.outputs.tag_name }}"
+          gh release edit "$TAG" --draft=false
+        env:
+          GH_TOKEN: ${{ github.token }}
