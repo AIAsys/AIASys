@@ -134,26 +134,47 @@ function prepareBackendRuntime() {
   fs.mkdirSync(path.join(backendStageRoot, "logs"), { recursive: true });
   fs.mkdirSync(path.join(backendStageRoot, "workspaces"), { recursive: true });
 
-  // Windows: 将 pyvenv.cfg 指向的完整 Python 运行时复制到嵌入目录
+  // 三端统一嵌入完整 Python 运行时
   // 避免目标机器上没有系统 Python 时 venv 无法启动
-  if (process.platform === "win32") {
-    const pyvenvPath = path.join(backendStageRoot, ".venv", "pyvenv.cfg");
-    const homePath = readPyvenvHome(pyvenvPath);
-    if (homePath && fs.existsSync(homePath)) {
-      const embedPythonRoot = path.join(backendStageRoot, ".venv", "python");
-      if (!fs.existsSync(embedPythonRoot)) {
-        console.log(`[aiasys-desktop] 嵌入完整 Python 运行时: ${homePath} -> ${embedPythonRoot}`);
-        fs.cpSync(homePath, embedPythonRoot, { recursive: true, preserveTimestamps: true });
-        // 删除 python3.exe shim，避免 Windows 上 7-Zip 打包时报 "directory name is invalid"
+  const pyvenvPath = path.join(backendStageRoot, ".venv", "pyvenv.cfg");
+  const homePath = readPyvenvHome(pyvenvPath);
+  if (homePath && fs.existsSync(homePath)) {
+    const embedPythonRoot = path.join(backendStageRoot, ".venv", "python");
+    if (!fs.existsSync(embedPythonRoot)) {
+      console.log(`[aiasys-desktop] 嵌入完整 Python 运行时: ${homePath} -> ${embedPythonRoot}`);
+      fs.cpSync(homePath, embedPythonRoot, { recursive: true, preserveTimestamps: true });
+
+      // Windows: 删除 python3.exe shim，避免 7-Zip 打包时报 "directory name is invalid"
+      if (process.platform === "win32") {
         const python3Shim = path.join(embedPythonRoot, "python3.exe");
         if (fs.existsSync(python3Shim)) {
-          fs.unlinkSync(python3Shim);
+          fs.rmSync(python3Shim, { force: true });
           console.log("[aiasys-desktop] 移除 python3.exe shim");
         }
       }
-    } else {
-      console.warn("[aiasys-desktop] 未找到 pyvenv.cfg home 路径，嵌入 Python 可能不完整");
+
+      // Linux/macOS: 确保 bin 目录下的可执行文件有正确权限
+      if (process.platform !== "win32") {
+        const binDir = path.join(embedPythonRoot, "bin");
+        if (fs.existsSync(binDir)) {
+          const entries = fs.readdirSync(binDir);
+          let fixed = 0;
+          for (const entry of entries) {
+            const filePath = path.join(binDir, entry);
+            const stat = fs.statSync(filePath);
+            if (stat.isFile() && !(stat.mode & 0o111)) {
+              fs.chmodSync(filePath, stat.mode | 0o111);
+              fixed++;
+            }
+          }
+          if (fixed > 0) {
+            console.log(`[aiasys-desktop] 已修复 ${fixed} 个可执行文件权限`);
+          }
+        }
+      }
     }
+  } else {
+    console.warn("[aiasys-desktop] 未找到 pyvenv.cfg home 路径，嵌入 Python 可能不完整");
   }
 }
 
