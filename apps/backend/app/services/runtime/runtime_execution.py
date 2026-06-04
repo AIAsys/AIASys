@@ -412,7 +412,9 @@ def plan_for_python_execution(plan: RuntimeExecutionPlan) -> RuntimeExecutionPla
         )
     if plan.env is None and plan.env_id is None:
         raise RuntimeError(
-            "当前工作区未启用 Python 环境，请先在工作区启用 Python 后再运行代码或 notebook。"
+            "当前工作区未启用 Python 环境。"
+            "调用 RuntimeEnvironment(action='ensure_uv', activate=true) 可自动创建并绑定默认 Python 环境，"
+            "然后重试代码执行。"
         )
     if plan.env is None:
         raise RuntimeError(
