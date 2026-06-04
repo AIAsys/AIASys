@@ -144,6 +144,12 @@ function prepareBackendRuntime() {
       if (!fs.existsSync(embedPythonRoot)) {
         console.log(`[aiasys-desktop] 嵌入完整 Python 运行时: ${homePath} -> ${embedPythonRoot}`);
         fs.cpSync(homePath, embedPythonRoot, { recursive: true, preserveTimestamps: true });
+        // 删除 python3.exe shim，避免 Windows 上 7-Zip 打包时报 "directory name is invalid"
+        const python3Shim = path.join(embedPythonRoot, "python3.exe");
+        if (fs.existsSync(python3Shim)) {
+          fs.unlinkSync(python3Shim);
+          console.log("[aiasys-desktop] 移除 python3.exe shim");
+        }
       }
     } else {
       console.warn("[aiasys-desktop] 未找到 pyvenv.cfg home 路径，嵌入 Python 可能不完整");
