@@ -178,6 +178,60 @@ function prepareBackendRuntime() {
   }
 }
 
+function pruneDevDependencies(backendStageRoot) {
+  const venvRoot = path.join(backendStageRoot, ".venv");
+  const sitePackagesPaths = [];
+
+  function findSitePackages(dir) {
+    if (!fs.existsSync(dir)) return;
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const fullPath = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        if (entry.name === "site-packages") {
+          sitePackagesPaths.push(fullPath);
+        } else {
+          findSitePackages(fullPath);
+        }
+      }
+    }
+  }
+  findSitePackages(path.join(venvRoot, "lib"));
+  findSitePackages(path.join(venvRoot, "Lib"));
+
+  const devPackages = [
+    "pytest", "_pytest", "ruff", "mypy", "mypy_extensions",
+    "black", "ipython", "ipykernel", "coverage", "pre_commit",
+    "flake8", "pylint", "bandit", "isort", "autopep8",
+    "pytest_xdist", "pytest_asyncio", "pytest_cov",
+    "sphinx", "sphinx_rtd_theme", "mccabe", "pycodestyle",
+    "pyflakes", "typing_extensions",
+  ];
+
+  let removed = 0;
+  for (const sp of sitePackagesPaths) {
+    for (const pkg of devPackages) {
+      for (const name of [pkg, pkg.replace(/_/g, "-")]) {
+        const pkgPath = path.join(sp, name);
+        if (fs.existsSync(pkgPath)) {
+          fs.rmSync(pkgPath, { recursive: true, force: true });
+          removed++;
+        }
+      }
+    }
+  }
+  if (removed > 0) {
+    console.log(`[aiasys-desktop] 已清理 ${removed} 个开发依赖包`);
+  }
+
+  for (const dir of ["docs", "tests"]) {
+    const dirPath = path.join(backendStageRoot, dir);
+    if (fs.existsSync(dirPath)) {
+      fs.rmSync(dirPath, { recursive: true, force: true });
+      console.log(`[aiasys-desktop] 清理目录: ${dirPath}`);
+    }
+  }
+}
+
 function main() {
   console.log("[aiasys-desktop] 准备运行时...");
 
@@ -188,6 +242,9 @@ function main() {
   resetDir(runtimeRoot);
   prepareWebRuntime();
   prepareBackendRuntime();
+
+  // 清理开发依赖和无用目录，减小打包体积
+  pruneDevDependencies(backendStageRoot);
 
   // 再次清理 staging 目录中可能残留的缓存（防御性）
   cleanPycache(backendStageRoot);
