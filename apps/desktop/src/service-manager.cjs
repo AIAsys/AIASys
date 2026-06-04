@@ -26,9 +26,6 @@ function resolveRepoRoot() {
 }
 
 function fixPyvenvHomeIfNeeded(backendRoot) {
-  if (process.platform !== "win32") {
-    return;
-  }
   const pyvenvPath = path.join(backendRoot, ".venv", "pyvenv.cfg");
   if (!fs.existsSync(pyvenvPath)) {
     return;
@@ -76,6 +73,9 @@ function resolvePythonExecutable(backendRoot) {
           path.join(backendRoot, ".venv", "Scripts", "python"),
         ]
       : [
+          // 优先使用嵌入的完整 Python 运行时
+          path.join(backendRoot, ".venv", "python", "bin", "python"),
+          path.join(backendRoot, ".venv", "python", "bin", "python3"),
           path.join(backendRoot, ".venv", "bin", "python"),
           path.join(backendRoot, ".venv", "bin", "python3"),
         ];
