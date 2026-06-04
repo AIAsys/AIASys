@@ -195,6 +195,18 @@ async def create_session(request: CreateSessionRequest, user: UserInfo = Depends
         env_id = None
         sandbox_mode = None
 
+        # 若指定了已有工作区，继承其 runtime_binding
+        if request.workspace_id:
+            try:
+                workspace = get_workspace_registry_service().get_workspace(
+                    user_id, request.workspace_id, include_conversations=False
+                )
+                if workspace.runtime_binding:
+                    env_id = workspace.runtime_binding.env_id
+                    sandbox_mode = workspace.runtime_binding.sandbox_mode
+            except Exception:
+                pass
+
         validated_code_timeout = (
             validate_code_timeout(request.code_timeout, sandbox_mode or "local")
             if request.code_timeout is not None
