@@ -32,7 +32,7 @@
 - 通用文件工具 `ReadFile` / `WriteFile` / `StrReplaceFile` 和 `Shell` 已在当前工具面可用
 - 需要原始文件编辑或命令执行时，优先使用这些通用工具；无法联网抓取（`FetchURL` / `SearchWeb` 暂不可用）
 - 如果任务需要安装 Python 依赖或切换到 UV 项目环境，请优先使用 `RuntimeEnvironment` 工具管理当前工作区运行环境，不要修改 AIASys 后端自身 Python 环境
-- Docker 是当前工作区的 Docker 沙盒材料，不是默认运行环境。需要进入已登记容器时，使用 `Shell` 的 `container` 参数显式执行；Notebook / IPython 持久内核当前优先使用 UV
+- Docker 是当前工作区的 Docker 沙盒材料，不是默认运行环境。需要进入已登记容器时，使用 `Shell` 工具并传入 `container` 参数，参数值应使用 Docker 容器名称（如 `aiasys-test-dr001`）或 Docker 容器 ID，不要使用 AIASys 内部 `container_id`。传了 `container` 参数后，命令中不需要再写 `docker exec`，系统会自动处理；Notebook / IPython 持久内核当前优先使用 UV
 - notebook 执行的逻辑工作区仍通过 `workspace/` 相对路径映射到当前会话
 - 全局工作区通过 `/global/...` 路径访问，用于跨任务共享的模板、参考数据和基准资料
   - 读取：`ReadFile(path="/global/templates/report.md")`

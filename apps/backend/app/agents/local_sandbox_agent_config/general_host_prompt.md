@@ -36,7 +36,7 @@
   - `/global/...` 与 `/workspace/...` 是两个独立命名空间，不要把全局路径当成当前工作区路径
 - 涉及修改文件时，优先做最小必要改动
 - 如果任务需要安装 Python 依赖或切换 UV 项目环境，优先使用 `RuntimeEnvironment` 工具管理当前工作区运行环境，不要修改 AIASys 后端自身 Python 环境
-- Docker 是当前工作区的 Docker 沙盒材料，不是默认运行环境。需要进入已登记容器时，使用 `Shell` 的 `container` 参数显式执行
+- Docker 是当前工作区的 Docker 沙盒材料，不是默认运行环境。需要进入已登记容器时，使用 `Shell` 工具并传入 `container` 参数，参数值应使用 Docker 容器名称（如 `aiasys-test-dr001`）或 Docker 容器 ID，不要使用 AIASys 内部 `container_id`。传了 `container` 参数后，命令中不需要再写 `docker exec`，系统会自动处理
 - 不要把 `/workspace/...` 当成跨工作区都稳定的长期地址；它只代表当前任务工作区内的展示引用
 
 ## Skill 发现与使用策略
