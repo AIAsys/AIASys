@@ -79,7 +79,14 @@ export function useChatState(): UseChatStateReturn {
 
       // 从 Map 加载目标 session 的 chatItems
       const targetItems = chatMapRef.current.get(toId) || [];
-      setChatItems(targetItems);
+      // 清理残留的 isStopped 状态，避免切换回来后旧消息仍显示"任务已终止"
+      const cleanedItems = targetItems.map((item) => {
+        if (item.type === "message" && item.sender === "ai" && item.isStopped) {
+          return { ...item, isStopped: false };
+        }
+        return item;
+      });
+      setChatItems(cleanedItems);
       activeSessionIdRef.current = toId;
     },
     [setChatItems],
