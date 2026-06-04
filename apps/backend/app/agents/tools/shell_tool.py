@@ -7,7 +7,6 @@
 from __future__ import annotations
 
 import asyncio
-import locale
 import os
 import re
 import shutil
@@ -33,32 +32,13 @@ MAX_TIMEOUT = 300  # 5分钟
 
 
 def _resolve_bash_path() -> str | None:
-    """Windows 上优先查找 Git Bash，排除 WSL bash。"""
+    """Windows 上查找 Git Bash，排除 WSL bash。"""
     if os.name != "nt":
         return "bash"
-    git_bash_paths = [
-        r"C:\Program Files\Git\bin\bash.exe",
-        r"C:\Program Files (x86)\Git\bin\bash.exe",
-    ]
-    for p in git_bash_paths:
-        if os.path.exists(p):
-            return p
     which_bash = shutil.which("bash")
     if which_bash and "System32" not in which_bash and "system32" not in which_bash:
         return which_bash
     return None
-
-
-def smart_decode(data: bytes) -> str:
-    """尝试多种编码解码子进程输出，避免 Windows GBK 乱码。"""
-    if not data:
-        return ""
-    for encoding in ("utf-8", locale.getpreferredencoding(False), "gbk", "gb18030"):
-        try:
-            return data.decode(encoding)
-        except (UnicodeDecodeError, LookupError):
-            continue
-    return data.decode("utf-8", errors="replace")
 
 
 def _build_shell_exec_env() -> dict[str, str] | None:
