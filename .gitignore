@@ -150,3 +150,6 @@ CLAUDE.md
 GEMINI.md
 AGENTS.md
 
+# 团队共享技能（本地开发使用，不纳入版本控制）
+/.team-skills/
+
