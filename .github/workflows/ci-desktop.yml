@@ -101,13 +101,16 @@ jobs:
           enable-cache: true
           cache-dependency-glob: "apps/backend/uv.lock"
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version-file: "apps/backend/.python-version"
+      - name: Install python-build-standalone
+        run: uv python install 3.12
 
       - name: Install backend deps
-        run: cd apps/backend && uv sync --frozen
+        run: |
+          cd apps/backend
+          # 使用 uv 托管的 python-build-standalone 创建 venv，
+          # 避免使用 actions/setup-python 安装的官方 Python（dylib 路径硬编码，不可移植）
+          uv venv --python 3.12
+          uv sync --frozen
 
       - name: Prepare runtime
         run: cd apps/desktop && npm run prepare:runtime
