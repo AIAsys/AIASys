@@ -230,26 +230,26 @@ export function SkillMarket({
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
+        {onImportArchive ? (
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".zip"
+            className="hidden"
+            onChange={handleImportFileChange}
+          />
+        ) : null}
         {workspaceId && onImportArchive ? (
-          <>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".zip"
-              className="hidden"
-              onChange={handleImportFileChange}
-            />
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleImportClick}
-              className="h-9 gap-1 text-xs"
-              disabled={isLoading}
-            >
-              <FileArchive className="h-3.5 w-3.5" />
-              导入
-            </Button>
-          </>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleImportClick}
+            className="h-9 gap-1 text-xs"
+            disabled={isLoading}
+          >
+            <FileArchive className="h-3.5 w-3.5" />
+            导入
+          </Button>
         ) : null}
       </div>
 
