@@ -91,6 +91,21 @@ function fixPyvenvHomeIfNeeded(backendRoot) {
   }
 }
 
+function validatePythonExecutable(pythonPath) {
+  try {
+    const result = spawnSync(pythonPath, ["-V"], {
+      encoding: "utf-8",
+      timeout: 5000,
+    });
+    if (result.status === 0) {
+      return { ok: true, version: result.stdout.trim() };
+    }
+    return { ok: false, error: result.stderr || result.stdout || "未知错误" };
+  } catch (error) {
+    return { ok: false, error: error.message };
+  }
+}
+
 function resolvePythonExecutable(backendRoot) {
   const platformCandidates =
     process.platform === "win32"
@@ -101,16 +116,29 @@ function resolvePythonExecutable(backendRoot) {
           path.join(backendRoot, ".venv", "Scripts", "python"),
         ]
       : [
-          // 优先使用嵌入的完整 Python 运行时
-          path.join(backendRoot, ".venv", "python", "bin", "python"),
-          path.join(backendRoot, ".venv", "python", "bin", "python3"),
-          path.join(backendRoot, ".venv", "bin", "python"),
+          // macOS/Linux: 优先使用 venv 入口点（.venv/bin/python3）
+          // venv 入口点能找到 pyvenv.cfg，从而正确加载 site-packages。
+          // 嵌入 Python（.venv/python/bin/python3）直接启动会找不到 site-packages。
           path.join(backendRoot, ".venv", "bin", "python3"),
+          path.join(backendRoot, ".venv", "bin", "python"),
+          // fallback: 嵌入的完整 Python 运行时
+          path.join(backendRoot, ".venv", "python", "bin", "python3"),
+          path.join(backendRoot, ".venv", "python", "bin", "python"),
         ];
 
   for (const candidate of platformCandidates) {
     if (fs.existsSync(candidate)) {
-      return candidate;
+      const validation = validatePythonExecutable(candidate);
+      if (validation.ok) {
+        console.log(`[aiasys-desktop] Python 解释器验证通过: ${candidate} (${validation.version})`);
+        return candidate;
+      }
+      console.warn(
+        `[aiasys-desktop] Python 解释器存在但无法执行: ${candidate}\n` +
+          `  错误: ${validation.error}\n` +
+          `  提示: macOS/Linux 上请使用 "uv python install 3.12" 安装 python-build-standalone，` +
+          `避免使用依赖系统框架的 Python 发行版。`,
+      );
     }
   }
 
@@ -162,6 +190,38 @@ function resolvePythonExecutable(backendRoot) {
 
 function resolveNpmCommand() {
   return process.platform === "win32" ? "npm.cmd" : "npm";
+}
+
+/**
+ * 动态查找 venv 的 site-packages 目录。
+ * Windows: .venv/Lib/site-packages
+ * macOS/Linux: .venv/lib/pythonX.Y/site-packages
+ */
+function getVenvSitePackages(backendRoot) {
+  // Windows
+  const winSitePackages = path.join(backendRoot, ".venv", "Lib", "site-packages");
+  if (fs.existsSync(winSitePackages)) {
+    return winSitePackages;
+  }
+
+  // macOS/Linux: 遍历 .venv/lib/ 找 pythonX.Y/site-packages
+  const libDir = path.join(backendRoot, ".venv", "lib");
+  if (fs.existsSync(libDir)) {
+    try {
+      for (const entry of fs.readdirSync(libDir)) {
+        if (/^python\d+\.\d+$/.test(entry)) {
+          const candidate = path.join(libDir, entry, "site-packages");
+          if (fs.existsSync(candidate)) {
+            return candidate;
+          }
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  return null;
 }
 
 async function probeUrl(url) {
@@ -614,6 +674,30 @@ class DesktopServiceManager {
     return path.join(logsDir, `${name}-spawn.log`);
   }
 
+  /**
+   * 构建 Python 子进程的环境变量。
+   * 自动注入 PYTHONPATH 指向 venv 的 site-packages，
+   * 作为 venv 机制失效时的兜底保障（尤其 macOS 嵌入 Python 场景）。
+   */
+  _buildPythonEnv(extraEnv = {}) {
+    const env = {
+      ...process.env,
+      PYTHONUNBUFFERED: "1",
+      PYTHONIOENCODING: "utf-8",
+      PYTHONUTF8: "1",
+    };
+
+    const sitePackages = getVenvSitePackages(this.backendRoot);
+    if (sitePackages) {
+      const sep = process.platform === "win32" ? ";" : ":";
+      const existing = process.env.PYTHONPATH || "";
+      env.PYTHONPATH = existing ? `${sitePackages}${sep}${existing}` : sitePackages;
+      console.log(`[aiasys-desktop] PYTHONPATH: ${sitePackages}`);
+    }
+
+    return { ...env, ...extraEnv };
+  }
+
   async resolveDesiredPort({
     requestedPort,
     locked,
@@ -718,13 +802,9 @@ class DesktopServiceManager {
       ["-m", "uvicorn", "app.main:app", "--host", this.host, "--port", String(this.backendPort)],
       {
         cwd: this.backendRoot,
-        env: {
-          ...process.env,
-          PYTHONUNBUFFERED: "1",
-          PYTHONIOENCODING: "utf-8",
-          PYTHONUTF8: "1",
+        env: this._buildPythonEnv({
           AIASYS_RUNTIME_ROOT: this.runtimeStateRoot || this.backendRoot,
-        },
+        }),
         __logFilePath: this.getLogFilePath("backend"),
       },
     );
@@ -759,15 +839,11 @@ class DesktopServiceManager {
         [path.join(this.webRoot, "scripts", "committed", "local_preview_server.py")],
         {
           cwd: this.webRoot,
-          env: {
-            ...process.env,
-            PYTHONUNBUFFERED: "1",
-            PYTHONIOENCODING: "utf-8",
-            PYTHONUTF8: "1",
+          env: this._buildPythonEnv({
             AIASYS_PREVIEW_HOST: this.host,
             AIASYS_PREVIEW_PORT: String(this.frontendPort),
             AIASYS_PREVIEW_BACKEND_URL: this.backendBaseUrl,
-          },
+          }),
           __logFilePath: this.getLogFilePath("frontend"),
         },
       );
