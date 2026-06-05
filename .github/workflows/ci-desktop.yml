@@ -142,11 +142,19 @@ jobs:
   publish-beta:
     needs: [create-draft-release, build-desktop]
     runs-on: ubuntu-latest
+    continue-on-error: true
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
       - name: Publish release
         run: |
           TAG="${{ needs.create-draft-release.outputs.tag_name }}"
-          gh release edit "$TAG" --draft=false
+          for i in 1 2 3; do
+            gh release edit "$TAG" --draft=false && exit 0
+            echo "gh release edit 失败，第 $i 次重试..."
+            sleep 10
+          done
+          echo "发布失败，release 可能保持 draft 状态，需手动检查。"
+          exit 1
         env:
           GH_TOKEN: ${{ github.token }}
