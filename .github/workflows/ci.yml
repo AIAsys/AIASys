@@ -9,7 +9,7 @@ on:
 
 jobs:
   web-check:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: apps/web
@@ -37,7 +37,7 @@ jobs:
         run: npm run build
 
   backend:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: apps/backend
@@ -73,7 +73,7 @@ jobs:
 
   desktop-check:
     needs: [web-check, backend]
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v4
