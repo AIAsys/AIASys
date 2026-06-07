@@ -9,21 +9,82 @@ import asyncio
 import json
 import logging
 from collections.abc import AsyncGenerator
+from pathlib import Path
 from typing import Any
 
 from app.core.tool_result import ToolResult
-from app.services.agent.message_content import hydrate_message_images
+from app.services.agent.authorization import (
+    AuthorizationMode,
+    CapabilityAuthorizationRequest,
+    CapabilityAuthorizationResult,
+    CapabilityAuthorizationService,
+)
+from app.services.agent.message_content import (
+    downgrade_message_content_for_history,
+    hydrate_message_images,
+)
 
 from ..base import AgentRuntimeEvent
 from .llm_clients.error_classifier import classify_api_error
 from .llm_clients.retry_utils import jittered_backoff
-from .session_utils import extract_usage_counts, merge_stream_fragment
+from .session_utils import (
+    extract_usage_counts,
+    merge_stream_fragment,
+    normalize_capabilities,
+    read_config_value,
+)
 
 logger = logging.getLogger(__name__)
 
 
+def _serialize_tool_content_for_event(content: str | list[dict[str, Any]]) -> str:
+    """把 tool result 的结构化 content 序列化为事件展示字符串。"""
+    if isinstance(content, str):
+        return content
+    parts: list[str] = []
+    for item in content:
+        if isinstance(item, str):
+            parts.append(item)
+            continue
+        if not isinstance(item, dict):
+            continue
+        item_type = item.get("type")
+        if item_type == "text":
+            text = item.get("text")
+            if isinstance(text, str):
+                parts.append(text)
+        elif item_type == "image_url":
+            image_url = item.get("image_url", {})
+            url = image_url.get("url") if isinstance(image_url, dict) else str(image_url)
+            parts.append(f"![image]({url})")
+    return "".join(parts)
+
+
 class SessionStreamMixin:
     """提供 prompt() ReAct 流式循环，作为 mixin 混入 AiasysRuntimeSession。"""
+
+    def _prepare_messages_for_current_model(self) -> list[dict[str, Any]]:
+        messages = self._messages_for_model()
+        capabilities = normalize_capabilities(
+            read_config_value(getattr(self, "_model_config", None), "capabilities")
+        )
+        if "image_in" in capabilities:
+            return hydrate_message_images(
+                messages,
+                workspace_dir=Path(str(self._spec.work_dir)),
+            )
+
+        prepared: list[dict[str, Any]] = []
+        for message in messages:
+            downgraded_content = downgrade_message_content_for_history(message.get("content"))
+            if downgraded_content == message.get("content"):
+                prepared.append(message)
+                continue
+
+            updated_message = dict(message)
+            updated_message["content"] = downgraded_content
+            prepared.append(updated_message)
+        return prepared
 
     async def prompt(
         self,
@@ -107,7 +168,7 @@ class SessionStreamMixin:
                     latest_usage = None
 
                 try:
-                    messages_for_model = hydrate_message_images(self._messages_for_model())
+                    messages_for_model = self._prepare_messages_for_current_model()
                     async for chunk in self._client.chat_stream(
                         messages_for_model,
                         self._prepare_tools_for_model(),
@@ -352,7 +413,7 @@ class SessionStreamMixin:
                             kind="tool_result",
                             tool_call_id=item["id"],
                             tool_name=item["function"]["name"],
-                            content=tool_result.content,
+                            content=_serialize_tool_content_for_event(tool_result.content),
                             is_error=tool_result.is_error,
                         )
                         tool_msg = {
@@ -371,7 +432,7 @@ class SessionStreamMixin:
                             kind="tool_result",
                             tool_call_id=item["id"],
                             tool_name=item["function"]["name"],
-                            content=tool_result.content,
+                            content=_serialize_tool_content_for_event(tool_result.content),
                             is_error=tool_result.is_error,
                         )
                         tool_msg = {
@@ -394,7 +455,7 @@ class SessionStreamMixin:
                             kind="tool_result",
                             tool_call_id=item["id"],
                             tool_name=item["function"]["name"],
-                            content=tool_result.content,
+                            content=_serialize_tool_content_for_event(tool_result.content),
                             is_error=tool_result.is_error,
                         )
                         tool_msg = {
@@ -405,32 +466,101 @@ class SessionStreamMixin:
                         self._append_message(tool_msg)
                         continue
 
-                    # [设计预留-审批机制] 待前端 approval UI 就绪后启用。
+                    # 能力授权决策：所有工具调用都经过 CapabilityAuthorizationService
                     resolved_tool_name = self._tool_registry._aliases.get(
                         item["function"]["name"], item["function"]["name"]
                     )
                     tool = self._tool_registry._tools.get(resolved_tool_name)
-                    is_dangerous = getattr(tool, "dangerous", False) if tool is not None else False
-                    if (
-                        is_dangerous
-                        and not self._spec.yolo
-                        and item["id"] not in self._approved_tool_call_ids
-                    ):
+
+                    # 读取工具风险元数据
+                    tool_risk = getattr(tool, "risk_level", "medium") if tool is not None else "medium"
+                    tool_scope = getattr(tool, "effect_scope", "workspace") if tool is not None else "workspace"
+                    tool_side_effect = getattr(tool, "side_effect", True) if tool is not None else True
+
+                    # 确定授权模式：spec.authorization_mode 优先，yolo 做兼容映射
+                    auth_mode_str = self._spec.authorization_mode
+                    if self._spec.yolo and auth_mode_str == "smart":
+                        auth_mode_str = "full_auto"
+
+                    # EnableSkill 时尝试读取 Skill 安全元数据
+                    skill_security: dict[str, Any] = {}
+                    if resolved_tool_name in ("EnableSkill", "DisableSkill"):
+                        skill_name = item["arguments"].get("name", "")
+                        if skill_name:
+                            skill_security = self._get_skill_security(skill_name)
+
+                    auth_request = CapabilityAuthorizationRequest(
+                        tool_name=resolved_tool_name or item["function"]["name"],
+                        arguments=item["arguments"],
+                        risk_level=tool_risk,
+                        effect_scope=tool_scope,
+                        side_effect=tool_side_effect,
+                        authorization_mode=AuthorizationMode(auth_mode_str),
+                        is_subagent=self._spec.is_subagent,
+                        skill_security=skill_security,
+                    )
+                    auth_result = CapabilityAuthorizationService.decide(auth_request)
+
+                    if auth_result.decision in ("ask",):
+                        # 向后兼容：同时发送 approval_required 和 capability_confirmation
                         yield AgentRuntimeEvent(
                             kind="approval_required",
                             tool_call_id=item["id"],
                             tool_name=item["function"]["name"],
                             arguments=item["arguments"],
                         )
-                        tool_result = ToolResult(
-                            content="Tool execution was not approved",
-                            is_error=True,
+                        yield AgentRuntimeEvent(
+                            kind="capability_confirmation",
+                            tool_call_id=item["id"],
+                            tool_name=item["function"]["name"],
+                            arguments=item["arguments"],
+                            content=auth_result.confirmation_prompt
+                            or f"是否允许执行工具 {item['function']['name']}？",
                         )
+
+                        # 挂起等待用户通过 API 确认 / 拒绝
+                        approved, feedback = await self._confirmation_manager.wait_for_confirmation(
+                            tool_call_id=item["id"],
+                            tool_name=item["function"]["name"],
+                            arguments=item["arguments"],
+                            prompt=auth_result.confirmation_prompt
+                            or f"是否允许执行工具 {item['function']['name']}？",
+                            pattern_key=auth_result.pattern_key,
+                            subagent_name=getattr(self._spec, "subagent_name", None),
+                            agent_id=getattr(self._spec, "agent_id", None),
+                        )
+
+                        if not approved:
+                            denial_msg = feedback or "操作被拒绝"
+                            tool_result = ToolResult(content=denial_msg, is_error=True)
+                            yield AgentRuntimeEvent(
+                                kind="tool_result",
+                                tool_call_id=item["id"],
+                                tool_name=item["function"]["name"],
+                                content=_serialize_tool_content_for_event(tool_result.content),
+                                is_error=tool_result.is_error,
+                            )
+                            tool_msg = {
+                                "role": "tool",
+                                "tool_call_id": item["id"],
+                                "content": tool_result.content,
+                            }
+                            self._append_message(tool_msg)
+                            continue
+
+                        # 用户批准：继续执行工具（不 continue，走到下面的工具调用逻辑）
+
+                    if auth_result.decision in ("deny", "block"):
+                        denial_msg = (
+                            auth_result.denial_message
+                            or f"工具 {item['function']['name']} 已被系统拦截：{auth_result.reason}"
+                        )
+                        tool_result = ToolResult(content=denial_msg, is_error=True)
                         yield AgentRuntimeEvent(
                             kind="tool_result",
                             tool_call_id=item["id"],
                             tool_name=item["function"]["name"],
-                            content=tool_result.content,
+                            content=_serialize_tool_content_for_event(tool_result.content),
                             is_error=tool_result.is_error,
                         )
                         tool_msg = {
@@ -496,7 +626,7 @@ class SessionStreamMixin:
                         kind="tool_result",
                         tool_call_id=item["id"],
                         tool_name=item["function"]["name"],
-                        content=tool_result.content,
+                        content=_serialize_tool_content_for_event(tool_result.content),
                         is_error=tool_result.is_error,
                     )
                     tool_msg = {
@@ -587,6 +717,35 @@ class SessionStreamMixin:
                     ensure_ascii=False,
                 ),
             )
+
+    def _get_skill_security(self, skill_name: str) -> dict[str, Any]:
+        """查询 Skill 安全元数据，用于 EnableSkill/DisableSkill 授权决策。"""
+        try:
+            from pathlib import Path
+
+            from app.skills.manager import get_skill_manager
+
+            workspace_path = Path(str(self._spec.work_dir))
+            mgr = get_skill_manager()
+            all_skills = mgr.list_all_skills(workspace_path)
+            for skill in all_skills:
+                if skill.name == skill_name:
+                    sec = skill.security
+                    return {
+                        "source_trust": sec.source_trust,
+                        "risk_level": sec.risk_level,
+                        "has_scripts": sec.has_scripts,
+                        "requires_env": sec.requires_env,
+                        "writes_workspace": sec.writes_workspace,
+                        "writes_global": sec.writes_global,
+                        "uses_shell": sec.uses_shell,
+                        "uses_network": sec.uses_network,
+                        "installs_dependencies": sec.installs_dependencies,
+                        "adds_tools": sec.adds_tools,
+                    }
+        except Exception:
+            logger.debug("查询 Skill 安全元数据失败: %s", skill_name, exc_info=True)
+        return {}
 
     def _log_cache_stats(self, usage: dict[str, Any] | None) -> None:
         """记录 prefix cache hit 统计（Anthropic / OpenRouter 格式）。"""

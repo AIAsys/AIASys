@@ -6,6 +6,7 @@ import mimetypes
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Any, Literal, TypeAlias
+from urllib.parse import unquote
 
 from pydantic import BaseModel, Field, TypeAdapter
 
@@ -223,10 +224,10 @@ def build_attachment_content_parts(
             raw_path=raw_attachment,
         )
 
-        data = host_path.read_bytes()
-        if len(data) > MAX_INLINE_IMAGE_BYTES:
+        size_bytes = host_path.stat().st_size
+        if size_bytes > MAX_INLINE_IMAGE_BYTES:
             raise ValueError(
-                f"图片 `{workspace_path}` 过大（{len(data)} bytes），当前内联上限为 {MAX_INLINE_IMAGE_BYTES} bytes。"
+                f"图片 `{workspace_path}` 过大（{size_bytes} bytes），当前内联上限为 {MAX_INLINE_IMAGE_BYTES} bytes。"
             )
 
         transport_parts.append(
@@ -384,7 +385,11 @@ def to_data_url(mime_type: str, data: bytes) -> str:
     return f"{_DATA_URL_PREFIX}{mime_type};base64,{encoded}"
 
 
-def hydrate_message_images(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def hydrate_message_images(
+    messages: list[dict[str, Any]],
+    *,
+    workspace_dir: Path | None = None,
+) -> list[dict[str, Any]]:
     """把消息列表中 file:// URI 的图片临时 hydrate 成 data URL。
 
     返回新的消息列表，不修改原始列表。
@@ -408,20 +413,25 @@ def hydrate_message_images(messages: list[dict[str, Any]]) -> list[dict[str, Any
                     if isinstance(image_url, dict):
                         url = image_url.get("url", "")
                         if isinstance(url, str) and url.startswith("file://"):
-                            file_path = url[len("file://") :]
                             try:
-                                host_path = Path(file_path)
-                                if host_path.exists():
-                                    mime_type = guess_supported_image_mime_type(host_path)
-                                    if mime_type:
-                                        data = host_path.read_bytes()
-                                        new_url = to_data_url(mime_type, data)
-                                        new_part = dict(part)
-                                        new_image_url = dict(image_url)
-                                        new_image_url["url"] = new_url
-                                        new_part["image_url"] = new_image_url
-                                        new_parts.append(new_part)
-                                        continue
+                                host_path = _resolve_hydratable_image_path(
+                                    url=url,
+                                    source_path=part.get("source_path"),
+                                    workspace_dir=workspace_dir,
+                                )
+                                if host_path is None:
+                                    new_parts.append(part)
+                                    continue
+                                mime_type = guess_supported_image_mime_type(host_path)
+                                if mime_type:
+                                    data = host_path.read_bytes()
+                                    new_url = to_data_url(mime_type, data)
+                                    new_part = dict(part)
+                                    new_image_url = dict(image_url)
+                                    new_image_url["url"] = new_url
+                                    new_part["image_url"] = new_image_url
+                                    new_parts.append(new_part)
+                                    continue
                             except Exception:
                                 pass  # fallback: 保留原始
                 new_parts.append(part)
@@ -430,6 +440,54 @@ def hydrate_message_images(messages: list[dict[str, Any]]) -> list[dict[str, Any
         result.append(new_msg)
 
     return result
+
+
+def _resolve_hydratable_image_path(
+    *,
+    url: str,
+    source_path: Any,
+    workspace_dir: Path | None,
+) -> Path | None:
+    candidates: list[str] = []
+    if isinstance(source_path, str) and source_path.strip():
+        candidates.append(source_path)
+    if url.startswith("file://"):
+        candidates.append(unquote(url[len("file://") :]))
+
+    seen: set[str] = set()
+    for raw_candidate in candidates:
+        raw_path = raw_candidate.strip()
+        if not raw_path or raw_path in seen:
+            continue
+        seen.add(raw_path)
+
+        is_workspace_reference = _is_workspace_reference(raw_path)
+        if workspace_dir is not None and is_workspace_reference:
+            try:
+                host_path, _ = resolve_workspace_attachment_path(
+                    workspace_dir=workspace_dir,
+                    raw_path=raw_path,
+                )
+                return host_path
+            except (FileNotFoundError, PermissionError, ValueError):
+                continue
+
+        if is_workspace_reference:
+            continue
+
+        try:
+            host_path = Path(raw_path)
+        except (TypeError, ValueError):
+            continue
+        if host_path.is_absolute() and host_path.exists() and host_path.is_file():
+            return host_path
+
+    return None
+
+
+def _is_workspace_reference(raw_path: str) -> bool:
+    candidate = str(raw_path or "").strip().replace("\\", "/")
+    return candidate.startswith("workspace:/") or candidate.startswith("/workspace/")
 
 
 def split_data_url(value: str) -> tuple[str | None, str | None]:

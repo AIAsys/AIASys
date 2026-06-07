@@ -26,6 +26,7 @@ from ..base import RuntimeSessionCreateSpec
 from .llm_clients.message_protocol import InternalMessage
 from .session_budget import SessionBudgetMixin
 from .session_compaction import SessionCompactionMixin
+from .capability_confirmation import CapabilityConfirmationManager
 from .session_stream import SessionStreamMixin
 from .session_tools import SessionToolsMixin
 from .session_utils import (
@@ -74,8 +75,9 @@ class AiasysRuntimeSession(
         self._mcp_clients: list[Any] = list(mcp_clients or [])
         self.messages: list[InternalMessage] = []
         self._context_messages: list[InternalMessage] = []
-        # [设计预留-审批机制] 待前端 approval UI 就绪后启用。
-        # 当前 _approved_tool_call_ids 永远为空，所有工具调用直接执行（无审批拦截）。
+        # [设计预留-审批机制] 已启用 CapabilityConfirmationManager。
+        # 旧 _approved_tool_call_ids 机制废弃，统一走 manager。
+        self._confirmation_manager = CapabilityConfirmationManager()
         self._approved_tool_call_ids: set[str] = set()
         self._consecutive_tool_counts: dict[str, int] = {}
         self._previous_tool_args: dict[str, str] = {}
@@ -470,10 +472,6 @@ class AiasysRuntimeSession(
     ) -> list[InternalMessage]:
         downgraded_messages: list[InternalMessage] = []
         for message in messages:
-            if message.get("role") != "user":
-                downgraded_messages.append(message)
-                continue
-
             downgraded_content = downgrade_message_content_for_history(message.get("content"))
             if downgraded_content == message.get("content"):
                 downgraded_messages.append(message)
@@ -644,6 +642,8 @@ class AiasysRuntimeSession(
         if self._closed:
             return
         self._closed = True
+        # 取消所有 pending 的能力确认请求
+        self._confirmation_manager.cancel_all("会话已关闭")
         # 关闭 MCP 连接
         for mcp_client in self._mcp_clients:
             try:

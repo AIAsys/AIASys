@@ -5,29 +5,46 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict
 
 
+def _extract_text_from_content(content: str | list[dict[str, Any]]) -> str:
+    """从结构化 content 中提取纯文本，用于错误信息和日志展示。"""
+    if isinstance(content, str):
+        return content
+    parts: list[str] = []
+    for item in content:
+        if isinstance(item, str):
+            parts.append(item)
+            continue
+        if not isinstance(item, dict):
+            continue
+        text = item.get("text")
+        if isinstance(text, str):
+            parts.append(text)
+    return "".join(parts)
+
+
 class ToolResult(BaseModel):
     """AIASys-native tool 返回结构。"""
 
     model_config = ConfigDict(extra="allow")
 
-    content: str = ""
+    content: str | list[dict[str, Any]] = ""
     is_error: bool = False
     artifacts: list[dict[str, Any]] | None = None
 
     @property
-    def output(self) -> str:
+    def output(self) -> Any:
         return self.content
 
     @property
     def message(self) -> str | None:
         if self.is_error:
-            return self.content
+            return _extract_text_from_content(self.content)
         return None
 
     @property
     def brief(self) -> str | None:
         if self.is_error:
-            return self.content
+            return _extract_text_from_content(self.content)
         return None
 
     @classmethod
@@ -55,7 +72,11 @@ class ToolResult(BaseModel):
             if not is_error and message and not output:
                 is_error = True
             return cls(
-                content=str(output or message or brief or ""),
+                content=(
+                    output
+                    if isinstance(output, list)
+                    else str(output or message or brief or "")
+                ),
                 is_error=is_error,
                 artifacts=artifacts,
             )
@@ -77,7 +98,11 @@ class ToolResult(BaseModel):
             is_error = True
 
         return cls(
-            content=str(output or message or brief or ""),
+            content=(
+                output
+                if isinstance(output, list)
+                else str(output or message or brief or "")
+            ),
             is_error=is_error,
             artifacts=artifacts,
         )
