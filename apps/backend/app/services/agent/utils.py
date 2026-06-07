@@ -32,15 +32,16 @@ def _select_preferred_agent_model_id(
     providers: Dict[str, Dict[str, Any]],
     configured_default_model: Optional[str],
 ) -> Optional[str]:
-    """选择首选的 Agent 模型 ID"""
-    preferred_model_names = ("kimi-for-coding",)
+    """选择首选的 Agent 模型 ID
 
-    for model_id, model_cfg in models.items():
-        if model_cfg.get("model") in preferred_model_names:
-            return model_id
-
+    优先使用用户配置的默认模型，不再硬编码任何厂商偏好。
+    """
     if configured_default_model and configured_default_model in models:
         return configured_default_model
+
+    # 无明确默认时，返回第一个可用模型（由调用方兜底）
+    if models:
+        return next(iter(models))
 
     return configured_default_model
 

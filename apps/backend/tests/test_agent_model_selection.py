@@ -1,7 +1,8 @@
 from app.services.agent import _select_preferred_agent_model_id
 
 
-def test_agent_prefers_kimi_coding_model_over_config_default():
+def test_agent_prefers_configured_default_model():
+    """优先使用用户配置的默认模型，不再硬编码厂商偏好。"""
     providers = {
         "kimi": {"type": "anthropic_messages"},
         "dashscope": {"type": "openai_chat_completions"},
@@ -23,10 +24,11 @@ def test_agent_prefers_kimi_coding_model_over_config_default():
         configured_default_model="deepseek-v3-aliyun",
     )
 
-    assert selected == "kimi-official-coding"
+    assert selected == "deepseek-v3-aliyun"
 
 
-def test_agent_prefers_kimi_coding_model_over_openai_responses_default():
+def test_agent_falls_back_to_first_available_when_configured_default_missing():
+    """配置的默认模型不在可用列表中时，fallback 到第一个可用模型。"""
     providers = {
         "kimi": {"type": "anthropic_messages"},
         "responses": {"type": "openai_responses"},
@@ -50,13 +52,14 @@ def test_agent_prefers_kimi_coding_model_over_openai_responses_default():
     selected = _select_preferred_agent_model_id(
         models=models,
         providers=providers,
-        configured_default_model="openai-responses-8317-default",
+        configured_default_model="nonexistent-model",
     )
 
-    assert selected == "kimi-official-coding"
+    assert selected == "deepseek-v3-aliyun"
 
 
-def test_agent_falls_back_to_config_default_when_no_kimi_model():
+def test_agent_falls_back_to_configured_default_when_only_one_model():
+    """只有一个可用模型时，直接返回该模型（无论 configured_default 是否匹配）。"""
     providers = {
         "dashscope": {"type": "openai_chat_completions"},
     }
@@ -74,3 +77,14 @@ def test_agent_falls_back_to_config_default_when_no_kimi_model():
     )
 
     assert selected == "deepseek-v3-aliyun"
+
+
+def test_agent_returns_configured_default_when_no_models():
+    """没有可用模型时，返回 configured_default_model（由调用方兜底报错）。"""
+    selected = _select_preferred_agent_model_id(
+        models={},
+        providers={},
+        configured_default_model="some-model",
+    )
+
+    assert selected == "some-model"
