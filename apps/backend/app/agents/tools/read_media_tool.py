@@ -269,16 +269,20 @@ class ReadMediaFile(AiasysTool):
                 is_error=True,
             )
 
-        data = host_path.read_bytes()
-
         if file_type.kind == "image":
-            data_url = _to_data_url(file_type.mime_type, data)
-            wrapped = _wrap_media_payload("image", data_url, visible_path)
-            _image_size = _extract_image_size(data)
-        else:
-            data_url = _to_data_url(file_type.mime_type, data)
-            wrapped = _wrap_media_payload("video", data_url, visible_path)
+            content_parts: list[dict[str, Any]] = [
+                {"type": "text", "text": f"[image:{visible_path}]"},
+                {
+                    "type": "image_url",
+                    "image_url": {"url": f"file://{visible_path}"},
+                    "source_path": visible_path,
+                },
+            ]
+            return ToolResult(content=content_parts)
 
+        data = host_path.read_bytes()
+        data_url = _to_data_url(file_type.mime_type, data)
+        wrapped = _wrap_media_payload("video", data_url, visible_path)
         return ToolResult(content=wrapped)
 
     @staticmethod

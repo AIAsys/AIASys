@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import pytest
+
 from app.services.agent.message_content import (
     build_attachment_content_parts,
     build_content_signature,
@@ -121,7 +123,7 @@ def test_message_content_converters_support_multimodal_inputs() -> None:
     ]
 
 
-def test_build_transport_user_input_persists_data_url_transport_content(
+def test_build_transport_user_input_persists_file_uri_transport_content(
     tmp_path: Path,
 ) -> None:
     (tmp_path / "chart.png").write_bytes(b"fake-image")
@@ -151,3 +153,18 @@ def test_build_transport_user_input_persists_data_url_transport_content(
     assert transport_content[1]["image_url"]["url"].startswith(
         "file:///workspace/chart.png"
     )
+
+
+def test_build_transport_user_input_rejects_image_for_text_only_model(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "chart.png").write_bytes(b"fake-image")
+
+    with pytest.raises(RuntimeError, match="当前模型不支持图片输入"):
+        _build_transport_user_input(
+            prompt="看看这张图",
+            transport_prompt="[USER_TASK]\n看看这张图",
+            attachments=["/workspace/chart.png"],
+            workspace_path=tmp_path,
+            model_capabilities=set(),
+        )

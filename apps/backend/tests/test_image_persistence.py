@@ -83,6 +83,75 @@ def test_hydrate_message_images_converts_file_to_data_url(tmp_path: Path) -> Non
     assert len(encoded) > 10
 
 
+def test_hydrate_message_images_resolves_workspace_file_uri(tmp_path: Path) -> None:
+    """hydrate_message_images 能把 file:///workspace/... 映射到当前工作区。"""
+    image_path = tmp_path / "test.png"
+    image_path.write_bytes(b"fake-png-data")
+
+    messages = [
+        {
+            "role": "user",
+            "content": [
+                {"type": "text", "text": "请看这张图"},
+                {
+                    "type": "image_url",
+                    "image_url": {"url": "file:///workspace/test.png"},
+                    "source_path": "/workspace/test.png",
+                },
+            ],
+        }
+    ]
+
+    hydrated = hydrate_message_images(messages, workspace_dir=tmp_path)
+
+    url = hydrated[0]["content"][1]["image_url"]["url"]
+    assert url.startswith("data:image/png;base64,"), f"期望 data URL，实际: {url[:50]}"
+
+
+def test_hydrate_message_images_keeps_workspace_file_uri_without_workspace_dir() -> None:
+    """缺少工作区上下文时，不把 /workspace/... 当成本机根目录读取。"""
+    messages = [
+        {
+            "role": "user",
+            "content": [
+                {
+                    "type": "image_url",
+                    "image_url": {"url": "file:///workspace/test.png"},
+                    "source_path": "/workspace/test.png",
+                },
+            ],
+        }
+    ]
+
+    hydrated = hydrate_message_images(messages)
+
+    assert hydrated[0]["content"][0]["image_url"]["url"] == "file:///workspace/test.png"
+
+
+def test_hydrate_message_images_uses_source_path_fallback(tmp_path: Path) -> None:
+    """传输 URL 失效时，可以用 source_path 找回当前工作区文件。"""
+    image_path = tmp_path / "test.png"
+    image_path.write_bytes(b"fake-png-data")
+
+    messages = [
+        {
+            "role": "user",
+            "content": [
+                {
+                    "type": "image_url",
+                    "image_url": {"url": "file:///tmp/not-exist.png"},
+                    "source_path": "/workspace/test.png",
+                },
+            ],
+        }
+    ]
+
+    hydrated = hydrate_message_images(messages, workspace_dir=tmp_path)
+
+    url = hydrated[0]["content"][0]["image_url"]["url"]
+    assert url.startswith("data:image/png;base64,"), f"期望 data URL，实际: {url[:50]}"
+
+
 def test_hydrate_preserves_non_image_messages() -> None:
     """不含图片的消息应该原样返回。"""
     messages = [

@@ -69,11 +69,12 @@ def to_openai_chat_messages(messages: list[dict[str, Any]]) -> list[dict[str, An
         content = message.get("content", "")
 
         if role == "tool":
+            converted_content = message_content_to_openai_input(content)
             converted_messages.append(
                 {
                     "role": "tool",
                     "tool_call_id": message.get("tool_call_id", ""),
-                    "content": extract_message_text(content),
+                    "content": converted_content,
                 }
             )
             continue
@@ -110,6 +111,7 @@ def to_anthropic_messages(
             continue
 
         if role == "tool":
+            converted_content = message_content_to_anthropic_input(content)
             anthropic_messages.append(
                 {
                     "role": "user",
@@ -117,7 +119,7 @@ def to_anthropic_messages(
                         {
                             "type": "tool_result",
                             "tool_use_id": message.get("tool_call_id", ""),
-                            "content": extract_message_text(content),
+                            "content": converted_content,
                         }
                     ],
                 }
