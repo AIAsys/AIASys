@@ -21,6 +21,11 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 import { Input } from "@/components/ui/input";
 import { lazy, Suspense } from "react";
@@ -90,6 +95,13 @@ const STATUS_BADGE_CLASS: Record<WorkspaceAutoTask["status"], string> = {
   paused: "border-warning/20 bg-warning-container text-warning",
   disabled: "border-error/20 bg-error-container text-error",
   completed: "border-foreground bg-foreground text-white",
+};
+
+const STATUS_DOT_CLASS: Record<WorkspaceAutoTask["status"], string> = {
+  active: "bg-success",
+  paused: "bg-warning",
+  disabled: "bg-error",
+  completed: "bg-muted-foreground",
 };
 
 const FILTER_OPTIONS: Array<{
@@ -722,12 +734,28 @@ export function GlobalAutoTaskDialog({
                           {counts.active} 运行中
                         </Badge>
                       ) : null}
-                      {counts.paused + counts.disabled > 0 ? (
+                      {counts.paused > 0 ? (
                         <Badge
                           variant="outline"
                           className="border-warning/20 bg-warning-container text-warning"
                         >
-                          {counts.paused + counts.disabled} 已停用
+                          {counts.paused} 已暂停
+                        </Badge>
+                      ) : null}
+                      {counts.disabled > 0 ? (
+                        <Badge
+                          variant="outline"
+                          className="border-error/20 bg-error-container text-error"
+                        >
+                          {counts.disabled} 已禁用
+                        </Badge>
+                      ) : null}
+                      {counts.completed > 0 ? (
+                        <Badge
+                          variant="outline"
+                          className="border-muted-foreground/20 bg-muted text-muted-foreground"
+                        >
+                          {counts.completed} 已完成
                         </Badge>
                       ) : null}
                       {workspaceFilter !== "all" ? (
@@ -776,8 +804,8 @@ export function GlobalAutoTaskDialog({
                 </div>
 
                 <div className="border-b border-border px-4 py-3">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <div className="relative min-w-[240px] flex-1">
+                  <div className="flex flex-col gap-2.5">
+                    <div className="relative">
                       <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
                       <Input
                         id="global-auto-task-search"
@@ -788,31 +816,39 @@ export function GlobalAutoTaskDialog({
                         className="pl-8"
                       />
                     </div>
-                    {FILTER_OPTIONS.map((option) => (
-                      <Button
-                        key={option.value}
-                        type="button"
-                        size="sm"
-                        variant={statusFilter === option.value ? "default" : "outline"}
-                        className="h-8 text-[11px]"
-                        onClick={() => setStatusFilter(option.value)}
-                      >
-                        {option.label}
-                      </Button>
-                    ))}
-                    <div className="mx-1 h-4 w-px bg-border" />
-                    {CATEGORY_FILTER_OPTIONS.map((option) => (
-                      <Button
-                        key={option.value}
-                        type="button"
-                        size="sm"
-                        variant={categoryFilter === option.value ? "default" : "outline"}
-                        className="h-8 text-[11px]"
-                        onClick={() => setCategoryFilter(option.value)}
-                      >
-                        {option.label}
-                      </Button>
-                    ))}
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+                      <div className="flex flex-wrap items-center gap-1">
+                        <span className="text-[11px] text-muted-foreground">状态</span>
+                        {FILTER_OPTIONS.map((option) => (
+                          <Button
+                            key={option.value}
+                            type="button"
+                            size="sm"
+                            variant={statusFilter === option.value ? "default" : "outline"}
+                            className="h-7 px-2.5 text-[11px]"
+                            onClick={() => setStatusFilter(option.value)}
+                          >
+                            {option.label}
+                          </Button>
+                        ))}
+                      </div>
+                      <div className="h-4 w-px bg-border" />
+                      <div className="flex flex-wrap items-center gap-1">
+                        <span className="text-[11px] text-muted-foreground">类别</span>
+                        {CATEGORY_FILTER_OPTIONS.map((option) => (
+                          <Button
+                            key={option.value}
+                            type="button"
+                            size="sm"
+                            variant={categoryFilter === option.value ? "default" : "outline"}
+                            className="h-7 px-2.5 text-[11px]"
+                            onClick={() => setCategoryFilter(option.value)}
+                          >
+                            {option.label}
+                          </Button>
+                        ))}
+                      </div>
+                    </div>
                   </div>
                 </div>
 
@@ -827,119 +863,151 @@ export function GlobalAutoTaskDialog({
                             key={task.task_id}
                             className="px-4 py-3 transition-colors hover:bg-muted/20"
                           >
-                            <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+                            <div className="flex items-start justify-between gap-3">
                               <div className="min-w-0 flex-1">
-                                <div className="flex flex-wrap items-center gap-2">
-                                  <div className="truncate text-sm font-semibold text-foreground">
+                                <div className="flex items-center gap-2">
+                                  <span
+                                    className={cn(
+                                      "h-2 w-2 shrink-0 rounded-full",
+                                      STATUS_DOT_CLASS[task.status],
+                                    )}
+                                  />
+                                  <span className="truncate text-sm font-semibold text-foreground">
                                     {getTaskTitle(task)}
-                                  </div>
+                                  </span>
                                   <Badge
                                     variant="outline"
-                                    className={STATUS_BADGE_CLASS[task.status]}
+                                    className={cn(
+                                      "h-5 shrink-0 whitespace-nowrap px-2 py-0 text-[11px]",
+                                      STATUS_BADGE_CLASS[task.status],
+                                    )}
                                   >
                                     {STATUS_LABEL[task.status]}
                                   </Badge>
-                                  <Badge
-                                    variant="outline"
-                                    className="border-border bg-background text-muted-foreground"
-                                  >
+                                </div>
+
+                                <div className="mt-1 flex flex-wrap items-center gap-x-2 text-[12px] text-muted-foreground">
+                                  <span className="font-medium text-foreground/80">
                                     {formatScheduleValue(task)}
-                                  </Badge>
+                                  </span>
                                   {shouldShowTaskFirstRunPolicy(task) ? (
-                                    <Badge
-                                      variant="outline"
-                                      className="border-border bg-background text-muted-foreground"
-                                    >
-                                      {
-                                        FIRST_RUN_POLICY_LABEL[
-                                          task.first_run_policy ?? "next_scheduled"
-                                        ]
-                                      }
-                                    </Badge>
+                                    <>
+                                      <span>·</span>
+                                      <span>
+                                        {
+                                          FIRST_RUN_POLICY_LABEL[
+                                            task.first_run_policy ?? "next_scheduled"
+                                          ]
+                                        }
+                                      </span>
+                                    </>
                                   ) : null}
-                                  <Badge
-                                    variant="outline"
-                                    className="border-border bg-background text-muted-foreground"
-                                  >
-                                    {task.workspace_title || task.workspace_id}
-                                  </Badge>
-                                  <Badge
-                                    variant="outline"
-                                    className="border-border bg-muted/15 text-muted-foreground"
-                                  >
+                                  <span>·</span>
+                                  <span>
                                     {TASK_CATEGORY_LABEL[task.task_category ?? "scheduled"]}
-                                  </Badge>
+                                  </span>
+                                  <span>·</span>
+                                  <span>{task.workspace_title || task.workspace_id}</span>
                                   {task.workspace_id === currentWorkspaceId ? (
-                                    <Badge
-                                      variant="outline"
-                                      className="border-info/20 bg-info-container text-info"
-                                    >
+                                    <span className="rounded-md bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground">
                                       当前工作区
-                                    </Badge>
+                                    </span>
                                   ) : null}
                                 </div>
 
-                                <div className="mt-1 truncate text-[12px] leading-5 text-muted-foreground">
-                                  {summarizeText(task.prompt, 118)}
+                                <div className="mt-1 truncate text-[12px] leading-5 text-muted-foreground/80">
+                                  {summarizeText(task.prompt, 120)}
                                 </div>
 
-                                <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-muted-foreground">
+                                <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground">
                                   <span>下次 {formatTimestamp(task.next_run_at)}</span>
                                   <span>上次 {formatTimestamp(task.last_run_at)}</span>
                                   <span>已触发 {task.fired_count} 次</span>
-                                  <span>{task.workspace_title || task.workspace_id}</span>
+                                  {task.consecutive_errors > 0 ? (
+                                    <span className="text-error">
+                                      连续异常 {task.consecutive_errors} 次
+                                    </span>
+                                  ) : null}
                                 </div>
+
+                                {task.last_error ? (
+                                  <div className="mt-1 truncate text-[11px] text-error">
+                                    最近错误：{task.last_error}
+                                  </div>
+                                ) : null}
                               </div>
 
-                              <div className="flex flex-wrap items-center gap-2 xl:ml-4 xl:justify-end">
-                                <Button
-                                  type="button"
-                                  size="sm"
-                                  variant="outline"
-                                  className="h-8 gap-1.5 text-[11px]"
-                                  onClick={() => void handleRunNow(task)}
-                                  disabled={isMutating}
-                                >
-                                  <Play className="h-3.5 w-3.5" />
-                                  立即运行
-                                </Button>
-                                <Button
-                                  type="button"
-                                  size="sm"
-                                  variant="outline"
-                                  className="h-8 gap-1.5 text-[11px]"
-                                  onClick={() => openEditDialog(task)}
-                                  disabled={isMutating}
-                                >
-                                  <Pencil className="h-3.5 w-3.5" />
-                                  编辑
-                                </Button>
-                                <Button
-                                  type="button"
-                                  size="sm"
-                                  variant="outline"
-                                  className="h-8 gap-1.5 text-[11px]"
-                                  onClick={() => void handleToggleTask(task)}
-                                  disabled={isMutating || task.status === "completed"}
-                                >
-                                  {task.status === "active" ? (
-                                    <Pause className="h-3.5 w-3.5" />
-                                  ) : (
-                                    <Play className="h-3.5 w-3.5" />
-                                  )}
-                                  {task.status === "active" ? "暂停" : "启用"}
-                                </Button>
-                                <Button
-                                  type="button"
-                                  size="sm"
-                                  variant="outline"
-                                  className="h-8 gap-1.5 border-error/20 text-[11px] text-error hover:bg-error-container hover:text-error"
-                                  onClick={() => setPendingDeleteTask(task)}
-                                  disabled={isMutating}
-                                >
-                                  <Trash2 className="h-3.5 w-3.5" />
-                                  删除
-                                </Button>
+                              <div className="flex shrink-0 items-center gap-0.5">
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button
+                                      type="button"
+                                      size="icon"
+                                      variant="ghost"
+                                      className="h-8 w-8"
+                                      onClick={() => void handleRunNow(task)}
+                                      disabled={isMutating}
+                                    >
+                                      <Play className="h-4 w-4" />
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    {task.consecutive_errors > 0
+                                      ? "立即触发一次（任务已连续异常）"
+                                      : "立即触发一次"}
+                                  </TooltipContent>
+                                </Tooltip>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button
+                                      type="button"
+                                      size="icon"
+                                      variant="ghost"
+                                      className="h-8 w-8"
+                                      onClick={() => openEditDialog(task)}
+                                      disabled={isMutating}
+                                    >
+                                      <Pencil className="h-4 w-4" />
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>编辑</TooltipContent>
+                                </Tooltip>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button
+                                      type="button"
+                                      size="icon"
+                                      variant="ghost"
+                                      className="h-8 w-8"
+                                      onClick={() => void handleToggleTask(task)}
+                                      disabled={isMutating || task.status === "completed"}
+                                    >
+                                      {task.status === "active" ? (
+                                        <Pause className="h-4 w-4" />
+                                      ) : (
+                                        <Play className="h-4 w-4" />
+                                      )}
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    {task.status === "active" ? "暂停" : "启用"}
+                                  </TooltipContent>
+                                </Tooltip>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button
+                                      type="button"
+                                      size="icon"
+                                      variant="ghost"
+                                      className="h-8 w-8 text-error hover:text-error hover:bg-error-container"
+                                      onClick={() => setPendingDeleteTask(task)}
+                                      disabled={isMutating}
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>删除</TooltipContent>
+                                </Tooltip>
                               </div>
                             </div>
                           </div>

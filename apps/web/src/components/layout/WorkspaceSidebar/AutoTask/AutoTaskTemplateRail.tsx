@@ -36,7 +36,7 @@ export function AutoTaskTemplateRail({
 }) {
   return (
     <aside className="min-h-0 border-b border-border bg-muted/10 lg:border-b-0 lg:border-r">
-      <div className="max-h-[210px] overflow-y-auto px-5 py-4 lg:h-full lg:max-h-none lg:px-4 lg:py-5">
+      <div className="max-h-[210px] overflow-y-auto px-4 py-3 lg:h-full lg:max-h-none lg:px-3 lg:py-4">
         {!editingTaskId && isScheduled ? (
           <div className="space-y-3">
             <div>
@@ -89,7 +89,7 @@ export function AutoTaskTemplateRail({
                 {editingTaskId ? "正在编辑已有自动化任务。" : "正在新建自动化任务。"}
               </div>
             </div>
-            <div className="rounded-xl border border-border bg-background px-3 py-3">
+            <div className="rounded-lg border border-border bg-background px-3 py-2.5">
               <div className="flex items-center gap-2 text-sm font-medium text-foreground">
                 {isScheduled ? (
                   <Timer className="h-4 w-4 text-muted-foreground" />

@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useCallback, useState } from "react";
 import PrismSyntaxHighlighter from "react-syntax-highlighter/dist/esm/prism-light";
 import bash from "react-syntax-highlighter/dist/esm/languages/prism/bash";
 import css from "react-syntax-highlighter/dist/esm/languages/prism/css";
@@ -13,6 +13,7 @@ import tsx from "react-syntax-highlighter/dist/esm/languages/prism/tsx";
 import typescript from "react-syntax-highlighter/dist/esm/languages/prism/typescript";
 import yaml from "react-syntax-highlighter/dist/esm/languages/prism/yaml";
 import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism";
+import { Copy, Check } from "lucide-react";
 
 PrismSyntaxHighlighter.registerLanguage("bash", bash);
 PrismSyntaxHighlighter.registerLanguage("css", css);
@@ -46,6 +47,22 @@ const EXT_TO_LANGUAGE: Record<string, string> = {
   yaml: "yaml",
 };
 
+const LANGUAGE_LABEL: Record<string, string> = {
+  bash: "Bash",
+  css: "CSS",
+  javascript: "JavaScript",
+  json: "JSON",
+  jsx: "JSX",
+  markdown: "Markdown",
+  markup: "HTML",
+  python: "Python",
+  sql: "SQL",
+  tsx: "TSX",
+  typescript: "TypeScript",
+  yaml: "YAML",
+  text: "Plain Text",
+};
+
 interface SyntaxCodeBlockProps {
   code: string;
   fileName?: string;
@@ -77,15 +94,76 @@ export const SyntaxCodeBlock: React.FC<SyntaxCodeBlockProps> = ({
   wrapLines = true,
   customStyle,
 }) => {
+  const resolvedLang = resolveLanguage(fileName, language) || "text";
+  const displayLang = LANGUAGE_LABEL[resolvedLang] || resolvedLang;
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = useCallback(() => {
+    void navigator.clipboard.writeText(code).then(() => {
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2000);
+    });
+  }, [code]);
+
   return (
-    <PrismSyntaxHighlighter
-      language={resolveLanguage(fileName, language)}
-      style={vscDarkPlus}
-      showLineNumbers={showLineNumbers}
-      wrapLines={wrapLines}
-      customStyle={customStyle}
-    >
-      {code}
-    </PrismSyntaxHighlighter>
+    <div className="my-3 overflow-hidden rounded-lg border border-border/40 shadow-sm">
+      {/* 标题栏：macOS 风格 */}
+      <div className="flex items-center gap-3 bg-[#2d2d2d] px-4 py-2">
+        {/* 三个彩色圆点 */}
+        <div className="flex items-center gap-1.5">
+          <span className="h-3 w-3 rounded-full bg-[#ff5f56] ring-1 ring-black/10" />
+          <span className="h-3 w-3 rounded-full bg-[#ffbd2e] ring-1 ring-black/10" />
+          <span className="h-3 w-3 rounded-full bg-[#27c93f] ring-1 ring-black/10" />
+        </div>
+
+        {/* 语言标签 */}
+        <span className="ml-1 text-[11px] font-medium tracking-wide text-white/50">
+          {displayLang}
+        </span>
+
+        {/* 右侧占位 */}
+        <div className="flex-1" />
+
+        {/* 复制按钮 */}
+        <button
+          type="button"
+          onClick={handleCopy}
+          className="flex items-center gap-1 rounded-md px-2 py-1 text-[11px] text-white/40 transition-colors hover:bg-white/10 hover:text-white/70"
+          title="复制代码"
+        >
+          {copied ? (
+            <>
+              <Check size={12} />
+              <span>已复制</span>
+            </>
+          ) : (
+            <>
+              <Copy size={12} />
+              <span>复制</span>
+            </>
+          )}
+        </button>
+      </div>
+
+      {/* 代码区域 */}
+      <div className="bg-[#1e1e1e]">
+        <PrismSyntaxHighlighter
+          language={resolvedLang}
+          style={vscDarkPlus}
+          showLineNumbers={showLineNumbers}
+          wrapLines={wrapLines}
+          customStyle={{
+            margin: 0,
+            padding: "1rem 1.25rem",
+            fontSize: "13px",
+            lineHeight: "1.7",
+            background: "transparent",
+            ...customStyle,
+          }}
+        >
+          {code}
+        </PrismSyntaxHighlighter>
+      </div>
+    </div>
   );
 };
