@@ -27,6 +27,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { MessageItem } from "./MessageItem";
 import { AskUserInlineCard } from "@/components/AskUserInlineCard";
+import { CapabilityConfirmationCard } from "@/components/CapabilityConfirmationCard";
 import { askUserBridge } from "@/lib/askUserBridge";
 import type { ChatAreaActions, ChatAreaLayout } from "./context";
 
@@ -235,6 +236,33 @@ function ChatAreaRoot({
     }
   }, [items, scrollToBottom, sessionId]);
 
+  // 监听内容高度变化（如思考过程展开/折叠），若当前在跟随底部则保持滚动到底
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    let rafId: number | null = null;
+    const observer = new MutationObserver(() => {
+      if (!isFollowingBottomRef.current) return;
+      if (rafId) return;
+      rafId = requestAnimationFrame(() => {
+        rafId = null;
+        scrollToBottom("auto");
+      });
+    });
+
+    observer.observe(container, {
+      childList: true,
+      subtree: true,
+      characterData: true,
+    });
+
+    return () => {
+      observer.disconnect();
+      if (rafId) cancelAnimationFrame(rafId);
+    };
+  }, [scrollToBottom]);
+
   useEffect(() => {
     return () => {
       if (programmaticScrollTimerRef.current) {
@@ -269,8 +297,8 @@ function ChatAreaRoot({
           className={cn(
             "mx-auto min-w-0",
             isCompactSurface
-              ? "max-w-none space-y-5 pb-20"
-              : "max-w-4xl space-y-8 pb-24",
+              ? "max-w-none space-y-5 pb-24"
+              : "max-w-4xl space-y-8 pb-32",
           )}
         >
           {children || (
@@ -286,13 +314,13 @@ function ChatAreaRoot({
         </div>
       </div>
       {showScrollToBottom && (
-        <div className="pointer-events-none absolute bottom-4 left-0 right-0 z-20 flex justify-center px-4">
+        <div className="pointer-events-none absolute bottom-6 left-0 right-0 z-50 flex justify-center px-4">
           <Button
             type="button"
             data-testid="chat-scroll-to-bottom"
             size="sm"
             variant="secondary"
-            className="pointer-events-auto h-8 rounded-full border border-border bg-background px-3 text-xs shadow-lg hover:bg-muted"
+            className="pointer-events-auto h-8 rounded-full border border-border/80 bg-background px-3 text-xs shadow-[0_4px_20px_rgba(0,0,0,0.12)] backdrop-blur-sm hover:bg-muted"
             onClick={() => scrollToBottom("smooth")}
             title="回到底部"
           >
@@ -349,6 +377,38 @@ function ChatAreaList({
                   return await askUserBridge.resolve(item.id, approved, value);
                 }
                 return false;
+              }}
+            />
+          );
+        }
+        if (item.type === "capability_confirmation") {
+          return (
+            <CapabilityConfirmationCard
+              key={item.id}
+              tool_name={item.tool_name}
+              arguments={item.arguments}
+              prompt={item.prompt}
+              subagent_name={item.subagent_name}
+              status={item.status}
+              onApprove={async (scope) => {
+                // 通过 eventBus 触发审批响应，由 useWorkspacePageController 处理
+                const { eventBus } = await import("@/lib/eventBus");
+                eventBus.emit("capability:approve", {
+                  sessionId: item.session_id,
+                  toolCallId: item.id,
+                  scope,
+                  patternKey: item.pattern_key,
+                });
+                return true;
+              }}
+              onReject={async (feedback) => {
+                const { eventBus } = await import("@/lib/eventBus");
+                eventBus.emit("capability:reject", {
+                  sessionId: item.session_id,
+                  toolCallId: item.id,
+                  feedback,
+                });
+                return true;
               }}
             />
           );

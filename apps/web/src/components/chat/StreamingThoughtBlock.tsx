@@ -128,17 +128,20 @@ export function StreamingThoughtBlock({
   }
 
   return (
-    <div className="mb-3 rounded-lg border border-border/60 bg-muted/30 overflow-hidden">
+    <div className="mb-3 rounded-lg border border-border/60 bg-muted/20 overflow-hidden">
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors"
+        className="group flex w-full items-center gap-2.5 px-3.5 py-2.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground"
       >
         <div
-          className={`flex items-center justify-center w-5 h-5 rounded-md flex-shrink-0 transition-colors ${streaming ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground"}`}
+          className={`flex items-center justify-center w-5 h-5 rounded-md flex-shrink-0 transition-colors ${streaming ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground group-hover:bg-muted-foreground/10"}`}
         >
           <Brain size={12} className={streaming ? "animate-pulse" : ""} />
         </div>
         <span className="font-medium">思考过程</span>
+        <span className="text-[10px] text-muted-foreground/50 ml-1">
+          {isOpen ? "点击折叠" : "点击展开"}
+        </span>
         {streaming && (
           <Loader2 size={11} className="animate-spin text-primary ml-auto" />
         )}
@@ -151,8 +154,7 @@ export function StreamingThoughtBlock({
 
       {isOpen && (
         <div
-          className="prose prose-sm max-w-none min-w-0 break-words border-t border-border/40 px-4 pb-3 pt-1 text-[13px] leading-relaxed text-muted-foreground/85 [overflow-wrap:anywhere]
-                    [&_p]:my-1"
+          className="prose prose-sm max-w-none min-w-0 max-h-80 break-words overflow-y-auto border-t border-border/40 bg-muted/10 px-4 pb-3.5 pt-2 text-[13px] leading-relaxed text-muted-foreground/90 [overflow-wrap:anywhere] [&_p]:my-1.5"
         >
           <ChartAwareMarkdown
             content={cleanedContent || (streaming ? "..." : "")}

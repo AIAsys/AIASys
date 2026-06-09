@@ -219,8 +219,8 @@ export function TokenUsageBar({
                 </span>
               </>
             ) : (
-              <span className="tabular-nums text-muted-foreground">
-                未设置
+              <span className="tabular-nums text-muted-foreground/60">
+                点击设置
               </span>
             )}
           </button>

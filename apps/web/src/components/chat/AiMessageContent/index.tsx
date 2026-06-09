@@ -225,9 +225,10 @@ export const AiMessageContent = memo(function AiMessageContent({
 
     // 防御性排序：仅在非流式（历史恢复）时按类型排序
     // 流式过程中 segments 已按到达时序排列
+    // 每个类型必须有唯一 order，避免 sort 不稳定导致顺序随机
     const SEGMENT_ORDER: Record<string, number> = {
       turn: 0,
-      think: 0,
+      think: 1,
       tool_call: 2,
       tool_output: 3,
       text: 4,
@@ -247,11 +248,16 @@ export const AiMessageContent = memo(function AiMessageContent({
     }
 
     // 合并连续的同类型 segments
+    // 仅合并 text / think，tool_call / tool_output / monitor 保持独立
+    const MERGEABLE_TYPES = new Set<string>(["text", "think"]);
     const mergedSegments: ChatSegment[] = [];
     for (const seg of sortedSegments) {
       const lastSeg = mergedSegments[mergedSegments.length - 1];
-      if (lastSeg && lastSeg.type === seg.type && seg.type !== "turn") {
-        // 合并同类型 segment 的内容，turn 标记不合并
+      if (
+        lastSeg &&
+        lastSeg.type === seg.type &&
+        MERGEABLE_TYPES.has(seg.type)
+      ) {
         lastSeg.content += seg.content;
       } else {
         mergedSegments.push({ ...seg });
@@ -417,13 +423,13 @@ export const AiMessageContent = memo(function AiMessageContent({
         return (
           <div
             key={`seg-turn-${idx}`}
-            className="flex items-center gap-2 my-3"
+            className="flex w-full items-center gap-3 my-4"
           >
-            <div className="flex-1 h-px bg-border/60" />
-            <span className="text-[10px] text-muted-foreground font-medium whitespace-nowrap">
+            <div className="h-px flex-1 bg-border/70" />
+            <span className="rounded-full bg-muted px-2.5 py-0.5 text-[10px] font-medium text-muted-foreground whitespace-nowrap">
               Turn {seg.turnN ?? "?"}
             </span>
-            <div className="flex-1 h-px bg-border/60" />
+            <div className="h-px flex-1 bg-border/70" />
           </div>
         );
       }
@@ -434,7 +440,7 @@ export const AiMessageContent = memo(function AiMessageContent({
 
   return (
     <AiMessageProvider state={state} actions={actions} meta={meta}>
-      <div className="min-w-0 py-2">
+      <div className="min-w-0 px-0.5 py-2">
         {/* 加载中占位符 */}
         {isEmpty && isStreaming && !isStopped && <LoadingPlaceholder />}
 
