@@ -67,7 +67,7 @@ export function WorkspaceDeleteDialog({
             )}
             {isCurrentWorkspace && !isBulkDelete ? (
               <p className="mt-3 text-xs leading-5 text-muted-foreground">
-                删除当前工作区后，系统会自动切到剩余工作区；如果没有剩余工作区，会打开新建工作区弹窗。
+                删除当前工作区后，系统会自动切到剩余工作区；如果没有剩余工作区，会回到首页。
               </p>
             ) : null}
             {deleteWorkspaceError ? (

@@ -16,7 +16,7 @@ export function SectionBlock({
   children: ReactNode;
 }) {
   return (
-    <section className="rounded-xl border border-border bg-background p-4">
+    <section className="rounded-xl border border-border bg-background p-3.5">
       <div className="flex items-start gap-3">
         <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border bg-muted/20">
           <Icon className="h-4 w-4 text-muted-foreground" />
@@ -30,7 +30,7 @@ export function SectionBlock({
           ) : null}
         </div>
       </div>
-      <div className="mt-4 space-y-4">{children}</div>
+      <div className="mt-3 space-y-3">{children}</div>
     </section>
   );
 }
@@ -58,7 +58,7 @@ export function ChoiceButton<TValue extends string>({
       aria-pressed={selected}
       disabled={disabled}
       className={cn(
-        "group flex min-h-[82px] w-full items-start gap-3 rounded-xl border px-3 py-3 text-left transition",
+        "group flex min-h-[72px] w-full items-start gap-3 rounded-xl border px-3 py-2.5 text-left transition",
         selected
           ? "border-foreground bg-foreground text-background shadow-sm"
           : "border-border bg-background hover:border-foreground/30 hover:bg-muted/20",
@@ -109,7 +109,7 @@ export function PreviewRow({
   hint?: string;
 }) {
   return (
-    <div className="border-t border-border/70 py-3 first:border-t-0 first:pt-0 last:pb-0">
+    <div className="border-t border-border/70 py-2.5 first:border-t-0 first:pt-0 last:pb-0">
       <div className="text-[11px] font-semibold text-muted-foreground">
         {label}
       </div>

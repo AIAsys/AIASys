@@ -190,27 +190,31 @@ function flattenGlobalResourcesToFiles(nodes: GlobalResourceNode[]): WorkspaceFi
 }
 
 function globalResourcesToFileTree(nodes: GlobalResourceNode[]): FileTreeNode[] {
-  return sortFileTreeNodes(nodes.map((node) => {
-    if (node.node_type === "directory") {
-      return {
-        name: node.name,
-        path: node.path,
-        absolutePath: node.absolute_path,
-        isDirectory: true,
-        children: globalResourcesToFileTree(node.children || []),
-        meta: node.meta,
-      };
-    }
+  return sortFileTreeNodes(
+    nodes
+      .filter((node) => !node.path.startsWith(".aiasys") && node.name !== ".aiasys")
+      .map((node) => {
+        if (node.node_type === "directory") {
+          return {
+            name: node.name,
+            path: node.path,
+            absolutePath: node.absolute_path,
+            isDirectory: true,
+            children: globalResourcesToFileTree(node.children || []),
+            meta: node.meta,
+          };
+        }
 
-    return {
-      name: node.name,
-      path: node.path,
-      absolutePath: node.absolute_path,
-      isDirectory: false,
-      file: globalResourceNodeToWorkspaceFile(node),
-      meta: node.meta,
-    };
-  }));
+        return {
+          name: node.name,
+          path: node.path,
+          absolutePath: node.absolute_path,
+          isDirectory: false,
+          file: globalResourceNodeToWorkspaceFile(node),
+          meta: node.meta,
+        };
+      }),
+  );
 }
 
 const runtimeStatusLabels: Record<string, string> = {
@@ -881,6 +885,19 @@ const WorkspaceAssetPanelComponent: React.FC<WorkspaceAssetPanelProps> = ({
       setCurrentResourceTree([]);
     }
   }, [workspaceId, isGlobal]);
+
+  // workspaceFiles 变化时同步刷新资源树（上传/删除等操作后）
+  const prevFileSignatureRef = useRef("");
+  useEffect(() => {
+    if (isGlobal || !workspaceId || !externalFiles) return;
+    const signature = externalFiles
+      .map((f) => `${f.name}:${f.size}:${f.mtime || ""}`)
+      .sort()
+      .join("|");
+    if (signature === prevFileSignatureRef.current) return;
+    prevFileSignatureRef.current = signature;
+    void fetchCurrentResourceTree();
+  }, [externalFiles, workspaceId, isGlobal, fetchCurrentResourceTree]);
 
   // Build file list based on scope
   const safeFiles = useMemo(() => {

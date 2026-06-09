@@ -4,12 +4,12 @@ import { useEffect, useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import type { LLMModelConfig } from "@/lib/api/llm";
 import { cn } from "@/lib/utils";
 
@@ -252,18 +252,18 @@ export function AutoTaskEditorDialog({
   ]);
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-full sm:max-w-[900px] p-0 overflow-hidden">
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-[1100px] w-[96vw] h-[90vh] min-h-[640px] p-0 gap-0 overflow-hidden border bg-background">
         <div className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)_auto] bg-background">
-          <SheetHeader className="border-b border-border px-6 py-4 pr-12">
+          <DialogHeader className="border-b border-border px-6 py-4 text-left">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
-                  <SheetTitle className="text-xl">
+                  <DialogTitle className="text-xl">
                     {editingTaskId
                       ? `编辑${TASK_CATEGORY_LABEL[draft.taskCategory]}自动化`
                       : `新建${TASK_CATEGORY_LABEL[draft.taskCategory]}自动化`}
-                  </SheetTitle>
+                  </DialogTitle>
                   <Badge
                     variant="outline"
                     className={cn(
@@ -276,9 +276,9 @@ export function AutoTaskEditorDialog({
                     {draft.enabled ? "保存后启用" : "保存为暂停"}
                   </Badge>
                 </div>
-                <SheetDescription className="mt-1">
+                <DialogDescription className="mt-1">
                   配置执行模式、目标会话、停止条件和运行模型。
-                </SheetDescription>
+                </DialogDescription>
               </div>
               {feedback ? (
                 <div
@@ -293,20 +293,29 @@ export function AutoTaskEditorDialog({
                 </div>
               ) : null}
             </div>
-          </SheetHeader>
+          </DialogHeader>
 
-          <div className="grid min-h-0 grid-cols-1 lg:grid-cols-[236px_minmax(0,1fr)_300px]">
-            <AutoTaskTemplateRail
-              editingTaskId={editingTaskId}
-              isScheduled={isScheduled}
-              taskCategory={draft.taskCategory}
-              selectedTemplateId={selectedTemplateId}
-              templates={templates}
-              onApplyTemplate={onApplyTemplate}
-            />
+          <div
+            className={cn(
+              "grid min-h-0 grid-cols-1",
+              editingTaskId
+                ? "lg:grid-cols-[minmax(0,1fr)_320px]"
+                : "lg:grid-cols-[180px_minmax(0,1fr)_300px]",
+            )}
+          >
+            {!editingTaskId ? (
+              <AutoTaskTemplateRail
+                editingTaskId={editingTaskId}
+                isScheduled={isScheduled}
+                taskCategory={draft.taskCategory}
+                selectedTemplateId={selectedTemplateId}
+                templates={templates}
+                onApplyTemplate={onApplyTemplate}
+              />
+            ) : null}
 
-            <main className="min-h-0 overflow-y-auto px-5 py-5">
-              <div className="mx-auto max-w-[680px] space-y-4">
+            <main className="min-h-0 overflow-y-auto px-4 py-4">
+              <div className="space-y-3">
                 <TargetWorkspaceSection
                   editingTaskId={editingTaskId}
                   targetWorkspaceId={targetWorkspaceId}
@@ -373,7 +382,7 @@ export function AutoTaskEditorDialog({
             />
           </div>
 
-          <div className="border-t border-border bg-background px-6 py-4">
+          <div className="border-t border-border bg-background px-6 py-3">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex min-w-0 items-center gap-2 text-[12px] text-muted-foreground">
                 <CheckCircle2 className="h-4 w-4 shrink-0 text-muted-foreground" />
@@ -395,7 +404,7 @@ export function AutoTaskEditorDialog({
             </div>
           </div>
         </div>
-      </SheetContent>
-    </Sheet>
+      </DialogContent>
+    </Dialog>
   );
 }

@@ -75,7 +75,7 @@ export const Header = () => {
           ))}
         </nav>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-4">
           {/* GitHub 链接 */}
           <a
             href="https://github.com/AIAsys/AIASys"

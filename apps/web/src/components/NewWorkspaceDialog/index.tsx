@@ -330,6 +330,8 @@ export function NewWorkspaceDialog({
         onEscapeKeyDown={(event) => {
           if (effectiveLifecycleState.isBusy) {
             event.preventDefault();
+          } else {
+            onClose();
           }
         }}
         onPointerDownOutside={(event) => {

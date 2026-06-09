@@ -30,8 +30,8 @@ export function AutoTaskEditorPreview({
 }) {
   return (
     <aside className="min-h-0 border-t border-border bg-muted/10 lg:border-l lg:border-t-0">
-      <div className="h-full overflow-y-auto px-5 py-5">
-        <div className="rounded-xl border border-border bg-background p-4 shadow-sm">
+      <div className="h-full overflow-y-auto px-4 py-4">
+        <div className="rounded-xl border border-border bg-background p-3.5 shadow-sm">
           <div className="flex items-start justify-between gap-3">
             <div>
               <div className="text-sm font-semibold text-foreground">
@@ -127,7 +127,7 @@ export function AutoTaskEditorPreview({
             />
             <PreviewRow
               label="提示词摘要"
-              value={summarizeText(draft.prompt, 72)}
+              value={summarizeText(draft.prompt, 120)}
             />
           </div>
         </div>

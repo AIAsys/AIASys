@@ -155,7 +155,7 @@ export function ActivityBar<TView extends string>({
                   "relative flex h-10 w-10 items-center justify-center rounded-lg text-muted-foreground transition-colors",
                   "hover:bg-background hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                   !item.disabled && "cursor-grab active:cursor-grabbing",
-                  active && "bg-background text-foreground shadow-sm",
+                  active && "bg-background text-foreground shadow-sm ring-1 ring-border/50",
                   item.disabled && "cursor-not-allowed opacity-50",
                   isDragged && "opacity-40",
                 )}

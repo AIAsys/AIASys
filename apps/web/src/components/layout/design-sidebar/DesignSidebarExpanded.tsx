@@ -19,8 +19,6 @@ interface DesignSidebarExpandedProps {
   filteredWorkspaces: TaskWorkspaceSummary[];
   isAuthenticated: boolean;
   isLoadingHistory: boolean;
-  isLoadingMore?: boolean;
-  hasMore?: boolean;
   searchQuery: string;
   workspaces: TaskWorkspaceSummary[];
   onClose?: () => void;
@@ -42,7 +40,6 @@ interface DesignSidebarExpandedProps {
   onOpenChannelSettings?: () => void;
   onSearchQueryChange: (value: string) => void;
   onClearSearch: () => void;
-  onLoadMore?: () => void;
 }
 
 export function DesignSidebarExpanded({
@@ -53,8 +50,6 @@ export function DesignSidebarExpanded({
   filteredWorkspaces,
   isAuthenticated,
   isLoadingHistory,
-  isLoadingMore = false,
-  hasMore = false,
   searchQuery,
   workspaces,
   onClose,
@@ -73,7 +68,6 @@ export function DesignSidebarExpanded({
   onOpenChannelSettings,
   onSearchQueryChange,
   onClearSearch,
-  onLoadMore,
 }: DesignSidebarExpandedProps) {
   return (
     <div className="flex flex-col h-full w-[220px] min-w-[220px] transition-opacity duration-200 delay-200 opacity-100">
@@ -149,8 +143,6 @@ export function DesignSidebarExpanded({
         filteredWorkspaces={filteredWorkspaces}
         currentWorkspaceId={currentWorkspaceId}
         isLoadingHistory={isLoadingHistory}
-        isLoadingMore={isLoadingMore}
-        hasMore={hasMore}
         searchQuery={searchQuery}
         onSearchQueryChange={onSearchQueryChange}
         onClearSearch={onClearSearch}
@@ -160,7 +152,6 @@ export function DesignSidebarExpanded({
         onDeleteSelectedWorkspaces={onDeleteSelectedWorkspaces}
         onExportWorkspace={onExportWorkspace}
         onUpdateWorkspace={onUpdateWorkspace}
-        onLoadMore={onLoadMore}
       />
 
       <DesignSidebarFooter

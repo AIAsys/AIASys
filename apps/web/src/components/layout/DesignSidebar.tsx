@@ -22,15 +22,12 @@ export function DesignSidebar({
   workspaces = [],
   currentWorkspaceId,
   isLoadingHistory = false,
-  isLoadingMore = false,
-  hasMore = false,
   onWorkspaceSelect,
   onDeleteWorkspace,
   onDeleteAllWorkspaces,
   onDeleteSelectedWorkspaces,
   onExportWorkspace,
   onImportWorkspace,
-  onLoadMore,
 }: SidebarProps) {
   const { user, isAuthenticated, isLoading, handleLogout, updateProfile } = useAuthContext();
 
@@ -101,8 +98,6 @@ export function DesignSidebar({
           filteredWorkspaces={filteredWorkspaces}
           isAuthenticated={isAuthenticated}
           isLoadingHistory={isLoadingHistory}
-          isLoadingMore={isLoadingMore}
-          hasMore={hasMore}
           searchQuery={searchQuery}
           workspaces={displayWorkspaces}
           onClose={onClose}
@@ -121,7 +116,6 @@ export function DesignSidebar({
           onSearchQueryChange={setSearchQuery}
           onClearSearch={() => setSearchQuery("")}
           onEditProfile={handleEditProfile}
-          onLoadMore={onLoadMore}
         />
       )}
       <ProfileEditDialog
