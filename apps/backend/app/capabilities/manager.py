@@ -196,6 +196,10 @@ class CapabilityManager:
         manifest = self._source_registry.get_manifest(cap_id)
         provider = _PROVIDER_MAP.get(manifest.kind) if manifest else None
         if provider is None:
+            declarations = self._read_declarations(target_path)
+            if cap_id in declarations:
+                provider = _PROVIDER_MAP.get(declarations[cap_id].kind)
+        if provider is None:
             return InstallResult(
                 success=False,
                 capability_id=cap_id,
@@ -214,6 +218,10 @@ class CapabilityManager:
         target_path = self._resolve_target_path(workspace_path, scope)
         manifest = self._source_registry.get_manifest(cap_id)
         provider = _PROVIDER_MAP.get(manifest.kind) if manifest else None
+        if provider is None:
+            declarations = self._read_declarations(target_path)
+            if cap_id in declarations:
+                provider = _PROVIDER_MAP.get(declarations[cap_id].kind)
         if provider is None:
             return InstallResult(
                 success=False,
@@ -245,6 +253,10 @@ class CapabilityManager:
         manifest = self._source_registry.get_manifest(cap_id)
         provider = _PROVIDER_MAP.get(manifest.kind) if manifest else None
         if provider is None:
+            declarations = self._read_declarations(target_path)
+            if cap_id in declarations:
+                provider = _PROVIDER_MAP.get(declarations[cap_id].kind)
+        if provider is None:
             return HealthStatus(
                 status=CapabilityStatus.ERROR,
                 detail="未知能力类型",
@@ -263,7 +275,7 @@ class CapabilityManager:
             if not decl.enabled:
                 continue
             manifest = self._source_registry.get_manifest(cap_id)
-            provider = _PROVIDER_MAP.get(manifest.kind) if manifest else None
+            provider = _PROVIDER_MAP.get(manifest.kind) if manifest else _PROVIDER_MAP.get(decl.kind)
             if provider is None:
                 results[cap_id] = HealthStatus(
                     status=CapabilityStatus.ERROR,

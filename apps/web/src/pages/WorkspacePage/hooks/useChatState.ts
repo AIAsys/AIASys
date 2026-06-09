@@ -25,6 +25,8 @@ interface UseChatStateReturn {
   setActiveSessionId: (id: string) => void;
   /** 读取指定 session 的已缓存聊天内容 */
   getSessionChatItems: (sessionId: string) => ChatItem[];
+  /** 活跃 session ID 的 ref（用于外部同步判断，避免竞态） */
+  activeSessionIdRef: React.RefObject<string>;
 }
 
 export function useChatState(): UseChatStateReturn {
@@ -77,6 +79,9 @@ export function useChatState(): UseChatStateReturn {
         chatMapRef.current.set(fromId, chatItemsRef.current);
       }
 
+      // 先更新 activeSessionIdRef，避免 setChatItems 期间到达的事件被错误路由
+      activeSessionIdRef.current = toId;
+
       // 从 Map 加载目标 session 的 chatItems
       const targetItems = chatMapRef.current.get(toId) || [];
       // 清理残留的 isStopped 状态，避免切换回来后旧消息仍显示"任务已终止"
@@ -87,7 +92,6 @@ export function useChatState(): UseChatStateReturn {
         return item;
       });
       setChatItems(cleanedItems);
-      activeSessionIdRef.current = toId;
     },
     [setChatItems],
   );
@@ -187,5 +191,6 @@ export function useChatState(): UseChatStateReturn {
     removeSession,
     setActiveSessionId,
     getSessionChatItems,
+    activeSessionIdRef,
   };
 }

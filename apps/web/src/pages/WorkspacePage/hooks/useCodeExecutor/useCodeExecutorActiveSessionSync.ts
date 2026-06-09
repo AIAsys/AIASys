@@ -26,6 +26,8 @@ interface UseCodeExecutorActiveSessionSyncProps {
     events: TaskEvent[],
     label?: string,
   ) => void;
+  /** chatState 的 activeSessionIdRef，用于避免 session 切换时的竞态 */
+  chatActiveSessionIdRef: React.RefObject<string>;
 }
 
 export function useCodeExecutorActiveSessionSync({
@@ -38,6 +40,7 @@ export function useCodeExecutorActiveSessionSync({
   updateSessionChatItems,
   addStreamEventsDirect,
   addStreamEventsForSession,
+  chatActiveSessionIdRef,
 }: UseCodeExecutorActiveSessionSyncProps) {
   const activeSessionIdRef = useRef<string>(sessionId || "");
   activeSessionIdRef.current = sessionId || "";
@@ -59,15 +62,20 @@ export function useCodeExecutorActiveSessionSync({
     setUploadActiveSessionId,
   ]);
 
+  /**
+   * 使用 chatState 的 activeSessionIdRef 判断活跃 session，
+   * 避免与 useCodeExecutorActiveSessionSync 自己的 ref 不同步导致的竞态。
+   * chatState 的 ref 在 switchChatSession 中同步更新，没有渲染延迟。
+   */
   const updateChatItemsForSession = useCallback(
     (targetSessionId: string, updater: (prev: ChatItem[]) => ChatItem[]) => {
-      if (targetSessionId === activeSessionIdRef.current) {
+      if (targetSessionId === chatActiveSessionIdRef.current) {
         setChatItems(updater);
         return;
       }
       updateSessionChatItems(targetSessionId, updater);
     },
-    [setChatItems, updateSessionChatItems],
+    [setChatItems, updateSessionChatItems, chatActiveSessionIdRef],
   );
 
   const addStreamEventsForSessionWrapped = useCallback(
@@ -77,13 +85,13 @@ export function useCodeExecutorActiveSessionSync({
       events: TaskEvent[],
       label?: string,
     ) => {
-      if (targetSessionId === activeSessionIdRef.current) {
+      if (targetSessionId === chatActiveSessionIdRef.current) {
         addStreamEventsDirect(taskId, events, label);
         return;
       }
       addStreamEventsForSession(targetSessionId, taskId, events, label);
     },
-    [addStreamEventsDirect, addStreamEventsForSession],
+    [addStreamEventsDirect, addStreamEventsForSession, chatActiveSessionIdRef],
   );
 
   return {

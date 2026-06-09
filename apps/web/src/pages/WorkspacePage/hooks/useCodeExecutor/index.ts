@@ -70,6 +70,7 @@ export function useCodeExecutor({
     removeSession: removeChatSession,
     setActiveSessionId: setChatActiveSessionId,
     getSessionChatItems,
+    activeSessionIdRef: chatActiveSessionIdRef,
   } = useChatState();
   const {
     state: agentState,
@@ -193,6 +194,7 @@ export function useCodeExecutor({
     updateSessionChatItems,
     addStreamEventsDirect,
     addStreamEventsForSession,
+    chatActiveSessionIdRef,
   });
 
   const isCurrentSessionRunning = sessionOrchestrator.sessionId

@@ -55,7 +55,18 @@ async def compact_session(
         instruction = body.get("instruction", "") if body else ""
 
         await agent_service.compact_session_context(user_id, session_id, instruction)
-        return _build_session_update_response(user_id, session_id)
+
+        # 读取最近一次压缩事件
+        compaction_event = None
+        session_key = f"{user_id}/{session_id}"
+        active_session = getattr(agent_service, "_active_sessions", {}).get(session_key)
+        if active_session is not None:
+            compaction_event = getattr(active_session, "_last_compaction_event", None)
+
+        response = _build_session_update_response(user_id, session_id)
+        if compaction_event:
+            response["compaction"] = compaction_event
+        return response
     except HTTPException:
         raise
     except Exception as e:

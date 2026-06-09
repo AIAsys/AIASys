@@ -89,10 +89,12 @@ export function UserMessageContent() {
       return;
     }
     setIsConfirmOpen(false);
-    setIsEditing(false);
     setIsSubmitting(true);
     try {
       await onRewriteUserMessage(msgItem.id, nextContent, content.trim());
+      setIsEditing(false);
+    } catch {
+      // 编辑失败时保持编辑状态，让用户可以重试
     } finally {
       setIsSubmitting(false);
     }

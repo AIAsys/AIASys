@@ -52,26 +52,35 @@ export const AskUserInlineCard: React.FC<AskUserInlineCardProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const timeoutCalledRef = useRef(false);
+  const lastRequestIdRef = useRef<string>("");
 
   useEffect(() => {
-    setInputValue(
-      request.type === "input" && typeof request.default_value === "string"
-        ? request.default_value
-        : "",
-    );
-    setSelectedValue(
-      request.type === "select" && typeof request.default_value === "string"
-        ? request.default_value
-        : "",
-    );
-    setSelectedValues(
-      request.type === "multi_select" && Array.isArray(request.default_value)
-        ? request.default_value.filter((item): item is string => typeof item === "string")
-        : [],
-    );
-    setErrorMessage(null);
+    const requestIdChanged = lastRequestIdRef.current !== request.request_id;
+    lastRequestIdRef.current = request.request_id;
+
+    // 只在 request_id 真正变化时重置用户输入，避免后端推送相同 request 更新时丢失用户输入
+    if (requestIdChanged) {
+      setInputValue(
+        request.type === "input" && typeof request.default_value === "string"
+          ? request.default_value
+          : "",
+      );
+      setSelectedValue(
+        request.type === "select" && typeof request.default_value === "string"
+          ? request.default_value
+          : "",
+      );
+      setSelectedValues(
+        request.type === "multi_select" && Array.isArray(request.default_value)
+          ? request.default_value.filter((item): item is string => typeof item === "string")
+          : [],
+      );
+      setErrorMessage(null);
+      timeoutCalledRef.current = false;
+    }
+
+    // 每次 request 变化都更新倒计时（timeout 可能变化）
     setRemainingSeconds(getRemainingSeconds(request));
-    timeoutCalledRef.current = false;
   }, [request]);
 
   useEffect(() => {
