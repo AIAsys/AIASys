@@ -49,18 +49,6 @@ export function WorkspaceHomeScreen({
             </div>
 
             <div className="flex w-full max-w-xs flex-col gap-3">
-              <Button
-                type="button"
-                size="lg"
-                className="h-12 justify-between rounded-2xl px-4"
-                onClick={onCreateWorkspace}
-              >
-                <span className="inline-flex items-center gap-2">
-                  <Plus className="h-4 w-4" />
-                  新建工作区
-                </span>
-                <ArrowRight className="h-4 w-4" />
-              </Button>
               <div className="rounded-2xl border border-border bg-muted px-4 py-3 text-sm leading-6 text-muted-foreground">
                 当前默认不强制打开任何工作区。你可以直接从最近任务里恢复，或者新建一个长期任务工作区。
               </div>

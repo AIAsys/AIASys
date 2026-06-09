@@ -305,7 +305,7 @@ export function ModelSelector({
               </div>
             </div>
 
-            <div className="max-h-[360px] overflow-y-auto p-1.5">
+            <div className="max-h-[260px] overflow-y-auto p-1.5">
               {!search.trim() ? (
                 <div className="px-2.5 pt-2 pb-1 text-[11px] leading-5 text-muted-foreground">
                   这里只显示当前已配置并启用的模型。更多服务商或模型，请去设置里补充。

@@ -374,15 +374,15 @@ export function PaneRenderer({
             );
           })}
           {leaf.tabs.length === 0 && (
-            <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-muted-foreground">
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-border bg-muted/30">
-                <FileCode2 className="h-5 w-5 text-muted-foreground/40" />
+            <div className="flex h-full flex-col items-center justify-center gap-2 px-6 text-muted-foreground">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-border bg-muted/30">
+                <FileCode2 className="h-4 w-4 text-muted-foreground/40" />
               </div>
               <div className="text-center">
-                <div className="text-sm font-medium text-foreground">
+                <div className="text-xs font-medium text-foreground">
                   当前没有打开的对象
                 </div>
-                <div className="mt-0.5 text-xs text-muted-foreground">
+                <div className="mt-0.5 text-[11px] text-muted-foreground/70">
                   从左侧资源树选择文件，或开始一段对话
                 </div>
               </div>
