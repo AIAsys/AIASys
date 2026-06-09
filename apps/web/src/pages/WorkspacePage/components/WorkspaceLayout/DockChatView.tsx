@@ -127,6 +127,7 @@ export function DockChatView({
       <TokenUsageBar
         sessionId={currentSessionId || undefined}
         refreshSignal={tokenUsageRefreshSignal}
+        onCompactConversation={onCompactConversation}
       />
       <SessionTaskPanel tasks={tasks} planState={planState} />
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-muted/15">

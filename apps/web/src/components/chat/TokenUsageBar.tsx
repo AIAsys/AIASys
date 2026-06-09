@@ -21,6 +21,7 @@ import {
 interface TokenUsageBarProps {
   sessionId?: string | null;
   refreshSignal?: number | string;
+  onCompactConversation?: () => Promise<void> | void;
 }
 
 function formatTokens(n: number): string {
@@ -46,6 +47,7 @@ function normalizeBudgetInput(value: string): number | null {
 export function TokenUsageBar({
   sessionId,
   refreshSignal,
+  onCompactConversation,
 }: TokenUsageBarProps) {
   const [stats, setStats] = useState<TokenStats | null>(null);
   const [budgetEnabled, setBudgetEnabled] = useState(false);
@@ -104,7 +106,7 @@ export function TokenUsageBar({
   const barClass = (pct: number) =>
     cn(
       "h-full rounded-full transition-all",
-      pct >= 90 ? "bg-error" : pct >= 70 ? "bg-warning" : "bg-success",
+      pct >= 90 ? "bg-error" : pct >= 85 ? "bg-orange-500" : pct >= 70 ? "bg-warning" : "bg-success",
     );
 
   const handleToggleBudget = async (checked: boolean) => {
@@ -307,6 +309,21 @@ export function TokenUsageBar({
                   {budgetError}
                 </div>
               )}
+            </div>
+          )}
+          {contextPercent >= 85 && onCompactConversation && (
+            <div className="rounded-lg bg-warning/10 px-3 py-2 text-[11px] text-warning">
+              上下文接近上限（{contextPercentLabel}），建议压缩以释放空间。
+              <button
+                type="button"
+                onClick={() => {
+                  setPopoverOpen(false);
+                  void onCompactConversation();
+                }}
+                className="ml-1 underline font-medium"
+              >
+                立即压缩
+              </button>
             </div>
           )}
           {budgetExhausted && (

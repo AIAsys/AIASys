@@ -7,9 +7,15 @@ from __future__ import annotations
 
 import logging
 import time
+from datetime import datetime
+from pathlib import Path
 from typing import Any
 
-from app.services.agent.compaction import SimpleCompaction, estimate_text_tokens
+from app.services.agent.compaction import (
+    SimpleCompaction,
+    clear_old_tool_results,
+    estimate_text_tokens,
+)
 from app.services.agent.runtime_backends.aiasys.llm_clients import create_llm_client
 
 logger = logging.getLogger(__name__)
@@ -24,11 +30,41 @@ def _read_config_value(config: Any, field_name: str) -> Any:
 class SessionCompactionMixin:
     """上下文压缩方法，供 AiasysRuntimeSession 混入。"""
 
+    def __init__(self):
+        self._last_compaction_event: dict[str, Any] | None = None
+
+    def _run_pre_turn_clearing(self) -> tuple[int, int]:
+        """Tier 1: 每次 LLM 调用前执行零成本 tool 结果清理。
+
+        直接修改 self.messages，返回 (cleared_count, saved_chars)。
+        幂等：对已经清理过的占位符不会重复处理。
+        """
+        loop_control = self._spec.config.loop_control
+        if not loop_control.enable_pre_turn_clearing:
+            return 0, 0
+
+        cleared_messages, cleared_count, saved_chars = clear_old_tool_results(
+            self.messages,
+            keep_recent_turns=loop_control.keep_tool_context_turns,
+        )
+        if cleared_count > 0:
+            self.messages = cleared_messages
+            logger.info(
+                "Tier 1 tool clearing: %d tool messages cleared, ~%d chars saved",
+                cleared_count,
+                saved_chars,
+            )
+        return cleared_count, saved_chars
+
     async def _maybe_compact_context(self) -> None:
         loop_control = self._spec.config.loop_control
         max_context_size = self._resolve_max_context_size()
         if max_context_size <= 0:
             return
+
+        # Tier 1: pre-turn clearing（零成本，幂等）
+        # 在阈值判断前先清理，避免旧 tool 结果干扰触发决策
+        self._run_pre_turn_clearing()
 
         system_messages: list[dict[str, Any]] = []
         chat_messages: list[dict[str, Any]] = []
@@ -67,6 +103,7 @@ class SessionCompactionMixin:
         before_tokens = token_count
         start_time = time.perf_counter()
 
+        # Tier 2+3: LLM-based compaction
         compactor = SimpleCompaction(
             max_preserved_messages=loop_control.max_preserved_messages,
             max_summary_tokens=loop_control.max_summary_tokens,
@@ -104,7 +141,11 @@ class SessionCompactionMixin:
                             compaction_client = self._client
 
         try:
-            result = await compactor.compact(chat_messages, compaction_client)
+            result = await compactor.compact(
+                chat_messages,
+                compaction_client,
+                enable_verification=loop_control.enable_compaction_verification,
+            )
         except Exception as exc:
             logger.warning("上下文压缩失败，跳过: %s", exc)
             return
@@ -137,15 +178,23 @@ class SessionCompactionMixin:
                     {"role": "user", "content": restored_task_context},
                 )
 
-            self.messages = system_messages + compacted_messages
-            self._estimated_token_count = result.estimated_token_count()
+            # 插入压缩提示
+            after_tokens_est = result.estimated_token_count()
             if restored_task_context:
-                self._estimated_token_count += estimate_text_tokens(
+                after_tokens_est += estimate_text_tokens(
                     [{"role": "user", "content": restored_task_context}]
                 )
-            # 压缩前 _estimated_token_count 包含 system messages（通过 _append_message
-            # 累加或 LLM usage 精确值），压缩后必须保持语义一致。
-            self._estimated_token_count += estimate_text_tokens(system_messages)
+            after_tokens_est += estimate_text_tokens(system_messages)
+
+            self._insert_compaction_notice(
+                tier_used="llm_summary",
+                compacted_count=result.compacted_count,
+                tokens_before=before_tokens,
+                tokens_after=after_tokens_est,
+            )
+
+            self.messages = system_messages + compacted_messages
+            self._estimated_token_count = after_tokens_est
             after_count = len(self.messages)
             after_tokens = self._estimated_token_count
             summary_tokens = result.usage_output_tokens or 0
@@ -170,6 +219,24 @@ class SessionCompactionMixin:
                 after_count,
                 after_tokens,
             )
+
+            self._last_compaction_event = {
+                "tier_used": "llm_summary",
+                "compacted_count": result.compacted_count,
+                "preserved_count": result.preserved_count,
+                "tokens_before": before_tokens,
+                "tokens_after": after_tokens,
+                "saved_tokens": before_tokens - after_tokens,
+                "summary_tokens": summary_tokens,
+                "elapsed_ms": elapsed_ms,
+            }
+            self._persist_compaction_summary(
+                summary=result.summary,
+                compacted_count=result.compacted_count,
+                preserved_count=result.preserved_count,
+                tokens_before=before_tokens,
+                tokens_after=after_tokens,
+            )
             self._invalidate_system_prompt_snapshot()
         else:
             logger.info(
@@ -184,6 +251,78 @@ class SessionCompactionMixin:
                 before_tokens,
                 elapsed_ms,
             )
+            self._last_compaction_event = {
+                "tier_used": "none",
+                "compacted_count": 0,
+                "preserved_count": before_count,
+                "tokens_before": before_tokens,
+                "tokens_after": before_tokens,
+                "saved_tokens": 0,
+                "elapsed_ms": elapsed_ms,
+            }
+
+    def _insert_compaction_notice(
+        self,
+        *,
+        tier_used: str,
+        compacted_count: int,
+        tokens_before: int,
+        tokens_after: int,
+    ) -> None:
+        """在消息列表中插入一条压缩提示系统消息。"""
+        saved = max(0, tokens_before - tokens_after)
+        if tier_used == "tool_clear":
+            notice = (
+                f"[上下文已压缩] 清理了 {compacted_count} 条旧 tool 结果，"
+                f"上下文从约 {tokens_before} tokens 降至约 {tokens_after} tokens"
+                f"（节省约 {saved} tokens）。"
+            )
+        else:
+            notice = (
+                f"[上下文已压缩] 前 {compacted_count} 轮对话已总结为结构化摘要，"
+                f"上下文从约 {tokens_before} tokens 降至约 {tokens_after} tokens"
+                f"（节省约 {saved} tokens）。"
+            )
+        # 作为 system 消息插入，紧跟在 leading system 消息之后
+        leading_system_count = 0
+        for msg in self.messages:
+            if msg.get("role") == "system":
+                leading_system_count += 1
+            else:
+                break
+        self.messages.insert(
+            leading_system_count,
+            {"role": "system", "content": notice},
+        )
+
+    def _persist_compaction_summary(
+        self,
+        summary: str,
+        compacted_count: int,
+        preserved_count: int,
+        tokens_before: int,
+        tokens_after: int,
+    ) -> None:
+        """将压缩摘要写入 session 目录，供用户查阅和调试。"""
+        try:
+            work_dir = Path(str(self._spec.work_dir))
+            summary_dir = work_dir / ".aiasys" / "session" / "compaction_summaries"
+            summary_dir.mkdir(parents=True, exist_ok=True)
+            path = summary_dir / f"{int(time.time())}.md"
+            path.write_text(
+                f"# 上下文压缩摘要 ({datetime.now().isoformat()})\n\n"
+                f"- 会话: {self.session_id}\n"
+                f"- 压缩消息数: {compacted_count}\n"
+                f"- 保留消息数: {preserved_count}\n"
+                f"- 压缩前 tokens: {tokens_before}\n"
+                f"- 压缩后 tokens: {tokens_after}\n"
+                f"- 节省 tokens: {tokens_before - tokens_after}\n\n"
+                f"---\n\n{summary}\n",
+                encoding="utf-8",
+            )
+            logger.info("压缩摘要已持久化: %s", path)
+        except Exception:
+            logger.debug("压缩摘要持久化失败，已跳过", exc_info=True)
 
     def _resolve_max_context_size(self) -> int:
         model_config = self._model_config

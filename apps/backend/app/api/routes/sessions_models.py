@@ -139,6 +139,30 @@ class TokenStatsResponse(BaseModel):
     budget_status: str = "active"
 
 
+class CompactionEvent(BaseModel):
+    """单次上下文压缩事件的指标。"""
+
+    tier_used: Literal["tool_clear", "llm_summary", "none"] = Field(
+        ..., description="使用的压缩层级"
+    )
+    compacted_count: int = Field(0, description="被压缩/清理的消息数量")
+    preserved_count: int = Field(0, description="被保留的消息数量")
+    tokens_before: int = Field(0, description="压缩前估算 token 数")
+    tokens_after: int = Field(0, description="压缩后估算 token 数")
+    saved_tokens: int = Field(0, description="节省的 token 数")
+    saved_chars: Optional[int] = Field(None, description="Tier 1 节省的字符数")
+    summary_tokens: Optional[int] = Field(None, description="LLM 摘要输出的 token 数")
+    elapsed_ms: int = Field(0, description="耗时毫秒")
+
+
+class CompactSessionResponse(BaseModel):
+    """压缩会话响应。"""
+
+    success: bool
+    session: dict[str, Any] = Field(default_factory=dict)
+    compaction: Optional[CompactionEvent] = None
+
+
 # ---------------------------------------------------------------------------
 # Monitor 相关模型
 # ---------------------------------------------------------------------------

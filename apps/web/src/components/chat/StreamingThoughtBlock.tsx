@@ -59,10 +59,10 @@ export function StreamingThoughtBlock({
   const flushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // 清理内容中的特殊标记
+  // 只清理 <think> 标签，保留 <code> 标签内容（后者是合法 Markdown/HTML）
   const cleanedContent = useMemo(() => {
     return normalizeMarkdown(content)
       .replace(/<\/?think>/g, "")
-      .replace(/<code>[\s\S]*?<\/code>/g, "")
       .trim();
   }, [content]);
 

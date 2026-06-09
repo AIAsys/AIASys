@@ -511,6 +511,9 @@ class MockLoopControl:
     max_preserved_messages = 1
     max_summary_tokens = 500
     tool_snip_max_chars = 2000
+    keep_tool_context_turns = 2
+    enable_pre_turn_clearing = True
+    enable_compaction_verification = False
 
 
 class MockConfig:
