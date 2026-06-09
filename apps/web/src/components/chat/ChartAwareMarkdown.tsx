@@ -229,11 +229,6 @@ export const ChartAwareMarkdown = memo(function ChartAwareMarkdown({
           <SyntaxCodeBlock
             code={code.replace(/\n$/, "")}
             language={match?.[1] || "text"}
-            customStyle={{
-              margin: "0.5rem 0",
-              borderRadius: "0.375rem",
-              fontSize: "0.875rem",
-            }}
           />
         );
       },
