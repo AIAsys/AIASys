@@ -216,6 +216,10 @@ class Shell(AiasysTool):
     """
 
     name: str = "Shell"
+    risk_level: str = "high"
+    effect_scope: str = "workspace"
+    side_effect: bool = True
+    dangerous: bool = True
     description: str = f"""在当前工作区执行单次 Shell 命令，同步等待完成并返回结果。
 
 适用场景：

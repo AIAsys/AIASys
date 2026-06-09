@@ -27,6 +27,9 @@ class ListMCPServers(AiasysTool):
     """列出 MCP Server。"""
 
     name: str = "ListMCPServers"
+    risk_level: str = "readonly"
+    effect_scope: str = "session"
+    side_effect: bool = False
     description: str = """列出 MCP Server。
 
 参数：
@@ -120,6 +123,9 @@ class SearchMCPMarket(AiasysTool):
     """搜索外部 MCP 市场。"""
 
     name: str = "SearchMCPMarket"
+    risk_level: str = "readonly"
+    effect_scope: str = "external"
+    side_effect: bool = False
     description: str = """在外部 MCP 市场中搜索可用的 MCP Server。
 
 参数：
@@ -199,6 +205,9 @@ class InstallMCPServer(AiasysTool):
     """安装 MCP Server 到当前工作区。"""
 
     name: str = "InstallMCPServer"
+    risk_level: str = "high"
+    effect_scope: str = "workspace"
+    side_effect: bool = True
     description: str = """将指定的 MCP Server 安装到当前工作区。
 
 参数（二选一）：

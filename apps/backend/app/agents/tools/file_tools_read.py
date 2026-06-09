@@ -59,6 +59,9 @@ class ReadFile(AiasysTool):
     """读取当前工作区或全局工作区内的文本文件。"""
 
     name: str = "ReadFile"
+    risk_level: str = "readonly"
+    effect_scope: str = "workspace"
+    side_effect: bool = False
     description: str = f"""读取当前工作区或全局工作区中的**纯文本文件**。
 
 本工具只能读取文本文件（如 .py、.md、.json、.csv、.txt、.yml、.html 等）。
