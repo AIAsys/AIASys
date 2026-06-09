@@ -57,6 +57,9 @@ class CreateFile(AiasysTool):
     """
 
     name: str = "CreateFile"
+    risk_level: str = "medium"
+    effect_scope: str = "workspace"
+    side_effect: bool = True
     description: str = """在当前工作区或全局工作区中创建文件。
 
 支持的文件类型：

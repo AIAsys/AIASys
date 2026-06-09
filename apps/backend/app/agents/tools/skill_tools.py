@@ -81,6 +81,9 @@ class ListSkills(AiasysTool):
     """
 
     name: str = "ListSkills"
+    risk_level: str = "readonly"
+    effect_scope: str = "session"
+    side_effect: bool = False
     description: str = """列出当前上下文所有可用 Skill。
 
 返回信息包括：
@@ -142,6 +145,9 @@ class LoadSkill(AiasysTool):
     """
 
     name: str = "LoadSkill"
+    risk_level: str = "readonly"
+    effect_scope: str = "session"
+    side_effect: bool = False
     description: str = """加载指定 Skill 的文件内容。
 
 参数：
@@ -235,6 +241,9 @@ class SearchStoreSkills(AiasysTool):
     """
 
     name: str = "SearchStoreSkills"
+    risk_level: str = "readonly"
+    effect_scope: str = "session"
+    side_effect: bool = False
     description: str = """搜索 Skill 仓库中可启用的 Skill。
 
 参数：
@@ -246,7 +255,7 @@ class SearchStoreSkills(AiasysTool):
 - 不确定某个 Skill 是否已安装到系统时
 - 想浏览所有可用 Skill 时
 
-重要：搜索到需要的 Skill 后，必须调用 `EnableSkill` 将其安装到当前工作区（或全局工作区）。只搜索不安装，Skill 无法在当前工作区使用。
+重要：搜索结果只是候选，不代表必须立即安装。只有当当前任务确实需要该 Skill，且用户已经授权或安装不会造成用户不期望的工作区状态变化时，才调用 `EnableSkill` 将其启用到当前工作区（或全局工作区）。
 
 返回格式为 JSON 数组，每个元素包含 name、display_name、description、source。返回的 `name` 字段可直接传给 `EnableSkill(name=...)` 进行安装。
 """
@@ -306,13 +315,20 @@ class SearchStoreSkills(AiasysTool):
                 msg += f"（关键词: {params.query}）"
             return ToolResult(content=msg, artifacts=[{"skills": []}])
 
-        # 明确提示 Agent 下一步调用 EnableSkill
+        # 搜索结果只给候选建议；是否安装由当前任务意图和用户授权决定。
         names = [item["name"] for item in items]
-        install_hint = ""
+        install_hint = "\n\n请根据当前任务判断是否需要启用 Skill。"
         if len(names) == 1:
-            install_hint = f"\n\n请立即调用 EnableSkill(name='{names[0]}') 将其安装到当前工作区。"
+            install_hint += (
+                f"如任务确实需要且已获授权，可调用 EnableSkill(name='{names[0]}') "
+                "启用到当前工作区。"
+            )
         else:
-            install_hint = f"\n\n请从中选择一个最合适的，立即调用 EnableSkill(name='<skill_name>') 安装到当前工作区。推荐的 Skill 名称: {', '.join(names)}"
+            install_hint += (
+                "如任务确实需要且已获授权，可从候选中选择最合适的调用 "
+                "EnableSkill(name='<skill_name>') 启用到当前工作区。"
+                f"候选 Skill 名称: {', '.join(names)}"
+            )
 
         return ToolResult(
             content=f"Skill 仓库中找到 {len(items)} 个 Skill{install_hint}",
@@ -327,6 +343,9 @@ class EnableSkill(AiasysTool):
     """
 
     name: str = "EnableSkill"
+    risk_level: str = "high"
+    effect_scope: str = "workspace"
+    side_effect: bool = True
     description: str = """将 Skill 从 Skill 仓库启用到当前工作区或我的默认。
 
 参数：
@@ -406,6 +425,9 @@ class DisableSkill(AiasysTool):
     """
 
     name: str = "DisableSkill"
+    risk_level: str = "medium"
+    effect_scope: str = "workspace"
+    side_effect: bool = True
     description: str = """从当前工作区或我的默认禁用 Skill。
 
 参数：

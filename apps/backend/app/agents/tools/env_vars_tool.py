@@ -108,6 +108,9 @@ class ListEnvVars(AiasysTool):
     """列出当前会话运行态可用的环境变量名。"""
 
     name: str = "ListEnvVars"
+    risk_level: str = "readonly"
+    effect_scope: str = "session"
+    side_effect: bool = False
     description: str = """列出当前工作区的环境变量名。
 
 适用场景：
@@ -169,6 +172,9 @@ class GetEnvVar(AiasysTool):
     """读取当前工作区中某个环境变量的值。"""
 
     name: str = "GetEnvVar"
+    risk_level: str = "readonly"
+    effect_scope: str = "session"
+    side_effect: bool = False
     description: str = """读取当前工作区中某个环境变量的值。
 
 适用场景：
@@ -249,6 +255,9 @@ class SetEnvVar(AiasysTool):
     """设置工作区级别的环境变量。"""
 
     name: str = "SetEnvVar"
+    risk_level: str = "high"
+    effect_scope: str = "workspace"
+    side_effect: bool = True
     description: str = """设置/修改当前工作区的环境变量。变量写入当前工作区 runtime_binding.env_vars。
 
 适用场景：
@@ -321,6 +330,9 @@ class DeleteEnvVar(AiasysTool):
     """删除工作区级别的环境变量。"""
 
     name: str = "DeleteEnvVar"
+    risk_level: str = "high"
+    effect_scope: str = "workspace"
+    side_effect: bool = True
     description: str = """删除/移除当前工作区的环境变量（从当前工作区 runtime_binding.env_vars 中永久移除）。
 
 适用场景：

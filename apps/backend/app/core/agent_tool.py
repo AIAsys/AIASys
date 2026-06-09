@@ -18,6 +18,13 @@ class AiasysTool(ABC):
     parameters: ClassVar[dict[str, Any]] = {}
     params: ClassVar[type[BaseModel] | None] = None
 
+    # 风险元数据（用于 CapabilityAuthorizationService 决策）
+    risk_level: ClassVar[str] = "medium"  # readonly | low | medium | high | critical
+    effect_scope: ClassVar[str] = "workspace"  # workspace | global | session | external
+    side_effect: ClassVar[bool] = True
+    # 兼容旧 dangerous 标记
+    dangerous: ClassVar[bool] = False
+
     @classmethod
     def parameter_schema(cls) -> dict[str, Any]:
         if cls.parameters:

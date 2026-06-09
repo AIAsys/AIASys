@@ -80,6 +80,9 @@ class WriteFile(AiasysTool):
     """写入或追加文件内容。"""
 
     name: str = "WriteFile"
+    risk_level: str = "medium"
+    effect_scope: str = "workspace"
+    side_effect: bool = True
     description: str = """将内容写入当前工作区或全局工作区中的文件。
 
 支持两种模式：
@@ -187,6 +190,9 @@ class StrReplaceFile(AiasysTool):
     """通过字符串替换编辑文件内容。"""
 
     name: str = "StrReplaceFile"
+    risk_level: str = "medium"
+    effect_scope: str = "workspace"
+    side_effect: bool = True
     description: str = """在当前工作区或全局工作区的文件中进行精确的字符串替换编辑。
 
 使用方式：
