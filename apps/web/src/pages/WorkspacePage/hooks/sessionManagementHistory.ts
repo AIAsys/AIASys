@@ -142,13 +142,14 @@ function buildSegmentsFromSDKMessage(
   }
 
   // 按类型排序：turn → think → tool_call → tool_output → text → monitor
+  // 每个类型必须有唯一 order，避免 sort 不稳定导致顺序随机
   const SEGMENT_ORDER: Record<string, number> = {
     turn: 0,
-    think: 0,
-    tool_call: 1,
-    tool_output: 2,
-    text: 3,
-    monitor: 4,
+    think: 1,
+    tool_call: 2,
+    tool_output: 3,
+    text: 4,
+    monitor: 5,
   };
   segments.sort((a, b) => {
     const orderA = SEGMENT_ORDER[a.type] ?? 99;
@@ -257,11 +258,16 @@ export function restoreChatItemsFromHistory(
       if (lastItem && lastItem.type === "message" && lastItem.sender === "ai") {
         const existingSegments = lastItem.segments || [];
         const allSegments = [...existingSegments, ...(segments || [])];
-        lastItem.segments = allSegments;
-        lastItem.content = allSegments
-          .filter((segment) => segment.type === "text" || segment.type === "think")
-          .map((segment) => segment.content)
-          .join("");
+        // 不可变更新：替换数组中的对象而非直接修改
+        const lastIdx = restoredItems.length - 1;
+        restoredItems[lastIdx] = {
+          ...lastItem,
+          segments: allSegments,
+          content: allSegments
+            .filter((segment) => segment.type === "text" || segment.type === "think")
+            .map((segment) => segment.content)
+            .join(""),
+        };
         return;
       }
 
@@ -287,7 +293,7 @@ export function restoreChatItemsFromHistory(
       return;
     }
 
-    const content = typeof msg.content === "string" ? msg.content : "";
+    const content = getHistoryTextContent(msg.content);
     const lastItem = restoredItems[restoredItems.length - 1];
     const toolName = toolNameMap.get(msg.tool_call_id || "") || "unknown";
 
@@ -298,7 +304,12 @@ export function restoreChatItemsFromHistory(
         toolCallId: msg.tool_call_id,
         toolName,
       };
-      lastItem.segments = [...(lastItem.segments || []), toolOutputSeg];
+      // 不可变更新：替换数组中的对象而非直接修改
+      const lastIdx = restoredItems.length - 1;
+      restoredItems[lastIdx] = {
+        ...lastItem,
+        segments: [...(lastItem.segments || []), toolOutputSeg],
+      };
       return;
     }
 

@@ -448,6 +448,13 @@ async def list_workspaces(
         return val.default if hasattr(val, "default") else val
 
     service = get_workspace_registry_service()
+    # 先获取总数（不带分页限制），再获取分页数据
+    all_workspaces = service.list_workspaces(
+        current_user.user_id,
+        include_conversations=False,
+        summary_only=True,
+    )
+    total_count = len(all_workspaces)
     workspaces = service.list_workspaces(
         current_user.user_id,
         include_conversations=False,
@@ -455,7 +462,7 @@ async def list_workspaces(
         limit=_unwrap_query(limit),
         offset=_unwrap_query(offset),
     )
-    return WorkspaceListResponse(workspaces=workspaces, total=len(workspaces))
+    return WorkspaceListResponse(workspaces=workspaces, total=total_count)
 
 
 @router.post("", response_model=WorkspaceDetailResponse)

@@ -441,7 +441,7 @@ function CompactSessionSelector({
   return (
     <div className="mb-3 rounded-md border border-border">
       <div className="flex items-center gap-1.5 px-3 py-2 text-xs text-muted-foreground border-b border-border bg-muted/20">
-        <GitBranch className="h-3.5 w-3.5" /> 选择会话
+        <GitBranch className="h-3.5 w-3.5" /> 绑定会话
       </div>
       <Select value={sessionId || ""} onValueChange={onSelectSession}>
         <SelectTrigger className="border-0 rounded-none bg-transparent h-9 text-sm focus:ring-0">

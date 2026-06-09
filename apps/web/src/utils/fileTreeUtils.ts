@@ -105,6 +105,10 @@ export function buildFileTree(files: WorkspaceFile[]): FileTreeNode[] {
     // 统一路径分隔符：将 Windows 反斜杠转换为标准斜杠
     const normalizedPath = file.name.replace(/\\/g, "/");
     const parts = normalizedPath.split("/").filter(Boolean);
+    
+    // 跳过系统目录 .aiasys 下的文件
+    if (parts[0] === ".aiasys") continue;
+    
     const absolutePath = file.absolute_path ?? undefined;
     if (absolutePath && parts.length > 1) {
       const absoluteParts = absolutePath.replace(/\\/g, "/").split("/");

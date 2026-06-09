@@ -12,6 +12,17 @@ import type {
   RuntimeControlsState,
 } from "../types";
 
+function navigateToHome() {
+  const withAppNavigate = window as Window & {
+    appNavigate?: (path: string, options?: { replace?: boolean }) => void;
+  };
+  if (withAppNavigate.appNavigate) {
+    withAppNavigate.appNavigate("/", { replace: true });
+  } else {
+    window.location.replace("/");
+  }
+}
+
 function getPreferredWorkspaceSessionId(
   workspace: TaskWorkspaceSummary | undefined,
 ): string | null {
@@ -283,7 +294,7 @@ export function useWorkspaceLifecycleActions({
               silent: true,
             });
           } else {
-            runtimeControls.openNewWorkspaceDialog();
+            navigateToHome();
           }
         }
       } catch (error) {
@@ -301,7 +312,6 @@ export function useWorkspaceLifecycleActions({
     executor,
     leaveProjectWorkspace,
     loadWorkspaces,
-    runtimeControls,
     workspacePendingDeletion,
     workspaces,
   ]);
@@ -346,7 +356,7 @@ export function useWorkspaceLifecycleActions({
           return;
         }
 
-        runtimeControls.openNewWorkspaceDialog();
+        navigateToHome();
       } catch (error) {
         const message =
           error instanceof Error ? error.message : "批量删除工作区失败";
@@ -356,7 +366,7 @@ export function useWorkspaceLifecycleActions({
         setIsDeletingWorkspace(false);
       }
     })();
-  }, [apiBaseUrl, bulkDeletePendingIds, executor, loadWorkspaces, runtimeControls, workspaces]);
+  }, [apiBaseUrl, bulkDeletePendingIds, executor, loadWorkspaces, workspaces]);
 
   const handleForkConversation = useCallback(
     (sourceConversationId: string) => {

@@ -505,7 +505,7 @@ export function InputArea({
               </Tooltip>
             ) : null}
 
-            {sessionId && onCompactConversation ? (
+            {sessionId && onCompactConversation && hasMessages ? (
               <Tooltip>
                 <TooltipTrigger asChild>
                   <button
