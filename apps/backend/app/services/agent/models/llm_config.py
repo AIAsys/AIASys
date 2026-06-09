@@ -29,6 +29,19 @@ class LoopControl(BaseModel):
         description="保留窗口内 tool 消息超过此长度则截断（0 表示不截断）",
         ge=0,
     )
+    keep_tool_context_turns: int = Field(
+        default=2,
+        description="保留最近 N 轮 user/assistant 轮次内的完整 tool 结果，更旧的 tool 结果在 pre-turn 阶段被清零",
+        ge=0,
+    )
+    enable_pre_turn_clearing: bool = Field(
+        default=True,
+        description="是否开启每次 LLM 调用前的 tool 结果清零（Tier 1 零成本压缩）",
+    )
+    enable_compaction_verification: bool = Field(
+        default=False,
+        description="是否在 LLM 摘要后运行轻量级验证 probe",
+    )
 
 
 class LlmProviderConfig(BaseModel):

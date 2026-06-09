@@ -64,6 +64,8 @@ class SessionStreamMixin:
     """提供 prompt() ReAct 流式循环，作为 mixin 混入 AiasysRuntimeSession。"""
 
     def _prepare_messages_for_current_model(self) -> list[dict[str, Any]]:
+        # Tier 1: 每次 LLM 调用前执行零成本 tool 结果清理
+        self._run_pre_turn_clearing()
         messages = self._messages_for_model()
         capabilities = normalize_capabilities(
             read_config_value(getattr(self, "_model_config", None), "capabilities")

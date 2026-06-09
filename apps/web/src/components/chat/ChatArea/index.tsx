@@ -158,7 +158,7 @@ function ChatAreaRoot({
       programmaticScrollTimerRef.current = window.setTimeout(() => {
         isProgrammaticScrollRef.current = false;
         programmaticScrollTimerRef.current = null;
-      }, behavior === "smooth" ? 450 : 0);
+      }, behavior === "smooth" ? 450 : 50);
 
       if (behavior === "smooth") {
         messagesEndRef?.current?.scrollIntoView({

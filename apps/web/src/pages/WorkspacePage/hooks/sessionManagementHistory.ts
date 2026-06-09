@@ -189,6 +189,18 @@ function mergeAssistantMessages(messages: HistoryMessage[]): HistoryMessage[] {
         if (msg.tool_calls) {
           lastMsg.tool_calls = [...(lastMsg.tool_calls || []), ...msg.tool_calls];
         }
+        // 合并 reasoning_content，避免思考内容丢失
+        const nextReasoning =
+          typeof msg.reasoning_content === "string" ? msg.reasoning_content.trim() : "";
+        if (nextReasoning) {
+          const existingReasoning =
+            typeof lastMsg.reasoning_content === "string"
+              ? lastMsg.reasoning_content.trim()
+              : "";
+          lastMsg.reasoning_content = existingReasoning
+            ? `${existingReasoning}\n${nextReasoning}`
+            : nextReasoning;
+        }
         continue;
       }
     }

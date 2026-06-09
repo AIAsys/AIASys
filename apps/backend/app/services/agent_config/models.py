@@ -119,6 +119,15 @@ class LoopControlOverrides(BaseModel):
         le=0.99,
         description="自动压缩触发比例",
     )
+    keep_tool_context_turns: Optional[int] = Field(
+        None,
+        ge=0,
+        description="保留最近 N 轮完整 tool 结果",
+    )
+    enable_pre_turn_clearing: Optional[bool] = Field(
+        None,
+        description="是否开启每次 LLM 调用前的 tool 结果清零",
+    )
 
     def has_values(self) -> bool:
         return any(
@@ -126,6 +135,8 @@ class LoopControlOverrides(BaseModel):
             for value in (
                 self.reserved_context_size,
                 self.compaction_trigger_ratio,
+                self.keep_tool_context_turns,
+                self.enable_pre_turn_clearing,
             )
         )
 
@@ -135,6 +146,10 @@ class LoopControlOverrides(BaseModel):
             payload["reserved_context_size"] = self.reserved_context_size
         if self.compaction_trigger_ratio is not None:
             payload["compaction_trigger_ratio"] = self.compaction_trigger_ratio
+        if self.keep_tool_context_turns is not None:
+            payload["keep_tool_context_turns"] = self.keep_tool_context_turns
+        if self.enable_pre_turn_clearing is not None:
+            payload["enable_pre_turn_clearing"] = self.enable_pre_turn_clearing
         return LoopControl(**payload)
 
 
@@ -148,12 +163,23 @@ class ResolvedLoopControlConfig(BaseModel):
         le=0.99,
         description="自动压缩触发比例",
     )
+    keep_tool_context_turns: int = Field(
+        default=2,
+        ge=0,
+        description="保留最近 N 轮完整 tool 结果",
+    )
+    enable_pre_turn_clearing: bool = Field(
+        default=True,
+        description="是否开启每次 LLM 调用前的 tool 结果清零",
+    )
 
     @classmethod
     def from_loop_control(cls, loop_control: LoopControl) -> "ResolvedLoopControlConfig":
         return cls(
             reserved_context_size=loop_control.reserved_context_size,
             compaction_trigger_ratio=loop_control.compaction_trigger_ratio,
+            keep_tool_context_turns=loop_control.keep_tool_context_turns,
+            enable_pre_turn_clearing=loop_control.enable_pre_turn_clearing,
         )
 
 

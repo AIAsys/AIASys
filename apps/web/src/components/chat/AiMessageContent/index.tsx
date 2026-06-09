@@ -292,7 +292,7 @@ export const AiMessageContent = memo(function AiMessageContent({
         return (
           <div
             key={`seg-text-${idx}`}
-            className="prose prose-sm max-w-none min-w-0 break-all"
+            className={`prose prose-sm max-w-none min-w-0 break-all ${seg.isError ? "rounded-md border border-red-200 bg-red-50/50 px-3 py-2" : ""}`}
           >
             <ChartAwareMarkdown
               content={processedContent}
@@ -447,8 +447,8 @@ export const AiMessageContent = memo(function AiMessageContent({
         {/* 终止状态提示 */}
         {isStopped && <StoppedIndicator />}
 
-        {/* 纯文本内容（没有 text segments 时渲染 content 作为后备） */}
-        {content && texts.length === 0 && (
+        {/* 纯文本内容（没有任何 segments 时渲染 content 作为后备，兼容旧数据） */}
+        {content && (!segments || segments.length === 0) && (
           <div className="prose prose-sm max-w-none min-w-0 break-all">
             <ChartAwareMarkdown
               content={content}
