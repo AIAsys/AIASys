@@ -267,3 +267,14 @@ def test_wrap_user_prompt_keeps_source_in_user_task_text() -> None:
 
     assert "[MESSAGE_SOURCE]" not in wrapped
     assert unwrap_user_prompt(wrapped) == "请处理这个请求\n\n（来自微信）"
+
+
+def test_wrap_user_prompt_contract_does_not_force_review_requests_to_execute() -> None:
+    prompt = "你看看这个系统提示词设计怎么样？"
+
+    wrapped = wrap_user_prompt(prompt)
+
+    assert "审查、咨询、评估或复盘请求" in wrapped
+    assert "不要默认写文件、安装 Skill、启用运行环境、更新配置或启动长任务" in wrapped
+    assert "否则直接执行" not in wrapped
+    assert unwrap_user_prompt(wrapped) == prompt
