@@ -628,6 +628,16 @@ export function useCodeExecutor({
     shouldAutoSyncVisibleSessionArtifacts,
   ]);
 
+  const handleRemoveFile = useCallback(
+    async (filePath?: string) => {
+      if (!filePath) return;
+      const currentSessionId = sessionOrchestrator.sessionId;
+      const currentWorkspaceId = workspaceId ?? workspaceIdRef?.current;
+      await removeFile(filePath, currentSessionId, currentWorkspaceId);
+    },
+    [removeFile, sessionOrchestrator.sessionId, workspaceId, workspaceIdRef],
+  );
+
   return {
     ...uiState,
     toasts,
@@ -664,7 +674,7 @@ export function useCodeExecutor({
       unregisterHiddenSession(id);
     },
     uploadedFiles,
-    removeFile,
+    removeFile: handleRemoveFile,
     handleUploadFiles,
     handleFileChange,
     handleAddFileClick,

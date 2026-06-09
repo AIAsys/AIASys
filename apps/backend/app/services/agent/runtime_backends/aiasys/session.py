@@ -75,10 +75,7 @@ class AiasysRuntimeSession(
         self._mcp_clients: list[Any] = list(mcp_clients or [])
         self.messages: list[InternalMessage] = []
         self._context_messages: list[InternalMessage] = []
-        # [设计预留-审批机制] 已启用 CapabilityConfirmationManager。
-        # 旧 _approved_tool_call_ids 机制废弃，统一走 manager。
         self._confirmation_manager = CapabilityConfirmationManager()
-        self._approved_tool_call_ids: set[str] = set()
         self._consecutive_tool_counts: dict[str, int] = {}
         self._previous_tool_args: dict[str, str] = {}
         self._estimated_token_count: int = 0

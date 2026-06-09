@@ -203,6 +203,20 @@ def wrap_subagent_event(
             parent_tool_call_id=parent_tool_call_id,
         )
 
+    if kind == "capability_confirmation":
+        return AgentRuntimeEvent(
+            kind="subagent_capability_confirmation",
+            tool_call_id=sub_event.tool_call_id,
+            tool_name=sub_event.tool_name,
+            arguments=sub_event.arguments,
+            content=sub_event.content,
+            task_tool_call_id=parent_tool_call_id,
+            parent_tool_call_id=parent_tool_call_id,
+            agent_id=sub_event.agent_id,
+            subagent_type=sub_event.subagent_type,
+            subagent_name=sub_event.subagent_name,
+        )
+
     # 其他类型透传为 data
     return AgentRuntimeEvent(
         kind="data",

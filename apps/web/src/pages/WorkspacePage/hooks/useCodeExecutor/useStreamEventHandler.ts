@@ -505,6 +505,36 @@ export function useStreamEventHandler({
       onAskUserRequestRef.current?.(event.request, sessionId);
     }
 
+    // Type: Capability Confirmation (运行时审批)
+    if (
+      (eventType === "capability_confirmation" || eventType === "subagent_capability_confirmation")
+      && "tool_call_id" in event
+    ) {
+      const isSubagent = eventType === "subagent_capability_confirmation";
+      updateChatItems(sessionId, (prev: ChatItem[]) => {
+        // 避免重复添加同 tool_call_id
+        if (prev.some((item) => item.type === "capability_confirmation" && item.id === event.tool_call_id)) {
+          return prev;
+        }
+        return [
+          ...prev,
+          {
+            type: "capability_confirmation" as const,
+            id: event.tool_call_id,
+            tool_name: event.tool_name || "未知工具",
+            arguments: (event.arguments || {}) as Record<string, unknown>,
+            prompt: event.content || `是否允许执行工具 ${event.tool_name || ""}？`,
+            session_id: sessionId,
+            status: "pending",
+            subagent_name: isSubagent ? (event as any).subagent_name : undefined,
+            agent_id: isSubagent ? (event as any).agent_id : undefined,
+            pattern_key: (event as any).pattern_key,
+            timestamp: new Date(),
+          },
+        ];
+      });
+    }
+
     // Type: Budget Limited
     if (eventType === "budget_limited" && "text" in event) {
       updateChatItems(sessionId, (prev: ChatItem[]) => [

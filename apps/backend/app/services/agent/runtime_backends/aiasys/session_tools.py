@@ -58,6 +58,8 @@ class SessionToolsMixin:
             "collaboration_policy": self._spec.collaboration_policy,
             "allowed_create_subagent_scopes": ["workspace"],
             "budget": self.budget,
+            "authorization_mode": self._spec.authorization_mode,
+            "yolo": self._spec.yolo,
         }
 
     def _is_plan_mode_active(self) -> bool:

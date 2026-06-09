@@ -97,7 +97,7 @@ export interface UseCodeExecutorReturn {
   /** 仅清理前端 per-session 缓存（chat/upload/multi-task），不调后端删除 API */
   removeSessionFrontendState: (sid: string) => void;
   uploadedFiles: UploadedFile[];
-  removeFile: (filename: string) => void;
+  removeFile: (filePath?: string) => void;
   handleUploadFiles: (files: File[] | FileList) => Promise<void>;
   handleFileChange: (e: React.ChangeEvent<HTMLInputElement>) => Promise<void>;
   handleAddFileClick: () => void;
