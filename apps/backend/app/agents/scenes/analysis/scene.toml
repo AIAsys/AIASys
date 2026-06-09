@@ -12,6 +12,6 @@ permissions_summary = ["notebook_read", "workspace_view", "knowledge", "memory",
 
 [subagent_roles]
 data_analyst = { display_name = "数据分析专家", description = "擅长数据分析、代码实验、notebook 操作、数据可视化与数据库查询" }
-coder = { display_name = "代码专家", description = "擅长代码分析、实现方案梳理与修改建议输出" }
+coder = { display_name = "代码专家", description = "擅长在主控授权范围内进行代码实现、调试与构建测试" }
 researcher = { display_name = "研究专家", description = "擅长资料检索、文档阅读与证据归纳" }
 reviewer = { display_name = "审查专家", description = "擅长结果核对、差异比对与风险归纳" }

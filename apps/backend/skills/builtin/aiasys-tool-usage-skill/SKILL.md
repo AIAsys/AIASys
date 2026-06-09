@@ -29,12 +29,12 @@ description = "AIASys 内置工具使用指南。提供当前 Agent 可用工具
 - 不要用 WriteFile 或 StrReplaceFile 修改 `.canvas` 文件，增删改节点和边请用 `BatchCanvasOperations`
 
 ### 环境变量
-- `ListEnvVars`：列出当前工作区环境变量名
+- `ListEnvVars`：列出当前工作区环境变量名（只返回工作区变量，不含系统变量，输出更干净）
 - `GetEnvVar`：读取某个环境变量的值（敏感变量自动脱敏）
 - `SetEnvVar`：设置/修改工作区环境变量（持久化，跨会话可用）
 - `DeleteEnvVar`：删除工作区环境变量（永久删除，跨会话生效）
 
-约束：不要用 Shell 的 `echo $VAR`、`env`、`export`、`unset` 来管理环境变量，这些只在当前进程生效。
+**禁止用 Shell 替代环境变量操作**：`echo $VAR`、`env`、`export`、`unset` 只在当前进程生效，且 `env` 会输出大量系统变量干扰判断。Windows 上 `env` 不可用，环境变量工具是跨平台的唯一正确入口。
 
 ### Notebook
 - `ManageNotebook`：创建、读取、执行、编辑 notebook（统一入口）
