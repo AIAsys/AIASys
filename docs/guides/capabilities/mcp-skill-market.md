@@ -106,16 +106,24 @@ Skill 采用全局源仓库 + 工作区副本的两层架构：
 | Skill | 说明 |
 |-------|------|
 | aiasys-platform-skill | 平台操作与运行环境管理 |
+| aiasys-tool-usage-skill | Agent 工具选择与使用指南 |
+| aiasys-markdown-output-guide-skill | 前端特殊 Markdown 输出规范 |
+| aiasys-hosting-guide-skill | 托管控制与托管用户指令规范 |
+| aiasys-notebook-first-skill | Notebook-first 数据分析工作流 |
+| aiasys-data-viz-guide-skill | ECharts、CSV 和图片展示规范 |
+| aiasys-data-tools-guide-skill | 数据库、知识库、知识图谱、多维表和 Canvas 工具指南 |
 | competition-research-skill | 竞赛场景完整工作流（文献检索、论文摄入、实验循环） |
 | competition-parallel-research-skill | 竞赛并行研究执行 |
 | competition-runtime-prep-skill | 竞赛运行环境准备 |
 | skill-creator-skill | Skill 开发工作台（结构、测试、打包、部署） |
+| extension-management-skill | MCP、Skill 和协作专家扩展管理 |
 | arxiv-search-skill | arXiv 论文搜索与下载 |
 | pdf-translate-skill | PDF 保版式翻译 |
 | pymupdf4llm-pdf-to-markdown-skill | PDF 转 Markdown 供 Agent 阅读 |
 | paddleocr-skill | PaddleOCR 文档提取 |
 | aiasys-canvas-skill | AIASys Canvas 对象编辑 |
 | aiasys-memory-organizer-skill | Memory 整理与 consolidation |
+| tabular-data-preview-skill | Excel、CSV 等表格文件结构化预览 |
 | uv-runtime-skill | 当前工作区 UV/Python 运行环境管理 |
 
 ## 访问入口
@@ -130,8 +138,10 @@ Skill 采用全局源仓库 + 工作区副本的两层架构：
 Agent 具备自主管理 MCP 和 Skill 的能力。Agent 可以：
 
 - 搜索市场中的 Skill，根据任务需要推荐安装
-- 安装和配置 Skill
+- 按当前授权模式安装和配置 Skill：manual 模式需逐条确认；smart 模式下内置低风险 Skill 可自动放行，外部来源或含脚本 Skill 仍需确认；auto/full_auto 模式在硬安全边界内自动执行
 - 添加和测试 MCP Server 连接
 - 在会话中启用或禁用 MCP Server
+
+搜索结果只是候选，不会自动变成安装动作。审查、咨询、评估和复盘类请求中，Agent 只会列出候选和推荐理由，不会因为搜到了 Skill 就直接安装。
 
 Agent 的所有管理操作都会记录在执行流中，用户可以随时查看和撤销。
