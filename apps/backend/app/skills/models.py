@@ -8,6 +8,24 @@ from typing import Any, Optional
 from pydantic import BaseModel, ConfigDict, Field
 
 
+class SkillSecurityInfo(BaseModel):
+    """Skill 安全元数据。
+
+    可由 SKILL.md frontmatter [security] 显式声明，也可由后端保守扫描自动推断。
+    """
+
+    source_trust: str = Field(default="external", description="builtin | curated | external | local")
+    risk_level: str = Field(default="medium", description="low | medium | high | critical")
+    has_scripts: bool = Field(default=False, description="是否包含可执行脚本")
+    requires_env: bool = Field(default=False, description="是否需要环境变量")
+    writes_workspace: bool = Field(default=False, description="是否会写工作区文件")
+    writes_global: bool = Field(default=False, description="是否会写全局工作区")
+    uses_shell: bool = Field(default=False, description="是否会调用 Shell")
+    uses_network: bool = Field(default=False, description="是否使用网络")
+    installs_dependencies: bool = Field(default=False, description="是否会安装外部依赖")
+    adds_tools: list[str] = Field(default_factory=list, description="新增工具列表")
+
+
 class SkillInfo(BaseModel):
     """Skill 包信息。"""
 
@@ -20,6 +38,9 @@ class SkillInfo(BaseModel):
     entry_relative_path: str = Field(description="入口文件相对包根目录的路径")
     env_fields: list[dict[str, Any]] = Field(
         default_factory=list, description="环境变量字段定义列表"
+    )
+    security: SkillSecurityInfo = Field(
+        default_factory=SkillSecurityInfo, description="安全元数据"
     )
 
     model_config = ConfigDict(arbitrary_types_allowed=True)

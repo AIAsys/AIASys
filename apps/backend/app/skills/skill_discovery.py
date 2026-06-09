@@ -13,7 +13,7 @@ import zipfile
 from pathlib import Path
 from typing import Any, Optional
 
-from .models import SkillInfo
+from .models import SkillInfo, SkillSecurityInfo
 
 logger = logging.getLogger(__name__)
 
@@ -47,6 +47,75 @@ def _find_entry_file(package_dir: Path) -> Optional[Path]:
     return candidates[0] if candidates else None
 
 
+# 脚本/可执行文件后缀
+_SCRIPT_EXTENSIONS = {".py", ".sh", ".bash", ".zsh", ".js", ".ts", ".rb", ".pl"}
+# 依赖声明文件
+_DEPENDENCY_FILES = {"requirements.txt", "package.json", "pyproject.toml", "setup.py", "Cargo.toml", "Gemfile"}
+# Skill 内容中暗示高风险工具调用的关键词
+_HIGH_RISK_TOOL_KEYWORDS = ["Shell", "WriteFile", "StrReplaceFile", "CreateFile", "RuntimeEnvironment", "InstallMCPServer"]
+
+
+def _infer_skill_security(
+    package_dir: Path,
+    base: "SkillSecurityInfo",
+    source: str,
+) -> "SkillSecurityInfo":
+    """通过目录扫描保守推断 Skill 安全风险。
+
+    当 frontmatter 没有显式声明 [security] 时调用。
+    """
+    import copy
+
+    sec = copy.copy(base)
+    sec.source_trust = "builtin" if source == "builtin" else "external"
+
+    has_scripts_dir = False
+    has_script_files = False
+    has_deps = False
+    mentions_high_risk_tools = False
+
+    # 扫描目录结构
+    for item in package_dir.rglob("*"):
+        rel = item.relative_to(package_dir)
+        # 跳过版本目录
+        if rel.parts and rel.parts[0] == VERSIONS_DIR_NAME:
+            continue
+
+        if item.is_dir() and rel.name == "scripts":
+            has_scripts_dir = True
+        if item.is_file():
+            if item.suffix in _SCRIPT_EXTENSIONS:
+                has_script_files = True
+            if item.name in _DEPENDENCY_FILES:
+                has_deps = True
+
+    # 扫描 SKILL.md 内容中是否暗示调用高风险工具
+    entry = _find_entry_file(package_dir)
+    if entry is not None:
+        try:
+            text = entry.read_text(encoding="utf-8")
+            for kw in _HIGH_RISK_TOOL_KEYWORDS:
+                if kw in text:
+                    mentions_high_risk_tools = True
+                    break
+        except Exception:
+            pass
+
+    sec.has_scripts = has_scripts_dir or has_script_files
+    sec.installs_dependencies = has_deps
+    sec.uses_shell = mentions_high_risk_tools
+
+    # 保守风险定级
+    if sec.has_scripts or sec.installs_dependencies or sec.uses_shell:
+        sec.risk_level = "high"
+    elif sec.requires_env:
+        sec.risk_level = "medium"
+    else:
+        sec.risk_level = "low"
+
+    return sec
+
+
 def _parse_skill_info(package_dir: Path, *, source: str) -> Optional[SkillInfo]:
     """解析技能包目录，提取 SkillInfo。"""
     if not package_dir.exists() or not package_dir.is_dir():
@@ -65,6 +134,7 @@ def _parse_skill_info(package_dir: Path, *, source: str) -> Optional[SkillInfo]:
     display_name = package_dir.name
     description = ""
     env_fields: list[dict[str, Any]] = []
+    security = SkillSecurityInfo()
     if content.startswith("+++"):
         parts = content.split("+++", 2)
         if len(parts) >= 3:
@@ -93,6 +163,20 @@ def _parse_skill_info(package_dir: Path, *, source: str) -> Optional[SkillInfo]:
                             for item in raw_env
                             if isinstance(item, dict) and item.get("name")
                         ]
+                    raw_sec = fm.get("security")
+                    if isinstance(raw_sec, dict):
+                        security = SkillSecurityInfo(
+                            source_trust=str(raw_sec.get("source_trust", security.source_trust)),
+                            risk_level=str(raw_sec.get("risk_level", security.risk_level)),
+                            has_scripts=bool(raw_sec.get("has_scripts", security.has_scripts)),
+                            requires_env=bool(raw_sec.get("requires_env", security.requires_env)),
+                            writes_workspace=bool(raw_sec.get("writes_workspace", security.writes_workspace)),
+                            writes_global=bool(raw_sec.get("writes_global", security.writes_global)),
+                            uses_shell=bool(raw_sec.get("uses_shell", security.uses_shell)),
+                            uses_network=bool(raw_sec.get("uses_network", security.uses_network)),
+                            installs_dependencies=bool(raw_sec.get("installs_dependencies", security.installs_dependencies)),
+                            adds_tools=[str(t) for t in raw_sec.get("adds_tools", []) if t],
+                        )
             except Exception:
                 logger.warning(
                     "Failed to parse skill front matter for %s: %s",
@@ -112,6 +196,21 @@ def _parse_skill_info(package_dir: Path, *, source: str) -> Optional[SkillInfo]:
                 description = stripped[:120]
                 break
 
+    # 保守扫描：如果 frontmatter 没有显式声明 security，自动推断
+    if security.risk_level == "medium" and not any(
+        [
+            security.has_scripts,
+            security.requires_env,
+            security.writes_workspace,
+            security.writes_global,
+            security.uses_shell,
+            security.uses_network,
+            security.installs_dependencies,
+            security.adds_tools,
+        ]
+    ):
+        security = _infer_skill_security(package_dir, security, source)
+
     return SkillInfo(
         name=package_dir.name,
         display_name=display_name,
@@ -121,6 +220,7 @@ def _parse_skill_info(package_dir: Path, *, source: str) -> Optional[SkillInfo]:
         entry_path=entry_path,
         entry_relative_path=entry_path.relative_to(package_dir).as_posix(),
         env_fields=env_fields,
+        security=security,
     )
 
 
