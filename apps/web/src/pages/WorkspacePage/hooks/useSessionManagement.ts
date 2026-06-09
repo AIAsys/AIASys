@@ -35,6 +35,7 @@ export function useSessionManagement({
   const isLoadingRef = useRef(false);
   const conversationsRef = useRef<Conversation[]>([]);
   conversationsRef.current = conversations;
+  const lastUpdatedTitleRef = useRef<Map<string, string>>(new Map());
 
   const loadConversations = useCallback(async () => {
     if (isLoadingRef.current) {
@@ -244,7 +245,13 @@ export function useSessionManagement({
       return [newSession, ...prev];
     });
 
-    // 异步更新后端标题
+    // 异步更新后端标题，相同标题在短周期内不重复发请求
+    const lastTitle = lastUpdatedTitleRef.current.get(sessionId);
+    if (lastTitle === title) {
+      return;
+    }
+    lastUpdatedTitleRef.current.set(sessionId, title);
+
     try {
       const userId = getCurrentUserId();
       await apiRequest(
@@ -257,6 +264,8 @@ export function useSessionManagement({
       emitWorkspaceListRefreshEvent();
     } catch (error) {
       console.error("Failed to update session title on backend:", error);
+      // 请求失败时清除缓存，允许下次重试
+      lastUpdatedTitleRef.current.delete(sessionId);
     }
   }, [apiBaseUrl]);
 

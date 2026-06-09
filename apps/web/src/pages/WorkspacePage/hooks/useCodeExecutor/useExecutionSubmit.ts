@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useRef } from "react";
 import type { ChatItem, ChatSegment } from "../../types";
 import { useStreamEventHandler } from "./useStreamEventHandler";
 import { refreshWorkspaceFiles } from "./workspaceFiles";
@@ -123,6 +123,8 @@ export function useExecutionSubmit(props: UseExecutionSubmitProps) {
     onTokenUsageShouldRefresh,
   } = props;
 
+  const isSubmittingRef = useRef(false);
+
   const { handleStreamEvent } = useStreamEventHandler({
     getSessionSlot,
     updateChatItems,
@@ -140,7 +142,8 @@ export function useExecutionSubmit(props: UseExecutionSubmitProps) {
     const effectiveInput = (overridePrompt ?? inputValue).trim();
     // 使用最新的 sessionId，避免闭包中 sessionId 过时
     const latestSessionId = activeSessionIdRef.current || sessionId;
-    if (!effectiveInput || isSessionRunning(latestSessionId)) return;
+    if (!effectiveInput || isSessionRunning(latestSessionId) || isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
 
     const userContent = effectiveInput;
     const attachmentPaths =
@@ -211,91 +214,98 @@ export function useExecutionSubmit(props: UseExecutionSubmitProps) {
         onEvent: (event) => handleStreamEvent(currentSessionId, event),
         onFinish: async () => {
           const finishSlot = getSessionSlot(currentSessionId);
-          if (finishSlot.flushTimer) {
-            clearTimeout(finishSlot.flushTimer);
-            finishSlot.flushTimer = null;
-          }
+          let msgId: string | null = null;
 
-          finishSlot.streamingSegments = finishSlot.streamingSegments.map(
-            (seg) =>
-              seg.type === "think" ? { ...seg, isComplete: true } : seg,
-          );
-
-          // 流结束时按类型排序，确保 think 始终在 text 前面
-          // 每个类型必须有唯一 order，避免 sort 不稳定导致顺序随机
-          const SEGMENT_ORDER: Record<string, number> = {
-            turn: 0,
-            think: 1,
-            tool_call: 2,
-            tool_output: 3,
-            text: 4,
-            monitor: 5,
-          };
-          finishSlot.streamingSegments.sort((a, b) => {
-            const orderA = SEGMENT_ORDER[a.type] ?? 99;
-            const orderB = SEGMENT_ORDER[b.type] ?? 99;
-            return orderA - orderB;
-          });
-
-          const finalSegments = [...finishSlot.streamingSegments];
-          const msgId = finishSlot.streamingMessageId;
-
-          updateChatItems(currentSessionId, (prev: ChatItem[]) => {
-            const aiMsgIdx = msgId
-              ? prev.findIndex((item) => item.id === msgId)
-              : prev.findIndex(
-                  (item) => item.type === "message" && item.sender === "ai" && item.isStreaming,
-                );
-            if (aiMsgIdx === -1) return prev;
-            const newItems = [...prev];
-            const target = newItems[aiMsgIdx];
-            if (target.type === "message") {
-              newItems[aiMsgIdx] = { ...target, segments: finalSegments, isStreaming: false };
+          try {
+            if (finishSlot.flushTimer) {
+              clearTimeout(finishSlot.flushTimer);
+              finishSlot.flushTimer = null;
             }
-            return newItems;
-          });
 
-          finishSlot.streamingSegments = [];
-          finishSlot.streamingMessageId = null;
-          completeHost();
-
-          // 通知执行树做最终刷新
-          eventBus.emit(EVENTS.EXECUTION_ACTIVITY, {
-            session_id: currentSessionId,
-            type: "stream_end",
-          });
-
-          // 只对当前活跃 session 执行 React setState 操作
-          // 后台 session 的任务状态由 addStreamEventsForSession 中的 hasEndEvent 管理
-          const isActive = currentSessionId === activeSessionIdRef.current;
-          if (isActive) {
-            completeAllTasks();
-          }
-
-          // 只对活跃 session 刷新工作区文件到 React state
-          // 后台 session 的文件在切回时通过 switchSession 加载
-          if (isActive) {
-            await refreshWorkspaceFiles(
-              reloadWorkspaceFiles,
-              updateWorkspaceFilesForSession,
-              currentSessionId,
-              executionWorkspaceId,
-              undefined,
-              { force: true },
+            finishSlot.streamingSegments = finishSlot.streamingSegments.map(
+              (seg) =>
+                seg.type === "think" ? { ...seg, isComplete: true } : seg,
             );
-          }
-          await syncExecutionHistory("host", currentSessionId);
-          onTokenUsageShouldRefresh?.();
 
-          const titleFromContent =
-            userContent.slice(0, 30) + (userContent.length > 30 ? "..." : "");
-          updateSessionTitle(currentSessionId, titleFromContent);
-          await loadConversations();
+            // 流结束时按类型排序，确保 think 始终在 text 前面
+            // 每个类型必须有唯一 order，避免 sort 不稳定导致顺序随机
+            const SEGMENT_ORDER: Record<string, number> = {
+              turn: 0,
+              think: 1,
+              tool_call: 2,
+              tool_output: 3,
+              text: 4,
+              monitor: 5,
+            };
+            finishSlot.streamingSegments.sort((a, b) => {
+              const orderA = SEGMENT_ORDER[a.type] ?? 99;
+              const orderB = SEGMENT_ORDER[b.type] ?? 99;
+              return orderA - orderB;
+            });
 
-          // 后台 session 完成时显示 toast
-          // 用 activeSessionIdRef（始终最新）判断，而非闭包中的 sessionId
-          if (!isActive) {
-            showSuccess(`监控任务 "${titleFromContent}" 已完成`);
+            const finalSegments = [...finishSlot.streamingSegments];
+            msgId = finishSlot.streamingMessageId;
+
+            updateChatItems(currentSessionId, (prev: ChatItem[]) => {
+              const aiMsgIdx = msgId
+                ? prev.findIndex((item) => item.id === msgId)
+                : prev.findIndex(
+                    (item) => item.type === "message" && item.sender === "ai" && item.isStreaming,
+                  );
+              if (aiMsgIdx === -1) return prev;
+              const newItems = [...prev];
+              const target = newItems[aiMsgIdx];
+              if (target.type === "message") {
+                newItems[aiMsgIdx] = { ...target, segments: finalSegments, isStreaming: false };
+              }
+              return newItems;
+            });
+
+            // 通知执行树做最终刷新
+            eventBus.emit(EVENTS.EXECUTION_ACTIVITY, {
+              session_id: currentSessionId,
+              type: "stream_end",
+            });
+
+            // 只对当前活跃 session 执行 React setState 操作
+            // 后台 session 的任务状态由 addStreamEventsForSession 中的 hasEndEvent 管理
+            const isActive = currentSessionId === activeSessionIdRef.current;
+            if (isActive) {
+              completeAllTasks();
+            }
+
+            // 只对活跃 session 刷新工作区文件到 React state
+            // 后台 session 的文件在切回时通过 switchSession 加载
+            if (isActive) {
+              await refreshWorkspaceFiles(
+                reloadWorkspaceFiles,
+                updateWorkspaceFilesForSession,
+                currentSessionId,
+                executionWorkspaceId,
+                undefined,
+                { force: true },
+              );
+            }
+            await syncExecutionHistory("host", currentSessionId);
+            onTokenUsageShouldRefresh?.();
+
+            const titleFromContent =
+              userContent.slice(0, 30) + (userContent.length > 30 ? "..." : "");
+            updateSessionTitle(currentSessionId, titleFromContent);
+            await loadConversations();
+
+            // 后台 session 完成时显示 toast
+            // 用 activeSessionIdRef（始终最新）判断，而非闭包中的 sessionId
+            if (!isActive) {
+              showSuccess(`监控任务 "${titleFromContent}" 已完成`);
+            }
+          } catch (finishErr) {
+            console.error("[useExecutionSubmit onFinish] 流结束处理失败:", finishErr);
+          } finally {
+            // 无论成功失败，slot 必须清理，避免泄漏
+            finishSlot.streamingSegments = [];
+            finishSlot.streamingMessageId = null;
+            completeHost();
           }
         },
         onError: (err: string) => {
@@ -306,6 +316,11 @@ export function useExecutionSubmit(props: UseExecutionSubmitProps) {
             clearTimeout(errorSlot.flushTimer);
             errorSlot.flushTimer = null;
           }
+
+          // 先关闭未完成的 think，再读取 msgId
+          errorSlot.streamingSegments = errorSlot.streamingSegments.map(
+            (seg) => seg.type === "think" ? { ...seg, isComplete: true } : seg,
+          );
 
           // 先读取 msgId，再清空（修复读取顺序 bug）
           const msgId = errorSlot.streamingMessageId;
@@ -362,6 +377,7 @@ export function useExecutionSubmit(props: UseExecutionSubmitProps) {
       attachmentPaths,
       executionWorkspaceId,
     );
+    isSubmittingRef.current = false;
   }, [
     inputValue,
     selectedModelId,
@@ -396,6 +412,7 @@ export function useExecutionSubmit(props: UseExecutionSubmitProps) {
     const latestSessionId = activeSessionIdRef.current || sessionId;
 
     // 1. 先调用后端 API 真正停止会话
+    let stopApiOk = false;
     try {
       await apiRequest<{ success?: boolean; message?: string }>(
         `${apiBaseUrl}/api/agent/stop`,
@@ -406,6 +423,7 @@ export function useExecutionSubmit(props: UseExecutionSubmitProps) {
           },
         },
       );
+      stopApiOk = true;
     } catch (error) {
       console.error("调用停止会话 API 失败:", error);
     }
@@ -437,7 +455,11 @@ export function useExecutionSubmit(props: UseExecutionSubmitProps) {
       slot.flushTimer = null;
     }
 
-    showSuccess("任务已停止");
+    if (stopApiOk) {
+      showSuccess("任务已停止");
+    } else {
+      showError("停止请求发送失败，请刷新页面重试");
+    }
     onTokenUsageShouldRefresh?.();
   }, [
     stopSession,

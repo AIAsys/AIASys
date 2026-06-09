@@ -96,6 +96,131 @@ Here are the messages to compact:
 """
 
 
+# ---------------------------------------------------------------------------
+# Tier 1: Tool Result Clearing（零成本压缩）
+# ---------------------------------------------------------------------------
+
+
+def _estimate_message_text_length(msg: dict[str, Any]) -> int:
+    """估算单条消息的文本长度（字符数）。"""
+    content = msg.get("content")
+    if isinstance(content, str):
+        return len(content)
+    if isinstance(content, list):
+        total = 0
+        for part in content:
+            if isinstance(part, dict) and part.get("type") == "text":
+                text = part.get("text")
+                if isinstance(text, str):
+                    total += len(text)
+        return total
+    return 0
+
+
+def clear_old_tool_results(
+    messages: list[dict[str, Any]],
+    *,
+    keep_recent_turns: int = 2,
+) -> tuple[list[dict[str, Any]], int, int]:
+    """将超出保留窗口的旧 tool 结果替换为轻量占位符。
+
+    从后往前数，保留最近 `keep_recent_turns` 个 user/assistant 轮次内的
+    所有 tool 消息（含 tool_calls 的 assistant 消息和对应的 tool 结果）。
+    更旧的 tool 结果做零成本替换，不调用 LLM。
+
+    Returns:
+        (cleared_messages, cleared_count, saved_chars)
+    """
+    if keep_recent_turns <= 0:
+        # 不保留任何完整 tool 上下文，全部替换
+        cleared: list[dict[str, Any]] = []
+        cleared_count = 0
+        saved_chars = 0
+        for msg in messages:
+            role = msg.get("role")
+            if role == "tool":
+                new_msg = dict(msg)
+                tool_call_id = new_msg.get("tool_call_id", "unknown")
+                original_len = _estimate_message_text_length(new_msg)
+                new_msg["content"] = f"[已清理: tool 结果 {tool_call_id}]"
+                cleared.append(new_msg)
+                cleared_count += 1
+                saved_chars += max(0, original_len - len(new_msg["content"]))
+            elif role == "assistant" and msg.get("tool_calls"):
+                # 清理 assistant tool_calls 中大的 arguments
+                new_msg = dict(msg)
+                tool_calls = list(new_msg.get("tool_calls") or [])
+                for tc in tool_calls:
+                    if not isinstance(tc, dict):
+                        continue
+                    func = tc.get("function") or {}
+                    args = func.get("arguments", "")
+                    if isinstance(args, str) and len(args) > 200:
+                        func = dict(func)
+                        func["arguments"] = f"[已清理参数，共 {len(args)} 字符]"
+                        tc = dict(tc)
+                        tc["function"] = func
+                new_msg["tool_calls"] = tool_calls
+                cleared.append(new_msg)
+            else:
+                cleared.append(msg)
+        return cleared, cleared_count, saved_chars
+
+    # 从后往前定位保留窗口的边界
+    history = list(messages)
+    preserve_start_index = len(history)
+    n_preserved_turns = 0
+
+    for index in range(len(history) - 1, -1, -1):
+        if history[index].get("role") in {"user", "assistant"}:
+            n_preserved_turns += 1
+            if n_preserved_turns == keep_recent_turns:
+                preserve_start_index = index
+                break
+
+    if n_preserved_turns < keep_recent_turns:
+        # 消息总数不足 keep_recent_turns 轮，全部保留
+        return messages, 0, 0
+
+    # 保留窗口内（preserve_start_index 及之后）的消息原样保留
+    # 窗口之前的 tool 消息做替换
+    cleared: list[dict[str, Any]] = []
+    cleared_count = 0
+    saved_chars = 0
+    for idx, msg in enumerate(history):
+        role = msg.get("role")
+        if idx < preserve_start_index and role == "tool":
+            new_msg = dict(msg)
+            tool_call_id = new_msg.get("tool_call_id", "unknown")
+            original_len = _estimate_message_text_length(new_msg)
+            new_msg["content"] = f"[已清理: tool 结果 {tool_call_id}]"
+            cleared.append(new_msg)
+            cleared_count += 1
+            saved_chars += max(0, original_len - len(new_msg["content"]))
+        elif idx < preserve_start_index and role == "assistant" and msg.get("tool_calls"):
+            new_msg = dict(msg)
+            tool_calls = list(new_msg.get("tool_calls") or [])
+            new_tool_calls: list[dict[str, Any]] = []
+            for tc in tool_calls:
+                if not isinstance(tc, dict):
+                    new_tool_calls.append(tc)
+                    continue
+                tc_copy = dict(tc)
+                func = tc_copy.get("function") or {}
+                args = func.get("arguments", "")
+                if isinstance(args, str) and len(args) > 200:
+                    func = dict(func)
+                    func["arguments"] = f"[已清理参数，共 {len(args)} 字符]"
+                    tc_copy["function"] = func
+                new_tool_calls.append(tc_copy)
+            new_msg["tool_calls"] = new_tool_calls
+            cleared.append(new_msg)
+        else:
+            cleared.append(msg)
+
+    return cleared, cleared_count, saved_chars
+
+
 def estimate_text_tokens(messages: list[dict[str, Any]]) -> int:
     """从消息文本内容估算 token 数（字符除以 4 的启发式方法）。
 
@@ -287,6 +412,56 @@ def _format_messages_for_summary(messages: list[dict[str, Any]]) -> str:
     return "\n".join(parts)
 
 
+# 压缩验证 Probe：启发式检查关键信息是否丢失
+_ERROR_KEYWORDS = {
+    "error", "exception", "failed", "traceback", "assertionerror",
+    "runtimeerror", "valueerror", "typeerror", "keyerror", "indexerror",
+    "syntaxerror", "importerror", "modulenotfounderror", "oserror",
+}
+
+
+def _verify_compaction_heuristic(
+    original_messages: list[dict[str, Any]],
+    summary: str,
+) -> tuple[bool, list[str]]:
+    """启发式验证压缩摘要是否丢失了关键信息。
+
+    Returns:
+        (is_valid, list of issue descriptions)
+    """
+    import re
+
+    issues: list[str] = []
+    original_text = _format_messages_for_summary(original_messages).lower()
+    summary_lower = summary.lower()
+
+    # 检查错误关键词
+    missing_errors = [
+        kw for kw in _ERROR_KEYWORDS
+        if kw in original_text and kw not in summary_lower
+    ]
+    if missing_errors:
+        issues.append(f"摘要可能遗漏错误信息（关键词: {', '.join(missing_errors[:3])}）")
+
+    # 检查代码文件引用（简单模式匹配常见代码文件扩展名）
+    file_pattern = re.compile(r'[\w/\\.-]+\.(py|js|ts|tsx|jsx|java|go|rs|cpp|c|h|md|json|yaml|yml|toml)')
+    original_files = set(file_pattern.findall(original_text))
+    summary_files = set(file_pattern.findall(summary_lower))
+    missing_files = original_files - summary_files
+    if missing_files:
+        issues.append(f"摘要可能遗漏文件引用: {', '.join(sorted(missing_files)[:5])}")
+
+    # 检查 TODO / FIXME / BUG / HACK 等标记
+    marker_pattern = re.compile(r'\b(todo|fixme|bug|hack|xxx|note)\b', re.IGNORECASE)
+    original_markers = set(marker_pattern.findall(original_text))
+    summary_markers = set(marker_pattern.findall(summary_lower))
+    missing_markers = original_markers - summary_markers
+    if missing_markers:
+        issues.append(f"摘要可能遗漏标记: {', '.join(sorted(missing_markers))}")
+
+    return len(issues) == 0, issues
+
+
 def _is_retryable_error(exc: BaseException) -> bool:
     """判断异常是否值得重试。
 
@@ -451,6 +626,7 @@ class SimpleCompaction:
         client: BaseLlmClient,
         *,
         custom_instruction: str = "",
+        enable_verification: bool = False,
     ) -> CompactionResult:
         """执行压缩。
 
@@ -529,6 +705,17 @@ class SimpleCompaction:
                 _snip_tool_message(m, self.max_snip_chars) for m in sanitized_preserve
             ]
         compacted_messages.extend(sanitized_preserve)
+
+        # 可选：验证 Probe
+        if enable_verification and summary_text:
+            is_valid, issues = _verify_compaction_heuristic(to_compact, summary_text)
+            if not is_valid:
+                logger.warning(
+                    "压缩摘要验证发现潜在问题: %s",
+                    "; ".join(issues),
+                )
+            else:
+                logger.debug("压缩摘要验证通过")
 
         logger.info(
             "Context compacted: %d messages -> summary + %d preserved",
