@@ -77,8 +77,49 @@ def test_preset_expert_catalog_exposes_notebook_read_only_tools() -> None:
 
     for role in roles:
         assert "app.agents.tools.notebook_session_tool:ListSessionNotebooks" in role.tool_ids
+        assert "app.agents.tools.notebook_file_tool:ReadNotebook" in role.tool_ids
+        assert "app.agents.tools.notebook_session_tool:ReadNotebookOutputs" in role.tool_ids
         if role.role_id != "data_analyst":
             assert "app.agents.tools.notebook_tool:ManageNotebook" not in role.tool_ids
+
+
+def test_readonly_expert_catalog_roles_do_not_expose_mutation_tools() -> None:
+    profile_path = (
+        Path(__file__).resolve().parents[1]
+        / "app"
+        / "agents"
+        / "local_sandbox_agent_config"
+        / "data_analysis.preset"
+    )
+
+    roles = expert_roles_module.build_expert_catalog_from_profile(profile_path)
+    role_map = {role.role_id: role for role in roles}
+    forbidden_tools = {
+        "app.agents.tools.code_execution_tool:RunCode",
+        "app.agents.tools.code_execution_tool:RegisterKernelEnvTool",
+        "app.agents.tools.code_execution_tool:RemoveKernelEnvTool",
+        "app.agents.tools.env_vars_tool:SetEnvVar",
+        "app.agents.tools.env_vars_tool:DeleteEnvVar",
+        "app.agents.tools.file_tools:WriteFile",
+        "app.agents.tools.file_tools:StrReplaceFile",
+        "app.agents.tools.shell_tool:Shell",
+        "app.agents.tools.skill_tools:EnableSkill",
+        "app.agents.tools.skill_tools:DisableSkill",
+        "app.agents.tools.notebook_tool:ManageNotebook",
+    }
+    expected_read_tools = {
+        "app.agents.tools.file_tools:ReadFile",
+        "app.agents.tools.notebook_file_tool:ReadNotebook",
+        "app.agents.tools.notebook_session_tool:ReadNotebookOutputs",
+        "app.agents.tools.skill_tools:ListSkills",
+        "app.agents.tools.skill_tools:LoadSkill",
+        "app.agents.tools.skill_tools:SearchStoreSkills",
+    }
+
+    for role_id in ("researcher", "reviewer"):
+        tool_ids = set(role_map[role_id].tool_ids)
+        assert forbidden_tools.isdisjoint(tool_ids)
+        assert expected_read_tools.issubset(tool_ids)
 
 
 @pytest.mark.asyncio

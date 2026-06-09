@@ -221,6 +221,30 @@ class TestToolContextPropagation:
         assert "parent_registry" in ctx
         assert ctx["parent_registry"] is registry
 
+    @patch.object(AiasysRuntimeSession, "_load_agent_config")
+    def test_tool_context_includes_authorization_mode(self, mock_load_config):
+        """_tool_context() 应该包含 authorization_mode 和 yolo，供子 Agent 继承。"""
+        mock_load_config.return_value = {}
+        spec = _make_spec(authorization_mode="smart", yolo=False)
+        registry = ToolRegistry()
+        session = AiasysRuntimeSession(spec, FakeLlmClient(), registry)
+
+        ctx = session._tool_context()
+        assert ctx["authorization_mode"] == "smart"
+        assert ctx["yolo"] is False
+
+    @patch.object(AiasysRuntimeSession, "_load_agent_config")
+    def test_tool_context_inherits_yolo_for_backwards_compat(self, mock_load_config):
+        """父会话 yolo=True 时，tool_context 应正确传递 yolo 标记。"""
+        mock_load_config.return_value = {}
+        spec = _make_spec(authorization_mode="smart", yolo=True)
+        registry = ToolRegistry()
+        session = AiasysRuntimeSession(spec, FakeLlmClient(), registry)
+
+        ctx = session._tool_context()
+        assert ctx["authorization_mode"] == "smart"
+        assert ctx["yolo"] is True
+
 
 def test_find_subagent_manifest_supports_materialized_toml(tmp_path: Path) -> None:
     toml_path = tmp_path / "worker.toml"
@@ -438,6 +462,116 @@ class TestSubagentWorkspaceSharing:
         spec = call_args.kwargs.get("spec") or call_args[0][0]
         # work_dir 应该是 WorkspacePath(session_root)
         assert str(spec.work_dir) == str(host_session_root)
+
+
+class TestSubagentAuthorizationInheritance:
+    """测试子 Agent 继承父会话授权模式。"""
+
+    @pytest.mark.asyncio
+    @patch("app.services.agent.runtime_backends.aiasys.tools.task_tool.SubAgentStorage")
+    @patch("app.services.agent.runtime_backends.aiasys.tools.task_tool._materialize_subagent_toml")
+    @patch("app.services.agent.runtime_backends.aiasys.tools.task_tool._find_subagent_manifest")
+    @patch("app.services.agent.runtime_backends.aiasys.tools.task_tool.AiasysRuntimeBackend")
+    async def test_subagent_inherits_authorization_mode_and_yolo(
+        self, mock_backend_cls, mock_find, mock_materialize, mock_storage_cls
+    ):
+        """TaskTool 创建子 Agent 时，spec 应继承父会话的 authorization_mode 和 yolo。"""
+        mock_find.return_value = {"name": "coder"}
+        mock_materialize.return_value = Path("/tmp/fake.toml")
+
+        mock_storage = MagicMock()
+        mock_storage.append_context_message = AsyncMock()
+        mock_storage.append_wire_agent_runtime_event = AsyncMock()
+        mock_storage.update_status = Mock()
+        mock_storage_cls.return_value = mock_storage
+        mock_storage.subagent_dir = Path("/fake")
+
+        mock_session = AsyncMock()
+        mock_session.prompt = MagicMock(return_value=async_gen([]))
+        mock_backend = MagicMock()
+        mock_backend.create_session = AsyncMock(return_value=mock_session)
+        mock_backend_cls.return_value = mock_backend
+
+        tool = AgentTool()
+        ctx = {
+            "user_id": "u1",
+            "session_id": "s1",
+            "workspace": Path("/host"),
+            "session_root": Path("/host"),
+            "authorization_mode": "smart",
+            "yolo": False,
+            "agent_config": {
+                "subagents": {
+                    "coder": {
+                        "description": "",
+                        "agent_manifest": {"name": "coder"},
+                    }
+                }
+            },
+            "llm_config": MagicMock(),
+            "messages": [],
+            "parent_registry": ToolRegistry(),
+        }
+
+        async for _ in tool.invoke_stream(ctx, subagent_name="coder", prompt="test"):
+            pass
+
+        spec = mock_backend.create_session.call_args.kwargs.get("spec") or mock_backend.create_session.call_args[0][0]
+        assert spec.authorization_mode == "smart"
+        assert spec.yolo is False
+
+    @pytest.mark.asyncio
+    @patch("app.services.agent.runtime_backends.aiasys.tools.task_tool.SubAgentStorage")
+    @patch("app.services.agent.runtime_backends.aiasys.tools.task_tool._materialize_subagent_toml")
+    @patch("app.services.agent.runtime_backends.aiasys.tools.task_tool._find_subagent_manifest")
+    @patch("app.services.agent.runtime_backends.aiasys.tools.task_tool.AiasysRuntimeBackend")
+    async def test_subagent_inherits_yolo_full_auto(
+        self, mock_backend_cls, mock_find, mock_materialize, mock_storage_cls
+    ):
+        """父会话 yolo=True 时，子 Agent 也应继承 yolo=True（等价于 full_auto）。"""
+        mock_find.return_value = {"name": "coder"}
+        mock_materialize.return_value = Path("/tmp/fake.toml")
+
+        mock_storage = MagicMock()
+        mock_storage.append_context_message = AsyncMock()
+        mock_storage.append_wire_agent_runtime_event = AsyncMock()
+        mock_storage.update_status = Mock()
+        mock_storage_cls.return_value = mock_storage
+        mock_storage.subagent_dir = Path("/fake")
+
+        mock_session = AsyncMock()
+        mock_session.prompt = MagicMock(return_value=async_gen([]))
+        mock_backend = MagicMock()
+        mock_backend.create_session = AsyncMock(return_value=mock_session)
+        mock_backend_cls.return_value = mock_backend
+
+        tool = AgentTool()
+        ctx = {
+            "user_id": "u1",
+            "session_id": "s1",
+            "workspace": Path("/host"),
+            "session_root": Path("/host"),
+            "authorization_mode": "smart",
+            "yolo": True,
+            "agent_config": {
+                "subagents": {
+                    "coder": {
+                        "description": "",
+                        "agent_manifest": {"name": "coder"},
+                    }
+                }
+            },
+            "llm_config": MagicMock(),
+            "messages": [],
+            "parent_registry": ToolRegistry(),
+        }
+
+        async for _ in tool.invoke_stream(ctx, subagent_name="coder", prompt="test"):
+            pass
+
+        spec = mock_backend.create_session.call_args.kwargs.get("spec") or mock_backend.create_session.call_args[0][0]
+        assert spec.authorization_mode == "smart"
+        assert spec.yolo is True
 
 
 class TestSubagentNestingProhibition:

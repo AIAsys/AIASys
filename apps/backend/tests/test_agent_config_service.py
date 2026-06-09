@@ -268,6 +268,22 @@ async def test_system_prompt_matches_baseline(config_service):
         assert "Agent Soul" in merged_config.system_prompt
 
 
+def test_system_preset_config_includes_skill_policy_and_names() -> None:
+    """确认结构化 preset 输出的运行时配置不会丢失主控 Skill 配置。"""
+    config_path = get_system_default_config_path(AgentMode.ANALYSIS)
+    preset = resolve_system_agent_preset_from_path(config_path)
+    if preset is None:
+        pytest.skip("system default preset missing in this environment")
+
+    config_data = build_system_config_from_preset(preset)
+    agent_config = config_data["agent"]
+
+    assert agent_config["skill_policy"] == preset.baseline.skill_policy
+    assert agent_config["skills"] == list(preset.baseline.skills)
+    assert "aiasys-markdown-output-guide-skill" in agent_config["skills"]
+    assert "aiasys-hosting-guide-skill" in agent_config["skills"]
+
+
 @pytest.mark.asyncio
 async def test_reset_to_default(config_service):
     """测试重置为系统默认"""
