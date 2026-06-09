@@ -158,7 +158,7 @@ export function useExecutionSubmit(props: UseExecutionSubmitProps) {
     // 立即更新 session title，避免长时间显示"新任务"
     const titleFromContent =
       userContent.slice(0, 30) + (userContent.length > 30 ? "..." : "");
-    updateSessionTitle(sessionId, titleFromContent);
+    updateSessionTitle(latestSessionId, titleFromContent);
 
     // 清理当前 session 中已被终止的 AI 消息的 isStopped 标志，
     // 避免新任务启动后旧消息仍显示"任务已终止"
@@ -172,7 +172,8 @@ export function useExecutionSubmit(props: UseExecutionSubmitProps) {
     });
 
     // 清理当前 session 的 slot 数据
-    const slot = getSessionSlot(sessionId);
+    // 必须使用 latestSessionId，不能用闭包中的 sessionId（可能已过时）
+    const slot = getSessionSlot(latestSessionId);
     slot.taskEventsMap = {};
     slot.outputAccumulators.clear();
     slot.streamingSegments = [];
@@ -221,10 +222,10 @@ export function useExecutionSubmit(props: UseExecutionSubmitProps) {
           );
 
           // 流结束时按类型排序，确保 think 始终在 text 前面
-          // step 标记保持原有时序（它在 segment 数组中已按到达时序排列）
+          // 每个类型必须有唯一 order，避免 sort 不稳定导致顺序随机
           const SEGMENT_ORDER: Record<string, number> = {
-            think: 0,
-            step: 1,
+            turn: 0,
+            think: 1,
             tool_call: 2,
             tool_output: 3,
             text: 4,

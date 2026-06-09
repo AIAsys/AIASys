@@ -165,6 +165,27 @@ export interface AskUserRequestEvent extends SSEEvent {
   request: import("@/types/askUser").AskUserRequest;
 }
 
+/** 能力确认请求（运行时审批） */
+export interface CapabilityConfirmationEvent extends SSEEvent {
+  type: "capability_confirmation";
+  tool_call_id: string;
+  tool_name: string;
+  arguments: Record<string, unknown>;
+  content: string;
+}
+
+/** 子 Agent 能力确认请求 */
+export interface SubagentCapabilityConfirmationEvent extends SSEEvent {
+  type: "subagent_capability_confirmation";
+  tool_call_id: string;
+  tool_name: string;
+  arguments: Record<string, unknown>;
+  content: string;
+  task_tool_call_id: string;
+  agent_id?: string;
+  subagent_name?: string;
+}
+
 export type AgentEvent =
   | ContentEvent
   | ToolCallEvent
@@ -182,7 +203,9 @@ export type AgentEvent =
   | MonitorOutputEvent
   | BudgetLimitedEvent
   | BudgetUpdatedEvent
-  | AskUserRequestEvent;
+  | AskUserRequestEvent
+  | CapabilityConfirmationEvent
+  | SubagentCapabilityConfirmationEvent;
 
 // ==================== Agent 执行 ====================
 

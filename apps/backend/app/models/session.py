@@ -393,6 +393,10 @@ class SessionMetadata(BaseModel):
         default_factory=SessionCollaborationPolicy,
         description="当前会话协作节点运行策略",
     )
+    authorization_mode: Optional[str] = Field(
+        default=None,
+        description="能力授权模式: manual/smart/auto/full_auto；None 表示继承工作区/全局默认",
+    )
 
     # 项目协作相关字段（新命名体系）
     # 会话可见性控制

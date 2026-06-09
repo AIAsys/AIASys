@@ -35,6 +35,7 @@ RuntimeEventKind = Literal[
     "budget_limited",
     "budget_updated",
     "ask_user_request",
+    "capability_confirmation",
 ]
 
 RuntimeContentType = Literal["text", "think"]
@@ -101,7 +102,8 @@ class RuntimeSessionCreateSpec:
     agent_file: Path
     skills_dir: WorkspacePath | None
     mcp_configs: list | None
-    yolo: bool
+    yolo: bool = False  # 兼容旧标记，等价于 authorization_mode="full_auto"
+    authorization_mode: str = "smart"  # manual | smart | auto | full_auto
     # 子 Agent 继承模型字段
     is_subagent: bool = False
     parent_registry: "ToolRegistry | None" = None

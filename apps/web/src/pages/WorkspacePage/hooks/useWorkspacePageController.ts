@@ -5,6 +5,8 @@ import { useSessionMCPManager } from "@/hooks/useSessionMCPManager";
 import { useSkills } from "@/hooks/useSkills";
 import type { AskUserRequest, AskUserValue } from "@/types/askUser";
 import { askUserBridge } from "@/lib/askUserBridge";
+import { eventBus } from "@/lib/eventBus";
+import { resolveCapabilityConfirmation } from "@/lib/api/capabilityConfirmation";
 import { useCodeExecutor } from "./useCodeExecutor";
 import type { SessionDeletionOptions } from "./useCodeExecutor/executorTypes";
 import { useWorkspaceOverlayState } from "./useWorkspaceOverlayState";
@@ -165,15 +167,72 @@ export function useWorkspacePageController({
     };
   }, [executor, executor.updateSessionChatItems, sessionId]);
 
+  // Capability Confirmation 审批响应处理
+  useEffect(() => {
+    const handleApprove = async (data: unknown) => {
+      const payload = data as {
+        sessionId: string;
+        toolCallId: string;
+        scope: "once" | "session";
+      };
+      try {
+        await resolveCapabilityConfirmation(
+          userId,
+          payload.sessionId,
+          payload.toolCallId,
+          { approved: true, scope: payload.scope }
+        );
+        executor.updateSessionChatItems(payload.sessionId, (prev) =>
+          prev.map((item) =>
+            item.type === "capability_confirmation" && item.id === payload.toolCallId
+              ? { ...item, status: "approved" as const }
+              : item
+          )
+        );
+      } catch (_e) {
+        // 失败时保持 pending，用户可重试
+      }
+    };
+
+    const handleReject = async (data: unknown) => {
+      const payload = data as {
+        sessionId: string;
+        toolCallId: string;
+        feedback: string;
+      };
+      try {
+        await resolveCapabilityConfirmation(
+          userId,
+          payload.sessionId,
+          payload.toolCallId,
+          { approved: false, feedback: payload.feedback }
+        );
+        executor.updateSessionChatItems(payload.sessionId, (prev) =>
+          prev.map((item) =>
+            item.type === "capability_confirmation" && item.id === payload.toolCallId
+              ? { ...item, status: "rejected" as const }
+              : item
+          )
+        );
+      } catch (_e) {
+        // 失败时保持 pending，用户可重试
+      }
+    };
+
+    eventBus.on("capability:approve", handleApprove);
+    eventBus.on("capability:reject", handleReject);
+    return () => {
+      eventBus.off("capability:approve", handleApprove);
+      eventBus.off("capability:reject", handleReject);
+    };
+  }, [userId, executor, executor.updateSessionChatItems]);
+
   const {
     workspaces,
     isLoadingWorkspaces,
-    isLoadingMore,
-    hasMore,
     currentWorkspaceId,
     currentWorkspace,
     loadWorkspaces,
-    loadMoreWorkspaces,
   } = useTaskWorkspaces({
     currentSessionId: sessionId || undefined,
   });
@@ -271,12 +330,9 @@ export function useWorkspacePageController({
     executor,
     workspaces,
     isLoadingWorkspaces,
-    isLoadingMore,
-    hasMore,
     currentWorkspaceId,
     currentWorkspace,
     loadWorkspaces,
-    loadMoreWorkspaces,
     sessionLifecycle,
     runtimeControls,
     overlayState,

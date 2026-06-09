@@ -482,7 +482,8 @@ class TaskTool(AiasysTool):
             config=host_llm_config,
             agent_file=subagent_toml_path,
             skills_dir=WorkspacePath(str(child_skills_dir)) if child_skills_dir else None,
-            yolo=True,  # 子 Agent 指令来自主控，当前阶段不做单独执行审批。
+            authorization_mode=str(ctx.get("authorization_mode") or "smart"),
+            yolo=bool(ctx.get("yolo", False)),
             mcp_configs=child_mcp_configs,
             is_subagent=True,
             parent_registry=ctx.get("parent_registry"),

@@ -65,7 +65,21 @@ export type AskUserChatItem = {
   timestamp: Date;
 };
 
-export type ChatItem = MessageChatItem | AskUserChatItem;
+export type CapabilityConfirmationChatItem = {
+  type: "capability_confirmation";
+  id: string; // tool_call_id
+  tool_name: string;
+  arguments: Record<string, unknown>;
+  prompt: string;
+  session_id: string;
+  status: "pending" | "approved" | "rejected" | "timeout";
+  subagent_name?: string;
+  agent_id?: string;
+  pattern_key?: string;
+  timestamp: Date;
+};
+
+export type ChatItem = MessageChatItem | AskUserChatItem | CapabilityConfirmationChatItem;
 
 export type SessionHistoryContentItem = {
   type: string;

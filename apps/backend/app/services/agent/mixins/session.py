@@ -351,6 +351,13 @@ class SessionMixin:
         except Exception:
             logger.debug("读取 memory 开关失败，默认启用", exc_info=True)
 
+        # 读取会话级授权模式配置（默认 full_auto 保持现有行为，可通过 session_metadata 覆盖）
+        authorization_mode = (
+            session_metadata.authorization_mode
+            if session_metadata is not None and session_metadata.authorization_mode
+            else "full_auto"
+        )
+
         session = await runtime_backend.create_session(
             RuntimeSessionCreateSpec(
                 work_dir=work_dir,
@@ -359,7 +366,8 @@ class SessionMixin:
                 config=config,
                 agent_file=dynamic_agent_path,
                 skills_dir=skills_dir,
-                yolo=True,
+                yolo=(authorization_mode == "full_auto"),
+                authorization_mode=authorization_mode,
                 mcp_configs=mcp_configs,
                 collaboration_policy=collaboration_policy_payload,
                 memory_enabled=memory_enabled,
