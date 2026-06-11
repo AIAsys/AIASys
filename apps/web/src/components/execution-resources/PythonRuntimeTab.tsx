@@ -410,7 +410,7 @@ export function PythonRuntimeTab({
             <Button
               type="button"
               size="sm"
-              disabled={!workspaceId || isEnsuringUv || registry?.uv_available === false}
+              disabled={!workspaceId || isEnsuringUv}
               onClick={() => void onEnsureUv()}
             >
               {isEnsuringUv ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
