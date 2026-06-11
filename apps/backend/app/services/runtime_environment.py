@@ -158,7 +158,21 @@ class RuntimeEnvironmentService:
         sync: bool = False,
     ) -> tuple[WorkspaceRuntimeEnv, RuntimeEnvCommandResult | None]:
         if not self.is_uv_available():
-            raise RuntimeError("uv CLI 不可用，无法创建工作区 UV 环境")
+            # uv 缺失时自动安装，避免用户手动操作
+            from app.core.uv_utils import install_uv, is_desktop_mode
+
+            ok, path, version, message = install_uv()
+            if not ok:
+                if is_desktop_mode():
+                    raise RuntimeError(
+                        f"uv CLI 不可用且自动安装失败，无法创建工作区 UV 环境。错误: {message}"
+                    )
+                else:
+                    raise RuntimeError(
+                        f"uv CLI 不可用且自动安装失败，无法创建工作区 UV 环境。"
+                        f"错误: {message}"
+                        f"建议管理员在服务器上预装 uv（curl -LsSf https://astral.sh/uv/install.sh | sh）。"
+                    )
 
         env_id = _normalize_env_id(env_id, DEFAULT_UV_ENV_ID)
         workspace_dir = self._workspace_dir(user_id, workspace_id)

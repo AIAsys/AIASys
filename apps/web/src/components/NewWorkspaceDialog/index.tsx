@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import {
-  CheckCircle2,
   ChevronDown,
   ChevronUp,
   FileText,
@@ -43,11 +42,6 @@ import {
   listWorkspaceTemplates,
   type WorkspaceTemplateItem,
 } from "@/lib/api/workspaces";
-import {
-  getUvStatus,
-  installUv,
-  type UvStatusResponse,
-} from "@/lib/api/uv";
 import { type NewTaskLifecycleState, type NewTaskStage } from "@/types/workspace";
 import { useAuthState } from "@/contexts/AuthContext";
 import { saveUserUISettings } from "@/lib/api/uiSettings";
@@ -111,9 +105,6 @@ export function NewWorkspaceDialog({
   const [envKind, setEnvKind] = useState<EnvChoice["kind"]>("none");
   const [selectedKernelName, setSelectedKernelName] = useState("");
 
-  const [uvStatus, setUvStatus] = useState<UvStatusResponse | null>(null);
-  const [isCheckingUv, setIsCheckingUv] = useState(false);
-  const [isInstallingUv, setIsInstallingUv] = useState(false);
   const [previewExpanded, setPreviewExpanded] = useState(false);
   const [capabilitiesExpanded, setCapabilitiesExpanded] = useState(false);
   const [previewingTemplate, setPreviewingTemplate] = useState<WorkspaceTemplateItem | null>(null);
@@ -195,24 +186,6 @@ export function NewWorkspaceDialog({
       });
     }
   };
-
-  // 检查全局 UV 安装状态
-  useEffect(() => {
-    if (!isOpen) return;
-    setIsCheckingUv(true);
-    getUvStatus()
-      .then(setUvStatus)
-      .catch(() => setUvStatus(null))
-      .finally(() => setIsCheckingUv(false));
-  }, [isOpen]);
-
-  // 选择 Python 环境时，如未安装则自动触发安装
-  useEffect(() => {
-    if (envKind !== "uv") return;
-    if (uvStatus?.installed) return;
-    if (isInstallingUv || isCheckingUv) return;
-    void handleInstallUv();
-  }, [envKind, uvStatus?.installed, isInstallingUv, isCheckingUv]);
 
   // 选择模板后只更新标题和描述，不覆盖环境
   useEffect(() => {
@@ -297,20 +270,6 @@ export function NewWorkspaceDialog({
       Array.from(selectedCapabilities),
       selectedTemplateId === "blank-workspace" ? undefined : Array.from(selectedTemplateFiles),
     );
-  };
-
-  const handleInstallUv = async () => {
-    setIsInstallingUv(true);
-    try {
-      const result = await installUv();
-      setUvStatus(result);
-    } catch {
-      // 错误已在 apiRequest 层 toast，这里只需要更新状态
-      const refreshed = await getUvStatus().catch(() => null);
-      if (refreshed) setUvStatus(refreshed);
-    } finally {
-      setIsInstallingUv(false);
-    }
   };
 
   return (
@@ -423,32 +382,7 @@ export function NewWorkspaceDialog({
                   <span className="mt-0.5 block text-xs leading-5 text-muted-foreground">
                     在当前工作区创建隔离环境，适合需要 notebook、依赖安装或可复现实验的任务。
                   </span>
-                  {/* Python 包管理器状态 */}
-                  <span className="mt-2 block">
-                    {isCheckingUv ? (
-                      <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                        <Loader2 className="h-3 w-3 animate-spin" />
-                        正在检查 Python 包管理器…
-                      </span>
-                    ) : isInstallingUv ? (
-                      <span className="flex items-center gap-1.5 text-[11px] text-primary">
-                        <Loader2 className="h-3 w-3 animate-spin" />
-                        正在安装 Python 包管理器…
-                      </span>
-                    ) : uvStatus?.installed ? (
-                      <span className="flex items-center gap-1.5 text-[11px] text-green-600">
-                        <CheckCircle2 className="h-3 w-3" />
-                        {uvStatus.version
-                          ? `Python 包管理器已就绪 (${uvStatus.version})`
-                          : "Python 包管理器已就绪"}
-                      </span>
-                    ) : (
-                      <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                        <span className="h-3 w-3 rounded-full border border-muted-foreground/40" />
-                        Python 包管理器未就绪，选择后自动安装
-                      </span>
-                    )}
-                  </span>
+
                 </span>
               </label>
               <label

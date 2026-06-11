@@ -499,6 +499,79 @@ function prepareBackendRuntime() {
   } else {
     console.warn("[aiasys-desktop] 未找到 pyvenv.cfg home 路径，嵌入 Python 可能不完整");
   }
+
+  // 修复 .venv/bin/ 脚本 shebang 中的构建机绝对路径
+  fixVenvBinShebangs(backendStageRoot);
+}
+
+/**
+ * 修复 .venv/bin/ 脚本 shebang 中的构建机绝对路径。
+ * dereference: true 复制后，脚本的 shebang 仍指向构建机路径，
+ * 在目标机器上会报 "bad interpreter"。替换为 /usr/bin/env python3。
+ */
+function fixVenvBinShebangs(backendStageRoot) {
+  const venvBinDir = path.join(backendStageRoot, ".venv", "bin");
+  if (!fs.existsSync(venvBinDir)) {
+    return;
+  }
+
+  const embedPythonBinDir = path.join(backendStageRoot, ".venv", "python", "bin");
+  const embedPython = path.join(embedPythonBinDir, "python3");
+  const fallbackShebang = "#!/usr/bin/env python3";
+
+  let fixed = 0;
+  for (const entry of fs.readdirSync(venvBinDir)) {
+    const filePath = path.join(venvBinDir, entry);
+    const stat = fs.statSync(filePath);
+    if (!stat.isFile()) {
+      continue;
+    }
+
+    let content;
+    try {
+      content = fs.readFileSync(filePath, "utf-8");
+    } catch {
+      continue;
+    }
+
+    const lines = content.split(/\r?\n/);
+    const shebang = lines[0];
+    if (!shebang || !shebang.startsWith("#!")) {
+      continue;
+    }
+
+    // 如果 shebang 包含绝对路径（以 / 开头且包含构建机路径特征），修复它
+    const needsFix =
+      shebang.startsWith("#!/") &&
+      (
+        // 指向仓库内的 .venv
+        shebang.includes("/.venv/") ||
+        // 指向系统 Python 路径（如 /Users/xxx/.local/share/uv/python/）
+        shebang.includes("/python") ||
+        // 指向通用 Python 安装路径
+        shebang.includes("/bin/python")
+      );
+
+    if (!needsFix) {
+      continue;
+    }
+
+    // 优先使用嵌入 Python 的绝对路径（如果存在）
+    // 否则回退到 /usr/bin/env python3
+    const newShebang = fs.existsSync(embedPython) ? `#!${embedPython}` : fallbackShebang;
+    lines[0] = newShebang;
+
+    try {
+      fs.writeFileSync(filePath, lines.join("\n"), "utf-8");
+      fixed++;
+    } catch (error) {
+      console.warn(`[aiasys-desktop] 修复 shebang 失败 ${entry}: ${error.message}`);
+    }
+  }
+
+  if (fixed > 0) {
+    console.log(`[aiasys-desktop] 已修复 ${fixed} 个 .venv/bin 脚本的 shebang`);
+  }
 }
 
 function pruneDevDependencies(backendStageRoot) {
