@@ -178,7 +178,6 @@ AIASys Agent 可调用的内置工具按职责分组：
 | 工具 | 用途 |
 |------|------|
 | `RuntimeEnvironment` | 管理工作区 Python 执行环境（list/ensure_uv/register_python/install_packages/bind/inspect/unregister） |
-| `ListEnvVars` | 列出工作区环境变量 |
 | `SetEnvVar` | 设置工作区环境变量 |
 | `DeleteEnvVar` | 删除工作区环境变量 |
 
@@ -456,7 +455,7 @@ Agent 在 AIASys 中执行代码时，先区分宿主机 UV 运行环境和 Dock
 | 配置 | 存放位置 | 用途 | 管理入口 |
 |------|----------|------|----------|
 | UV 运行环境物料 | `.env/` | Python 版本、依赖声明、锁文件、虚拟环境 | `RuntimeEnvironment` |
-| 工作区环境变量 | `.workspace/workspace.json` 的 `runtime_binding.env_vars` | API key、token、服务地址等运行时变量 | `ListEnvVars` / `SetEnvVar` / `DeleteEnvVar` |
+| 工作区环境变量 | `.workspace/workspace.json` 的 `runtime_binding.env_vars` | API key、token、服务地址等运行时变量 | `SetEnvVar` / `DeleteEnvVar` |
 | 全局环境变量 | 用户全局配置 | 跨工作区默认变量，工作区变量优先覆盖 | 前端全局设置或 `/global-env-vars` API |
 
 Agent 执行时会合并全局环境变量和工作区环境变量，工作区同名变量优先。修改变量后，一般从下一次执行或重建运行态开始稳定生效。

@@ -222,24 +222,32 @@ def clear_old_tool_results(
 
 
 def estimate_text_tokens(messages: list[dict[str, Any]]) -> int:
-    """从消息文本内容估算 token 数（字符除以 4 的启发式方法）。
+    """从消息文本内容估算 token 数。
 
-    对英文略有低估，对 CJK 文本略有高估，但作为触发阈值已足够保守。
+    用字符数分段估算：CJK 字符按 ~1.5 token/字，其余按 ~0.25 token/字符。
+    相比纯 chars/4 方案，对中文内容估算显著更准确。
     实际值会在下一次 LLM 调用时由 usage 修正。
     """
     total_chars = 0
+    cjk_chars = 0
     for msg in messages:
         content = msg.get("content")
         if isinstance(content, str):
             total_chars += len(content)
+            cjk_chars += _count_cjk_chars(content)
         elif isinstance(content, list):
-            # 多模态消息列表——仅累加 text 部分
             for part in content:
                 if isinstance(part, dict) and part.get("type") == "text":
                     text = part.get("text")
                     if isinstance(text, str):
                         total_chars += len(text)
-    return max(0, total_chars // 4)
+                        cjk_chars += _count_cjk_chars(text)
+    return max(0, int(cjk_chars * 1.5 + (total_chars - cjk_chars) * 0.25))
+
+
+def _count_cjk_chars(text: str) -> int:
+    """统计文本中 CJK 统一 ideograph 字符数（U+4E00 - U+9FFF）。"""
+    return sum(1 for ch in text if '\u4e00' <= ch <= '\u9fff')
 
 
 def should_auto_compact(

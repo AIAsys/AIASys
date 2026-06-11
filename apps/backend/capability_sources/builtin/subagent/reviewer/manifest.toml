@@ -15,7 +15,6 @@ tools = [
     "app.agents.tools.code_execution_tool:ListKernelEnvsTool",
     "app.agents.tools.code_execution_tool:RegisterKernelEnvTool",
     "app.agents.tools.code_execution_tool:RemoveKernelEnvTool",
-    "app.agents.tools.env_vars_tool:ListEnvVars",
     "app.agents.tools.env_vars_tool:GetEnvVar",
     "app.agents.tools.env_vars_tool:SetEnvVar",
     "app.agents.tools.env_vars_tool:DeleteEnvVar",

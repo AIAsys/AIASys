@@ -3,6 +3,15 @@ const net = require("net");
 const path = require("path");
 const { spawn, spawnSync } = require("child_process");
 
+const {
+  resolveNpmCommand,
+  canReuseService: canReuseServiceUtil,
+  resolveDesiredPort: resolveDesiredPortUtil,
+  probeFreePort,
+  findAvailablePort,
+  probeUrl,
+} = require("./utils.cjs");
+
 const HOST = process.env.AIASYS_DESKTOP_HOST || "127.0.0.1";
 const DEFAULT_FRONTEND_PORT = 13010;
 const DEFAULT_BACKEND_PORT = 13011;
@@ -187,9 +196,7 @@ function resolvePythonExecutable(backendRoot) {
   );
 }
 
-function resolveNpmCommand() {
-  return process.platform === "win32" ? "npm.cmd" : "npm";
-}
+
 
 /**
  * 动态查找 venv 的 site-packages 目录。
@@ -223,47 +230,6 @@ function getVenvSitePackages(backendRoot) {
   return null;
 }
 
-async function probeUrl(url) {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 1500);
-
-  try {
-    const response = await fetch(url, {
-      signal: controller.signal,
-      redirect: "manual",
-    });
-    return response.ok || response.status === 304;
-  } catch {
-    return false;
-  } finally {
-    clearTimeout(timeoutId);
-  }
-}
-
-function probeFreePort(host, port) {
-  return new Promise((resolve) => {
-    const server = net.createServer();
-    server.unref();
-    server.once("error", () => resolve(false));
-    server.listen(port, host, () => {
-      server.close(() => resolve(true));
-    });
-  });
-}
-
-async function findAvailablePort(host, startPort, excludePorts = []) {
-  const blocked = new Set(excludePorts);
-  for (let candidate = startPort; candidate < startPort + 200; candidate += 1) {
-    if (blocked.has(candidate)) {
-      continue;
-    }
-    if (await probeFreePort(host, candidate)) {
-      return candidate;
-    }
-  }
-
-  throw new Error(`无法为 desktop 找到可用端口，起始端口: ${startPort}`);
-}
 
 /**
  * 读取监听指定端口的进程信息。
@@ -381,72 +347,7 @@ function readListeningProcessWindows(port) {
   };
 }
 
-function escapeRegExp(value) {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
 
-function commandIncludesPath(command, expectedPath) {
-  const normalizedPath = expectedPath.replace(/[\\/]+$/, "");
-  const pattern = new RegExp(`${escapeRegExp(normalizedPath)}(?:[\\\\/\\s'"]|$)`);
-  return pattern.test(command);
-}
-
-async function canReuseService({ url, port, label, expectedPaths }) {
-  const processInfo = readListeningProcess(port);
-  const healthy = await probeUrl(url);
-
-  if (!healthy) {
-    if (!processInfo) {
-      return {
-        reusable: false,
-        reason: "not_running",
-        processInfo: null,
-      };
-    }
-
-    if (!processInfo.command) {
-      return {
-        reusable: false,
-        reason: "occupied_unknown",
-        processInfo,
-      };
-    }
-
-    const belongsToCurrentCheckout = expectedPaths.some((expectedPath) =>
-      commandIncludesPath(processInfo.command, expectedPath),
-    );
-    return {
-      reusable: false,
-      reason: belongsToCurrentCheckout ? "occupied_current" : "occupied_foreign",
-      processInfo,
-    };
-  }
-
-  if (!processInfo || !processInfo.command) {
-    return {
-      reusable: true,
-      reason: "healthy_unknown",
-      processInfo,
-    };
-  }
-
-  const belongsToCurrentCheckout = expectedPaths.some((expectedPath) =>
-    commandIncludesPath(processInfo.command, expectedPath),
-  );
-  if (belongsToCurrentCheckout) {
-    return {
-      reusable: true,
-      reason: "healthy_current",
-      processInfo,
-    };
-  }
-
-  return {
-    reusable: false,
-    reason: "healthy_foreign",
-    processInfo,
-  };
-}
 
 /**
  * 等待 URL 就绪，同时监控子进程是否已崩溃退出。
@@ -719,55 +620,19 @@ class DesktopServiceManager {
     urlFactory,
     excludePorts = [],
   }) {
-    const inspection = await canReuseService({
-      url: urlFactory(requestedPort),
-      port: requestedPort,
+    return resolveDesiredPortUtil({
+      requestedPort,
+      locked,
       label,
       expectedPaths,
-    });
-
-    if (inspection.reusable) {
-      return {
-        port: requestedPort,
-        reuse: true,
-      };
-    }
-
-    if (inspection.reason === "not_running") {
-      return {
-        port: requestedPort,
-        reuse: false,
-      };
-    }
-
-    const processCommand =
-      inspection.processInfo?.command ||
-      `pid=${inspection.processInfo?.pid || "unknown"}`;
-
-    if (inspection.reason === "occupied_current") {
-      throw new Error(
-        `${label} 端口 ${requestedPort} 上存在当前 checkout 的异常进程，但健康检查未通过: ${processCommand}`,
-      );
-    }
-
-    if (locked) {
-      throw new Error(
-        `${label} 端口 ${requestedPort} 已被占用，且当前通过环境变量锁定了该端口: ${processCommand}`,
-      );
-    }
-
-    const fallbackPort = await findAvailablePort(
-      this.host,
-      requestedPort + 1,
+      urlFactory,
       excludePorts,
-    );
-    console.warn(
-      `[aiasys-desktop] ${label} 端口 ${requestedPort} 不可直接复用，自动切换到 ${fallbackPort}: ${processCommand}`,
-    );
-    return {
-      port: fallbackPort,
-      reuse: false,
-    };
+      host: this.host,
+      findAvailablePort,
+      canReuseService: canReuseServiceUtil,
+      readListeningProcess,
+      probeUrl,
+    });
   }
 
   async start() {

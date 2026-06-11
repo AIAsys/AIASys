@@ -18,7 +18,6 @@ tools = [
     "app.agents.tools.file_tools:ReadFile",
     "app.agents.tools.file_tools:WriteFile",
     "app.agents.tools.file_tools:StrReplaceFile",
-    "app.agents.tools.env_vars_tool:ListEnvVars",
     "app.agents.tools.env_vars_tool:GetEnvVar",
     "app.agents.tools.env_vars_tool:SetEnvVar",
     "app.agents.tools.env_vars_tool:DeleteEnvVar",

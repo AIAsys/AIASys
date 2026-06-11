@@ -476,13 +476,6 @@ _TOOL_METADATA: dict[str, dict[str, Any]] = {
         "provider": "aiasys",
         "description": "通过精确字符串替换编辑当前工作区中的文件内容。",
     },
-    "app.agents.tools.env_vars_tool:ListEnvVars": {
-        "capability_id": "runtime.list_env_vars",
-        "display_name": "ListEnvVars",
-        "kind": CapabilityKind.RUNTIME_HELPER,
-        "provider": "aiasys",
-        "description": "列出当前会话运行态可用的环境变量名，不返回变量值。",
-    },
     "app.agents.tools.env_vars_tool:GetEnvVar": {
         "capability_id": "runtime.get_env_var",
         "display_name": "GetEnvVar",
@@ -621,7 +614,6 @@ _TOOL_CATEGORY_CAPABILITY_IDS: dict[str, tuple[str, ...]] = {
         "runtime.str_replace_file",
     ),
     "environment": (
-        "runtime.list_env_vars",
         "runtime.get_env_var",
         "runtime.set_env_var",
         "runtime.delete_env_var",

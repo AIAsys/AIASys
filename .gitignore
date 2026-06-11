@@ -115,6 +115,8 @@ docs/superpowers/
 
 # 前端截图验证产物
 apps/design-draft/
+apps/web/design-draft/
+apps/web/.aiasys/
 
 # Editor swap/backup files
 *.swp
