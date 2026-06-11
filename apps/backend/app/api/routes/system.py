@@ -2,11 +2,6 @@
 
 from __future__ import annotations
 
-import os
-import shutil
-import subprocess
-from pathlib import Path
-
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
@@ -97,87 +92,7 @@ def get_runtime_storage_settings_service() -> RuntimeStorageSettingsService:
     return RuntimeStorageSettingsService()
 
 
-def _find_uv_binary() -> str | None:
-    """在 PATH 和常见安装位置中查找 uv 可执行文件。"""
-    uv = shutil.which("uv")
-    if uv:
-        return uv
-
-    home = Path.home()
-    candidates: list[Path] = [
-        home / ".cargo" / "bin" / "uv",
-        home / ".local" / "bin" / "uv",
-    ]
-    if os.name == "nt":
-        candidates.append(home / ".cargo" / "bin" / "uv.exe")
-
-    for p in candidates:
-        if p.is_file():
-            return str(p)
-    return None
-
-
-def _get_uv_version(path: str) -> str | None:
-    try:
-        completed = subprocess.run(
-            [path, "--version"],
-            capture_output=True,
-            text=True,
-            timeout=10,
-            check=False,
-        )
-        if completed.returncode == 0:
-            raw = (completed.stdout or "").strip()
-            # uv --version 输出格式: "uv 0.11.3 (x86_64-unknown-linux-gnu)"
-            # 提取纯版本号，去掉前缀和平台信息
-            import re
-
-            match = re.search(r"uv\s+(\d+\.\d+\.\d+)", raw)
-            if match:
-                return match.group(1)
-            return raw or None
-    except Exception:
-        pass
-    return None
-
-
-def _install_uv() -> tuple[bool, str | None, str | None, str]:
-    """尝试安装 uv，返回 (是否成功, 路径, 版本, 消息)。"""
-    if os.name == "nt":
-        command = [
-            "powershell",
-            "-ExecutionPolicy",
-            "ByPass",
-            "-c",
-            "irm https://astral.sh/uv/install.ps1 | iex",
-        ]
-    else:
-        command = ["sh", "-c", "curl -LsSf https://astral.sh/uv/install.sh | sh"]
-
-    try:
-        completed = subprocess.run(
-            command,
-            capture_output=True,
-            text=True,
-            timeout=180,
-            check=False,
-        )
-    except Exception as exc:
-        return False, None, None, f"安装命令执行失败: {exc}"
-
-    stdout = (completed.stdout or "").strip()
-    stderr = (completed.stderr or "").strip()
-
-    if completed.returncode != 0:
-        detail = stderr or stdout or f"退出码 {completed.returncode}"
-        return False, None, None, f"安装失败: {detail}"
-
-    # 安装完成后尝试查找
-    path = _find_uv_binary()
-    version = _get_uv_version(path) if path else None
-    if path:
-        return True, path, version, f"Python 包管理器安装成功 ({version or path})"
-    return False, None, None, "安装脚本已执行，但未能找到 uv。可能需要刷新环境变量后重试。"
+from app.core.uv_utils import find_uv_binary, get_uv_version, install_uv
 
 
 @router.get("/capability-registry", response_model=CapabilityRegistryResponse)
@@ -299,8 +214,8 @@ async def get_uv_status(
 ):
     """检查全局 uv 安装状态。"""
     _ = current_user
-    path = _find_uv_binary()
-    version = _get_uv_version(path) if path else None
+    path = find_uv_binary()
+    version = get_uv_version(path) if path else None
     if path:
         return UvStatusResponse(
             installed=True,
@@ -321,9 +236,9 @@ async def install_uv_endpoint(
     """全局安装 uv（跨平台）。"""
     _ = current_user
     # 先检查是否已安装
-    existing = _find_uv_binary()
+    existing = find_uv_binary()
     if existing:
-        version = _get_uv_version(existing)
+        version = get_uv_version(existing)
         return UvInstallResponse(
             installed=True,
             version=version,
@@ -331,7 +246,7 @@ async def install_uv_endpoint(
             message=f"Python 包管理器已就绪 ({version or existing})",
         )
 
-    ok, path, version, message = _install_uv()
+    ok, path, version, message = install_uv()
     if not ok:
         raise HTTPException(status_code=500, detail=message)
     return UvInstallResponse(
