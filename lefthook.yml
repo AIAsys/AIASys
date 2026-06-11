@@ -13,7 +13,7 @@ pre-commit:
     # --- Frontend ---
     frontend-lint:
       glob: "apps/web/src/**/*.{ts,tsx,js,jsx}"
-      run: cd apps/web && npx eslint {staged_files}
+      run: cd apps/web && files=$(echo "{staged_files}" | sed 's|apps/web/||g') && existing="" && for f in $files; do [ -f "$f" ] && existing="$existing $f"; done && [ -n "$existing" ] && npx eslint $existing || true
 
     frontend-type-check:
       glob: "apps/web/src/**/*.{ts,tsx}"

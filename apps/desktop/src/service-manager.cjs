@@ -51,15 +51,14 @@ function fixPyvenvHomeIfNeeded(backendRoot) {
     return;
   }
 
-  // 如果当前 home 指向的路径不存在，或不是嵌入目录，则修复
-  if (!currentHome || !fs.existsSync(currentHome)) {
-    const newContent = content.replace(/^home\s*=\s*.+$/m, `home = ${expectedHome}`);
-    try {
-      fs.writeFileSync(pyvenvPath, newContent, "utf-8");
-      console.log(`[aiasys-desktop] 已修复 pyvenv.cfg home 路径: ${expectedHome}`);
-    } catch (error) {
-      console.warn("[aiasys-desktop] 修复 pyvenv.cfg 失败:", error);
-    }
+  // home 不正确或缺失，强制修复为嵌入目录
+  // 不依赖 fs.existsSync 判断，避免目标机器上恰好存在构建机同名路径时漏修
+  const newContent = content.replace(/^home\s*=\s*.+$/m, `home = ${expectedHome}`);
+  try {
+    fs.writeFileSync(pyvenvPath, newContent, "utf-8");
+    console.log(`[aiasys-desktop] 已修复 pyvenv.cfg home 路径: ${expectedHome}`);
+  } catch (error) {
+    console.warn("[aiasys-desktop] 修复 pyvenv.cfg 失败:", error);
   }
 
   // 修复 .venv/bin/python 符号链接，使其指向嵌入的 Python
@@ -687,6 +686,10 @@ class DesktopServiceManager {
       PYTHONUTF8: "1",
     };
 
+    // 清除可能干扰嵌入 Python 的虚拟环境变量
+    delete env.VIRTUAL_ENV;
+    delete env.PYTHONHOME;
+
     const sitePackages = getVenvSitePackages(this.backendRoot);
     if (sitePackages) {
       const sep = process.platform === "win32" ? ";" : ":";
@@ -696,6 +699,16 @@ class DesktopServiceManager {
     }
 
     return { ...env, ...extraEnv };
+  }
+
+  /**
+   * 构建 backend 子进程环境变量，附加桌面模式标识。
+   */
+  buildBackendEnv(extraEnv = {}) {
+    return this._buildPythonEnv({
+      AIASYS_DESKTOP_MODE: "1",
+      ...extraEnv,
+    });
   }
 
   async resolveDesiredPort({
@@ -802,7 +815,7 @@ class DesktopServiceManager {
       ["-m", "uvicorn", "app.main:app", "--host", this.host, "--port", String(this.backendPort)],
       {
         cwd: this.backendRoot,
-        env: this._buildPythonEnv({
+        env: this.buildBackendEnv({
           AIASYS_RUNTIME_ROOT: this.runtimeStateRoot || this.backendRoot,
         }),
         __logFilePath: this.getLogFilePath("backend"),

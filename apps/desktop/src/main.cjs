@@ -225,42 +225,6 @@ function createTray() {
         void shell.openPath(app.getPath("userData"));
       },
     },
-    {
-      label: "打开用户配置",
-      click: () => {
-        // 尝试打开 config.json 所在目录（backend data/config 或 backend 根目录）
-        const configPaths = [
-          path.join(runtimeStateRoot, "data", "config"),
-          path.join(runtimeStateRoot, "data"),
-          path.join(app.getPath("userData"), "backend-runtime", "data", "config"),
-          path.join(app.getPath("userData"), "backend-runtime", "data"),
-        ];
-        for (const configDir of configPaths) {
-          if (fs.existsSync(configDir)) {
-            void shell.openPath(configDir);
-            return;
-          }
-        }
-        // 兜底：打开 userData
-        void shell.openPath(app.getPath("userData"));
-      },
-    },
-    {
-      label: "打开工作区目录",
-      click: () => {
-        const workspacePaths = [
-          path.join(runtimeStateRoot, "data", "workspaces"),
-          path.join(app.getPath("userData"), "backend-runtime", "data", "workspaces"),
-        ];
-        for (const wsDir of workspacePaths) {
-          if (fs.existsSync(wsDir)) {
-            void shell.openPath(wsDir);
-            return;
-          }
-        }
-        void shell.openPath(app.getPath("userData"));
-      },
-    },
     { type: "separator" },
     {
       label: "退出",
