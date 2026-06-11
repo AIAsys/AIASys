@@ -186,6 +186,11 @@ class SessionCompactionMixin:
                 )
             after_tokens_est += estimate_text_tokens(system_messages)
 
+            # 补上 _context_messages（memory + AGENTS.md）的 token，
+            # 这些内容每次调用都通过 _messages_for_model() 动态拼入。
+            if self._context_messages:
+                after_tokens_est += estimate_text_tokens(self._context_messages)
+
             self._insert_compaction_notice(
                 tier_used="llm_summary",
                 compacted_count=result.compacted_count,

@@ -43,7 +43,9 @@ interface DesignSidebarHistorySectionProps {
   onClearSearch: () => void;
   onWorkspaceSelect?: (workspaceId: string) => void;
   onDeleteWorkspace?: (workspaceId: string) => void | Promise<void>;
+  onDeleteAllWorkspaces?: () => void;
   onDeleteSelectedWorkspaces?: (ids: string[]) => void;
+  onExportWorkspace?: (workspaceId: string) => void | Promise<void>;
   onUpdateWorkspace?: (
     workspaceId: string,
     patch: { title?: string; description?: string | null },

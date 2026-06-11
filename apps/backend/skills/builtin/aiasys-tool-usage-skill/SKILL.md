@@ -29,7 +29,6 @@ description = "AIASys 内置工具使用指南。提供当前 Agent 可用工具
 - 不要用 WriteFile 或 StrReplaceFile 修改 `.canvas` 文件，增删改节点和边请用 `BatchCanvasOperations`
 
 ### 环境变量
-- `ListEnvVars`：列出当前工作区环境变量名（只返回工作区变量，不含系统变量，输出更干净）
 - `GetEnvVar`：读取某个环境变量的值（敏感变量自动脱敏）
 - `SetEnvVar`：设置/修改工作区环境变量（持久化，跨会话可用）
 - `DeleteEnvVar`：删除工作区环境变量（永久删除，跨会话生效）

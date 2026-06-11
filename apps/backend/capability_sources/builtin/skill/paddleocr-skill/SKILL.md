@@ -41,7 +41,7 @@ description = "API 认证 token"
 
 PaddleOCR 需要 API token 才能工作。Agent 使用本 skill 前按以下流程处理：
 
-1. **检查**：调用 `ListEnvVars` 查看工作区是否已有 `PADDLEOCR_API_URL` 和 `PADDLEOCR_TOKEN`
+1. **检查**：调用 `GetEnvVar` 查看工作区是否已有 `PADDLEOCR_API_URL` 和 `PADDLEOCR_TOKEN`
 2. **已有** → 直接执行提取
 3. **缺失** → 询问用户是否提供：
    - 用户提供 → 用 `SetEnvVarTool` 写入工作区环境变量（存储在 `.workspace/workspace.json` 的 `runtime_binding.env_vars`）

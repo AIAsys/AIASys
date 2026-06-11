@@ -160,7 +160,6 @@ async def test_system_tool_categories_return_functional_capability_mappings(
         "automation",
     }.issubset(categories)
     assert "runtime.read_file" in categories["workspace-files"].capability_ids
-    assert "runtime.list_env_vars" in categories["environment"].capability_ids
     assert "runtime.manage_workspace_runtime_environment" in categories[
         "environment"
     ].capability_ids

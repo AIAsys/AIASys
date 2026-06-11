@@ -16,7 +16,11 @@
     "dist:ci:linux": "npm run prepare:runtime && electron-builder --linux AppImage --publish=never",
     "dist:ci:win": "npm run prepare:runtime && electron-builder --win nsis --publish=never",
     "dist:ci:mac": "npm run prepare:runtime && electron-builder --mac dmg zip --publish=never",
-    "dist:mac:unsigned": "npm run build:web && npm run prepare:runtime && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac dmg --arm64 -c.mac.notarize=false -c.mac.identity=null"
+    "dist:mac:unsigned": "npm run build:web && npm run prepare:runtime && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac dmg --arm64 -c.mac.notarize=false -c.mac.identity=null",
+    "test:unit": "node --test src/__tests__/*.test.cjs",
+    "test:integration": "node --test scripts/integration-test.cjs",
+    "test:smoke": "node scripts/smoke-test.cjs",
+    "test": "npm run test:unit && npm run test:integration"
   },
   "devDependencies": {
     "electron": "41.2.0",

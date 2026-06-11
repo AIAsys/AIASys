@@ -47,7 +47,6 @@ if TYPE_CHECKING:
     from .env_vars_tool import (
         DeleteEnvVar,
         GetEnvVar,
-        ListEnvVars,
         SetEnvVar,
     )
     from .file_tools import ReadFile, StrReplaceFile, WriteFile
@@ -109,7 +108,6 @@ __all__ = [
     "ReadFile",
     "WriteFile",
     "StrReplaceFile",
-    "ListEnvVars",
     "GetEnvVar",
     "SetEnvVar",
     "DeleteEnvVar",
@@ -218,11 +216,10 @@ def __getattr__(name: str) -> Any:
         return import_module(".file_tools", __name__).StrReplaceFile
 
     if name in {
-        "ListEnvVars",
         "GetEnvVar",
         "SetEnvVar",
         "DeleteEnvVar",
-    }:
+    }: 
         module = import_module(".env_vars_tool", __name__)
         return getattr(module, name)
 

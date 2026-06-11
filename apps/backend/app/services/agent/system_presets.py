@@ -19,7 +19,6 @@ logger = logging.getLogger(__name__)
 AGENTS_ROOT = Path(__file__).resolve().parents[2] / "agents"
 LOCAL_CONFIG_DIR = AGENTS_ROOT / "local_sandbox_agent_config"
 LOCAL_PRESET_SUFFIX = ".preset"
-LIST_ENV_VARS_TOOL_PATH = "app.agents.tools.env_vars_tool:ListEnvVars"
 GET_ENV_VAR_TOOL_PATH = "app.agents.tools.env_vars_tool:GetEnvVar"
 SET_ENV_VAR_TOOL_PATH = "app.agents.tools.env_vars_tool:SetEnvVar"
 DELETE_ENV_VAR_TOOL_PATH = "app.agents.tools.env_vars_tool:DeleteEnvVar"
@@ -138,7 +137,6 @@ _ROLE_TYPE_TOOL_MAP: dict[str, tuple[str, ...]] = {
             "app.agents.tools.code_execution_tool:ListKernelEnvsTool",
             "app.agents.tools.code_execution_tool:RegisterKernelEnvTool",
             "app.agents.tools.code_execution_tool:RemoveKernelEnvTool",
-            LIST_ENV_VARS_TOOL_PATH,
             GET_ENV_VAR_TOOL_PATH,
             SET_ENV_VAR_TOOL_PATH,
             DELETE_ENV_VAR_TOOL_PATH,
@@ -166,7 +164,6 @@ _ROLE_TYPE_TOOL_MAP: dict[str, tuple[str, ...]] = {
             "app.agents.tools.file_tools:ReadFile",
             "app.agents.tools.file_tools:WriteFile",
             "app.agents.tools.file_tools:StrReplaceFile",
-            LIST_ENV_VARS_TOOL_PATH,
             GET_ENV_VAR_TOOL_PATH,
             SET_ENV_VAR_TOOL_PATH,
             DELETE_ENV_VAR_TOOL_PATH,
@@ -213,7 +210,6 @@ _ROLE_TYPE_TOOL_MAP: dict[str, tuple[str, ...]] = {
             "app.agents.tools.file_tools:ReadFile",
             "app.agents.tools.file_tools:WriteFile",
             "app.agents.tools.file_tools:StrReplaceFile",
-            LIST_ENV_VARS_TOOL_PATH,
             GET_ENV_VAR_TOOL_PATH,
             SET_ENV_VAR_TOOL_PATH,
             DELETE_ENV_VAR_TOOL_PATH,
@@ -431,7 +427,6 @@ DATA_ANALYSIS_BASELINE = SystemAgentBaseline(
             "app.agents.tools.file_tools:ReadFile",
             "app.agents.tools.file_tools:WriteFile",
             "app.agents.tools.file_tools:StrReplaceFile",
-            LIST_ENV_VARS_TOOL_PATH,
             GET_ENV_VAR_TOOL_PATH,
             SET_ENV_VAR_TOOL_PATH,
             DELETE_ENV_VAR_TOOL_PATH,
