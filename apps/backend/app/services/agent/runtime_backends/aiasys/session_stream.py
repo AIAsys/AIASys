@@ -16,7 +16,6 @@ from app.core.tool_result import ToolResult
 from app.services.agent.authorization import (
     AuthorizationMode,
     CapabilityAuthorizationRequest,
-    CapabilityAuthorizationResult,
     CapabilityAuthorizationService,
 )
 from app.services.agent.message_content import (
@@ -298,10 +297,7 @@ class SessionStreamMixin:
             total_output_tokens += output_tokens
             self._log_cache_stats(latest_usage)
 
-            # Session 级预算检查
-            if self.budget is not None and self.budget.status == "active":
-                self._check_session_budget(input_tokens, output_tokens)
-            # 用 LLM 返回的精确 prompt_tokens 修正估算值
+            # 用 LLM 返回的精确 prompt_tokens 修正估算值，优先于预算检查
             if latest_usage is not None:
                 prompt_tokens = latest_usage.get("prompt_tokens")
                 if prompt_tokens is None:
@@ -309,6 +305,10 @@ class SessionStreamMixin:
                 if isinstance(prompt_tokens, int) and prompt_tokens > 0:
                     self._estimated_token_count = prompt_tokens
                     self._save_context_tokens_to_metadata()
+
+            # Session 级预算检查（在 _estimated_token_count 修正之后）
+            if self.budget is not None and self.budget.status == "active":
+                self._check_session_budget(input_tokens, output_tokens)
 
             assistant_content = "".join(assistant_parts) or None
             assistant_reasoning_content = assistant_reasoning or ""

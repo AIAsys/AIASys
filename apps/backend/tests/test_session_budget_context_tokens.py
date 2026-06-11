@@ -50,17 +50,15 @@ def _call_save_context_tokens(work_dir: Path, estimated: int) -> None:
 
 
 def test_save_context_tokens_when_budget_is_none(tmp_path: Path) -> None:
-    """预算未开启时，仍能将 context_tokens 写入 metadata.json。"""
+    """预算未开启时，不创建 budget 对象，避免污染初始化恢复路径。"""
     meta = _build_meta(budget=None)
     _write_metadata(tmp_path, meta)
 
     _call_save_context_tokens(tmp_path, estimated=12345)
 
     updated = _read_metadata(tmp_path)
-    assert updated.budget is not None
-    assert updated.budget.context_tokens == 12345
-    assert updated.budget.tokens_used == 0
-    assert updated.budget.token_budget is None
+    # budget 为 None 时不创建对象，保持原始状态
+    assert updated.budget is None
 
 
 def test_save_context_tokens_when_budget_exists(tmp_path: Path) -> None:

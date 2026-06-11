@@ -23,10 +23,10 @@ from app.services.session.constants import (
 )
 
 from ..base import RuntimeSessionCreateSpec
+from .capability_confirmation import CapabilityConfirmationManager
 from .llm_clients.message_protocol import InternalMessage
 from .session_budget import SessionBudgetMixin
 from .session_compaction import SessionCompactionMixin
-from .capability_confirmation import CapabilityConfirmationManager
 from .session_stream import SessionStreamMixin
 from .session_tools import SessionToolsMixin
 from .session_utils import (
@@ -91,13 +91,14 @@ class AiasysRuntimeSession(
         )
 
         # 从 metadata.json 恢复上次 LLM 返回的精确 context_tokens，
-        # 避免 session 激活初期显示启发式估算值（与精确值差距大导致跳动）。
+        # 作为保底值；始终重新估算当前内容，取两者较大者。
+        # 精确值优先于启发式估算，但系统提示词 / memory / AGENTS.md
+        # 可能在 session 关闭期间变化，不能只信任旧快照。
         _saved_tokens: int | None = None
         if self.budget is not None:
             _ct = getattr(self.budget, "context_tokens", 0) or 0
             if isinstance(_ct, int) and _ct > 0:
                 _saved_tokens = _ct
-                self._estimated_token_count = _ct
 
         system_prompt = self._load_or_build_system_prompt()
         if system_prompt:
@@ -107,8 +108,7 @@ class AiasysRuntimeSession(
                     "content": system_prompt,
                 }
             )
-            if _saved_tokens is None:
-                self._estimated_token_count += estimate_text_tokens([self.messages[-1]])
+            self._estimated_token_count += estimate_text_tokens([self.messages[-1]])
 
         # 构建 contextual user message（memory + AGENTS.md），对齐 Codex user_instructions。
         # 这些内容发送给模型，但不进入普通对话历史，避免污染工具上下文和子 Agent 继承。
@@ -125,21 +125,23 @@ class AiasysRuntimeSession(
                 "content": "\n\n".join(context_parts),
             }
             self._context_messages.append(context_message)
-            if _saved_tokens is None:
-                self._estimated_token_count += estimate_text_tokens([context_message])
+            self._estimated_token_count += estimate_text_tokens([context_message])
 
         # 子 Agent 历史对话继承（fork_turns）
         if spec.is_subagent and spec.fork_messages:
             fork_msgs = self._build_fork_messages(spec.fork_messages, spec.fork_turns)
             self.messages.extend(fork_msgs)
-            if _saved_tokens is None:
-                self._estimated_token_count += estimate_text_tokens(fork_msgs)
+            self._estimated_token_count += estimate_text_tokens(fork_msgs)
         elif not spec.is_subagent:
             persisted = self._load_persisted_messages()
             persisted = self._downgrade_historical_image_messages(persisted)
             self.messages.extend(persisted)
-            if _saved_tokens is None:
-                self._estimated_token_count += estimate_text_tokens(persisted)
+            self._estimated_token_count += estimate_text_tokens(persisted)
+
+        # 精确值保底：若系统提示词等未变化，恢复值通常更准确；
+        # 若内容增长了，当前估算值更大，不会被覆盖。
+        if _saved_tokens is not None and _saved_tokens > self._estimated_token_count:
+            self._estimated_token_count = _saved_tokens
 
     def _messages_for_model(self) -> list[InternalMessage]:
         """返回发送给模型的消息序列。"""

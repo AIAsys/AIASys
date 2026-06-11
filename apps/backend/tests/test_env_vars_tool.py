@@ -9,80 +9,12 @@ from pathlib import Path
 import pytest
 
 from app.agents.tools import env_vars_tool as env_vars_tool_module
-from app.agents.tools.env_vars_tool import DeleteEnvVar, ListEnvVars, SetEnvVar
-from app.services.agent.system_presets import (
-    DATA_ANALYSIS_BASELINE,
-    LIST_ENV_VARS_TOOL_PATH,
-    RUNTIME_ENVIRONMENT_TOOL_PATH,
-    get_role_type_default_tools,
-)
-from app.services.agent.runtime_backends.aiasys.tool_registry import ToolRegistry
-from app.services.capability_catalog import resolve_tool_category_tool_names
+from app.agents.tools.env_vars_tool import DeleteEnvVar, SetEnvVar
 from app.services.global_env_vars import set_global_env_vars
 from app.services.history import current_runtime_env_vars, current_session_id, current_user_id, current_workspace
-from app.services.runtime_tooling import probe_runtime_tool
 from app.services.session import SessionManager
 from app.services.workspace_registry import WorkspaceRegistryService
 from app.services import workspace_registry as workspace_registry_module
-
-
-@pytest.fixture
-def runtime_env_vars():
-    token = current_runtime_env_vars.set(
-        {
-            "AIASYS_TEST_SESSION_SECRET": "session-secret-value",
-            "AIASYS_TEST_SESSION_FLAG": "enabled",
-        }
-    )
-    yield
-    current_runtime_env_vars.reset(token)
-
-
-@pytest.mark.asyncio
-async def test_list_env_vars_returns_names_without_values(
-    monkeypatch: pytest.MonkeyPatch,
-    runtime_env_vars,
-) -> None:
-    monkeypatch.setenv("AIASYS_TEST_HOST_NAME", "host-value")
-
-    result = await ListEnvVars().invoke()
-
-    assert not result.is_error
-    payload = json.loads(result.content)
-    env_vars = payload["env_vars"]
-
-    assert payload["status"] == "success"
-    assert payload["count"] == len(env_vars)
-    assert "AIASYS_TEST_HOST_NAME" in env_vars
-    assert "AIASYS_TEST_SESSION_SECRET" in env_vars
-    assert "AIASYS_TEST_SESSION_FLAG" in env_vars
-    assert "host-value" not in result.content
-    assert "session-secret-value" not in result.content
-    assert "enabled" not in result.content
-
-
-def test_list_env_vars_tool_schema_is_registered() -> None:
-    registry = ToolRegistry()
-    registry.register(ListEnvVars())
-
-    schema = registry.get_openai_schema()[0]["function"]
-
-    assert schema["name"] == "ListEnvVars"
-    assert schema["parameters"]["type"] == "object"
-
-
-def test_list_env_vars_tool_is_discoverable_from_default_tool_sets() -> None:
-    assert probe_runtime_tool(LIST_ENV_VARS_TOOL_PATH).available is True
-    assert LIST_ENV_VARS_TOOL_PATH in DATA_ANALYSIS_BASELINE.tools
-    assert LIST_ENV_VARS_TOOL_PATH in get_role_type_default_tools("coder")
-    assert LIST_ENV_VARS_TOOL_PATH in resolve_tool_category_tool_names(["environment"])
-
-
-def test_runtime_environment_tool_is_discoverable_from_default_tool_sets() -> None:
-    assert probe_runtime_tool(RUNTIME_ENVIRONMENT_TOOL_PATH).available is True
-    assert RUNTIME_ENVIRONMENT_TOOL_PATH in DATA_ANALYSIS_BASELINE.tools
-    assert RUNTIME_ENVIRONMENT_TOOL_PATH not in get_role_type_default_tools("coder")
-    assert RUNTIME_ENVIRONMENT_TOOL_PATH in resolve_tool_category_tool_names(["environment"])
 
 
 @pytest.fixture

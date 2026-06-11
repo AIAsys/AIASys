@@ -98,65 +98,6 @@ def _resolve_workspace_scope(
     return "当前会话没有绑定可解析的工作区，无法管理工作区环境变量。"
 
 
-class ListEnvVarsParams(BaseModel):
-    """ListEnvVars 参数。"""
-
-    pass
-
-
-class ListEnvVars(AiasysTool):
-    """列出当前会话运行态可用的环境变量名。"""
-
-    name: str = "ListEnvVars"
-    risk_level: str = "readonly"
-    effect_scope: str = "session"
-    side_effect: bool = False
-    description: str = """列出当前工作区的环境变量名。
-
-适用场景：
-- 查看当前工作区设置了哪些环境变量
-- 列出环境变量名称列表
-
-返回内容：
-- count: 变量名数量
-- env_vars: 按字母序排列的环境变量名列表
-
-为什么用 ListEnvVars 而不是 Shell `env`：
-- 返回结构化 JSON，方便后续处理
-- 包含工作区持久化环境变量 + 当前会话注入的变量，范围明确
-- Shell `env` 输出是纯文本，需要额外解析
-
-限制：
-- 只返回变量名，不返回变量值
-- 不适合用来读取密钥值；读取具体变量值请用 GetEnvVar 或由代码运行环境自行按需访问
-"""
-    params: type[BaseModel] = ListEnvVarsParams
-
-    async def invoke(
-        self,
-        ctx: dict[str, Any] | None = None,
-        **kwargs: Any,
-    ) -> ToolResult:
-        params = ListEnvVarsParams.model_validate(kwargs)
-        del ctx, params
-
-        custom_env_vars = current_runtime_env_vars.get()
-        effective_env = build_sanitized_kernel_env(custom_env_vars=custom_env_vars)
-        env_vars = sorted(effective_env.keys())
-
-        return ToolResult(
-            content=json.dumps(
-                {
-                    "status": "success",
-                    "count": len(env_vars),
-                    "env_vars": env_vars,
-                },
-                ensure_ascii=False,
-                indent=2,
-            )
-        )
-
-
 # ---------------------------------------------------------------------------
 # GetEnvVar
 # ---------------------------------------------------------------------------
