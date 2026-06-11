@@ -6,7 +6,6 @@ import json
 import logging
 import os
 import re
-import shutil
 import subprocess
 import sys
 import tempfile
@@ -424,7 +423,9 @@ class RuntimeEnvironmentService:
         return removed_env
 
     def is_uv_available(self) -> bool:
-        return shutil.which("uv") is not None
+        from app.core.uv_utils import find_uv_binary
+
+        return find_uv_binary() is not None
 
     def _workspace_dir(self, user_id: str, workspace_id: str) -> Path:
         return self.workspace_registry.get_workspace_root(user_id, workspace_id)
