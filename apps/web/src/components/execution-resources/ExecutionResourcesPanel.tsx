@@ -9,6 +9,16 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import type { KernelEnvItem } from "@/lib/api/kernelEnvs";
 import {
   bindWorkspaceRuntimeEnvironment,
@@ -246,7 +256,7 @@ function ExecutionResourcesOverview({
             <Button
               type="button"
               size="sm"
-              disabled={!workspaceId || isEnsuringUv || registry?.uv_available === false}
+              disabled={!workspaceId || isEnsuringUv}
               onClick={onEnsureUv}
             >
               {isEnsuringUv ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
@@ -372,6 +382,7 @@ export function ExecutionResourcesPanel({
   const [installingEnvId, setInstallingEnvId] = useState<string | null>(null);
   const [containerResources, setContainerResources] = useState<WorkspaceContainerResource[]>([]);
   const [selectingSandboxId, setSelectingSandboxId] = useState<string | null>(null);
+  const [showUvConfirmDialog, setShowUvConfirmDialog] = useState(false);
 
   const loadRegistry = useCallback(async () => {
     if (!workspaceId) {
@@ -426,6 +437,14 @@ export function ExecutionResourcesPanel({
       setIsEnsuringUv(false);
     }
   }, [loadRegistry, workspaceId]);
+
+  const handleEnsureUvWithConfirm = useCallback(() => {
+    if (registry?.uv_available === false) {
+      setShowUvConfirmDialog(true);
+      return;
+    }
+    void handleEnsureUv();
+  }, [registry?.uv_available, handleEnsureUv]);
 
   const handleBindDefault = useCallback(
     async (envId: string) => {
@@ -594,7 +613,7 @@ export function ExecutionResourcesPanel({
                 notice={notice}
                 isEnsuringUv={isEnsuringUv}
                 onRefresh={() => void loadRegistry()}
-                onEnsureUv={() => void handleEnsureUv()}
+                onEnsureUv={handleEnsureUvWithConfirm}
                 onOpenSection={setActiveSection}
                 activeSandboxMode={activeSandboxMode}
                 activeSandboxResourceId={activeSandboxResourceId}
@@ -645,7 +664,7 @@ export function ExecutionResourcesPanel({
                 unregisteringEnvId={unregisteringEnvId}
                 installingEnvId={installingEnvId}
                 onRefreshRegistry={loadRegistry}
-                onEnsureUv={handleEnsureUv}
+                onEnsureUv={handleEnsureUvWithConfirm}
                 onRegisterPython={handleRegisterPython}
                 onBindDefault={handleBindDefault}
                 onUnregister={handleUnregisterEnv}
@@ -656,6 +675,30 @@ export function ExecutionResourcesPanel({
 
         </main>
       </div>
+
+      <AlertDialog open={showUvConfirmDialog} onOpenChange={setShowUvConfirmDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>安装 uv 包管理器</AlertDialogTitle>
+            <AlertDialogDescription>
+              需要安装 Python 包管理器 uv（Astral 开发）才能创建 Python 运行环境。安装后 uv 会写入 ~/.cargo/bin/ 目录。是否继续？
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isEnsuringUv}>取消</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={isEnsuringUv}
+              onClick={() => {
+                setShowUvConfirmDialog(false);
+                void handleEnsureUv();
+              }}
+            >
+              {isEnsuringUv ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : null}
+              安装
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
