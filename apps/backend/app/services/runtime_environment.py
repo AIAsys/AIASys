@@ -567,6 +567,19 @@ class RuntimeEnvironmentService:
         env = dict(os.environ)
         env.setdefault("UV_CACHE_DIR", os.path.join(tempfile.gettempdir(), "uv-cache"))
 
+        # 确保 uv 可执行文件的目录在 PATH 中，避免桌面模式下后端 PATH 被截断
+        from app.core.uv_utils import find_uv_binary
+
+        uv_binary = find_uv_binary()
+        if uv_binary:
+            uv_dir = str(Path(uv_binary).parent)
+            path_env = env.get("PATH", "")
+            # 避免重复添加
+            if uv_dir not in path_env.split(os.pathsep):
+                env["PATH"] = uv_dir + os.pathsep + path_env if path_env else uv_dir
+            # 使用完整路径调用 uv，确保在受限 PATH 下也能执行
+            command = [uv_binary] + command[1:]
+
         try:
             completed = subprocess.run(
                 command,

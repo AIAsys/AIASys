@@ -1,21 +1,38 @@
 # Bundled uv binaries
 
-This directory contains platform-specific `uv` binaries that are bundled with AIASys Desktop.
-They are copied into the packaged runtime by `prepare-runtime.cjs` and used by the backend
-so that workspace Python environments can be created without network access.
+This directory holds platform-specific `uv` binaries that are bundled into the
+desktop package runtime.
 
-## Platforms
+## Directory layout
 
-| Directory | Target platform | Binary |
-|-----------|----------------|--------|
-| darwin-arm64 | macOS Apple Silicon | uv |
-| darwin-x64 | macOS Intel | uv |
-| linux-arm64 | Linux ARM64 | uv |
-| linux-x64 | Linux x64 | uv |
-| windows-x64 | Windows x64 | uv.exe |
+```
+vendor/uv/
+  darwin-arm64/uv       → macOS Apple Silicon
+  darwin-x64/uv         → macOS Intel
+  linux-arm64/uv        → Linux ARM64
+  linux-x64/uv          → Linux x64
+  windows-x64/uv.exe    → Windows x64
+```
 
-## How to add/update
+## How binaries are populated
 
-Download the official release from https://github.com/astral-sh/uv/releases and place the
-`uv` (or `uv.exe`) binary in the matching directory. The version should match the one used
-in CI/lock files when possible.
+Binaries are **not** committed to the repository.
+During packaging, `apps/desktop/scripts/download-uv-binary.cjs` detects the
+current platform and downloads the matching release from
+<https://github.com/astral-sh/uv/releases>, placing the binary in the correct
+subdirectory.
+
+```bash
+# Manual download (any platform)
+node apps/desktop/scripts/download-uv-binary.cjs
+
+# Specify a platform explicitly
+node apps/desktop/scripts/download-uv-binary.cjs linux-x64
+```
+
+`prepare-runtime.cjs` invokes this script automatically before copying
+`vendor/` into the staging directory.
+
+## Version
+
+Bundled uv version is pinned in `download-uv-binary.cjs` (currently **0.11.3**).

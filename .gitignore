@@ -155,3 +155,8 @@ AGENTS.md
 # 团队共享技能（本地开发使用，不纳入版本控制）
 /.team-skills/
 
+# uv 二进制（按需下载，不纳入版本控制）
+apps/backend/vendor/uv/*/uv
+apps/backend/vendor/uv/*/uv.exe
+apps/backend/vendor/uv/.download/
+
