@@ -380,6 +380,22 @@ function prepareBackendRuntime() {
       process.stdout.write(result.stdout);
     }
   }
+  // 确保当前平台的 fnm 二进制已下载到 vendor/node/<slug>/
+  {
+    const downloadScript = path.join(__dirname, "download-fnm-binary.cjs");
+    const result = spawnSync("node", [downloadScript], {
+      encoding: "utf-8",
+      stdio: "pipe",
+    });
+    if (result.status !== 0) {
+      const detail = result.stderr || result.error || `exit ${result.status}`;
+      console.error("[aiasys-desktop] 下载 fnm 二进制失败:", detail);
+      throw new Error(`下载 fnm 二进制失败: ${detail}`);
+    }
+    if (result.stdout) {
+      process.stdout.write(result.stdout);
+    }
+  }
   const requiredEntries = [
     ".venv",
     "app",
@@ -519,6 +535,10 @@ function prepareBackendRuntime() {
 
   // 修复 .venv/bin/ 脚本 shebang 中的构建机绝对路径
   fixVenvBinShebangs(backendStageRoot);
+
+  // 修复 pyvenv.cfg 的 home 路径为嵌入目录
+  // AppImage squashfs 只读，运行时无法原地修改，必须在构建时修正
+  fixPyvenvCfgHome(backendStageRoot);
 }
 
 /**
@@ -589,6 +609,37 @@ function fixVenvBinShebangs(backendStageRoot) {
   if (fixed > 0) {
     console.log(`[aiasys-desktop] 已修复 ${fixed} 个 .venv/bin 脚本的 shebang`);
   }
+}
+
+/**
+ * 修复 pyvenv.cfg 的 home 路径，指向嵌入的 Python 目录。
+ * AppImage squashfs 只读，运行时无法原地修改，必须在构建时修正。
+ */
+function fixPyvenvCfgHome(backendStageRoot) {
+  const pyvenvPath = path.join(backendStageRoot, ".venv", "pyvenv.cfg");
+  if (!fs.existsSync(pyvenvPath)) {
+    return;
+  }
+
+  const embedPythonDir = path.join(backendStageRoot, ".venv", "python");
+  if (!fs.existsSync(embedPythonDir)) {
+    return;
+  }
+
+  const content = fs.readFileSync(pyvenvPath, "utf-8");
+  const homeMatch = content.match(/^home\s*=\s*(.+)$/m);
+  if (!homeMatch) {
+    return;
+  }
+
+  const currentHome = homeMatch[1].trim();
+  if (path.resolve(currentHome) === path.resolve(embedPythonDir)) {
+    return; // 已经正确，无需修改
+  }
+
+  const newContent = content.replace(/^home\s*=\s*.+$/m, `home = ${embedPythonDir}`);
+  fs.writeFileSync(pyvenvPath, newContent, "utf-8");
+  console.log(`[aiasys-desktop] 已修正 pyvenv.cfg home 路径: ${embedPythonDir}`);
 }
 
 function pruneDevDependencies(backendStageRoot) {

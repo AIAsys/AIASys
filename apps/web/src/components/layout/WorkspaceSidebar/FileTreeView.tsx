@@ -163,6 +163,7 @@ interface FileTreeViewProps {
   onDeleteFile?: (filename: string) => Promise<boolean>;
   onOpenInMainCanvas?: (file: WorkspaceFile) => void;
   onEditInMainCanvas?: (file: WorkspaceFile) => void;
+  onOpenInBrowserTab?: (file: WorkspaceFile) => void;
   onOpenFileHistory?: (file: WorkspaceFile) => void;
   onExportMarkdownFile?: (filename: string, format: ExportFormat) => Promise<void>;
   onMoveFile?: (source: string, target: string) => Promise<boolean>;
@@ -194,6 +195,7 @@ export const FileTreeView: React.FC<FileTreeViewProps> = ({
   onDeleteFolder,
   onOpenInMainCanvas,
   onEditInMainCanvas,
+  onOpenInBrowserTab,
   onOpenFileHistory,
   onExportMarkdownFile,
   onMoveFile,
@@ -1411,6 +1413,7 @@ export const FileTreeView: React.FC<FileTreeViewProps> = ({
         exportingFile={exportingFile}
         onFileSelect={onFileSelect}
         onOpenInMainCanvas={onOpenInMainCanvas}
+        onOpenInBrowserTab={onOpenInBrowserTab}
         onEditInMainCanvas={onEditInMainCanvas}
         onOpenFileHistory={onOpenFileHistory}
         onExportMarkdownFile={onExportMarkdownFile}

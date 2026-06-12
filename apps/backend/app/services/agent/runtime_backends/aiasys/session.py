@@ -4,7 +4,6 @@ import asyncio
 import hashlib
 import json
 import logging
-import threading
 import tomllib
 from pathlib import Path
 from typing import Any
@@ -61,7 +60,7 @@ class AiasysRuntimeSession(
         self._tool_registry = registry
         self._cancel_event = asyncio.Event()
         self._closed = False
-        self._metadata_lock = threading.Lock()
+        self._metadata_lock = asyncio.Lock()
         self._agent_config = self._load_agent_config(spec.agent_file)
         self._model_config = self._resolve_model_config()
         self._tool_strategy: ToolStrategy = detect_tool_strategy(

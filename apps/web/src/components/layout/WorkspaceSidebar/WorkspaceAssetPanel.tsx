@@ -528,6 +528,7 @@ interface WorkspaceAssetPanelProps {
   userId?: string;
   onOpenInMainCanvas?: (file: PreviewFile) => void;
   onEditInMainCanvas?: (file: PreviewFile) => void;
+  onOpenInBrowserTab?: (file: WorkspaceFile) => void;
   onOpenGlobalResourceInMainCanvas?: (node: GlobalResourceNode) => void;
   onOpenWorkspaceSettings?: () => void;
   surfaceMode?: "workbench" | "navigation";
@@ -696,6 +697,7 @@ const WorkspaceAssetPanelComponent: React.FC<WorkspaceAssetPanelProps> = ({
   userId: _userId,
   onOpenInMainCanvas,
   onEditInMainCanvas,
+  onOpenInBrowserTab,
   onOpenGlobalResourceInMainCanvas,
   onOpenWorkspaceSettings,
   surfaceMode = "workbench",
@@ -1250,6 +1252,13 @@ const WorkspaceAssetPanelComponent: React.FC<WorkspaceAssetPanelProps> = ({
       onOpenInMainCanvas?.(buildPreviewFile(file));
     },
     [buildPreviewFile, onOpenInMainCanvas],
+  );
+
+  const handleOpenInBrowserTab = useCallback(
+    (file: WorkspaceFile) => {
+      onOpenInBrowserTab?.(file);
+    },
+    [onOpenInBrowserTab],
   );
 
   const handleEditFileInMainCanvas = useCallback(
@@ -2044,6 +2053,7 @@ const WorkspaceAssetPanelComponent: React.FC<WorkspaceAssetPanelProps> = ({
                 onDeleteFile={isGlobal ? handleGlobalDeleteFile : handleDeleteCurrentFile}
                 onDeleteFolder={isGlobal ? handleDeleteGlobalFolder : handleDeleteCurrentFolder}
                 onOpenInMainCanvas={handleOpenFileInMainCanvas}
+                onOpenInBrowserTab={handleOpenInBrowserTab}
                 onEditInMainCanvas={handleEditFileInMainCanvas}
                 onOpenFileHistory={handleOpenFileHistory}
                 onExportMarkdownFile={isGlobal ? undefined : onExportMarkdownFile}

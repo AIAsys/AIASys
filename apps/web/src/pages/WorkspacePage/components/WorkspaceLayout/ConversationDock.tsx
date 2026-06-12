@@ -34,6 +34,7 @@ interface ConversationDockProps {
   onDeleteConversation?: (sessionId: string) => Promise<void>;
   onWorkerClick?: (workerName: string) => void;
   onOpenWorkspaceArtifact?: (file: PreviewFile) => void;
+  onOpenInBrowserTab?: (path: string) => void;
   onViewToolDetails?: (
     toolCallId: string,
     taskId: string | undefined,
@@ -99,6 +100,7 @@ export function ConversationDock({
   onDeleteConversation,
   onWorkerClick,
   onOpenWorkspaceArtifact,
+  onOpenInBrowserTab,
   onViewToolDetails,
   onRewriteUserMessage,
   inputValue,
@@ -149,12 +151,14 @@ export function ConversationDock({
     () => ({
       onWorkerClick,
       onOpenWorkspaceArtifact,
+      onOpenInBrowserTab,
       onViewToolDetails,
       onRewriteUserMessage,
     }),
     [
       onWorkerClick,
       onOpenWorkspaceArtifact,
+      onOpenInBrowserTab,
       onViewToolDetails,
       onRewriteUserMessage,
     ],
@@ -207,6 +211,7 @@ export function ConversationDock({
 
         onWorkerClick={onWorkerClick}
         onOpenWorkspaceArtifact={onOpenWorkspaceArtifact}
+        onOpenInBrowserTab={onOpenInBrowserTab}
         onViewToolDetails={onViewToolDetails}
         chatAreaActions={chatAreaActions}
         inputValue={inputValue}

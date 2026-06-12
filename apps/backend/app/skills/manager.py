@@ -15,6 +15,7 @@ from __future__ import annotations
 import json
 import logging
 import shutil
+import time
 from pathlib import Path
 from typing import Optional
 
@@ -59,6 +60,48 @@ class SkillManager(SkillEnablementMixin, SkillImportMixin):
     WORKSPACE_SKILLS_DIR_NAME = ".aiasys/skills"
     CONFIG_EXAMPLE_NAME = "config.example.json"
     CONFIG_NAME = "config.json"
+
+    # 基于目录 mtime 的轻量缓存，用于缓解并发测试中的重复磁盘扫描
+    _CACHE_TTL_SECONDS = 2.0
+
+    def __init__(self) -> None:
+        self._list_all_cache: dict[str, tuple[float, list[SkillInfo]]] = {}
+        self._file_content_cache: dict[str, tuple[float, tuple[SkillInfo, str, list[str]] | None]] = {}
+
+    def _cached_now(self) -> float:
+        return time.monotonic()
+
+    def _invalidate_skill_cache(self, workspace_path: Path) -> None:
+        """在启用/禁用 skill 后清除相关缓存，保证后续读取立即可见。"""
+        global_workspace_path = self._infer_global_workspace_path(workspace_path)
+        list_key = self._cache_key_for_list_all(workspace_path, global_workspace_path)
+        self._list_all_cache.pop(list_key, None)
+        # 文件内容缓存按 skill 名称分 key，安全起见全部清空成本很低
+        self._file_content_cache.clear()
+
+    def _cache_key_for_list_all(self, workspace_path: Path, global_workspace_path: Path | None) -> str:
+        parts = [
+            str(self.SKILLS_BUILTIN_DIR),
+            str(self.SKILLS_STORE_DIR),
+            str(workspace_path),
+            str(global_workspace_path) if global_workspace_path else "",
+        ]
+        return "|".join(parts)
+
+    def _cache_key_for_file_content(
+        self,
+        skill_name: str,
+        workspace_path: Path,
+        relative_path: str,
+        global_workspace_path: Path | None,
+    ) -> str:
+        parts = [
+            skill_name,
+            str(workspace_path),
+            relative_path,
+            str(global_workspace_path) if global_workspace_path else "",
+        ]
+        return "|".join(parts)
 
     # ---- 目录工具 ----
 
@@ -262,13 +305,22 @@ class SkillManager(SkillEnablementMixin, SkillImportMixin):
         return None
 
     def list_all_skills(self, workspace_path: Path) -> list[SkillInfo]:
-        return list_all_skills(
+        global_workspace_path = self._infer_global_workspace_path(workspace_path)
+        key = self._cache_key_for_list_all(workspace_path, global_workspace_path)
+        now = self._cached_now()
+        cached = self._list_all_cache.get(key)
+        if cached is not None and (now - cached[0]) < self._CACHE_TTL_SECONDS:
+            return cached[1]
+
+        result = list_all_skills(
             self.SKILLS_BUILTIN_DIR,
             self.SKILLS_STORE_DIR,
             workspace_path,
             self.WORKSPACE_SKILLS_DIR_NAME,
-            global_workspace_path=self._infer_global_workspace_path(workspace_path),
+            global_workspace_path=global_workspace_path,
         )
+        self._list_all_cache[key] = (now, result)
+        return result
 
     # ---- 文件读取 ----
 
@@ -278,15 +330,26 @@ class SkillManager(SkillEnablementMixin, SkillImportMixin):
         workspace_path: Path,
         relative_path: str = "SKILL.md",
     ) -> Optional[tuple[SkillInfo, str, list[str]]]:
-        return get_skill_file_content(
+        global_workspace_path = self._infer_global_workspace_path(workspace_path)
+        key = self._cache_key_for_file_content(
+            skill_name, workspace_path, relative_path, global_workspace_path
+        )
+        now = self._cached_now()
+        cached = self._file_content_cache.get(key)
+        if cached is not None and (now - cached[0]) < self._CACHE_TTL_SECONDS:
+            return cached[1]
+
+        result = get_skill_file_content(
             skill_name=skill_name,
             workspace_path=workspace_path,
             workspace_skills_dir_name=self.WORKSPACE_SKILLS_DIR_NAME,
             store_dir=self.SKILLS_STORE_DIR,
             builtin_dir=self.SKILLS_BUILTIN_DIR,
             relative_path=relative_path,
-            global_workspace_path=self._infer_global_workspace_path(workspace_path),
+            global_workspace_path=global_workspace_path,
         )
+        self._file_content_cache[key] = (now, result)
+        return result
 
     def get_workspace_skill_entry_content(
         self,

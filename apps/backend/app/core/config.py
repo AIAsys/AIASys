@@ -9,9 +9,7 @@
 """
 
 import json
-import logging
 import os
-import secrets
 import tomllib
 from pathlib import Path
 from typing import Any, Dict, List
@@ -329,9 +327,8 @@ AUTH_CONFIG_DATA = _get_config("auth", {})
 AUTH_MODE = AUTH_CONFIG_DATA.get("mode", "local")
 JWT_SECRET = AUTH_CONFIG_DATA.get("jwt_secret")
 if not JWT_SECRET:
-    JWT_SECRET = secrets.token_hex(32)
-    logging.getLogger(__name__).warning(
-        "auth.jwt_secret 未配置，已生成临时随机密钥。"
+    raise RuntimeError(
+        "auth.jwt_secret 未配置。"
         "生产环境请在 config.json 中设置 jwt_secret 或使用 AIASYS_AUTH_JWT_SECRET 环境变量覆盖。"
     )
 CORS_ORIGINS = _get_config("server.cors_origins", [])

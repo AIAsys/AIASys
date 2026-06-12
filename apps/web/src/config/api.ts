@@ -249,6 +249,20 @@ export const API_ENDPOINTS = {
     `/api/workspaces/${encodeURIComponent(workspaceId)}/runtime-environments/${encodeURIComponent(envId)}/packages`,
   WORKSPACE_RUNTIME_ENVIRONMENT_ACTIVE: (workspaceId: string) =>
     `/api/workspaces/${encodeURIComponent(workspaceId)}/runtime-environments/active`,
+  WORKSPACE_RUNTIME_ENVIRONMENT_NODE: (workspaceId: string) =>
+    `/api/workspaces/${encodeURIComponent(workspaceId)}/runtime-environments/node`,
+  WORKSPACE_RUNTIME_ENVIRONMENT_NODE_INSTALL: (workspaceId: string) =>
+    `/api/workspaces/${encodeURIComponent(workspaceId)}/runtime-environments/node/install`,
+  WORKSPACE_RUNTIME_ENVIRONMENT_NODE_USE: (workspaceId: string) =>
+    `/api/workspaces/${encodeURIComponent(workspaceId)}/runtime-environments/node/use`,
+  WORKSPACE_RUNTIME_ENVIRONMENT_NODE_DEFAULT: (workspaceId: string) =>
+    `/api/workspaces/${encodeURIComponent(workspaceId)}/runtime-environments/node/default`,
+  WORKSPACE_RUNTIME_ENVIRONMENT_NODE_CURRENT: (workspaceId: string) =>
+    `/api/workspaces/${encodeURIComponent(workspaceId)}/runtime-environments/node/current`,
+  WORKSPACE_RUNTIME_ENVIRONMENT_NODE_UNINSTALL: (workspaceId: string) =>
+    `/api/workspaces/${encodeURIComponent(workspaceId)}/runtime-environments/node/uninstall`,
+  WORKSPACE_RUNTIME_ENVIRONMENT_NODE_REMOTE: (workspaceId: string) =>
+    `/api/workspaces/${encodeURIComponent(workspaceId)}/runtime-environments/node/remote`,
   WORKSPACE_CONTAINER_RESOURCES: (workspaceId: string) =>
     `/api/workspaces/${encodeURIComponent(workspaceId)}/container-resources`,
   WORKSPACE_CONTAINER_RESOURCE: (workspaceId: string, containerId: string) =>

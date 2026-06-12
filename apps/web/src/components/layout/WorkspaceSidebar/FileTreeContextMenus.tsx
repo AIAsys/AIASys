@@ -9,6 +9,7 @@ import {
   FilePlus,
   FileText,
   FolderPlus,
+  Globe,
   History,
   Scissors,
   SquarePen,
@@ -66,6 +67,7 @@ interface FileContextMenuProps {
   isNotebookFile: (filename: string) => boolean;
   isMarkdownFile: (filename: string) => boolean;
   onRefreshFiles?: () => Promise<void>;
+  onOpenInBrowserTab?: (file: WorkspaceFile) => void;
 }
 
 export function FileContextMenu({
@@ -91,6 +93,7 @@ export function FileContextMenu({
   isNotebookFile,
   isMarkdownFile,
   onRefreshFiles: _onRefreshFiles,
+  onOpenInBrowserTab,
 }: FileContextMenuProps) {
   if (!fileMenu) return null;
 
@@ -297,6 +300,20 @@ export function FileContextMenu({
             >
               <ExternalLink className="h-3.5 w-3.5 text-muted-foreground" />
               在主画布打开
+            </button>
+          ) : null}
+          {onOpenInBrowserTab && fileMenu.file.name.endsWith(".html") ? (
+            <button
+              type="button"
+              role="menuitem"
+              className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs transition-colors hover:bg-accent focus:bg-accent focus:outline-none"
+              onClick={() => {
+                onOpenInBrowserTab(fileMenu.file);
+                closeFileMenu();
+              }}
+            >
+              <Globe className="h-3.5 w-3.5 text-muted-foreground" />
+              在浏览器标签页打开
             </button>
           ) : null}
           {onEditInMainCanvas && isGenericallyEditable(fileMenu.file.name) ? (

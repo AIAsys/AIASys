@@ -134,6 +134,35 @@ export function usePaneTree(
     });
   }, [activeLeafId]);
 
+  const openBrowserTab = useCallback((url: string) => {
+    setPaneTree((current) => {
+      const targetLeafId = findLeaf(current, activeLeafId)
+        ? activeLeafId
+        : (getAllLeafIds(current)[0] ?? "main");
+      const leaf = findLeaf(current, targetLeafId);
+      if (!leaf) return current;
+      const existingTab = leaf.tabs.find((t) => t.url === url);
+      if (existingTab) {
+        setActiveLeafId(targetLeafId);
+        return updateLeaf(current, targetLeafId, (l) => ({
+          ...l,
+          activeTabId: existingTab.id,
+        }));
+      }
+      const tabId = `browser:${url}:${Date.now()}`;
+      const newTab: WorkspaceTab = {
+        id: tabId,
+        url,
+      };
+      setActiveLeafId(targetLeafId);
+      return updateLeaf(current, targetLeafId, (l) => ({
+        ...l,
+        tabs: [...l.tabs, newTab],
+        activeTabId: newTab.id,
+      }));
+    });
+  }, [activeLeafId]);
+
   const openDatabaseQueryTab = useCallback((databaseHandle: string) => {
     setPaneTree((current) => {
       const targetLeafId = findLeaf(current, activeLeafId)
@@ -556,6 +585,7 @@ export function usePaneTree(
     openWorkspaceFileTarget,
     openSubagentDetailTab,
     openTerminalTab,
+    openBrowserTab,
     openDatabaseQueryTab,
     openCapabilityDetailTab,
     handleOpenGlobalResource,

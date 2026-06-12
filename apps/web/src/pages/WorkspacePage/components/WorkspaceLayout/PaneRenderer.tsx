@@ -1,11 +1,11 @@
-import { Suspense, lazy } from "react";
+import { Suspense, lazy, useState, useEffect } from "react";
 import {
   Panel,
   Group as PanelGroup,
   Separator as PanelResizeHandle,
 } from "react-resizable-panels";
 import { cn } from "@/lib/utils";
-import { FileCode2 } from "lucide-react";
+import { FileCode2, Globe, File, Info } from "lucide-react";
 import {
   renderAssetResourcePreview,
   resolveAssetResourceNodeFromWorkspaceFile,
@@ -100,7 +100,9 @@ export interface PaneRendererProps {
   onSplitPane: (leafId: string, tabId: string, direction: "horizontal" | "vertical") => void;
   onTabReorder: (leafId: string, fromIndex: number, toIndex: number) => void;
   onNewTerminalTab?: () => void;
+  onNewBrowserTab?: (url: string) => void;
   onOpenWorkspaceFileFromCanvas: (fileName: string) => void;
+  onOpenInBrowserTab?: (url: string) => void;
   onOpenPreviewFileFromCanvas: (file: PreviewFile) => void;
   onEditFileInMainCanvas: (file: PreviewFile) => void;
   onTabDirtyChange: (tabId: string, dirty: boolean) => void;
@@ -125,6 +127,8 @@ export function PaneRenderer({
   onSplitPane,
   onTabReorder,
   onNewTerminalTab,
+  onNewBrowserTab,
+  onOpenInBrowserTab,
   onOpenWorkspaceFileFromCanvas,
   onOpenPreviewFileFromCanvas,
   onEditFileInMainCanvas,
@@ -149,6 +153,8 @@ export function PaneRenderer({
             subagentId={tab.subagentId}
             userId={userId}
             sessionId={executor.sessionId}
+            onOpenWorkspaceFile={(file) => onOpenWorkspaceFileFromCanvas(file.name)}
+            onOpenInBrowserTab={onOpenInBrowserTab}
           />
         </Suspense>
       );
@@ -184,6 +190,9 @@ export function PaneRenderer({
           />
         </Suspense>
       );
+    }
+    if (tab.url) {
+      return <BrowserTabView url={tab.url} readFileContent={executor.readWorkspaceFileContent} />;
     }
     if (!file) return null;
     const resourceNode = resolveAssetResourceNodeFromWorkspaceFile(file);
@@ -350,6 +359,7 @@ export function PaneRenderer({
           }
           onTabDirtyCheck={(tabId) => tabDirtyMap[tabId] ?? false}
           onNewTerminalTab={onNewTerminalTab}
+          onNewBrowserTab={onNewBrowserTab}
         />
         <div className="min-h-0 flex-1 flex flex-col overflow-hidden">
           {leaf.tabs.map((tab) => {
@@ -437,6 +447,87 @@ export function PaneRenderer({
   return (
     <div className="relative flex-1 min-h-0">
       {renderTree(paneTree)}
+    </div>
+  );
+}
+
+function BrowserTabView({ url, readFileContent }: { url: string; readFileContent?: (path: string) => Promise<string | null> }) {
+  const [content, setContent] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const isLocal = url && !url.startsWith("http");
+  const isElectron = typeof window !== "undefined" && window.__AIASYS_DESKTOP__?.platform === "electron";
+
+  useEffect(() => {
+    if (!isLocal || !readFileContent) {
+      setLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setLoading(true);
+    readFileContent(url)
+      .then((text) => {
+        if (!cancelled) {
+          setContent(text);
+          setLoading(false);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [url, isLocal, readFileContent]);
+
+  const displayPath = isLocal ? "/workspace/" + url : url;
+
+  return (
+    <div className="flex h-full min-h-0 flex-col">
+      {/* 地址栏 - Obsidian 风格 */}
+      <div className="flex items-center gap-2 border-b border-border bg-muted/30 px-3 py-1.5">
+        {isLocal ? (
+          <File className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+        ) : (
+          <Globe className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+        )}
+        <span className="truncate font-mono text-xs text-foreground">
+          {displayPath}
+        </span>
+      </div>
+      {/* Web 版外部链接受限提示 */}
+      {!isLocal && !isElectron ? (
+        <div className="flex items-start gap-2 border-b border-border bg-amber-50 px-3 py-2 text-xs text-amber-800">
+          <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          <span>
+            Web 版受浏览器安全策略限制，部分外部网站（如百度、GitHub 等）可能无法显示。
+            如需完整浏览任意网站，请使用桌面版。
+          </span>
+        </div>
+      ) : null}
+      {/* 内容区 */}
+      <div className="flex-1 min-h-0 bg-white">
+        {loading ? (
+          <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
+            正在加载...
+          </div>
+        ) : isLocal && content ? (
+          <iframe
+            srcDoc={content}
+            sandbox="allow-scripts"
+            className="h-full w-full border-0"
+            title={url}
+          />
+        ) : !isLocal ? (
+          <iframe
+            src={url}
+            sandbox="allow-scripts"
+            className="h-full w-full border-0"
+            title={url}
+          />
+        ) : (
+          <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
+            无法加载文件内容
+          </div>
+        )}
+      </div>
     </div>
   );
 }
