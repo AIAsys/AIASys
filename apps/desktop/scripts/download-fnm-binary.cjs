@@ -6,8 +6,8 @@ const FNM_VERSION = "1.39.0";
 const REPO = "Schniz/fnm";
 
 const PLATFORM_TRIPLES = {
-  "linux-x64":    "fnm-linux-x64",
-  "linux-arm64":  "fnm-linux-arm64",
+  "linux-x64":    "fnm-linux",
+  "linux-arm64":  "fnm-arm64",
   "darwin-x64":   "fnm-macos",
   "darwin-arm64": "fnm-macos",
   "win-x64":      "fnm-windows",
