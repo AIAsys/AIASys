@@ -51,10 +51,9 @@ setup_cn_font()
 
 ### 警告
 
-- 平台已注入 `setup_cn_font()` / `setup_chinese_font()` helper，优先直接调用
-- 不要写 `/usr/share/fonts/custom/NotoSansCJKsc.otf`，那是旧容器路径，不适用于当前本地执行链路
-- 不要自己手写 `font_manager.fontManager.addfont(...)`，除非用户明确要求调试字体问题
-- 不要硬编码字体文件路径或字体变体名
+- 平台已注入 `setup_cn_font()` / `setup_chinese_font()` helper，会自动匹配系统 CJK 字体
+- 不要硬编码字体文件路径或字体名称
+- 不要自己手写 `font_manager.fontManager.addfont(...)`
 
 ---
 

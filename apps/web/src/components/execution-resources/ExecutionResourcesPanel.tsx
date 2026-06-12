@@ -438,12 +438,12 @@ export function ExecutionResourcesPanel({
     }
   }, [loadRegistry, workspaceId]);
 
-  const handleEnsureUvWithConfirm = useCallback(() => {
+  const handleEnsureUvWithConfirm = useCallback(async () => {
     if (registry?.uv_available === false) {
       setShowUvConfirmDialog(true);
       return;
     }
-    void handleEnsureUv();
+    return handleEnsureUv();
   }, [registry?.uv_available, handleEnsureUv]);
 
   const handleBindDefault = useCallback(

@@ -30,6 +30,9 @@ export type NewTaskStage =
   | "idle"
   | "selecting_environment"
   | "preparing_session"
+  | "scanning_folder"
+  | "copying_files"
+  | "import_creating_workspace"
   | "creating_workspace"
   | "binding_environment"
   | "attaching_databases"
@@ -41,6 +44,9 @@ export const NEW_TASK_STAGE_LABELS: Record<NewTaskStage, string> = {
   idle: "",
   selecting_environment: "",
   preparing_session: "正在准备初始对话",
+  scanning_folder: "正在扫描文件夹",
+  copying_files: "正在复制文件",
+  import_creating_workspace: "正在初始化导入工作区",
   creating_workspace: "正在创建工作区",
   binding_environment: "正在绑定运行环境",
   attaching_databases: "正在挂载数据库连接",
@@ -56,6 +62,7 @@ export interface NewTaskLifecycleState {
   isBusy: boolean;
   isError: boolean;
   errorMessage: string | null;
+  progress?: number;
 }
 
 export interface WorkspaceRuntimeSummary {

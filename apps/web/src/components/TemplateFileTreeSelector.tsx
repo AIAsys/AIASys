@@ -143,11 +143,17 @@ function globToRegExp(pattern: string): RegExp {
 function matchExcludePattern(filePath: string, pattern: string): boolean {
   const normalizedPath = filePath.replace(/^\/+/,"");
 
-  // 目录模式（以 / 结尾）：匹配目录本身及其所有子内容
+  // 目录模式（以 / 结尾）：匹配任意层级的该目录及其所有子内容
   if (pattern.endsWith("/")) {
     const dirPattern = pattern.slice(0, -1);
     if (normalizedPath === dirPattern) return true;
     if (normalizedPath.startsWith(dirPattern + "/")) return true;
+    const parts = normalizedPath.split("/");
+    for (let i = 0; i < parts.length; i++) {
+      if (parts[i] === dirPattern) return true;
+      const prefix = parts.slice(0, i + 1).join("/");
+      if (prefix === dirPattern || prefix.startsWith(dirPattern + "/")) return true;
+    }
     return false;
   }
 

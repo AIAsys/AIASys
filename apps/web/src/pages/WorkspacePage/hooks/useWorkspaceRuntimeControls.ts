@@ -4,6 +4,7 @@ import { useFileUploadToast } from "@/components/file/FileUploadToast";
 import { apiRequest } from "@/lib/api/httpClient";
 import { listKernelEnvs, type KernelEnvItem } from "@/lib/api/kernelEnvs";
 import {
+  createImportFolderStream,
   createTaskWorkspace,
   getWorkspaceRuntimeEnvironments,
   registerWorkspacePythonEnvironment,
@@ -37,6 +38,7 @@ export function useWorkspaceRuntimeControls({
   const [newWorkspaceError, setNewWorkspaceError] = useState<string | null>(
     null,
   );
+  const [importProgress, setImportProgress] = useState<number>(0);
   const [isRestartingRuntime, setIsRestartingRuntime] = useState(false);
   const [boundWorkspaceEnv, setBoundWorkspaceEnv] =
     useState<WorkspaceRuntimeEnvironment | null>(null);
@@ -120,8 +122,8 @@ export function useWorkspaceRuntimeControls({
     newWorkspaceStage !== "idle" && newWorkspaceStage !== "error";
   const isInitializingEnvironment = isCreatingWorkspace;
   const newWorkspaceLifecycleState = useMemo(
-    () => buildNewTaskLifecycleState(newWorkspaceStage, newWorkspaceError),
-    [newWorkspaceError, newWorkspaceStage],
+    () => buildNewTaskLifecycleState(newWorkspaceStage, newWorkspaceError, importProgress),
+    [newWorkspaceError, newWorkspaceStage, importProgress],
   );
 
   const closeNewWorkspaceDialog = useCallback(() => {
@@ -131,11 +133,13 @@ export function useWorkspaceRuntimeControls({
     setShowNewWorkspaceDialog(false);
     setNewWorkspaceStage("idle");
     setNewWorkspaceError(null);
+    setImportProgress(0);
   }, [isCreatingWorkspace]);
 
   const openNewWorkspaceDialog = useCallback(() => {
     setNewWorkspaceError(null);
     setNewWorkspaceStage("idle");
+    setImportProgress(0);
     setShowNewWorkspaceDialog(true);
   }, []);
 
@@ -171,11 +175,26 @@ export function useWorkspaceRuntimeControls({
       title: string,
       description: string | undefined,
       envChoice: EnvChoice,
-      templateId?: string,
-      initialConversationTitle?: string,
-      installCapabilities?: string[],
-      templateFiles?: string[],
+      options: {
+        templateId?: string;
+        initialConversationTitle?: string;
+        installCapabilities?: string[];
+        templateFiles?: string[];
+        sourceFolderPath?: string;
+        tempUploadId?: string;
+        importFiles?: string[];
+      } = {},
     ) => {
+      const {
+        templateId,
+        initialConversationTitle,
+        installCapabilities,
+        templateFiles,
+        sourceFolderPath,
+        tempUploadId,
+        importFiles,
+      } = options;
+
       try {
         const normalizedTitle = title.trim();
         if (!normalizedTitle) {
@@ -183,10 +202,10 @@ export function useWorkspaceRuntimeControls({
         }
 
         setNewWorkspaceError(null);
+        setImportProgress(0);
         setNewWorkspaceStage("preparing_session");
         const preparedSessionId = await prepareNewSession();
 
-        setNewWorkspaceStage("creating_workspace");
         const runtimeBinding =
           envChoice.kind === "uv"
             ? {
@@ -197,6 +216,89 @@ export function useWorkspaceRuntimeControls({
                 sandbox_mode: null,
                 env_id: null,
               };
+
+        if (sourceFolderPath || tempUploadId) {
+          // 文件夹导入：通过 SSE 流式创建
+          const abortController = new AbortController();
+          setNewWorkspaceStage("scanning_folder");
+
+          await createImportFolderStream(
+            {
+              title: normalizedTitle,
+              description,
+              workspaceKind: "task",
+              initialConversationId: preparedSessionId,
+              initialConversationTitle: initialConversationTitle || "新对话",
+              runtimeBinding,
+              templateId,
+              installCapabilities,
+              templateFiles,
+              sourceFolderPath,
+              tempUploadId,
+              importFiles,
+            },
+            {
+              onEvent: (event) => {
+                setImportProgress(event.progress);
+                if (event.stage === "copying") {
+                  setNewWorkspaceStage("copying_files");
+                } else if (event.stage === "creating_workspace") {
+                  setNewWorkspaceStage("import_creating_workspace");
+                } else if (event.stage === "scanning") {
+                  setNewWorkspaceStage("scanning_folder");
+                }
+              },
+              onComplete: async (workspaceId, warnings) => {
+                try {
+                  if (envChoice.kind === "registered") {
+                    setNewWorkspaceStage("binding_environment");
+                    await registerWorkspacePythonEnvironment(workspaceId, {
+                      envId: `python-${envChoice.kernelName}`,
+                      displayName: `Python (${envChoice.kernelName})`,
+                      pythonExecutable: envChoice.pythonExecutable,
+                      sourceKernelName: envChoice.kernelName,
+                      activate: true,
+                    });
+                  }
+                  emitWorkspaceListRefreshEvent();
+                  await activatePreparedSession(preparedSessionId);
+                  await refreshWorkspaceForSession(preparedSessionId, { force: true });
+                  refreshSessionStatus();
+                  setShowNewWorkspaceDialog(false);
+                  setNewWorkspaceStage("idle");
+                  setImportProgress(0);
+                  showSuccess(
+                    envChoice.kind === "uv"
+                      ? "已创建新工作区并启用 Python"
+                      : envChoice.kind === "registered"
+                        ? "已创建新工作区并绑定已登记 Python"
+                      : "已创建新工作区",
+                  );
+                  if (warnings && warnings.length > 0) {
+                    for (const warning of warnings) {
+                      showError(warning, 6000);
+                    }
+                  }
+                } catch (completeError) {
+                  const message = completeError instanceof Error ? completeError.message : "导入后初始化失败";
+                  setNewWorkspaceError(message);
+                  setNewWorkspaceStage("error");
+                  showError(message);
+                }
+              },
+              onError: (message) => {
+                abortController.abort();
+                setNewWorkspaceError(message);
+                setNewWorkspaceStage("error");
+                showError(message);
+              },
+            },
+            abortController.signal,
+          );
+          return;
+        }
+
+        setNewWorkspaceStage("creating_workspace");
         const createdWorkspace = await createTaskWorkspace({
           title: normalizedTitle,
           description,
@@ -225,6 +327,7 @@ export function useWorkspaceRuntimeControls({
         refreshSessionStatus();
         setShowNewWorkspaceDialog(false);
         setNewWorkspaceStage("idle");
+        setImportProgress(0);
         showSuccess(
           envChoice.kind === "uv"
             ? "已创建新工作区并启用 Python"

@@ -51,10 +51,9 @@ setup_cn_font()
 
 ### 警告
 
-- 平台已注入 `setup_cn_font()` / `setup_chinese_font()` helper，优先直接调用
-- 不要写 `/usr/share/fonts/custom/NotoSansCJKsc.otf`，那是旧容器路径，不适用于当前本地执行链路
-- 不要自己手写 `font_manager.fontManager.addfont(...)`，除非用户明确要求调试字体问题
-- 不要硬编码字体文件路径或字体变体名
+- 平台已注入 `setup_cn_font()` / `setup_chinese_font()` helper，会自动匹配系统 CJK 字体
+- 不要硬编码字体文件路径或字体名称
+- 不要自己手写 `font_manager.fontManager.addfont(...)`
 
 ---
 
@@ -85,12 +84,14 @@ ${PACKAGE_DETAILS}
   - 涵盖：notebook-first 默认工作流、cell 编辑规则、数据观察精简原则
 - **数据可视化规范**：`LoadSkill(name="aiasys-data-viz-guide-skill")`
   - 涵盖：ECharts 图表资产、CSV 预览 directive、matplotlib 静态图、base64 禁令
+- **matplotlib 字体配置**：`LoadSkill(name="aiasys-matplotlib-font-skill")`
+  - 涵盖：跨平台中文字体检测与配置、字体缓存清理、故障排查
 - **领域工具指南**：`LoadSkill(name="aiasys-data-tools-guide-skill")`
   - 涵盖：数据库访问、知识库、知识图谱、多维表、Canvas
 
 **执行原则**：
 - 数据分析、代码实验优先走 notebook-first 工作流，具体工具用法和编辑规则先加载 `aiasys-notebook-first-skill`
-- 需要输出图表时，先加载 `aiasys-data-viz-guide-skill` 获取 ECharts / 静态图规范
+- 需要输出图表时，先加载 `aiasys-data-viz-guide-skill` 获取 ECharts / 静态图规范；涉及 matplotlib 静态图时同时加载 `aiasys-matplotlib-font-skill`
 - 涉及数据库、知识库、知识图谱、多维表或 Canvas 时，先加载 `aiasys-data-tools-guide-skill`
 
 ---

@@ -160,7 +160,16 @@ class RuntimeEnvironmentService:
             # uv 缺失时自动安装，避免用户手动操作
             from app.core.uv_utils import install_uv, is_desktop_mode
 
-            ok, path, version, message = install_uv()
+            installer_mirror = ""
+            try:
+                from app.core.aiasys_config import load_aiasys_config
+
+                cfg = load_aiasys_config(user_id)
+                installer_mirror = cfg.uv.installer_mirror
+            except Exception:
+                pass
+
+            ok, path, version, message = install_uv(installer_mirror=installer_mirror or None)
             if not ok:
                 if is_desktop_mode():
                     raise RuntimeError(
@@ -206,7 +215,9 @@ class RuntimeEnvironmentService:
                 raise RuntimeError(result.stderr or result.error or "uv add 失败")
 
         if create_venv or sync:
-            result = self._run_uv(["uv", "sync"], cwd=env_dir)
+            result = self._run_uv(
+                ["uv", "sync"], cwd=env_dir
+            )
             if not result.ok:
                 raise RuntimeError(result.stderr or result.error or "uv sync 失败")
 
@@ -555,6 +566,20 @@ class RuntimeEnvironmentService:
     def _run_uv(self, command: list[str], *, cwd: Path) -> RuntimeEnvCommandResult:
         env = dict(os.environ)
         env.setdefault("UV_CACHE_DIR", os.path.join(tempfile.gettempdir(), "uv-cache"))
+
+        # 确保 uv 可执行文件的目录在 PATH 中，避免桌面模式下后端 PATH 被截断
+        from app.core.uv_utils import find_uv_binary
+
+        uv_binary = find_uv_binary()
+        if uv_binary:
+            uv_dir = str(Path(uv_binary).parent)
+            path_env = env.get("PATH", "")
+            # 避免重复添加
+            if uv_dir not in path_env.split(os.pathsep):
+                env["PATH"] = uv_dir + os.pathsep + path_env if path_env else uv_dir
+            # 使用完整路径调用 uv，确保在受限 PATH 下也能执行
+            command = [uv_binary] + command[1:]
+
         try:
             completed = subprocess.run(
                 command,

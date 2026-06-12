@@ -1,5 +1,15 @@
 #!/bin/bash
 
+# AIASys 首次部署脚本
+#
+# 国内镜像支持：
+#   UV_DEFAULT_INDEX 和 UV_PYTHON_INSTALL_MIRROR 由 uv 原生读取，
+#   请在 uv 侧配置（~/.config/uv/config.toml 或环境变量）。
+#   详见 https://docs.astral.sh/uv/configuration/
+#
+#   UV_INSTALLER_MIRROR 由本脚本处理：
+#     export UV_INSTALLER_MIRROR="https://gh.chjina.com/https://github.com/astral-sh"
+
 set -euo pipefail
 
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/common.sh"
@@ -158,7 +168,11 @@ install_docker
 install_nginx || true
 
 if ! command -v uv >/dev/null 2>&1; then
-  curl -LsSf https://astral.sh/uv/install.sh | sh
+  if [ -n "${UV_INSTALLER_MIRROR:-}" ]; then
+    curl -LsSf "${UV_INSTALLER_MIRROR}/uv/install.sh" | sh
+  else
+    curl -LsSf https://astral.sh/uv/install.sh | sh
+  fi
   export PATH="\$HOME/.local/bin:\$PATH"
 fi
 
