@@ -22,7 +22,6 @@ logger = logging.getLogger(__name__)
 
 ANSI_ESCAPE_RE = re.compile(r"\x1B\[[0-?]*[ -/]*[@-~]")
 LOGICAL_WORKSPACE_ROOT = "/workspace"
-DOCKER_CN_FONT_PATH = "/usr/share/fonts/custom/NotoSansCJKsc.otf"
 
 
 @dataclass(frozen=True, slots=True)
@@ -85,15 +84,10 @@ def resolve_runtime_helper_dir() -> Path:
     return resolve_backend_root() / "agent_runtime_helpers"
 
 
-def resolve_backend_font_path() -> Path:
-    return resolve_backend_root() / "fonts" / "NotoSansCJKsc.otf"
-
-
 def rewrite_local_runtime_code(
     code: str,
     *,
     workspace: Path | None,
-    host_font_path: Path | None = None,
 ) -> str:
     """
     将 local runtime 中的逻辑路径改写为宿主机真实路径。
@@ -145,13 +139,6 @@ def rewrite_local_runtime_code(
                     f"{prefix}{quote}{workspace_root}{quote}",
                 )
 
-    resolved_font_path = host_font_path or resolve_backend_font_path()
-    if resolved_font_path.exists():
-        normalized = normalized.replace(
-            DOCKER_CN_FONT_PATH,
-            str(resolved_font_path),
-        )
-
     return normalized
 
 
@@ -165,7 +152,6 @@ def build_local_runtime_bootstrap_code(
             helper_env_code += f"os.environ[{json.dumps(key)}] = {json.dumps(value)}\n"
 
     helper_dir = resolve_runtime_helper_dir()
-    project_font_path = resolve_backend_font_path()
 
     return f"""
 # 预导入常用库
@@ -181,11 +167,7 @@ if _aiasys_helper_dir not in sys.path:
 try:
     from font_helper import setup_cn_font
     setup_chinese_font = setup_cn_font
-    _aiasys_font_info = setup_cn_font(
-        workspace=Path.cwd(),
-        extra_paths=[{json.dumps(str(project_font_path))}],
-        quiet=True,
-    )
+    _aiasys_font_info = setup_cn_font(quiet=True)
 except Exception as _aiasys_font_exc:
     print(f"[AIASys] font helper 初始化失败: {{_aiasys_font_exc}}")
 

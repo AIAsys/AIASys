@@ -1,7 +1,11 @@
+import asyncio
+import json
 import logging
+from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
+from fastapi.responses import StreamingResponse
 
 from app.api.routes.workspaces_overview_utils import (
     _build_workspace_overview,
@@ -34,6 +38,8 @@ from app.models.workspace import (
     CreateConversationRequest,
     CreateWorkspaceRequest,
     DeleteWorkspaceResponse,
+    FolderImportPreviewResponse,
+    FolderImportTreeItem,
     OrphanConversationCleanupResponse,
     UpdateWorkspaceRequest,
     WorkspaceConversationSummary,
@@ -48,6 +54,7 @@ from app.services.expert_roles import (
     get_workspace_collaboration_policy,
     get_workspace_expert_catalog,
 )
+from app.services.folder_import import scan_folder
 from app.services.llm.model_selection_service import get_model_selection_service
 from app.services.workspace_registry import get_workspace_registry_service
 
@@ -487,11 +494,207 @@ async def create_workspace(
             template_id=request.template_id,
             install_capabilities=request.install_capabilities,
             template_files=request.template_files,
+            source_folder_path=request.source_folder_path,
+            temp_upload_id=request.temp_upload_id,
+            import_files=request.import_files,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=f"Operation failed: {exc}") from exc
 
     return workspace
+
+
+@router.post("/import-folder-upload")
+async def upload_import_folder(
+    files: list[UploadFile] = File(...),
+    current_user: UserInfo = Depends(require_auth()),
+):
+    """Web 版上传要导入的文件夹文件，返回临时 upload_id。"""
+    from app.services.folder_import import (
+        MAX_UPLOAD_FILE_SIZE_BYTES,
+        MAX_UPLOAD_TOTAL_SIZE_BYTES,
+        create_import_upload_dir,
+    )
+
+    if not files:
+        raise HTTPException(status_code=400, detail="没有上传文件")
+
+    total_size = 0
+    for upload_file in files:
+        if not upload_file.filename:
+            continue
+        if upload_file.size is not None and upload_file.size > MAX_UPLOAD_FILE_SIZE_BYTES:
+            raise HTTPException(
+                status_code=413,
+                detail=f"单文件大小超过限制: {upload_file.filename}",
+            )
+        if upload_file.size is not None:
+            total_size += upload_file.size
+
+    if total_size > MAX_UPLOAD_TOTAL_SIZE_BYTES:
+        raise HTTPException(status_code=413, detail="上传文件总大小超过 1GB 限制")
+
+    upload_id, upload_dir = create_import_upload_dir()
+    try:
+        for upload_file in files:
+            if not upload_file.filename:
+                continue
+            target_path = upload_dir / upload_file.filename
+            target_path.parent.mkdir(parents=True, exist_ok=True)
+            content = await upload_file.read()
+            if len(content) > MAX_UPLOAD_FILE_SIZE_BYTES:
+                raise HTTPException(
+                    status_code=413,
+                    detail=f"单文件大小超过限制: {upload_file.filename}",
+                )
+            target_path.write_bytes(content)
+    except HTTPException:
+        from app.services.folder_import import remove_import_upload_dir
+
+        remove_import_upload_dir(upload_id)
+        raise
+
+    return {"upload_id": upload_id, "file_count": len(files)}
+
+
+@router.post("/import-folder-preview", response_model=FolderImportPreviewResponse)
+async def preview_import_folder(
+    request: dict[str, Any],
+    current_user: UserInfo = Depends(require_auth()),
+):
+    """扫描本地文件夹并返回文件树，用于导入前预览。"""
+    source_path_str = request.get("source_path")
+    if not source_path_str:
+        raise HTTPException(status_code=400, detail="缺少 source_path")
+
+    source_path = Path(source_path_str).expanduser().resolve()
+    try:
+        preview = scan_folder(source_path)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except OSError as exc:
+        raise HTTPException(status_code=500, detail=f"扫描文件夹失败: {exc}") from exc
+
+    return FolderImportPreviewResponse(
+        source_path=str(preview.source_path),
+        files=[
+            FolderImportTreeItem(
+                relative_path=f.relative_path,
+                is_directory=f.is_directory,
+                size=f.size,
+            )
+            for f in preview.files
+        ],
+        excluded_files=preview.excluded_files,
+        default_selected_files=preview.default_selected_files,
+        total_file_count=preview.total_file_count,
+        total_size_bytes=preview.total_size_bytes,
+    )
+
+
+@router.post("/import-folder-stream")
+async def import_folder_stream(
+    request: CreateWorkspaceRequest,
+    current_user: UserInfo = Depends(require_auth()),
+):
+    """从本地文件夹导入并创建工作区，通过 SSE 实时返回进度。"""
+    if not request.source_folder_path and not request.temp_upload_id:
+        raise HTTPException(status_code=400, detail="缺少 source_folder_path 或 temp_upload_id")
+
+    service = get_workspace_registry_service()
+
+    async def event_generator():
+        queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
+        done_event = asyncio.Event()
+        workspace_result: list[WorkspaceDetailResponse] = []
+        workspace_error: list[BaseException] = []
+
+        def progress_callback(progress: int, message: str) -> None:
+            try:
+                queue.put_nowait(
+                    {
+                        "stage": "copying" if progress < 95 else "creating_workspace",
+                        "progress": progress,
+                        "message": message,
+                    }
+                )
+            except asyncio.QueueFull:
+                pass
+
+        def run_create_workspace() -> None:
+            try:
+                workspace = service.create_workspace(
+                    user_id=current_user.user_id,
+                    workspace_id=request.workspace_id,
+                    title=request.title,
+                    description=request.description,
+                    workspace_kind=request.workspace_kind,
+                    execution_policy=request.execution_policy,
+                    initial_conversation_id=request.initial_conversation_id,
+                    initial_conversation_title=request.initial_conversation_title,
+                    recovery_policy=request.recovery_policy,
+                    code_timeout=request.code_timeout,
+                    runtime_binding=request.runtime_binding,
+                    template_id=request.template_id,
+                    install_capabilities=request.install_capabilities,
+                    template_files=request.template_files,
+                    source_folder_path=request.source_folder_path,
+                    temp_upload_id=request.temp_upload_id,
+                    import_files=request.import_files,
+                    progress_callback=progress_callback,
+                )
+                workspace_result.append(workspace)
+            except BaseException as exc:  # noqa: BLE001
+                workspace_error.append(exc)
+            finally:
+                try:
+                    queue.put_nowait(None)
+                except asyncio.QueueFull:
+                    pass
+                done_event.set()
+
+        # 发送初始扫描事件
+        yield f"data: {json.dumps({'stage': 'scanning', 'progress': 0, 'message': '正在扫描文件夹...'})}\n\n"
+
+        # 在后台线程运行创建任务
+        asyncio.get_event_loop().run_in_executor(None, run_create_workspace)
+
+        # 并发读取进度队列
+        while True:
+            try:
+                event = await asyncio.wait_for(queue.get(), timeout=5.0)
+            except asyncio.TimeoutError:
+                if done_event.is_set() and queue.empty():
+                    break
+                continue
+
+            if event is None:
+                break
+
+            yield f"data: {json.dumps(event)}\n\n"
+
+        if workspace_error:
+            exc = workspace_error[0]
+            if isinstance(exc, ValueError):
+                yield f"data: {json.dumps({'stage': 'error', 'message': f'创建工作区失败: {exc}'})}\n\n"
+            else:
+                logger.exception("导入文件夹创建 workspace 失败")
+                yield f"data: {json.dumps({'stage': 'error', 'message': f'导入失败: {exc}'})}\n\n"
+        elif workspace_result:
+            workspace = workspace_result[0]
+            yield f"data: {json.dumps({'stage': 'completed', 'progress': 100, 'message': '工作区创建完成', 'workspace_id': workspace.workspace_id, 'warnings': workspace.warnings})}\n\n"
+        else:
+            yield f"data: {json.dumps({'stage': 'error', 'message': '导入失败: 未知错误'})}\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 @router.get("/{workspace_id}", response_model=WorkspaceDetailResponse)

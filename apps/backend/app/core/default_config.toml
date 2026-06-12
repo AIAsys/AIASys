@@ -37,6 +37,16 @@ default_model = ""
 # max_summary_size = 3000
 # max_workspace_memory_size = 5000
 
+[uv]
+# uv 安装器镜像基 URL（用于在无海外网络的环境中安装 uv 本身）
+# 示例：https://gh.chjina.com/https://github.com/astral-sh
+# installer_mirror = ""
+
+# PyPI 包镜像和 Python 二进制镜像请在 uv 侧配置：
+#   ~/.config/uv/config.toml  ->  [registries.pypi] index = "..."
+#   UV_PYTHON_INSTALL_MIRROR  ->  环境变量
+# 详见 https://docs.astral.sh/uv/configuration/
+
 [compaction]
 # 工具输出截断长度（字符数），0 表示使用系统默认值
 # tool_snip_max_chars = 0

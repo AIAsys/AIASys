@@ -11,7 +11,7 @@ import secrets
 import shutil
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Callable, Optional
 from uuid import uuid4
 
 logger = logging.getLogger(__name__)
@@ -31,6 +31,7 @@ from app.services.agent_context_documents import (
     ensure_user_soul_file,
     ensure_workspace_project_profile_file,
 )
+from app.services.folder_import import copy_selected_files
 from app.services.memory.resolver import get_workspace_memory_file_path
 from app.services.memory.store import MemoryStore
 from app.services.session import SessionManager
@@ -746,6 +747,10 @@ class WorkspaceRegistryService:
         template_id: Optional[str] = None,
         install_capabilities: Optional[list[str]] = None,
         template_files: Optional[list[str]] = None,
+        source_folder_path: Optional[str] = None,
+        temp_upload_id: Optional[str] = None,
+        import_files: Optional[list[str]] = None,
+        progress_callback: Optional[Callable[[int, str], None]] = None,
     ) -> WorkspaceDetailResponse:
         normalized_title = (title or "").strip()
         if not normalized_title:
@@ -762,6 +767,38 @@ class WorkspaceRegistryService:
         # 确保工作区目录存在，以便应用模板文件
         workspace_dir.mkdir(parents=True, exist_ok=True)
         try:
+            # 如果从本地文件夹导入，先复制用户选中的文件
+            if source_folder_path or temp_upload_id:
+                from pathlib import Path as _Path
+
+                src_path: Path | None = None
+                if temp_upload_id:
+                    from app.services.folder_import import (
+                        get_import_upload_dir,
+                        remove_import_upload_dir,
+                    )
+
+                    src_path = get_import_upload_dir(temp_upload_id)
+                    if src_path is None:
+                        raise ValueError("上传会话已过期或不存在")
+                else:
+                    src_path = _Path(source_folder_path).expanduser().resolve()
+
+                try:
+                    if progress_callback:
+                        progress_callback(0, "正在扫描文件夹...")
+                    copy_selected_files(
+                        src_path,
+                        workspace_dir,
+                        import_files or [],
+                        progress_callback=progress_callback,
+                    )
+                    if progress_callback:
+                        progress_callback(95, "正在初始化工作区...")
+                finally:
+                    if temp_upload_id:
+                        remove_import_upload_dir(temp_upload_id)
+
             now = _now_iso()
             normalized_runtime_binding = _normalize_workspace_runtime_binding(
                 runtime_binding

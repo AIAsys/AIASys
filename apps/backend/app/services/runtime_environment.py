@@ -160,7 +160,16 @@ class RuntimeEnvironmentService:
             # uv 缺失时自动安装，避免用户手动操作
             from app.core.uv_utils import install_uv, is_desktop_mode
 
-            ok, path, version, message = install_uv()
+            installer_mirror = ""
+            try:
+                from app.core.aiasys_config import load_aiasys_config
+
+                cfg = load_aiasys_config(user_id)
+                installer_mirror = cfg.uv.installer_mirror
+            except Exception:
+                pass
+
+            ok, path, version, message = install_uv(installer_mirror=installer_mirror or None)
             if not ok:
                 if is_desktop_mode():
                     raise RuntimeError(
@@ -206,7 +215,9 @@ class RuntimeEnvironmentService:
                 raise RuntimeError(result.stderr or result.error or "uv add 失败")
 
         if create_venv or sync:
-            result = self._run_uv(["uv", "sync"], cwd=env_dir)
+            result = self._run_uv(
+                ["uv", "sync"], cwd=env_dir
+            )
             if not result.ok:
                 raise RuntimeError(result.stderr or result.error or "uv sync 失败")
 
@@ -555,6 +566,7 @@ class RuntimeEnvironmentService:
     def _run_uv(self, command: list[str], *, cwd: Path) -> RuntimeEnvCommandResult:
         env = dict(os.environ)
         env.setdefault("UV_CACHE_DIR", os.path.join(tempfile.gettempdir(), "uv-cache"))
+
         try:
             completed = subprocess.run(
                 command,

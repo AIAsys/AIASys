@@ -3,7 +3,7 @@ import {
   DEFAULT_CONVERSATION_TITLE,
   getDefaultConversationTitle,
 } from "@/lib/conversationTitles";
-import { apiRequest } from "@/lib/api/httpClient";
+import { apiFetch, apiRequest } from "@/lib/api/httpClient";
 import type {
   TaskWorkspaceSummary,
   WorkspaceRuntimeBindingSummary,
@@ -90,6 +90,32 @@ export interface CreateWorkspacePayload {
   templateId?: string;
   installCapabilities?: string[];
   templateFiles?: string[];
+  sourceFolderPath?: string;
+  tempUploadId?: string;
+  importFiles?: string[];
+}
+
+export interface FolderImportTreeItem {
+  relative_path: string;
+  is_directory: boolean;
+  size?: number;
+}
+
+export interface FolderImportPreviewResponse {
+  source_path: string;
+  files: FolderImportTreeItem[];
+  excluded_files: string[];
+  default_selected_files: string[];
+  total_file_count: number;
+  total_size_bytes: number;
+}
+
+export interface FolderImportProgressEvent {
+  stage: "scanning" | "copying" | "creating_workspace" | "completed" | "error";
+  progress: number;
+  message: string;
+  workspace_id?: string;
+  warnings?: string[];
 }
 
 export interface CreateConversationPayload {
@@ -264,10 +290,144 @@ export async function createTaskWorkspace(
         execution_policy: payload.executionPolicy,
         template_id: payload.templateId,
         install_capabilities: payload.installCapabilities,
+        template_files: payload.templateFiles,
+        source_folder_path: payload.sourceFolderPath,
+        temp_upload_id: payload.tempUploadId,
+        import_files: payload.importFiles,
       },
     },
   );
   return normalizeWorkspaceSummary(response);
+}
+
+export async function uploadImportFolder(
+  files: File[],
+  onProgress?: (percent: number) => void,
+): Promise<{ upload_id: string; file_count: number }> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    const formData = new FormData();
+    for (const file of files) {
+      formData.append("files", file, file.webkitRelativePath || file.name);
+    }
+
+    xhr.upload.addEventListener("progress", (event) => {
+      if (event.lengthComputable && onProgress) {
+        const percent = Math.round((event.loaded / event.total) * 100);
+        onProgress(percent);
+      }
+    });
+
+    xhr.addEventListener("load", () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try {
+          resolve(JSON.parse(xhr.responseText));
+        } catch {
+          reject(new Error("解析上传响应失败"));
+        }
+      } else {
+        reject(new Error(`上传失败: ${xhr.status}`));
+      }
+    });
+
+    xhr.addEventListener("error", () => reject(new Error("上传请求失败")));
+    xhr.addEventListener("abort", () => reject(new Error("上传已取消")));
+
+    xhr.open("POST", API_ENDPOINTS.WORKSPACES_IMPORT_FOLDER_UPLOAD);
+    xhr.send(formData);
+  });
+}
+
+export async function previewImportFolder(
+  sourcePath: string,
+): Promise<FolderImportPreviewResponse> {
+  return apiRequest<FolderImportPreviewResponse>(
+    API_ENDPOINTS.WORKSPACES_IMPORT_FOLDER_PREVIEW,
+    {
+      method: "POST",
+      body: { source_path: sourcePath },
+    },
+  );
+}
+
+export interface ImportFolderStreamCallbacks {
+  onEvent?: (event: FolderImportProgressEvent) => void;
+  onComplete?: (workspaceId: string, warnings: string[]) => void;
+  onError?: (message: string) => void;
+}
+
+export async function createImportFolderStream(
+  payload: CreateWorkspacePayload,
+  callbacks: ImportFolderStreamCallbacks,
+  signal?: AbortSignal,
+): Promise<void> {
+  const response = await apiFetch(API_ENDPOINTS.WORKSPACES_IMPORT_FOLDER_STREAM, {
+    method: "POST",
+    body: {
+      workspace_id: payload.workspaceId,
+      title: payload.title ?? "新任务",
+      description: payload.description,
+      workspace_kind: payload.workspaceKind,
+      initial_conversation_id: payload.initialConversationId,
+      initial_conversation_title:
+        payload.initialConversationTitle ?? DEFAULT_CONVERSATION_TITLE,
+      code_timeout: payload.codeTimeout,
+      runtime_binding: payload.runtimeBinding,
+      execution_policy: payload.executionPolicy,
+      template_id: payload.templateId,
+      install_capabilities: payload.installCapabilities,
+      template_files: payload.templateFiles,
+      source_folder_path: payload.sourceFolderPath,
+      temp_upload_id: payload.tempUploadId,
+      import_files: payload.importFiles,
+    },
+    signal,
+    timeoutMs: 300_000,
+  });
+
+  if (!response.ok) {
+    throw new Error(`API Error: ${response.status}`);
+  }
+
+  const reader = response.body?.getReader();
+  const decoder = new TextDecoder();
+  let pendingLine = "";
+
+  if (!reader) {
+    throw new Error("No response body");
+  }
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    if (signal?.aborted) break;
+
+    pendingLine += decoder.decode(value, { stream: true });
+    const lines = pendingLine.split(/\r?\n/);
+    pendingLine = lines.pop() ?? "";
+
+    for (const line of lines) {
+      if (!line.startsWith("data:")) continue;
+      const data = line.slice(5).trimStart();
+      if (!data) continue;
+
+      try {
+        const event: FolderImportProgressEvent = JSON.parse(data);
+        callbacks.onEvent?.(event);
+
+        if (event.stage === "completed") {
+          await callbacks.onComplete?.(event.workspace_id ?? "", event.warnings ?? []);
+          return;
+        }
+        if (event.stage === "error") {
+          callbacks.onError?.(event.message);
+          return;
+        }
+      } catch {
+        // 忽略无法解析的事件
+      }
+    }
+  }
 }
 
 export async function getTaskWorkspace(

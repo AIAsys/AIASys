@@ -57,12 +57,23 @@ class MemoryTomlSection(BaseModel):
     max_workspace_memory_size: int = 5000
 
 
+class UvTomlSection(BaseModel):
+    """TOML 配置中 [uv] 段 — uv 安装器镜像配置
+
+    PyPI 包镜像和 Python 二进制镜像由 uv 自身的 ~/.config/uv/config.toml
+    和 UV_PYTHON_INSTALL_MIRROR 环境变量处理，不在 AIASys 侧重复配置。
+    """
+
+    installer_mirror: str = ""  # uv 安装脚本镜像基 URL（用于替换 astral.sh）
+
+
 class AiasysTomlConfig(BaseModel):
     """完整的用户级 config.toml 配置模型"""
 
     llm: LlmTomlSection = Field(default_factory=LlmTomlSection)
     compaction: CompactionTomlSection = Field(default_factory=CompactionTomlSection)
     memory: MemoryTomlSection = Field(default_factory=MemoryTomlSection)
+    uv: UvTomlSection = Field(default_factory=UvTomlSection)
 
 
 def _get_user_config_path(user_id: str) -> Path:
@@ -156,6 +167,49 @@ def save_aiasys_task_models(user_id: str, task_models: dict[str, str]) -> None:
 
     if not section_replaced:
         # 文件末尾追加
+        if result_lines and result_lines[-1].strip():
+            result_lines.append("")
+        result_lines.extend(new_section_lines)
+        result_lines.append("")
+
+    config_path.write_text("\n".join(result_lines) + "\n", encoding="utf-8")
+
+
+def save_aiasys_uv_config(user_id: str, uv_config: UvTomlSection) -> None:
+    """更新指定用户 config.toml 中的 [uv] 段。"""
+    config_path = _get_user_config_path(user_id)
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+
+    existing_lines: list[str] = []
+    if config_path.exists():
+        existing_lines = config_path.read_text(encoding="utf-8").splitlines()
+
+    new_section_lines: list[str] = ["[uv]"]
+    if uv_config.installer_mirror:
+        new_section_lines.append(f'installer_mirror = "{uv_config.installer_mirror}"')
+    else:
+        new_section_lines.append("# installer_mirror = \"\"")
+
+    result_lines: list[str] = []
+    in_uv_section = False
+    section_replaced = False
+
+    for line in existing_lines:
+        stripped = line.strip()
+        if stripped == "[uv]":
+            in_uv_section = True
+            if not section_replaced:
+                result_lines.extend(new_section_lines)
+                section_replaced = True
+            continue
+        if in_uv_section:
+            if stripped.startswith("[") and stripped != "[uv]":
+                in_uv_section = False
+                result_lines.append(line)
+            continue
+        result_lines.append(line)
+
+    if not section_replaced:
         if result_lines and result_lines[-1].strip():
             result_lines.append("")
         result_lines.extend(new_section_lines)
