@@ -607,7 +607,7 @@ class DesktopServiceManager {
     // 运行时：Linux AppImage 的 squashfs 只读，需复制 .venv 到可写目录；
     // macOS / Windows 文件系统可写，直接使用 backendRoot。
     if (this.isPackaged && process.platform === "linux") {
-      return path.join(this.runtimeStateRoot, ".venv");
+      return this.runtimeStateRoot;
     }
     return this.backendRoot;
   }
@@ -664,12 +664,49 @@ class DesktopServiceManager {
     return path.join(this.backendRoot, "vendor", "uv", dir, uvName);
   }
 
+  _bundledFnmPath() {
+    if (!this.backendRoot) {
+      return null;
+    }
+    const platformDirMap = {
+      "darwin-arm64": "darwin-arm64",
+      "darwin-x64": "darwin-x64",
+      "linux-arm64": "linux-arm64",
+      "linux-x64": "linux-x64",
+      "win32-x64": "win-x64",
+    };
+    const key = `${process.platform}-${process.arch}`;
+    const dir = platformDirMap[key];
+    if (!dir) {
+      console.warn(`[aiasys-desktop] 未支持的内置 fnm 平台: ${key}`);
+      return null;
+    }
+    const fnmName = process.platform === "win32" ? "fnm.exe" : "fnm";
+    return path.join(this.backendRoot, "vendor", "node", dir, fnmName);
+  }
+
+  _fnmDataDir() {
+    if (this.runtimeStateRoot) {
+      return path.join(this.runtimeStateRoot, "fnm");
+    }
+    if (this.backendRoot) {
+      return path.join(this.backendRoot, "fnm");
+    }
+    return null;
+  }
+
   buildBackendEnv(extraEnv = {}) {
     const bundledUv = this._bundledUvPath();
     const bundledUvEnv = bundledUv ? { AIASYS_BUNDLED_UV_PATH: bundledUv } : {};
+    const bundledFnm = this._bundledFnmPath();
+    const bundledFnmEnv = bundledFnm ? { AIASYS_BUNDLED_FNM_PATH: bundledFnm } : {};
+    const fnmDataDir = this._fnmDataDir();
+    const fnmDataEnv = fnmDataDir ? { AIASYS_FNM_DIR: fnmDataDir } : {};
     return this._buildPythonEnv({
       AIASYS_DESKTOP_MODE: "1",
       ...bundledUvEnv,
+      ...bundledFnmEnv,
+      ...fnmDataEnv,
       ...extraEnv,
     });
   }
@@ -717,7 +754,7 @@ class DesktopServiceManager {
     // 运行时：Linux AppImage squashfs 只读，需复制 .venv 到可写目录；
     // macOS / Windows 文件系统可写，原地修复即可。
     if (this.isPackaged && process.platform === "linux") {
-      preparePackagedVenc(this.backendRoot, this.runtimeStateRoot);
+      preparePackagedVenv(this.backendRoot, this.runtimeStateRoot);
     } else if (this.isPackaged) {
       fixPyvenvHomeIfNeeded(this.backendRoot);
     }

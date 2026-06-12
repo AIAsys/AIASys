@@ -203,8 +203,10 @@ class CapabilityConfirmationManager:
 
         record._future.set_result((approved, feedback))
 
-        if approved and scope == "session" and record.pattern_key:
-            self.add_auto_approved(record.pattern_key)
+        if approved and scope == "session":
+            # 与 wait_for_confirmation 的 check_key 保持一致：pattern_key 为空时回退到 tool_name
+            session_key = record.pattern_key or record.tool_name
+            self.add_auto_approved(session_key)
 
         return True
 
