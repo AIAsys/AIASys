@@ -183,6 +183,9 @@ class SkillEnablementMixin:
         )
         self._init_config_from_example(skill_name, workspace_path, store_skill_dir)
 
+        if hasattr(self, "_invalidate_skill_cache"):
+            self._invalidate_skill_cache(workspace_path)
+
         return SkillOperationResult(
             success=True,
             skill_name=skill_name,
@@ -222,6 +225,9 @@ class SkillEnablementMixin:
             )
 
         self._cleanup_workspace_skill_config(skill_name, workspace_path)
+
+        if hasattr(self, "_invalidate_skill_cache"):
+            self._invalidate_skill_cache(workspace_path)
 
         return SkillOperationResult(
             success=True,
@@ -303,6 +309,9 @@ class SkillEnablementMixin:
         )
         self._init_config_from_example(skill_name, global_workspace_path, store_skill_dir)
 
+        if hasattr(self, "_invalidate_skill_cache"):
+            self._invalidate_skill_cache(global_workspace_path)
+
         return SkillOperationResult(
             success=True,
             skill_name=skill_name,
@@ -345,6 +354,9 @@ class SkillEnablementMixin:
             )
 
         self._cleanup_workspace_skill_config(skill_name, global_workspace_path)
+
+        if hasattr(self, "_invalidate_skill_cache"):
+            self._invalidate_skill_cache(global_workspace_path)
 
         return SkillOperationResult(
             success=True,

@@ -40,6 +40,7 @@ interface WorkspaceArtifactRendererProps {
   className?: string;
   alt?: string;
   onOpenInMainCanvas?: (file: PreviewFile) => void;
+  onOpenInBrowserTab?: (path: string) => void;
 }
 
 function normalizeArtifactType(
@@ -248,14 +249,16 @@ function UnsupportedArtifact({
   artifactType,
   previewFile,
   onOpenInMainCanvas,
+  onOpenInBrowserTab,
 }: Pick<
   WorkspaceArtifactRendererProps,
-  "artifactPath" | "artifactType" | "onOpenInMainCanvas"
+  "artifactPath" | "artifactType" | "onOpenInMainCanvas" | "onOpenInBrowserTab"
 > & {
   previewFile?: PreviewFile | null;
 }) {
   const normalizedPath = artifactPath.replace(/\\/g, "/");
   const displayName = normalizedPath.split("/").pop() || normalizedPath;
+  const isHtml = normalizedPath.endsWith(".html");
 
   return (
     <div className="not-prose my-4 rounded-xl border border-dashed border-border bg-muted/20 px-4 py-3 text-sm text-muted-foreground">
@@ -263,12 +266,38 @@ function UnsupportedArtifact({
         暂不支持在聊天正文中直接预览该文件类型：{displayName}
         {artifactType ? `（type=${artifactType}）` : "（缺少可识别的 type）"}
       </div>
-      {previewFile && onOpenInMainCanvas ? (
-        <ArtifactActionBar
-          previewFile={previewFile}
-          onOpenInMainCanvas={onOpenInMainCanvas}
-        />
-      ) : null}
+      <div className="mt-3 flex flex-wrap items-center justify-end gap-2">
+        {previewFile && onOpenInMainCanvas ? (
+          <button
+            type="button"
+            onClick={() => onOpenInMainCanvas(previewFile)}
+            className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2.5 py-1.5 text-[11px] font-medium text-foreground transition-colors hover:border-primary/40 hover:bg-primary/10 hover:text-primary"
+          >
+            <Maximize2 className="h-3.5 w-3.5" />
+            查看详情
+          </button>
+        ) : null}
+        {isHtml && onOpenInBrowserTab ? (
+          <button
+            type="button"
+            onClick={() => onOpenInBrowserTab(normalizedPath)}
+            className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2.5 py-1.5 text-[11px] font-medium text-foreground transition-colors hover:border-accent/40 hover:bg-accent/10 hover:text-accent"
+          >
+            <Eye className="h-3.5 w-3.5" />
+            在浏览器打开
+          </button>
+        ) : null}
+        {previewFile ? (
+          <a
+            href={previewFile.downloadUrl || previewFile.url}
+            download
+            className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2.5 py-1.5 text-[11px] font-medium text-foreground transition-colors hover:border-primary/40 hover:bg-primary/10 hover:text-primary"
+          >
+            <Download className="h-3.5 w-3.5" />
+            下载原文件
+          </a>
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -282,6 +311,7 @@ export const WorkspaceArtifactRenderer = memo(function WorkspaceArtifactRenderer
   className,
   alt,
   onOpenInMainCanvas,
+  onOpenInBrowserTab,
 }: WorkspaceArtifactRendererProps) {
   const resolvedType = normalizeArtifactType(artifactType, artifactPath);
   const previewFile = useMemo<PreviewFile | null>(() => {
@@ -404,6 +434,7 @@ export const WorkspaceArtifactRenderer = memo(function WorkspaceArtifactRenderer
       artifactType={artifactType}
       previewFile={previewFile}
       onOpenInMainCanvas={onOpenInMainCanvas}
+      onOpenInBrowserTab={onOpenInBrowserTab}
     />
   );
 });

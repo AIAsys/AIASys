@@ -88,6 +88,7 @@ export function MainContent({
     openWorkspaceFileTarget,
     openSubagentDetailTab,
     openTerminalTab,
+    openBrowserTab,
     openDatabaseQueryTab,
     openCapabilityDetailTab,
     handleOpenGlobalResource,
@@ -195,7 +196,9 @@ export function MainContent({
         setPaneTree((current) => reorderTabs(current, leafId, fromIndex, toIndex));
       }}
       onNewTerminalTab={() => openTerminalTab({ forceNew: true })}
+      onNewBrowserTab={(url) => openBrowserTab(url)}
       onOpenWorkspaceFileFromCanvas={openWorkspaceFileFromCanvas}
+      onOpenInBrowserTab={(url) => openBrowserTab(url)}
       onOpenPreviewFileFromCanvas={openWorkspaceFileTarget}
       onEditFileInMainCanvas={handleEditFileInMainCanvas}
       onTabDirtyChange={(tabId, dirty) => {
@@ -284,6 +287,9 @@ export function MainContent({
                 onOpenCanvasPreview={(file) =>
                   openWorkspaceFileTarget(file)
                 }
+                onOpenInBrowserTab={(file) =>
+                  openBrowserTab(file.name)
+                }
                 onOpenGlobalResourceInMainCanvas={handleOpenGlobalResource}
                 onEditInMainCanvas={handleEditFileInMainCanvas}
                 onOpenKnowledgeGraphCanvas={onOpenKnowledgeGraphDialog}
@@ -360,6 +366,9 @@ export function MainContent({
               }}
               onOpenWorkspaceArtifact={(file) =>
                 openWorkspaceFileTarget(file)
+              }
+              onOpenInBrowserTab={(path) =>
+                openBrowserTab(path)
               }
               onViewToolDetails={onViewToolDetails}
               onRewriteUserMessage={executor.rewriteUserMessage}

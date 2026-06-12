@@ -26,6 +26,7 @@ interface StreamingThoughtBlockProps {
    */
   defaultOpen?: boolean;
   onOpenInMainCanvas?: (file: PreviewFile) => void;
+  onOpenInBrowserTab?: (path: string) => void;
 }
 
 const normalizeMarkdown = (value?: string) =>
@@ -47,6 +48,7 @@ export function StreamingThoughtBlock({
   subscribeToStream,
   defaultOpen = true,
   onOpenInMainCanvas,
+  onOpenInBrowserTab,
 }: StreamingThoughtBlockProps) {
   const [isOpen, setIsOpen] = useState(defaultOpen);
   const [content, setContent] = useState(initialContent);
@@ -161,6 +163,7 @@ export function StreamingThoughtBlock({
             token={token}
             paragraphClassName="my-1"
             onOpenInMainCanvas={onOpenInMainCanvas}
+            onOpenInBrowserTab={onOpenInBrowserTab}
           />
         </div>
       )}

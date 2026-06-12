@@ -119,9 +119,10 @@ class CapabilityConfirmationManager:
             (approved, feedback) — approved 为 True 表示用户允许执行，
             feedback 为用户拒绝时填写的反馈文案或超时/取消原因
         """
-        # 1. 检查会话级自动批准
-        if self.is_auto_approved(pattern_key):
-            logger.debug("Pattern %s 已在本会话自动批准", pattern_key)
+        # 1. 检查会话级自动批准（pattern_key 为空时回退到 tool_name）
+        check_key = pattern_key or tool_name
+        if self.is_auto_approved(check_key):
+            logger.debug("Pattern %s 已在本会话自动批准", check_key)
             return True, ""
 
         async with self._lock:

@@ -8,9 +8,11 @@ interface SubagentTabContentProps {
   subagentId: string;
   userId?: string;
   sessionId?: string;
+  onOpenWorkspaceFile?: (file: { name: string }) => void;
+  onOpenInBrowserTab?: (url: string) => void;
 }
 
-export function SubagentTabContent({ subagentId, userId, sessionId }: SubagentTabContentProps) {
+export function SubagentTabContent({ subagentId, userId, sessionId, onOpenWorkspaceFile, onOpenInBrowserTab }: SubagentTabContentProps) {
   const [detail, setDetail] = useState<SubAgentDetail | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -82,6 +84,8 @@ export function SubagentTabContent({ subagentId, userId, sessionId }: SubagentTa
         isLoading={false}
         userId={userId}
         sessionId={sessionId}
+        onOpenWorkspaceFile={onOpenWorkspaceFile}
+        onOpenInBrowserTab={onOpenInBrowserTab}
       />
     </div>
   );

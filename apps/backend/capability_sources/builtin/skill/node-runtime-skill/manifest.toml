@@ -1,0 +1,12 @@
+capability_id = "node-runtime-skill"
+kind = "skill_pack"
+display_name = "Node 运行环境 Skill"
+description = """管理当前 AIASys 工作区的 Node.js/fnm 运行环境。适用于用户询问怎么使用 Node.js、
+怎么安装 npm 依赖、怎么检查 workspace-default 环境、为什么工作区有 .env 目录、
+或需要把脚本、应用、CLI 工具绑定到工作区 Node 环境时使用。"""
+version = "1.0.0"
+author = "AIASys"
+dependencies = []
+min_platform_version = "0.1.0"
+
+[config_schema]
