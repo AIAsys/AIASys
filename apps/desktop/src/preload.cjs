@@ -16,4 +16,8 @@ contextBridge.exposeInMainWorld("__AIASYS_DESKTOP__", {
   onTrayAction(callback) {
     trayActionCallback = callback;
   },
+  // 选择本地文件夹
+  selectFolder(options) {
+    return ipcRenderer.invoke("aiasys:select-folder", options);
+  },
 });

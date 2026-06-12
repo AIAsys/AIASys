@@ -5,6 +5,7 @@ import {
   Server,
   Braces,
   FolderCog,
+  Globe,
   Puzzle,
   Zap,
   Terminal,
@@ -30,6 +31,7 @@ export type SettingsSection =
   | "llm"
   | "env-vars"
   | "storage"
+  | "uv-mirror"
   | "capabilities"
   | "tool-strategy"
   | "execution-resources"
@@ -63,6 +65,7 @@ const NAV_GROUPS: NavGroup[] = [
     children: [
       { id: "llm", label: "模型配置", icon: <Server className="h-4 w-4" /> },
       { id: "env-vars", label: "全局环境变量", icon: <Braces className="h-4 w-4" /> },
+      { id: "uv-mirror", label: "uv 包管理器镜像", icon: <Globe className="h-4 w-4" /> },
       { id: "storage", label: "存储位置", icon: <FolderCog className="h-4 w-4" /> },
       { id: "execution-resources", label: "Python 与执行资源", icon: <FlaskConical className="h-4 w-4" /> },
     ],
@@ -103,6 +106,11 @@ const SECTION_META: Record<
     title: "存储位置",
     description: "配置新建工作区、全局资源和日志的默认落盘位置",
     icon: FolderCog,
+  },
+  "uv-mirror": {
+    title: "uv 包管理器镜像",
+    description: "配置 PyPI、Python 二进制和 uv 安装器的国内镜像源",
+    icon: Globe,
   },
   capabilities: {
     title: "能力管理",
@@ -521,6 +529,11 @@ const LazyTemplateMarketPanel = lazy(() =>
     default: m.TemplateMarketPanel,
   }))
 );
+const LazyUvMirrorSettings = lazy(() =>
+  import("@/components/settings/UvMirrorSettings").then((m) => ({
+    default: m.UvMirrorSettings,
+  }))
+);
 
 function ContentFallback() {
   return (
@@ -595,6 +608,14 @@ function GlobalSettingsContent({ section, workspaceId, workspaceTitle, userId, w
         <div className="h-full p-6">
           <Suspense fallback={<ContentFallback />}>
             <LazyStorageSettingsDialog />
+          </Suspense>
+        </div>
+      );
+    case "uv-mirror":
+      return (
+        <div className="h-full">
+          <Suspense fallback={<ContentFallback />}>
+            <LazyUvMirrorSettings />
           </Suspense>
         </div>
       );

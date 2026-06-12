@@ -1,4 +1,5 @@
 import { AlertCircle, Loader2 } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 
 interface NewTaskProgressBannerProps {
@@ -6,6 +7,7 @@ interface NewTaskProgressBannerProps {
   isError: boolean;
   stageLabel: string;
   errorMessage?: string | null;
+  progress?: number;
 }
 
 export function NewWorkspaceProgressBanner({
@@ -13,6 +15,7 @@ export function NewWorkspaceProgressBanner({
   isError,
   stageLabel,
   errorMessage,
+  progress,
 }: NewTaskProgressBannerProps) {
   if (!showProgress && !isError) {
     return null;
@@ -33,7 +36,7 @@ export function NewWorkspaceProgressBanner({
         ) : (
           <Loader2 className="mt-0.5 h-4 w-4 animate-spin text-muted-foreground dark:text-muted-foreground" />
         )}
-        <div className="space-y-1">
+        <div className="flex-1 space-y-2">
           <div
             className={cn(
               "text-sm font-medium",
@@ -41,7 +44,15 @@ export function NewWorkspaceProgressBanner({
             )}
           >
             {isError ? "新任务初始化失败" : stageLabel}
+            {!isError && typeof progress === "number" && progress > 0 && (
+              <span className="ml-2 text-xs text-muted-foreground">
+                {progress}%
+              </span>
+            )}
           </div>
+          {!isError && typeof progress === "number" && progress > 0 && (
+            <Progress value={progress} className="h-1.5" />
+          )}
           <p className="text-xs text-muted-foreground">
             {isError
               ? errorMessage || "请检查当前工作区创建状态后重试。"

@@ -88,6 +88,18 @@ class UvInstallResponse(BaseModel):
     message: str
 
 
+class UvMirrorConfigResponse(BaseModel):
+    """uv 镜像配置响应 — 仅含安装器镜像（PyPI/Python 二进制镜像由 uv 自身处理）"""
+
+    installer_mirror: str = ""
+
+
+class UvMirrorConfigRequest(BaseModel):
+    """uv 镜像配置请求"""
+
+    installer_mirror: str = Field(default="", description="uv 安装器镜像基 URL")
+
+
 def get_runtime_storage_settings_service() -> RuntimeStorageSettingsService:
     return RuntimeStorageSettingsService()
 
@@ -234,7 +246,6 @@ async def install_uv_endpoint(
     current_user: UserInfo = Depends(require_auth()),
 ):
     """全局安装 uv（跨平台）。"""
-    _ = current_user
     # 先检查是否已安装
     existing = find_uv_binary()
     if existing:
@@ -246,7 +257,18 @@ async def install_uv_endpoint(
             message=f"Python 包管理器已就绪 ({version or existing})",
         )
 
-    ok, path, version, message = install_uv()
+    # 读取用户镜像配置，用于安装 uv 本身
+    installer_mirror = None
+    try:
+        from app.core.aiasys_config import load_aiasys_config
+
+        cfg = load_aiasys_config(current_user.user_id)
+        if cfg.uv.installer_mirror:
+            installer_mirror = cfg.uv.installer_mirror
+    except Exception:
+        pass
+
+    ok, path, version, message = install_uv(installer_mirror=installer_mirror)
     if not ok:
         raise HTTPException(status_code=500, detail=message)
     return UvInstallResponse(
@@ -255,3 +277,39 @@ async def install_uv_endpoint(
         path=path,
         message=message,
     )
+
+
+@router.get("/uv/mirror-config", response_model=UvMirrorConfigResponse)
+async def get_uv_mirror_config(
+    current_user: UserInfo = Depends(require_auth()),
+):
+    """获取当前用户的 uv 安装器镜像配置。"""
+    try:
+        from app.core.aiasys_config import load_aiasys_config
+
+        cfg = load_aiasys_config(current_user.user_id)
+        return UvMirrorConfigResponse(
+            installer_mirror=cfg.uv.installer_mirror,
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"读取镜像配置失败: {exc}") from exc
+
+
+@router.put("/uv/mirror-config", response_model=UvMirrorConfigResponse)
+async def update_uv_mirror_config(
+    request: UvMirrorConfigRequest,
+    current_user: UserInfo = Depends(require_auth()),
+):
+    """更新当前用户的 uv 安装器镜像配置。"""
+    try:
+        from app.core.aiasys_config import UvTomlSection, save_aiasys_uv_config
+
+        uv_section = UvTomlSection(
+            installer_mirror=request.installer_mirror.strip(),
+        )
+        save_aiasys_uv_config(current_user.user_id, uv_section)
+        return UvMirrorConfigResponse(
+            installer_mirror=uv_section.installer_mirror,
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"保存镜像配置失败: {exc}") from exc

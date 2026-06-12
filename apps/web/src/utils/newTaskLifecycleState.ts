@@ -6,6 +6,9 @@ import {
 
 const NEW_TASK_BUSY_STAGES = new Set<NewTaskStage>([
   "preparing_session",
+  "scanning_folder",
+  "copying_files",
+  "import_creating_workspace",
   "creating_workspace",
   "activating_session",
 ]);
@@ -13,6 +16,7 @@ const NEW_TASK_BUSY_STAGES = new Set<NewTaskStage>([
 export function buildNewTaskLifecycleState(
   stage: NewTaskStage,
   errorMessage: string | null,
+  progress?: number,
 ): NewTaskLifecycleState {
   const isError = stage === "error" || Boolean(errorMessage);
 
@@ -23,5 +27,6 @@ export function buildNewTaskLifecycleState(
     isBusy: NEW_TASK_BUSY_STAGES.has(stage),
     isError,
     errorMessage,
+    progress,
   };
 }

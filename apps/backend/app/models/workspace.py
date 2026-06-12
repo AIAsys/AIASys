@@ -71,6 +71,43 @@ class CreateWorkspaceRequest(BaseModel):
         default=None,
         description="从模板导入时只导入指定的文件路径列表；为 None 时导入模板全部文件",
     )
+    source_folder_path: Optional[str] = Field(
+        default=None,
+        description="从本地文件夹导入时的源文件夹绝对路径（桌面版）",
+    )
+    temp_upload_id: Optional[str] = Field(
+        default=None,
+        description="Web 版文件夹上传后的临时上传 ID",
+    )
+    import_files: Optional[list[str]] = Field(
+        default=None,
+        description="从本地文件夹导入时只复制指定的相对路径列表；为 None 时复制全部预选文件",
+    )
+
+
+class FolderImportTreeItem(BaseModel):
+    relative_path: str = Field(description="相对于源文件夹的相对路径")
+    is_directory: bool = Field(default=False, description="是否为目录")
+    size: Optional[int] = Field(default=None, description="文件大小（字节）；目录为 None")
+
+
+class FolderImportPreviewResponse(BaseModel):
+    source_path: str = Field(description="源文件夹绝对路径")
+    files: list[FolderImportTreeItem] = Field(default_factory=list, description="完整文件树")
+    excluded_files: list[str] = Field(default_factory=list, description="被排除规则过滤掉的路径")
+    default_selected_files: list[str] = Field(default_factory=list, description="默认预选的路径")
+    total_file_count: int = Field(default=0, description="文件总数")
+    total_size_bytes: int = Field(default=0, description="预选文件总大小（字节）")
+
+
+class FolderImportProgressEvent(BaseModel):
+    stage: Literal["scanning", "copying", "creating_workspace", "completed", "error"] = Field(
+        default="scanning", description="当前阶段"
+    )
+    progress: int = Field(default=0, description="整体进度百分比（0-100）")
+    message: str = Field(default="", description="当前阶段提示文本")
+    workspace_id: Optional[str] = Field(default=None, description="完成时返回的工作区 ID")
+    warnings: list[str] = Field(default_factory=list, description="非致命警告信息")
 
 
 class UpdateWorkspaceRequest(BaseModel):

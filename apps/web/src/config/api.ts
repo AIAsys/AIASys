@@ -206,6 +206,9 @@ export const API_ENDPOINTS = {
   // Workspaces
   WORKSPACES_LIST: "/api/workspaces",
   WORKSPACES_CREATE: "/api/workspaces",
+  WORKSPACES_IMPORT_FOLDER_PREVIEW: "/api/workspaces/import-folder-preview",
+  WORKSPACES_IMPORT_FOLDER_UPLOAD: "/api/workspaces/import-folder-upload",
+  WORKSPACES_IMPORT_FOLDER_STREAM: "/api/workspaces/import-folder-stream",
   WORKSPACE_DETAIL: (workspaceId: string) =>
     `/api/workspaces/${encodeURIComponent(workspaceId)}`,
   WORKSPACE_OVERVIEW: (workspaceId: string) =>
@@ -444,6 +447,7 @@ export const API_ENDPOINTS = {
   STORAGE_SETTINGS_MIGRATION: "/api/system/storage-settings/migration",
   STORAGE_SETTINGS_MIGRATION_PREVIEW: "/api/system/storage-settings/migration/preview",
   STORAGE_SETTINGS_MIGRATION_START: "/api/system/storage-settings/migration/start",
+  UV_MIRROR_CONFIG: "/api/system/uv/mirror-config",
 
   // Knowledge Base 知识库
   KNOWLEDGE_BASES: "/api/knowledge/bases",

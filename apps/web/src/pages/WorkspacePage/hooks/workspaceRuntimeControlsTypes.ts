@@ -47,10 +47,15 @@ export interface UseWorkspaceRuntimeControlsReturn {
     title: string,
     description: string | undefined,
     envChoice: EnvChoice,
-    templateId?: string,
-    initialConversationTitle?: string,
-    installCapabilities?: string[],
-    templateFiles?: string[],
+    options: {
+      templateId?: string;
+      initialConversationTitle?: string;
+      installCapabilities?: string[];
+      templateFiles?: string[];
+      sourceFolderPath?: string;
+      tempUploadId?: string;
+      importFiles?: string[];
+    },
   ) => Promise<void>;
   handleRestartRuntime: () => Promise<void>;
   openRestartRuntimeConfirmDialog: () => void;

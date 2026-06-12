@@ -6,6 +6,11 @@ export interface TrayAction {
   section?: string;
 }
 
+export interface SelectFolderResult {
+  canceled: boolean;
+  filePaths: string[];
+}
+
 declare global {
   interface Window {
     __AIASYS_DESKTOP__?: {
@@ -13,6 +18,11 @@ declare global {
       mode: "dev" | "preview";
       /** 注册托盘菜单动作回调 */
       onTrayAction?(callback: (action: TrayAction) => void): void;
+      /** 选择本地文件夹（桌面版） */
+      selectFolder?(options?: {
+        title?: string;
+        defaultPath?: string;
+      }): Promise<SelectFolderResult>;
     };
   }
 }

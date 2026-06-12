@@ -605,9 +605,33 @@ class DesktopServiceManager {
   /**
    * 构建 backend 子进程环境变量，附加桌面模式标识。
    */
+  _bundledUvPath() {
+    if (!this.backendRoot) {
+      return null;
+    }
+    const platformDirMap = {
+      "darwin-arm64": "darwin-arm64",
+      "darwin-x64": "darwin-x64",
+      "linux-arm64": "linux-arm64",
+      "linux-x64": "linux-x64",
+      "win32-x64": "windows-x64",
+    };
+    const key = `${process.platform}-${process.arch}`;
+    const dir = platformDirMap[key];
+    if (!dir) {
+      console.warn(`[aiasys-desktop] 未支持的内置 uv 平台: ${key}`);
+      return null;
+    }
+    const uvName = process.platform === "win32" ? "uv.exe" : "uv";
+    return path.join(this.backendRoot, "vendor", "uv", dir, uvName);
+  }
+
   buildBackendEnv(extraEnv = {}) {
+    const bundledUv = this._bundledUvPath();
+    const bundledUvEnv = bundledUv ? { AIASYS_BUNDLED_UV_PATH: bundledUv } : {};
     return this._buildPythonEnv({
       AIASYS_DESKTOP_MODE: "1",
+      ...bundledUvEnv,
       ...extraEnv,
     });
   }
