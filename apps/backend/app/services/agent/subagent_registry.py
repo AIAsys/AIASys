@@ -67,7 +67,7 @@ class SubAgentRegistry:
             logger.debug("SubAgent registered: agent_id=%s", agent_id)
             return True
 
-    def register(
+    async def register(
         self,
         agent_id: str,
         session: "AiasysRuntimeSession",
@@ -75,12 +75,13 @@ class SubAgentRegistry:
         host_session_id: str | None = None,
     ) -> None:
         """注册一个活跃子 Agent session（无并发检查，已被 try_register 替代）。"""
-        self._sessions[agent_id] = session
-        if host_session_id:
-            self._host_session_ids[agent_id] = host_session_id
-        else:
-            self._host_session_ids.pop(agent_id, None)
-        logger.debug("SubAgent registered: agent_id=%s", agent_id)
+        async with self._lock:
+            self._sessions[agent_id] = session
+            if host_session_id:
+                self._host_session_ids[agent_id] = host_session_id
+            else:
+                self._host_session_ids.pop(agent_id, None)
+            logger.debug("SubAgent registered: agent_id=%s", agent_id)
 
     def unregister(self, agent_id: str) -> None:
         """注销子 Agent session（运行结束后）。"""

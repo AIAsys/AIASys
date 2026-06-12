@@ -152,11 +152,16 @@ CLAUDE.md
 GEMINI.md
 AGENTS.md
 
-# 团队共享技能（本地开发使用，不纳入版本控制）
-/.team-skills/
-
 # uv 二进制（按需下载，不纳入版本控制）
 apps/backend/vendor/uv/*/uv
 apps/backend/vendor/uv/*/uv.exe
 apps/backend/vendor/uv/.download/
+
+# fnm 二进制（按需下载，不纳入版本控制）
+apps/backend/vendor/node/*/fnm
+apps/backend/vendor/node/*/fnm.exe
+apps/backend/vendor/node/.download/
+
+# fnm 运行时下载的 Node.js 版本目录（桌面版运行时数据，不纳入版本控制）
+apps/backend/fnm/
 

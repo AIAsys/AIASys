@@ -185,7 +185,8 @@ class TestMemoryToolReplace:
         )
         assert isinstance(result, ToolResult)
         assert result.is_error is True
-        assert "content is required" in result.content
+        # 当前实现：content 为空时回退到 old_text；空 memory 中找不到对应条目时报错
+        assert "No entry containing 'something' found in memory" in result.content
 
     async def test_memory_tool_replace_rejected_by_security(self, tmp_workspace):
         tool = MemoryTool()

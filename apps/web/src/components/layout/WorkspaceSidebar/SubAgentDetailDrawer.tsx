@@ -53,6 +53,8 @@ interface SubAgentDetailDrawerProps {
   allowRetryActions?: boolean;
   /** 内嵌模式：不渲染 Sheet 外壳，直接输出内容面板 */
   inline?: boolean;
+  onOpenWorkspaceFile?: (file: { name: string }) => void;
+  onOpenInBrowserTab?: (url: string) => void;
 }
 
 const statusConfigMap: Record<string, { label: string; icon: typeof Clock; color: string; animate?: boolean }> = {
@@ -373,6 +375,8 @@ export function SubAgentDetailDrawer({
   allowStopActions = false,
   allowRetryActions = false,
   inline = false,
+  onOpenWorkspaceFile,
+  onOpenInBrowserTab,
 }: SubAgentDetailDrawerProps) {
   void userId;
   const [isStopping, setIsStopping] = useState(false);
@@ -641,6 +645,8 @@ export function SubAgentDetailDrawer({
                                 <ChartAwareMarkdown
                                   content={message.content}
                                   paragraphClassName="my-0"
+                                  onOpenInMainCanvas={onOpenWorkspaceFile ? (file) => onOpenWorkspaceFile({ name: file.name }) : undefined}
+                                  onOpenInBrowserTab={onOpenInBrowserTab}
                                 />
                               </div>
                             </div>
@@ -730,6 +736,8 @@ export function SubAgentDetailDrawer({
                                 <ChartAwareMarkdown
                                   content={message.content}
                                   paragraphClassName="my-0"
+                                  onOpenInMainCanvas={onOpenWorkspaceFile ? (file) => onOpenWorkspaceFile({ name: file.name }) : undefined}
+                                  onOpenInBrowserTab={onOpenInBrowserTab}
                                 />
                               </div>
                             </div>
@@ -1063,6 +1071,8 @@ export function SubAgentDetailDrawer({
                                 <ChartAwareMarkdown
                                   content={message.content}
                                   paragraphClassName="my-0"
+                                  onOpenInMainCanvas={onOpenWorkspaceFile ? (file) => onOpenWorkspaceFile({ name: file.name }) : undefined}
+                                  onOpenInBrowserTab={onOpenInBrowserTab}
                                 />
                               </div>
                             </div>
@@ -1152,6 +1162,8 @@ export function SubAgentDetailDrawer({
                                 <ChartAwareMarkdown
                                   content={message.content}
                                   paragraphClassName="my-0"
+                                  onOpenInMainCanvas={onOpenWorkspaceFile ? (file) => onOpenWorkspaceFile({ name: file.name }) : undefined}
+                                  onOpenInBrowserTab={onOpenInBrowserTab}
                                 />
                               </div>
                             </div>

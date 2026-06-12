@@ -27,7 +27,7 @@ export function ToolBlock({
   const [isOpen, setIsOpen] = useState(defaultOpen);
   const safeContent = useMemo(() => normalizeMarkdown(content), [content]);
   const {
-    meta: { token, sessionId, onOpenWorkspaceArtifact },
+    meta: { token, sessionId, onOpenWorkspaceArtifact, onOpenInBrowserTab },
   } = useAiMessageContext();
 
   return (
@@ -51,6 +51,7 @@ export function ToolBlock({
             sessionId={sessionId}
             paragraphClassName="my-1"
             onOpenInMainCanvas={onOpenWorkspaceArtifact}
+            onOpenInBrowserTab={onOpenInBrowserTab}
           />
         </div>
       )}

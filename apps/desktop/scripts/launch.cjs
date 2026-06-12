@@ -1,6 +1,11 @@
 const path = require("path");
 const { spawn } = require("child_process");
 
+// 在 require("electron") 之前设置环境变量，
+// 让 electron 包直接使用 dist 目录，避免读取可能带换行的 path.txt
+const electronDistDir = path.resolve(__dirname, "..", "node_modules", "electron", "dist");
+process.env.ELECTRON_OVERRIDE_DIST_PATH = electronDistDir;
+
 const electronBinary = require("electron");
 
 const mode = process.argv[2] || "dev";

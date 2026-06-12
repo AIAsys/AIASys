@@ -25,6 +25,9 @@ import type {
   WorkspaceRuntimeEnvActionResponse,
   WorkspaceRuntimeEnvInspection,
   WorkspaceRuntimeEnvironmentRegistry,
+  NodeRuntimeEnvRegistry,
+  NodeRuntimeEnvActionResponse,
+  NodeRuntimeActionResult,
   EnsureWorkspaceUvEnvPayload,
   RegisterWorkspacePythonEnvPayload,
   InstallWorkspacePackagesPayload,
@@ -586,6 +589,121 @@ export async function inspectWorkspaceRuntimeEnvironment(
 ): Promise<WorkspaceRuntimeEnvInspection> {
   return apiRequest<WorkspaceRuntimeEnvInspection>(
     API_ENDPOINTS.WORKSPACE_RUNTIME_ENVIRONMENT(workspaceId, envId),
+    {
+      cache: "no-store",
+    },
+  );
+}
+
+// ── Node.js / fnm API ──
+
+export async function getWorkspaceNodeEnvironments(
+  workspaceId: string,
+): Promise<NodeRuntimeEnvRegistry> {
+  return apiRequest<NodeRuntimeEnvRegistry>(
+    API_ENDPOINTS.WORKSPACE_RUNTIME_ENVIRONMENT_NODE(workspaceId),
+    {
+      cache: "no-store",
+    },
+  );
+}
+
+export async function ensureWorkspaceNodeEnvironment(
+  workspaceId: string,
+  payload: {
+    envId?: string;
+    displayName?: string;
+    nodeVersion?: string;
+    npmPackages?: string[];
+    activate?: boolean;
+  },
+): Promise<NodeRuntimeEnvActionResponse> {
+  return apiRequest<NodeRuntimeEnvActionResponse>(
+    API_ENDPOINTS.WORKSPACE_RUNTIME_ENVIRONMENT_NODE(workspaceId),
+    {
+      method: "POST",
+      body: JSON.stringify({
+        env_id: payload.envId,
+        display_name: payload.displayName,
+        node_version: payload.nodeVersion,
+        npm_packages: payload.npmPackages,
+        activate: payload.activate,
+      }),
+    },
+  );
+}
+
+export async function installNodeVersion(
+  workspaceId: string,
+  nodeVersion: string,
+): Promise<NodeRuntimeActionResult> {
+  return apiRequest<NodeRuntimeActionResult>(
+    API_ENDPOINTS.WORKSPACE_RUNTIME_ENVIRONMENT_NODE_INSTALL(workspaceId),
+    {
+      method: "POST",
+      body: JSON.stringify({ node_version: nodeVersion }),
+    },
+  );
+}
+
+export async function useNodeVersion(
+  workspaceId: string,
+  payload: { envId?: string; nodeVersion: string },
+): Promise<NodeRuntimeActionResult> {
+  return apiRequest<NodeRuntimeActionResult>(
+    API_ENDPOINTS.WORKSPACE_RUNTIME_ENVIRONMENT_NODE_USE(workspaceId),
+    {
+      method: "POST",
+      body: JSON.stringify({
+        env_id: payload.envId,
+        node_version: payload.nodeVersion,
+      }),
+    },
+  );
+}
+
+export async function setDefaultNodeVersion(
+  workspaceId: string,
+  nodeVersion: string,
+): Promise<NodeRuntimeActionResult> {
+  return apiRequest<NodeRuntimeActionResult>(
+    API_ENDPOINTS.WORKSPACE_RUNTIME_ENVIRONMENT_NODE_DEFAULT(workspaceId),
+    {
+      method: "POST",
+      body: JSON.stringify({ node_version: nodeVersion }),
+    },
+  );
+}
+
+export async function getCurrentNodeVersion(
+  workspaceId: string,
+): Promise<NodeRuntimeActionResult> {
+  return apiRequest<NodeRuntimeActionResult>(
+    API_ENDPOINTS.WORKSPACE_RUNTIME_ENVIRONMENT_NODE_CURRENT(workspaceId),
+    {
+      cache: "no-store",
+    },
+  );
+}
+
+export async function uninstallNodeVersion(
+  workspaceId: string,
+  nodeVersion: string,
+): Promise<NodeRuntimeActionResult> {
+  return apiRequest<NodeRuntimeActionResult>(
+    API_ENDPOINTS.WORKSPACE_RUNTIME_ENVIRONMENT_NODE_UNINSTALL(workspaceId),
+    {
+      method: "POST",
+      body: JSON.stringify({ node_version: nodeVersion }),
+    },
+  );
+}
+
+export async function listRemoteNodeVersions(
+  workspaceId: string,
+): Promise<NodeRuntimeActionResult> {
+  return apiRequest<NodeRuntimeActionResult>(
+    API_ENDPOINTS.WORKSPACE_RUNTIME_ENVIRONMENT_NODE_REMOTE(workspaceId),
     {
       cache: "no-store",
     },

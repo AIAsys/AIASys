@@ -45,6 +45,8 @@ interface AiMessageMeta {
   sessionId?: string;
   /** 在主画布打开工作区产物 */
   onOpenWorkspaceArtifact?: (file: PreviewFile) => void;
+  /** 在浏览器标签页打开工作区文件 */
+  onOpenInBrowserTab?: (path: string) => void;
 }
 
 // 完整的 Context Value 接口

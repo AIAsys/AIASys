@@ -81,6 +81,7 @@ export interface AiMessageContentProps {
    * 在主画布打开工作区产物
    */
   onOpenWorkspaceArtifact?: (file: PreviewFile) => void;
+  onOpenInBrowserTab?: (path: string) => void;
   /**
    * 是否在消息流中内联显示工具执行结果（默认 false，结果通过弹窗查看）
    */
@@ -152,6 +153,7 @@ export const AiMessageContent = memo(function AiMessageContent({
   sessionId,
   taskId,
   onOpenWorkspaceArtifact,
+  onOpenInBrowserTab,
   showToolOutputs = false,
 }: AiMessageContentProps) {
   const {
@@ -214,6 +216,7 @@ export const AiMessageContent = memo(function AiMessageContent({
     token: undefined,
     sessionId,
     onOpenWorkspaceArtifact,
+    onOpenInBrowserTab,
   };
 
   // 按顺序渲染 segments
@@ -274,6 +277,7 @@ export const AiMessageContent = memo(function AiMessageContent({
             isStreaming={isStreaming && !seg.isComplete}
             defaultOpen={isStreaming}
             onOpenInMainCanvas={onOpenWorkspaceArtifact}
+            onOpenInBrowserTab={onOpenInBrowserTab}
           />
         );
       }
@@ -299,6 +303,7 @@ export const AiMessageContent = memo(function AiMessageContent({
               token={undefined}
               sessionId={sessionId}
               onOpenInMainCanvas={onOpenWorkspaceArtifact}
+              onOpenInBrowserTab={onOpenInBrowserTab}
             />
           </div>
         );
@@ -455,6 +460,7 @@ export const AiMessageContent = memo(function AiMessageContent({
               token={undefined}
               sessionId={sessionId}
               onOpenInMainCanvas={onOpenWorkspaceArtifact}
+              onOpenInBrowserTab={onOpenInBrowserTab}
             />
           </div>
         )}

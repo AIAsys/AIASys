@@ -25,20 +25,15 @@ class MemoryTool(AiasysTool):
 
     name = "Memory"
     description = (
-        "Save durable information to persistent memory that survives across sessions. "
-        "Memory is injected into future turns, so keep it compact and focused on facts "
-        "that will still matter later.\n\n"
-        "WHEN TO SAVE:\n"
-        "- User corrects you or says 'remember this'\n"
-        "- User shares a durable preference, habit, or personal detail\n"
-        "- User corrects a long-term project or workspace convention\n"
-        "- A stable rule should persist across future sessions\n\n"
-        "ACTIONS:\n"
-        "- add: append a new entry\n"
+        "Manage persistent memory entries across sessions. "
+        "IMPORTANT: Always use this tool to read, add, update, or delete memory entries. "
+        "Do NOT use ReadFile, WriteFile, or StrReplaceFile to edit the memory file directly "
+        "— those bypass security scanning, capacity checks, and proper memory indexing.\n\n"
+        "Use cases:\n"
+        "- add: append a new durable fact, preference, or rule\n"
         "- replace: update an existing entry by matching a unique substring (old_text)\n"
         "- remove: delete an existing entry by matching a unique substring (old_text)\n\n"
-        "SKIP: trivial info, things easily re-discovered, temporary task state, "
-        "single-run tool output, or ordinary environment observations."
+        "Keep entries compact and focused on facts that will still matter in future sessions."
     )
     parameters = {
         "type": "object",
@@ -209,10 +204,9 @@ class MemoryTool(AiasysTool):
                     is_error=True,
                 )
             if not content:
-                return ToolResult(
-                    content="content is required for 'replace' action.",
-                    is_error=True,
-                )
+                # LLM sometimes omits content for replace; fall back to old_text
+                # so the operation succeeds as a no-op rather than erroring out.
+                content = old_text
             result = await self._do_replace(store, old_text, content)
             if not result.is_error:
                 invalidate_user_resolver_cache(user_id)

@@ -98,11 +98,11 @@ class CredentialPool:
     async def get_next(self) -> PooledCredential | None:
         """获取下一个可用的凭证。"""
         self._ensure_lock()
-        available = [c for c in self.credentials if c.is_available]
-        if not available:
-            return None
-
         async with self._lock:
+            available = [c for c in self.credentials if c.is_available]
+            if not available:
+                return None
+
             if self.strategy == "random":
                 chosen = random.choice(available)
             elif self.strategy == "least_used":

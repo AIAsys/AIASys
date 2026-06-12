@@ -83,6 +83,9 @@ _DANGEROUS_PATTERNS = [
     r"(?:\\x[0-9a-fA-F]{2}){4,}",  # \x 十六进制编码序列（4+连续）
     r"(?:\\u[0-9a-fA-F]{4}){2,}",  # \u Unicode 编码序列（2+连续）
     r"\b(?:eval|exec)\s+.*(?:\\x|base64\s+-d|base64\s+--decode)",  # eval $(echo ...|base64 -d) 绕过
+    # === 凭证泄漏防护 ===
+    r"\$\{(?:API_KEY|TOKEN|SECRET|PASSWORD|AUTH|CREDENTIAL)\}",  # ${VAR} 凭证变量引用
+    r"\b(?:curl|wget)\b.*(?:\$|\$\{)(?:API_KEY|TOKEN|SECRET|PASSWORD|AUTH|CREDENTIAL)",  # curl/wget 引用凭证变量
 ]
 
 # Windows 危险命令模式
