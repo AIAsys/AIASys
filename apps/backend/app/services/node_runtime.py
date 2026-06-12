@@ -660,8 +660,8 @@ class NodeRuntimeService:
     ) -> RuntimeEnvCommandResult:
         """执行 fnm 命令。
 
-        自动设置 FNM_DIR 环境变量（与 fnm 二进制同级目录），
-        并在 PATH 中添加 fnm 所在目录。
+        自动设置 FNM_DIR 环境变量（优先使用桌面版指定的 AIASYS_FNM_DIR，
+        否则回退到 fnm 二进制同级目录），并在 PATH 中添加 fnm 所在目录。
         """
         fnm_binary = self._find_fnm_binary()
         if not fnm_binary:
@@ -673,10 +673,11 @@ class NodeRuntimeService:
             )
 
         fnm_dir = str(Path(fnm_binary).parent)
+        fnm_data_dir = os.environ.get("AIASYS_FNM_DIR") or fnm_dir
 
         env = dict(os.environ)
         env.setdefault("FNM_LOGLEVEL", "quiet")
-        env["FNM_DIR"] = fnm_dir
+        env["FNM_DIR"] = fnm_data_dir
 
         # 确保 fnm 所在目录在 PATH 中
         path_env = env.get("PATH", "")

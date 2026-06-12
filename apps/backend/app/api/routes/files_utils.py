@@ -257,11 +257,15 @@ def _get_user_workspace(user_id: str) -> Path:
     if not re.match(r"^[a-zA-Z0-9_\-]+$", user_id):
         raise ValueError("Invalid user_id format")
 
-    workspace = (WORKSPACE_DIR / user_id).resolve()
-    base = WORKSPACE_DIR.resolve()
+    # 使用 normpath/abspath 处理 .. 等相对路径，但不跟随符号链接，
+    # 避免工作区目录内部合法符号链接（如桌面版外置运行时）被误判为越界。
+    workspace = Path(os.path.normpath(os.path.abspath(WORKSPACE_DIR / user_id)))
+    base = Path(os.path.normpath(os.path.abspath(WORKSPACE_DIR)))
 
-    if not str(workspace).startswith(str(base)):
-        raise PermissionError("Path traversal detected")
+    try:
+        workspace.relative_to(base)
+    except ValueError as exc:
+        raise PermissionError("Path traversal detected") from exc
 
     return workspace
 

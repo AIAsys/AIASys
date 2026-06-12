@@ -279,7 +279,7 @@ async def test_local_ipythonbox_appends_execution_record_on_success(
         def get_iopub_msg(self, timeout: int):
             return next(self._messages)
 
-    def fake_get_or_create_kernel(
+    async def fake_get_or_create_kernel(
         cls,
         session_id: str,
         notebook_path: str | None = None,
@@ -516,7 +516,7 @@ async def test_local_ipythonbox_rewrites_workspace_literals_for_local_mode(
         def get_iopub_msg(self, timeout: int):
             return next(self._messages)
 
-    def fake_get_or_create_kernel(
+    async def fake_get_or_create_kernel(
         cls,
         session_id: str,
         notebook_path: str | None = None,
