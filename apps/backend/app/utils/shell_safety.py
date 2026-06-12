@@ -51,6 +51,9 @@ DANGEROUS_PATTERNS: list[str] = [
     # === 下载 + 执行组合（无管道） ===
     r"\bcurl\b.*-o\s*\S+\s*&&\s*(?:sh|bash|\.\/)",  # curl -o file && sh file
     r"\bwget\b.*-O\s*\S+\s*&&\s*(?:sh|bash|\.\/)",  # wget -O file && sh file
+    # === 凭证泄漏防护 ===
+    r"\$\{(?:API_KEY|TOKEN|SECRET|PASSWORD|AUTH|CREDENTIAL)\}",  # ${VAR} 凭证变量引用
+    r"\b(?:curl|wget)\b.*(?:\$|\$\{)(?:API_KEY|TOKEN|SECRET|PASSWORD|AUTH|CREDENTIAL)",  # curl/wget 引用凭证变量
     # === 系统关键路径写入 ===
     r">\s*/etc/(?:passwd|shadow|sudoers|crontab|hosts)",  # 重定向覆盖系统文件
     r">>\s*/etc/(?:passwd|shadow|sudoers|crontab)",  # 追加重定向到系统文件

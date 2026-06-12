@@ -72,7 +72,7 @@ export interface WorkspaceRuntimeSummary {
   runtime_summary?: SessionRuntimeSummary | null;
 }
 
-export type WorkspaceRuntimeEnvironmentKind = "uv" | "registered_python";
+export type WorkspaceRuntimeEnvironmentKind = "uv" | "registered_python" | "fnm";
 
 export type WorkspaceRuntimeEnvironmentStatus =
   | "registered"
@@ -108,6 +108,8 @@ export interface WorkspaceRuntimeEnvironment {
   material_path?: string | null;
   python_version?: string | null;
   python_executable?: string | null;
+  node_version?: string | null;
+  npm_version?: string | null;
   package_count: number;
   packages: WorkspaceRuntimeEnvPackage[];
   created_at?: string | null;
@@ -215,6 +217,56 @@ export interface WorkspaceRuntimeEnvInspection {
   env: WorkspaceRuntimeEnvironment;
   registry_path: string;
   material_files: Record<string, boolean>;
+}
+
+// ── Node.js / fnm 类型 ──
+
+export type NodeRuntimeEnvStatus =
+  | "registered"
+  | "ready"
+  | "running"
+  | "stopped"
+  | "missing"
+  | "unavailable"
+  | "error"
+  | string;
+
+export interface NodeRuntimeEnv {
+  env_id: string;
+  kind: "fnm" | "registered_node";
+  display_name: string;
+  status: NodeRuntimeEnvStatus;
+  active: boolean;
+  node_version: string | null;
+  npm_version: string | null;
+  package_count: number;
+  packages: WorkspaceRuntimeEnvPackage[];
+  created_at: string | null;
+  updated_at: string | null;
+  last_error: string | null;
+  metadata: Record<string, unknown>;
+}
+
+export interface NodeRuntimeEnvRegistry {
+  workspace_id: string;
+  default_env_id?: string | null;
+  active_env_id?: string | null;
+  registry_path: string;
+  fnm_available: boolean;
+  envs: NodeRuntimeEnv[];
+  total: number;
+}
+
+export interface NodeRuntimeEnvActionResponse {
+  workspace_id: string;
+  env?: NodeRuntimeEnv;
+  refresh_required?: boolean;
+  command_result?: WorkspaceRuntimeEnvCommandResult | null;
+}
+
+export interface NodeRuntimeActionResult {
+  workspace_id: string;
+  result: Record<string, unknown>;
 }
 
 export interface WorkspaceOverviewWorkspace {

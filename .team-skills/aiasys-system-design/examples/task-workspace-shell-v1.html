@@ -1,0 +1,721 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AIASys 前端当前主界面示意 v1</title>
+    <style>
+      :root {
+        --bg: #fbfbfc;
+        --panel: #ffffff;
+        --panel-soft: #fafafa;
+        --panel-muted: #f7f7f8;
+        --border: #ececef;
+        --border-strong: #e3e3e7;
+        --text: #17171a;
+        --muted: #8a8a93;
+        --muted-strong: #6f7078;
+        --black: #141416;
+        --shadow: 0 8px 24px rgba(20, 20, 22, 0.04);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background: var(--bg);
+        color: var(--text);
+        font: 14px/1.45 -apple-system, BlinkMacSystemFont, "SF Pro Text",
+          "PingFang SC", "Microsoft YaHei", sans-serif;
+      }
+
+      .app {
+        display: grid;
+        grid-template-columns: 214px minmax(0, 1fr) 307px;
+        min-height: 100vh;
+      }
+
+      .left {
+        border-right: 1px solid var(--border);
+        background: #fcfcfd;
+        display: flex;
+        flex-direction: column;
+        padding: 8px 8px 10px;
+      }
+
+      .brand {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 8px 6px 12px;
+      }
+
+      .brand-lockup {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .brand-mark {
+        width: 24px;
+        height: 24px;
+        border-radius: 7px;
+        background: linear-gradient(135deg, #ff8b3d 0%, #151515 62%);
+        position: relative;
+      }
+
+      .brand-mark::after {
+        content: "";
+        position: absolute;
+        left: 6px;
+        top: 5px;
+        width: 10px;
+        height: 10px;
+        border-radius: 3px;
+        background: rgba(255, 255, 255, 0.9);
+        clip-path: polygon(0 100%, 0 0, 100% 0, 58% 48%, 100% 100%);
+      }
+
+      .brand-title {
+        line-height: 1.15;
+      }
+
+      .brand-title strong {
+        display: block;
+        font-size: 14px;
+        letter-spacing: 0.03em;
+      }
+
+      .brand-title span {
+        display: block;
+        margin-top: 2px;
+        font-size: 11px;
+        color: var(--muted-strong);
+        letter-spacing: 0.18em;
+      }
+
+      .collapse-btn {
+        width: 22px;
+        height: 22px;
+        border: 1px solid var(--border-strong);
+        border-radius: 6px;
+        background: #fff;
+        color: var(--muted-strong);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 11px;
+      }
+
+      .new-task {
+        width: 100%;
+        border: 0;
+        border-radius: 10px;
+        padding: 12px 14px;
+        background: var(--black);
+        color: #fff;
+        font-size: 14px;
+        font-weight: 600;
+        text-align: left;
+        box-shadow: var(--shadow);
+      }
+
+      .section {
+        margin-top: 14px;
+      }
+
+      .section-title {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 8px 7px;
+        color: var(--muted-strong);
+        font-size: 12px;
+        font-weight: 600;
+      }
+
+      .menu-item,
+      .task-row,
+      .search-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        width: 100%;
+        padding: 8px 10px;
+        border-radius: 10px;
+        color: var(--muted-strong);
+      }
+
+      .menu-item {
+        min-height: 32px;
+      }
+
+      .icon {
+        width: 14px;
+        height: 14px;
+        border: 1.5px solid #9b9ca6;
+        border-radius: 3px;
+        flex: 0 0 auto;
+      }
+
+      .icon.circle {
+        border-radius: 999px;
+      }
+
+      .icon.lines {
+        border-radius: 2px;
+        position: relative;
+      }
+
+      .icon.lines::after {
+        content: "";
+        position: absolute;
+        left: 2px;
+        right: 2px;
+        top: 3px;
+        height: 1px;
+        background: #9b9ca6;
+        box-shadow: 0 3px 0 #9b9ca6, 0 6px 0 #9b9ca6;
+      }
+
+      .chevron {
+        margin-left: auto;
+        color: #a4a5ad;
+        font-size: 12px;
+      }
+
+      .search-row {
+        border: 1px solid var(--border);
+        background: #fff;
+        color: #a0a1a8;
+      }
+
+      .task-list {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+
+      .task-row {
+        border: 1px solid transparent;
+        background: transparent;
+      }
+
+      .task-row.active {
+        border-color: var(--border);
+        background: #fff;
+      }
+
+      .task-text {
+        min-width: 0;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        font-size: 13px;
+        color: #3f4047;
+      }
+
+      .left-footer {
+        margin-top: auto;
+        padding-top: 12px;
+        border-top: 1px solid var(--border);
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .avatar {
+        width: 28px;
+        height: 28px;
+        border-radius: 999px;
+        background: #17171a;
+        color: #fff;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 12px;
+        font-weight: 700;
+      }
+
+      .user {
+        min-width: 0;
+        flex: 1;
+        font-size: 12px;
+        color: #6d6e76;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .footer-icons {
+        display: flex;
+        gap: 8px;
+        color: #9fa0a9;
+        font-size: 13px;
+      }
+
+      .center {
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+      }
+
+      .topbar {
+        height: 48px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 0 18px;
+        border-bottom: 1px solid var(--border);
+        background: rgba(255, 255, 255, 0.88);
+      }
+
+      .breadcrumb {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 13px;
+        color: #3f4047;
+      }
+
+      .breadcrumb .sep {
+        color: #b5b6bc;
+      }
+
+      .center-body {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        padding: 24px 32px 160px;
+        position: relative;
+      }
+
+      .welcome {
+        text-align: center;
+        margin-top: -42px;
+      }
+
+      .welcome h1 {
+        margin: 0;
+        font-size: 18px;
+        font-weight: 700;
+      }
+
+      .welcome p {
+        margin: 8px 0 0;
+        color: #9596a0;
+        font-size: 13px;
+      }
+
+      .quick-actions {
+        margin-top: 20px;
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+        justify-content: center;
+      }
+
+      .chip {
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        background: #fff;
+        color: #6f7078;
+        padding: 8px 16px;
+        font-size: 13px;
+      }
+
+      .composer-wrap {
+        position: absolute;
+        left: 50%;
+        bottom: 30px;
+        transform: translateX(-50%);
+        width: min(694px, calc(100% - 72px));
+      }
+
+      .composer {
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        background: #fff;
+        box-shadow: 0 10px 30px rgba(20, 20, 22, 0.04);
+        padding: 16px 16px 12px;
+      }
+
+      .composer-input {
+        min-height: 56px;
+        color: #9b9ca6;
+        font-size: 15px;
+      }
+
+      .composer-toolbar {
+        margin-top: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+      }
+
+      .composer-tools {
+        display: flex;
+        gap: 12px;
+        color: #777983;
+        font-size: 18px;
+      }
+
+      .tool-dot {
+        width: 18px;
+        height: 18px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .send-arrow {
+        width: 22px;
+        height: 22px;
+        border-radius: 999px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        color: #7e8089;
+      }
+
+      .right {
+        border-left: 1px solid var(--border);
+        background: #fdfdfd;
+        display: flex;
+        flex-direction: column;
+      }
+
+      .right-top {
+        height: 48px;
+        border-bottom: 1px solid var(--border);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 12px 0 14px;
+      }
+
+      .right-title {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 14px;
+        font-weight: 600;
+      }
+
+      .right-actions {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        color: #8d8e98;
+      }
+
+      .exec-body {
+        padding: 10px 8px 0;
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+        flex: 1;
+      }
+
+      .exec-toolbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 10px;
+      }
+
+      .toolbar-group {
+        display: flex;
+        gap: 6px;
+      }
+
+      .mini-btn {
+        height: 26px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: #fff;
+        color: #72747d;
+        padding: 0 10px;
+        font-size: 12px;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+      }
+
+      .tabbar {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 6px;
+        margin-bottom: 10px;
+      }
+
+      .tab {
+        height: 30px;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        background: #fff;
+        color: #7a7b84;
+        font-size: 12px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+      }
+
+      .tab.active {
+        background: var(--panel-muted);
+        color: #41424a;
+      }
+
+      .sub-bar {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 6px;
+        margin-bottom: 10px;
+      }
+
+      .host-card {
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        background: #fff;
+        padding: 12px 12px 10px;
+      }
+
+      .host-line {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .host-icon {
+        width: 24px;
+        height: 24px;
+        border-radius: 999px;
+        border: 1px solid var(--border-strong);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        color: #8e9098;
+        font-size: 12px;
+      }
+
+      .host-meta {
+        min-width: 0;
+      }
+
+      .host-name {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 13px;
+        font-weight: 600;
+      }
+
+      .space-tag {
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        padding: 1px 6px;
+        font-size: 10px;
+        color: #7f8089;
+      }
+
+      .host-state {
+        font-size: 12px;
+        color: #93959d;
+      }
+
+      .exec-bottom {
+        margin-top: auto;
+        border-top: 1px solid var(--border);
+        padding: 10px 10px 12px;
+        background: #fbfbfc;
+      }
+
+      .bottom-status {
+        display: flex;
+        gap: 12px;
+        font-size: 11px;
+        color: #6d6e76;
+      }
+
+      .bottom-note {
+        margin-top: 8px;
+        color: #a0a2aa;
+        font-size: 11px;
+        line-height: 1.5;
+      }
+
+      @media (max-width: 1280px) {
+        .app {
+          grid-template-columns: 214px minmax(0, 1fr) 286px;
+        }
+      }
+
+      @media (max-width: 980px) {
+        .app {
+          grid-template-columns: 1fr;
+        }
+
+        .left,
+        .right {
+          display: none;
+        }
+
+        .composer-wrap {
+          width: calc(100% - 32px);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app">
+      <aside class="left">
+        <div class="brand">
+          <div class="brand-lockup">
+            <div class="brand-mark"></div>
+            <div class="brand-title">
+              <strong>艾斯</strong>
+              <span>AGENT WORKSPACE</span>
+            </div>
+          </div>
+          <div class="collapse-btn">◧</div>
+        </div>
+
+        <button class="new-task">＋ 新建对话</button>
+
+        <section class="section">
+          <div class="section-title">功能</div>
+          <div class="menu-item"><span class="icon"></span><span>Skill 市场</span></div>
+          <div class="menu-item"><span class="icon circle"></span><span>资产总览</span></div>
+          <div class="menu-item"><span class="icon lines"></span><span>运行环境管理</span></div>
+        </section>
+
+        <section class="section">
+          <div class="section-title">工具与知识 <span class="chevron">⌄</span></div>
+          <div class="menu-item"><span class="icon"></span><span>MCP 工具</span></div>
+          <div class="menu-item"><span class="icon circle"></span><span>偏好记忆</span></div>
+          <div class="menu-item"><span class="icon lines"></span><span>会话数据库</span></div>
+          <div class="menu-item"><span class="icon"></span><span>知识图谱</span></div>
+          <div class="menu-item"><span class="icon lines"></span><span>我的知识库</span></div>
+          <div class="menu-item"><span class="icon circle"></span><span>OpenClaw</span></div>
+        </section>
+
+        <section class="section">
+          <div class="section-title">任务 <span class="chevron">↻</span></div>
+          <div class="search-row"><span class="icon circle"></span><span>搜索任务...</span></div>
+          <div class="task-list">
+            <div class="task-row active"><span class="icon"></span><span class="task-text">新任务（未命名）</span></div>
+            <div class="task-row"><span class="icon"></span><span class="task-text">分析下我上传这个...</span></div>
+            <div class="task-row"><span class="icon"></span><span class="task-text">分析下我上传这个...</span></div>
+            <div class="task-row"><span class="icon"></span><span class="task-text">分析下我上传这个...</span></div>
+            <div class="task-row"><span class="icon"></span><span class="task-text">分析下我上传这个...</span></div>
+            <div class="task-row"><span class="icon"></span><span class="task-text">你好</span></div>
+          </div>
+        </section>
+
+        <div class="left-footer">
+          <div class="avatar">A</div>
+          <div class="user">abdaziz87765988</div>
+          <div class="footer-icons"><span>⚙</span><span>↪</span></div>
+        </div>
+      </aside>
+
+      <main class="center">
+        <header class="topbar">
+          <div class="breadcrumb">
+            <span>◻</span>
+            <span>数据分析</span>
+            <span>⌄</span>
+            <span class="sep">/</span>
+            <span>新会话</span>
+          </div>
+          <div></div>
+        </header>
+
+        <div class="center-body">
+          <div class="welcome">
+            <h1>你好，有什么可以帮助你的？</h1>
+            <p>选择下方建议或直接输入你的问题</p>
+            <div class="quick-actions">
+              <div class="chip">帮我分析这份数据</div>
+              <div class="chip">生成一份报告</div>
+              <div class="chip">解释这段代码</div>
+            </div>
+          </div>
+
+          <div class="composer-wrap">
+            <div class="composer">
+              <div class="composer-input">询问任何问题</div>
+              <div class="composer-toolbar">
+                <div class="composer-tools">
+                  <span class="tool-dot">＋</span>
+                  <span class="tool-dot">▭</span>
+                  <span class="tool-dot">✣</span>
+                  <span class="tool-dot">⌘</span>
+                </div>
+                <div class="send-arrow">↑</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </main>
+
+      <aside class="right">
+        <div class="right-top">
+          <div class="right-title"><span>⌁</span><span>执行工作空间</span></div>
+          <div class="right-actions"><span>⇩</span><span>✕</span></div>
+        </div>
+
+        <div class="exec-body">
+          <div class="exec-toolbar">
+            <div class="toolbar-group">
+              <div class="mini-btn">□ 查看记录</div>
+              <div class="mini-btn">🔗 维护 ⌄</div>
+            </div>
+          </div>
+
+          <div class="tabbar">
+            <div class="tab active">↘ 执行流</div>
+            <div class="tab">▱ 工作区</div>
+            <div class="tab">▤ 数据库</div>
+          </div>
+
+          <div class="sub-bar">
+            <div class="tab active">◫ Sub Agents</div>
+            <div class="tab">↘ 执行记录</div>
+          </div>
+
+          <div class="host-card">
+            <div class="host-line">
+              <div class="host-icon">☼</div>
+              <div class="host-meta">
+                <div class="host-name">
+                  <span>Host Agent</span>
+                  <span class="space-tag">空间</span>
+                </div>
+                <div class="host-state">就绪</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="exec-bottom">
+            <div class="bottom-status">
+              <span>暂无代码执行记录</span>
+              <span>执行环境: 尚未启动</span>
+            </div>
+            <div class="bottom-note">
+              选择一条执行后，这里会显示当前任务状态。
+            </div>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </body>
+</html>

@@ -20,6 +20,7 @@ interface DockChatViewProps {
   messagesEndRef: React.RefObject<HTMLDivElement | null>;
   onWorkerClick?: (workerName: string) => void;
   onOpenWorkspaceArtifact?: (file: PreviewFile) => void;
+  onOpenInBrowserTab?: (path: string) => void;
   onViewToolDetails?: (
     toolCallId: string,
     taskId: string | undefined,
@@ -83,6 +84,7 @@ export function DockChatView({
   messagesEndRef,
   onWorkerClick,
   onOpenWorkspaceArtifact,
+  onOpenInBrowserTab,
   onViewToolDetails,
   chatAreaActions,
   inputValue,
@@ -139,6 +141,7 @@ export function DockChatView({
           sessionId={currentSessionId || undefined}
           layout="rail"
           onOpenWorkspaceArtifact={onOpenWorkspaceArtifact}
+          onOpenInBrowserTab={onOpenInBrowserTab}
           onRewriteUserMessage={chatAreaActions.onRewriteUserMessage}
           isRunning={isRunning}
         >

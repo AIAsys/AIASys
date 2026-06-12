@@ -18,6 +18,7 @@ interface ChartAwareMarkdownProps {
   sessionId?: string;
   paragraphClassName?: string;
   onOpenInMainCanvas?: (file: PreviewFile) => void;
+  onOpenInBrowserTab?: (path: string) => void;
 }
 
 interface MarkdownSegment {
@@ -188,6 +189,7 @@ export const ChartAwareMarkdown = memo(function ChartAwareMarkdown({
   sessionId,
   paragraphClassName,
   onOpenInMainCanvas,
+  onOpenInBrowserTab,
 }: ChartAwareMarkdownProps) {
   const normalizedContent = useMemo(() => normalizeMarkdown(content), [content]);
   const segments = useMemo(
@@ -257,6 +259,7 @@ export const ChartAwareMarkdown = memo(function ChartAwareMarkdown({
                 variant="chat"
                 alt={segment.alt}
                 onOpenInMainCanvas={onOpenInMainCanvas}
+                onOpenInBrowserTab={onOpenInBrowserTab}
               />
             </Suspense>
           );

@@ -35,7 +35,7 @@ export const FinalAnswerBlock = memo(function FinalAnswerBlock({
       );
   }, [content]);
   const {
-    meta: { token, sessionId, onOpenWorkspaceArtifact },
+    meta: { token, sessionId, onOpenWorkspaceArtifact, onOpenInBrowserTab },
   } = useAiMessageContext();
   const [isExporting, setIsExporting] = useState(false);
   const { showSuccess, showError } = useFileUploadToast();
@@ -64,6 +64,7 @@ export const FinalAnswerBlock = memo(function FinalAnswerBlock({
           token={token}
           sessionId={sessionId}
           onOpenInMainCanvas={onOpenWorkspaceArtifact}
+          onOpenInBrowserTab={onOpenInBrowserTab}
         />
       </div>
       {/* 导出按钮 */}

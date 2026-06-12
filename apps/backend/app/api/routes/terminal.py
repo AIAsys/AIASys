@@ -18,8 +18,10 @@ import logging
 import uuid
 from typing import Any
 
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect
 
+from app.core.auth import require_auth
+from app.models.user import UserInfo
 from app.services.terminal.pty_manager import (
     PtyUnsupportedError,
     get_pty_manager,
@@ -61,8 +63,16 @@ def _make_session_key(user_id: str, session_id: str, terminal_id: str) -> str:
 
 
 @router.websocket("/ws/terminal/{user_id}/{session_id}")
-async def terminal_websocket(websocket: WebSocket, user_id: str, session_id: str):
+async def terminal_websocket(
+    websocket: WebSocket,
+    user_id: str,
+    session_id: str,
+    current_user: UserInfo = Depends(require_auth()),
+):
     """终端 WebSocket 连接"""
+    if current_user.user_id != user_id:
+        await websocket.close(code=4003, reason="User mismatch")
+        return
     await websocket.accept()
     logger.info("终端 WebSocket 连接: user_id=%s session_id=%s", user_id, session_id)
 

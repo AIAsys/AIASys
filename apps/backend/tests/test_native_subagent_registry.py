@@ -23,7 +23,7 @@ class TestSubAgentRegistry:
     def test_register_and_get(self):
         reg = SubAgentRegistry()
         session = FakeSession()
-        reg.register("agent_1", session)
+        asyncio.run(reg.register("agent_1", session))
         assert reg.get("agent_1") is session
         assert reg.is_active("agent_1")
         assert reg.list_active() == ["agent_1"]
@@ -31,7 +31,7 @@ class TestSubAgentRegistry:
     def test_unregister(self):
         reg = SubAgentRegistry()
         session = FakeSession()
-        reg.register("agent_1", session)
+        asyncio.run(reg.register("agent_1", session))
         reg.unregister("agent_1")
         assert reg.get("agent_1") is None
         assert not reg.is_active("agent_1")
@@ -39,7 +39,7 @@ class TestSubAgentRegistry:
     def test_cancel(self):
         reg = SubAgentRegistry()
         session = FakeSession()
-        reg.register("agent_1", session)
+        asyncio.run(reg.register("agent_1", session))
         result = reg.cancel("agent_1")
         assert result is True
         assert session.cancelled is True
@@ -53,8 +53,8 @@ class TestSubAgentRegistry:
         reg = SubAgentRegistry()
         s1 = FakeSession()
         s2 = FakeSession()
-        reg.register("agent_1", s1)
-        reg.register("agent_2", s2)
+        asyncio.run(reg.register("agent_1", s1))
+        asyncio.run(reg.register("agent_2", s2))
         cancelled = reg.cancel_all()
         assert sorted(cancelled) == ["agent_1", "agent_2"]
         assert s1.cancelled
@@ -62,16 +62,16 @@ class TestSubAgentRegistry:
 
     def test_clear(self):
         reg = SubAgentRegistry()
-        reg.register("agent_1", FakeSession())
+        asyncio.run(reg.register("agent_1", FakeSession()))
         reg.clear()
         assert reg.list_active() == []
 
     def test_count_active_for_host(self):
         reg = SubAgentRegistry()
-        reg.register("agent_1", FakeSession(), host_session_id="host-1")
-        reg.register("agent_2", FakeSession(), host_session_id="host-1")
-        reg.register("agent_3", FakeSession(), host_session_id="host-2")
-        reg.register("agent_4", FakeSession())
+        asyncio.run(reg.register("agent_1", FakeSession(), host_session_id="host-1"))
+        asyncio.run(reg.register("agent_2", FakeSession(), host_session_id="host-1"))
+        asyncio.run(reg.register("agent_3", FakeSession(), host_session_id="host-2"))
+        asyncio.run(reg.register("agent_4", FakeSession()))
 
         assert reg.count_active_for_host("host-1") == 2
         assert reg.count_active_for_host("host-2") == 1

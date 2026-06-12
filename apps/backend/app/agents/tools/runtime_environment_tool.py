@@ -16,10 +16,15 @@ from app.services.runtime_environment import (
     DEFAULT_UV_ENV_ID,
     get_runtime_environment_service,
 )
+from app.services.node_runtime import (
+    DEFAULT_NODE_ENV_ID,
+    get_node_runtime_service,
+)
 
 logger = logging.getLogger(__name__)
 
 RuntimeEnvironmentAction = Literal[
+    # UV / Python 操作
     "list",
     "ensure_uv",
     "register_python",
@@ -27,6 +32,15 @@ RuntimeEnvironmentAction = Literal[
     "bind",
     "inspect",
     "unregister",
+    # fnm / Node.js 操作
+    "list_node",
+    "ensure_node",
+    "install_node",
+    "use_node",
+    "set_default_node",
+    "node_current",
+    "uninstall_node",
+    "list_remote_node",
 ]
 
 
@@ -106,9 +120,24 @@ class RuntimeEnvironmentParams(BaseModel):
         description="ensure_uv/install_packages 后是否同步依赖。",
     )
 
+    # fnm / Node.js 参数
+    node_version: str | None = Field(
+        default=None,
+        description="Node.js 版本，例如 20.11.0 或 20。用于 install_node / use_node / set_default_node / uninstall_node。",
+    )
+    npm_packages: list[str] = Field(
+        default_factory=list,
+        description="npm 依赖包列表，可用数组或换行字符串传入。用于 ensure_node 时的初始包安装。",
+    )
+
     @field_validator("packages", mode="before")
     @classmethod
     def _normalize_packages(cls, value: Any) -> list[str]:
+        return _normalize_string_list(value)
+
+    @field_validator("npm_packages", mode="before")
+    @classmethod
+    def _normalize_npm_packages(cls, value: Any) -> list[str]:
         return _normalize_string_list(value)
 
 
@@ -165,13 +194,13 @@ def _resolve_workspace_scope(
 
 
 class RuntimeEnvironment(AiasysTool):
-    """管理当前工作区登记的 UV 运行环境。"""
+    """管理工作区登记的 UV 和 fnm 运行环境。"""
 
     name: str = "RuntimeEnvironment"
-    description: str = """管理当前工作区的 UV 运行环境。
+    description: str = """管理工作区当前的运行环境，支持 Python/UV 和 Node.js/fnm。
 
-可执行操作：
-- list：列出当前工作区登记的运行环境，并检查 UV CLI 是否可用
+Python/UV 操作：
+- list：列出当前工作区登记的 UV 运行环境，并检查 UV CLI 是否可用
 - ensure_uv：创建或刷新工作区 UV 环境，可写入 pyproject.toml、.python-version，并可安装依赖
 - register_python：把已登记或本机可用 Python 解释器登记到当前工作区
 - install_packages：给已登记 UV 环境安装依赖
@@ -179,8 +208,18 @@ class RuntimeEnvironment(AiasysTool):
 - inspect：检查单个登记环境状态
 - unregister：从当前工作区取消登记
 
+Node.js/fnm 操作：
+- list_node：列出当前工作区登记的 Node.js 运行环境
+- ensure_node：创建或刷新工作区 Node 环境，安装指定 Node 版本
+- install_node：安装指定 Node.js 版本（通过 fnm）
+- use_node：在工作区切换 Node.js 版本
+- set_default_node：设置全局默认 Node.js 版本
+- node_current：查看当前激活的 Node.js 版本
+- uninstall_node：卸载指定 Node.js 版本
+- list_remote_node：查看可远程安装的 Node.js 版本列表
+
 边界：
-- 不会修改 AIASys 后端自身 Python 环境
+- 不会修改 AIASys 后端自身的 Python 或 Node 环境
 - 新绑定的运行环境从下一轮执行或重置执行环境后生效
 """
     params: type[BaseModel] = RuntimeEnvironmentParams
@@ -325,6 +364,134 @@ class RuntimeEnvironment(AiasysTool):
                         "workspace_id": workspace_id,
                         "env": env.model_dump(mode="json"),
                         "refresh_required": True,
+                    }
+                )
+
+            # ── fnm / Node.js 操作 ──
+            node_service = get_node_runtime_service()
+
+            if params.action == "list_node":
+                registry = node_service.list_node_envs(
+                    workspace_id,
+                    inspect=params.inspect,
+                )
+                return _json_result(
+                    {
+                        "status": "success",
+                        "action": params.action,
+                        "registry": registry.model_dump(mode="json"),
+                    }
+                )
+
+            if params.action == "ensure_node":
+                env, command_result = node_service.ensure_node_env(
+                    workspace_id,
+                    env_id=params.env_id or DEFAULT_NODE_ENV_ID,
+                    display_name=params.display_name or "Workspace Node",
+                    node_version=params.node_version,
+                    npm_packages=params.npm_packages,
+                )
+                refresh_required = False
+                if params.activate:
+                    env = node_service.bind_node_env(user_id, workspace_id, env.env_id)
+                    refresh_required = True
+                return _json_result(
+                    {
+                        "status": "success",
+                        "action": params.action,
+                        "workspace_id": workspace_id,
+                        "env": env.model_dump(mode="json"),
+                        "refresh_required": refresh_required,
+                        "command_result": (
+                            command_result.model_dump(mode="json")
+                            if command_result is not None
+                            else None
+                        ),
+                    }
+                )
+
+            if params.action == "install_node":
+                if not params.node_version:
+                    return _error_result("install_node 需要提供 node_version。")
+                result = node_service.install_node_version(
+                    workspace_id,
+                    params.node_version,
+                )
+                return _json_result(
+                    {
+                        "status": "success",
+                        "action": params.action,
+                        "workspace_id": workspace_id,
+                        "result": result,
+                    }
+                )
+
+            if params.action == "use_node":
+                if not params.node_version:
+                    return _error_result("use_node 需要提供 node_version。")
+                result = node_service.use_node_version(
+                    workspace_id,
+                    params.env_id or DEFAULT_NODE_ENV_ID,
+                    params.node_version,
+                )
+                return _json_result(
+                    {
+                        "status": "success",
+                        "action": params.action,
+                        "workspace_id": workspace_id,
+                        "result": result,
+                    }
+                )
+
+            if params.action == "set_default_node":
+                if not params.node_version:
+                    return _error_result("set_default_node 需要提供 node_version。")
+                result = node_service.set_default_node_version(
+                    workspace_id,
+                    params.node_version,
+                )
+                return _json_result(
+                    {
+                        "status": "success",
+                        "action": params.action,
+                        "workspace_id": workspace_id,
+                        "result": result,
+                    }
+                )
+
+            if params.action == "node_current":
+                result = node_service.get_current_node_version(workspace_id)
+                return _json_result(
+                    {
+                        "status": "success",
+                        "action": params.action,
+                        "result": result,
+                    }
+                )
+
+            if params.action == "uninstall_node":
+                if not params.node_version:
+                    return _error_result("uninstall_node 需要提供 node_version。")
+                result = node_service.uninstall_node_version(
+                    workspace_id,
+                    params.node_version,
+                )
+                return _json_result(
+                    {
+                        "status": "success",
+                        "action": params.action,
+                        "workspace_id": workspace_id,
+                        "result": result,
+                    }
+                )
+
+            if params.action == "list_remote_node":
+                registry = node_service.list_remote_versions(workspace_id)
+                return _json_result(
+                    {
+                        "status": "success",
+                        "action": params.action,
+                        "registry": registry,
                     }
                 )
 

@@ -138,6 +138,8 @@ interface WorkspaceSidebarProps {
   onOpenKnowledgeGraphDialog?: () => void;
   /** 在中间主画布打开文件 */
   onOpenCanvasPreview?: (file: PreviewFile) => void;
+  /** 在浏览器标签页打开文件 */
+  onOpenInBrowserTab?: (file: WorkspaceFile) => void;
   /** 在中间主画布打开全局资源 */
   onOpenGlobalResourceInMainCanvas?: (node: GlobalResourceNode) => void;
   /** 在主画布编辑区打开文件 */
@@ -170,6 +172,7 @@ interface WorkspaceSidebarProps {
 
 interface WorkspaceSidebarContentProps {
   onOpenCanvasPreview?: (file: PreviewFile) => void;
+  onOpenInBrowserTab?: (file: WorkspaceFile) => void;
   onOpenGlobalResourceInMainCanvas?: (node: GlobalResourceNode) => void;
   onEditInMainCanvas?: (file: PreviewFile) => void;
   onOpenKnowledgeBaseDialog?: () => void;
@@ -200,6 +203,7 @@ function WorkspaceSidebarContent({
   onOpenCanvasPreview,
   onOpenGlobalResourceInMainCanvas,
   onEditInMainCanvas,
+  onOpenInBrowserTab,
   onOpenKnowledgeBaseDialog,
   onOpenKnowledgeGraphDialog,
   onOpenWorkspaceSettings: providedOpenWorkspaceSettings,
@@ -405,6 +409,7 @@ function WorkspaceSidebarContent({
             onUploadFiles={onUploadFiles}
             onExportMarkdownFile={exportWorkspaceFile}
             onOpenInMainCanvas={onOpenCanvasPreview}
+            onOpenInBrowserTab={onOpenInBrowserTab}
             onEditInMainCanvas={onEditInMainCanvas}
             onOpenWorkspaceSettings={onOpenWorkspaceSettings}
             surfaceMode={layoutMode === "center" ? "navigation" : "workbench"}
@@ -419,6 +424,7 @@ function WorkspaceSidebarContent({
             sessionId={sessionId}
             onOpenGlobalResourceInMainCanvas={onOpenGlobalResourceInMainCanvas}
             onOpenInMainCanvas={onOpenCanvasPreview}
+            onOpenInBrowserTab={onOpenInBrowserTab}
             onEditInMainCanvas={onEditInMainCanvas}
             surfaceMode={layoutMode === "center" ? "navigation" : "workbench"}
           />
@@ -508,6 +514,7 @@ export function WorkspaceContextSurface({
   onOpenKnowledgeBaseDialog,
   onOpenKnowledgeGraphDialog,
   onOpenCanvasPreview,
+  onOpenInBrowserTab,
   onOpenGlobalResourceInMainCanvas,
   onEditInMainCanvas,
   onOpenWorkspaceResourcesSettings,
@@ -566,6 +573,7 @@ export function WorkspaceContextSurface({
       {children || (
         <WorkspaceSidebarContent
           onOpenCanvasPreview={onOpenCanvasPreview}
+          onOpenInBrowserTab={onOpenInBrowserTab}
           onOpenGlobalResourceInMainCanvas={onOpenGlobalResourceInMainCanvas}
           onEditInMainCanvas={onEditInMainCanvas}
           onOpenKnowledgeBaseDialog={onOpenKnowledgeBaseDialog}
@@ -634,6 +642,7 @@ function WorkspaceSidebarRoot({
   onOpenKnowledgeBaseDialog,
   onOpenKnowledgeGraphDialog,
   onOpenCanvasPreview,
+  onOpenInBrowserTab,
   onOpenGlobalResourceInMainCanvas,
   onEditInMainCanvas,
   onOpenWorkspaceResourcesSettings,
@@ -691,6 +700,7 @@ function WorkspaceSidebarRoot({
       {children || (
         <WorkspaceSidebarContent
           onOpenCanvasPreview={onOpenCanvasPreview}
+          onOpenInBrowserTab={onOpenInBrowserTab}
           onOpenGlobalResourceInMainCanvas={onOpenGlobalResourceInMainCanvas}
           onEditInMainCanvas={onEditInMainCanvas}
           onOpenKnowledgeBaseDialog={onOpenKnowledgeBaseDialog}

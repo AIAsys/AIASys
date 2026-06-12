@@ -7,6 +7,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field, field_validator
 
 RuntimeEnvironmentKind = Literal["uv", "registered_python"]
+NodeRuntimeKind = Literal["fnm", "registered_node"]
 RuntimeEnvironmentStatus = Literal[
     "registered",
     "ready",
@@ -102,9 +103,46 @@ class BindWorkspaceRuntimeEnvRequest(BaseModel):
     env_id: str = Field(min_length=1, max_length=80)
 
 
+class EnsureWorkspaceNodeEnvRequest(BaseModel):
+    env_id: str | None = Field(default=None, max_length=80)
+    display_name: str = "Workspace Node"
+    node_version: str | None = None
+    npm_packages: list[str] = Field(default_factory=list)
+    activate: bool = False
+
+
+class InstallNodeVersionRequest(BaseModel):
+    node_version: str = Field(min_length=1, max_length=30)
+
+
+class UseNodeVersionRequest(BaseModel):
+    env_id: str = Field(default="node-default", max_length=80)
+    node_version: str = Field(min_length=1, max_length=30)
+
+
+class SetDefaultNodeVersionRequest(BaseModel):
+    node_version: str = Field(min_length=1, max_length=30)
+
+
+class UninstallNodeVersionRequest(BaseModel):
+    node_version: str = Field(min_length=1, max_length=30)
+
+
+class NodeRuntimeActionResponse(BaseModel):
+    workspace_id: str
+    result: dict[str, Any] = Field(default_factory=dict)
+
+
 class RuntimeEnvActionResponse(BaseModel):
     workspace_id: str
     env: WorkspaceRuntimeEnv
+    refresh_required: bool = False
+    command_result: RuntimeEnvCommandResult | None = None
+
+
+class NodeRuntimeEnvActionResponse(BaseModel):
+    workspace_id: str
+    env: NodeRuntimeEnv
     refresh_required: bool = False
     command_result: RuntimeEnvCommandResult | None = None
 
@@ -114,6 +152,34 @@ class WorkspaceRuntimeEnvInspectionResponse(BaseModel):
     env: WorkspaceRuntimeEnv
     registry_path: str
     material_files: dict[str, bool] = Field(default_factory=dict)
+
+
+class NodeRuntimeEnv(BaseModel):
+    env_id: str
+    kind: NodeRuntimeKind = "fnm"
+    display_name: str
+    status: RuntimeEnvironmentStatus = "registered"
+    active: bool = False
+
+    node_version: str | None = None
+    npm_version: str | None = None
+    package_count: int = 0
+    packages: list[RuntimeEnvPackage] = Field(default_factory=list)
+
+    created_at: str | None = None
+    updated_at: str | None = None
+    last_error: str | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class NodeRuntimeEnvRegistryResponse(BaseModel):
+    workspace_id: str
+    default_env_id: str | None = None
+    active_env_id: str | None = None
+    registry_path: str
+    fnm_available: bool
+    envs: list[NodeRuntimeEnv] = Field(default_factory=list)
+    total: int = 0
 
 
 def _dedupe_non_empty(items: list[str]) -> list[str]:

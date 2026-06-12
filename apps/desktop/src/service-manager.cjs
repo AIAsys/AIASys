@@ -34,6 +34,10 @@ function resolveRepoRoot() {
   return path.resolve(__dirname, "..", "..", "..");
 }
 
+/**
+ * 修复 pyvenv.cfg 的 home 路径为嵌入目录，并修复 venv 符号链接。
+ * 前提是目标目录可写（已在调用侧确认）。
+ */
 function fixPyvenvHomeIfNeeded(backendRoot) {
   const pyvenvPath = path.join(backendRoot, ".venv", "pyvenv.cfg");
   if (!fs.existsSync(pyvenvPath)) {
@@ -60,8 +64,6 @@ function fixPyvenvHomeIfNeeded(backendRoot) {
     return;
   }
 
-  // home 不正确或缺失，强制修复为嵌入目录
-  // 不依赖 fs.existsSync 判断，避免目标机器上恰好存在构建机同名路径时漏修
   const newContent = content.replace(/^home\s*=\s*.+$/m, `home = ${expectedHome}`);
   try {
     fs.writeFileSync(pyvenvPath, newContent, "utf-8");
@@ -97,6 +99,27 @@ function fixPyvenvHomeIfNeeded(backendRoot) {
       console.log(`[aiasys-desktop] 已修复 venv 符号链接: ${name} -> ${relativeTarget}`);
     }
   }
+}
+
+/**
+ * 将 AppImage 只读目录中的 .venv 复制到可写运行时目录，
+ * 然后修复 pyvenv.cfg 和符号链接。
+ */
+function preparePackagedVenv(backendRoot, runtimeStateRoot) {
+  const writableVenv = path.join(runtimeStateRoot, ".venv");
+  if (fs.existsSync(writableVenv)) {
+    return; // 已复制过，直接复用
+  }
+
+  const readOnlyVenv = path.join(backendRoot, ".venv");
+  if (!fs.existsSync(readOnlyVenv)) {
+    return;
+  }
+
+  console.log(`[aiasys-desktop] 复制 .venv 到可写目录: ${writableVenv}`);
+  fs.cpSync(readOnlyVenv, writableVenv, { recursive: true, dereference: true });
+  fixPyvenvHomeIfNeeded(writableVenv);
+  console.log(`[aiasys-desktop] .venv 就绪（可写副本）`);
 }
 
 function validatePythonExecutable(pythonPath) {
@@ -575,6 +598,21 @@ class DesktopServiceManager {
   }
 
   /**
+   * 返回可用的 .venv 根目录。
+   * AppImage 只读环境下指向 runtimeStateRoot 下的可写副本，
+   * 其他环境直接使用 backendRoot。
+   */
+  _getVenvRoot() {
+    // 构建时已按平台修复 pyvenv.cfg / dylib / shebang
+    // 运行时：Linux AppImage 的 squashfs 只读，需复制 .venv 到可写目录；
+    // macOS / Windows 文件系统可写，直接使用 backendRoot。
+    if (this.isPackaged && process.platform === "linux") {
+      return path.join(this.runtimeStateRoot, ".venv");
+    }
+    return this.backendRoot;
+  }
+
+  /**
    * 构建 Python 子进程的环境变量。
    * 自动注入 PYTHONPATH 指向 venv 的 site-packages，
    * 作为 venv 机制失效时的兜底保障（尤其 macOS 嵌入 Python 场景）。
@@ -591,7 +629,7 @@ class DesktopServiceManager {
     delete env.VIRTUAL_ENV;
     delete env.PYTHONHOME;
 
-    const sitePackages = getVenvSitePackages(this.backendRoot);
+    const sitePackages = getVenvSitePackages(this._getVenvRoot());
     if (sitePackages) {
       const sep = process.platform === "win32" ? ";" : ":";
       const existing = process.env.PYTHONPATH || "";
@@ -675,9 +713,12 @@ class DesktopServiceManager {
   async ensureBackend() {
     this.preparePackagedRuntimeState();
 
-    // 打包环境：修复 pyvenv.cfg 的 home 路径为嵌入目录
-    // 避免 venv 的 python 符号链接指向 runner 上的原始路径
-    if (this.isPackaged) {
+    // 构建时已按平台修复（dylib/shebang/pyvenv.cfg）。
+    // 运行时：Linux AppImage squashfs 只读，需复制 .venv 到可写目录；
+    // macOS / Windows 文件系统可写，原地修复即可。
+    if (this.isPackaged && process.platform === "linux") {
+      preparePackagedVenc(this.backendRoot, this.runtimeStateRoot);
+    } else if (this.isPackaged) {
       fixPyvenvHomeIfNeeded(this.backendRoot);
     }
 
@@ -696,7 +737,7 @@ class DesktopServiceManager {
       return;
     }
 
-    const pythonExecutable = resolvePythonExecutable(this.backendRoot);
+    const pythonExecutable = resolvePythonExecutable(this._getVenvRoot());
     console.log("[aiasys-desktop] 启动 backend ...");
     const child = spawnManagedProcess(
       "backend",
@@ -734,7 +775,7 @@ class DesktopServiceManager {
     if (this.mode === "preview") {
       this.ensureBuiltRenderer();
       console.log("[aiasys-desktop] 启动 preview frontend ...");
-      const pythonExecutable = resolvePythonExecutable(this.backendRoot);
+      const pythonExecutable = resolvePythonExecutable(this._getVenvRoot());
       const child = spawnManagedProcess(
         "frontend-preview",
         pythonExecutable,
