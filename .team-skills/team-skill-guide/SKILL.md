@@ -4,7 +4,7 @@ description: |
   团队 Skill 使用指南（团队版）。当 AI 首次进入本项目、需要了解有哪些 Skill、
   不知道某个任务该用哪个 Skill、或需要确认 Skill 触发边界时触发。
   适用于新会话初始化、任务开始前 Skill 选择、Skill 冲突时的决策参考。
-  本文件为团队消费版，私有完整版见源码仓库 skills/_global/team-skill-guide/。
+  本文件为 AIASys 项目团队 Skill 路由总览，直接在项目仓库维护。
   不替代具体 Skill 的执行，只提供路由指引。
 ---
 
@@ -125,15 +125,16 @@ git pull
 
 ## 解耦原则
 
-团队 Skill 必须自包含，禁止：
+团队 Skill 与个人 Skill 是两套独立池子：
 
-1. **引用外部 Skill 的路径** —— 所有引用必须在 `.team-skills/` 内部
-2. **依赖外部 Skill 的内容** —— 团队 Skill 独立维护
-3. **暴露外部 Skill 的存在** —— 不提及团队外的 Skill 仓库或来源
+1. **不自动同步**：`.team-skills/` 的改动不回写 `.kimi-code/skills/`，反之亦然。
+2. **不互相依赖**：团队 Skill 必须自包含，不引用 `.team-skills/` 外的 Skill 路径或内容。
+3. **不直接复制**：把私人 Skill 放进 `.team-skills/` 时，必须提炼重写为项目通用视角，不能原样搬运。
+4. **经验双向流动**：私人 Skill 用得好可以贡献精华到团队 Skill；团队 Skill 的好方法也可以被个人吸收进私人 Skill。但都是手动提炼，不是自动同步。
 
 如果需要外部 Skill 的能力：
-- 向管理员反馈，由管理员评估后纳入
-- 或重新编写团队版本
+- 直接在 `.team-skills/` 中编写团队版本
+- 或向团队提议，由成员提炼后纳入
 
 ## 输出规范
 
@@ -141,4 +142,7 @@ git pull
 1. 列出当前项目可用的 Skill
 2. 根据用户意图推荐最匹配的 Skill
 3. 说明推荐理由和 Skill 边界
-4. 不直接执行具体任务（只指路，不代劳）
+4. 如需涉及 Skill 修改，明确区分：
+   - `.team-skills/` 中的 Skill 直接在 AIASys 仓库修改
+   - `.kimi-code/skills/` 中的私人 Skill 需修改 pkm-hub 源码后运行 `deploy.py`
+5. 不直接执行具体任务（只指路，不代劳）

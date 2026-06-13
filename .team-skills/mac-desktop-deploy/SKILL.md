@@ -122,7 +122,7 @@ scp apps/backend/vendor/uv/darwin-arm64/uv <用户>@<IP>:~/.local/bin/uv
 ### 7. 配置与目录准备
 
 ```bash
-scp apps/backend/config.json <用户>@<IP>:~/projects/AIASys/apps/backend/config.json
+scp apps/backend/config.toml <用户>@<IP>:~/projects/AIASys/apps/backend/config.json
 sshpass -p '<密码>' ssh -o StrictHostKeyChecking=no <用户>@<IP> "
   cd ~/projects/AIASys/apps/backend &&
   mkdir -p data workspaces logs
@@ -182,7 +182,7 @@ sshpass -p '<密码>' ssh -o StrictHostKeyChecking=no <用户>@<IP> "
 | `Electron failed to install correctly` | electron dist 未下载 | 执行步骤 5 手动下载 |
 | `spawn ENOENT` + path 带 `\n` | path.txt 用 echo 写入 | 用 `printf` 重写 path.txt |
 | `uv: No such file or directory` | uv 不在后端 PATH 中 | 复制 vendored uv 到 `~/.local/bin/` |
-| `config.json 不存在` | 未同步配置文件 | 执行步骤 7 |
+| `config.toml 不存在` / `配置文件不存在` | 未同步配置文件 | 执行步骤 7 |
 | 后端启动慢 / 卡住 | venv 未创建 | 执行步骤 6 |
 
 ## 清理

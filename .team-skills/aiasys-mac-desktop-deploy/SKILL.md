@@ -17,7 +17,7 @@ description: |
 | Xcode CLT | Mac 上已安装 Xcode Command Line Tools（`xcode-select -p` 验证） |
 | nvm | Mac 上有 nvm（Node 版本管理） |
 | WSL 工具 | WSL 上有 `sshpass` 和 `scp` |
-| LLM 配置 | `apps/backend/config.json` 已存在且 key 有效，详见 [aiasys-llm-config](../aiasys-llm-config/SKILL.md) |
+| LLM 配置 | `apps/backend/config.toml` 已存在且 key 有效，详见 [aiasys-llm-config](../aiasys-llm-config/SKILL.md) |
 
 ## 快速开始
 
@@ -136,8 +136,8 @@ sshpass -p '<密码>' ssh -o StrictHostKeyChecking=no <用户>@<IP> "
 ### 7. 配置与目录准备
 
 ```bash
-# 同步配置文件（config.json 不在仓库中，需单独传输）
-scp apps/backend/config.json <用户>@<IP>:~/projects/AIASys/apps/backend/config.json
+# 同步配置文件（config.toml 不在仓库中，需单独传输）
+scp apps/backend/config.toml <用户>@<IP>:~/projects/AIASys/apps/backend/config.json
 
 # 创建必要目录
 sshpass -p '<密码>' ssh -o StrictHostKeyChecking=no <用户>@<IP> "
@@ -212,11 +212,11 @@ sshpass -p '<密码>' ssh -o StrictHostKeyChecking=no <用户>@<IP> "
 | `Electron failed to install correctly` | electron dist 未下载或损坏 | 删除 dist 目录后重新执行步骤 5 |
 | `spawn ENOENT` 且 path 带 `\n` | path.txt 用 echo 写入 | 用 `printf` 重写 path.txt |
 | `uv: No such file or directory` | uv 不在后端 PATH 中 | 安装 uv 到 `~/.local/bin/` |
-| `config.json 不存在` | 未同步配置文件 | 执行步骤 7 |
+| `config.toml 不存在` / `配置文件不存在` | 未同步配置文件 | 执行步骤 7 |
 | 后端启动慢或卡住 | venv 未创建 | 执行步骤 6 |
 | 前端构建报 TypeScript 错误 | `tsc -b` 严格检查 | dev 模式下不影响启动，可忽略或修复 TS |
-| 后端报 "LLM 动态配置为空" | `config.json` 未同步或 key 无效 | 见 [aiasys-llm-config](../aiasys-llm-config/SKILL.md) 排查 |
-| API 返回 401 "Incorrect API key" | key 过期或被撤销 | 更新 `config.json` 中的 api_key 后重启后端 |
+| 后端报 "LLM 动态配置为空" | `config.toml` 未同步或 key 无效 | 见 [aiasys-llm-config](../aiasys-llm-config/SKILL.md) 排查 |
+| API 返回 401 "Incorrect API key" | key 过期或被撤销 | 更新 `config.toml` 中的 api_key 后重启后端 |
 
 ## 清理
 
