@@ -45,6 +45,7 @@ AIASys/
 | 操作目录、移动文件、搜索仓库 | `workspace-ops` | 工作区操作指南 |
 | 任务执行、判断诊断、交接闭环 | `task-protocol` | 任务执行协议 |
 | Git 提交、分支、PR、合并、冲突 | `aiasys-git-workflow` | Git 工作流 |
+| PR 检查、提交前审查、合并前验证 | `pr-check` | PR 质量检查 |
 | React 19、Tailwind 4、前端组件、UI 设计 | `aiasys-frontend-architecture` | 前端架构规范 |
 | 系统架构设计、服务拆分、模块边界 | `aiasys-system-design` | 系统架构规范 |
 | Agent 开发、智能体设计、行为定义 | `aiasys-tool-dev` | Agent 工具开发规范 |
