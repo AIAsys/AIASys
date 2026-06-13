@@ -177,6 +177,29 @@ class SubAgentStorage:
         except Exception:
             logger.warning("更新 subagent meta 状态失败: agent_id=%s", self.agent_id, exc_info=True)
 
+    def update_launch_spec(self, launch_spec: dict[str, Any]) -> None:
+        """更新 meta.json 中的 launch_spec，供 resume 重建运行态使用。"""
+
+        def _json_safe(value: Any) -> Any:
+            if isinstance(value, Path):
+                return str(value)
+            if isinstance(value, dict):
+                return {k: _json_safe(v) for k, v in value.items()}
+            if isinstance(value, list):
+                return [_json_safe(v) for v in value]
+            return value
+
+        try:
+            meta = self.read_meta()
+            if meta is None:
+                return
+            meta["launch_spec"] = _json_safe(launch_spec)
+            meta["updated_at"] = time.time()
+            _atomic_write_json(self.meta_file, meta)
+            self._upsert_instance_record(meta)
+        except Exception:
+            logger.warning("更新 subagent launch_spec 失败: agent_id=%s", self.agent_id, exc_info=True)
+
     def read_meta(self) -> dict[str, Any] | None:
         """读取 meta.json。"""
         try:

@@ -26,6 +26,21 @@ class SessionBudgetMixin:
         except Exception:
             return None
 
+    def _load_saved_context_tokens(self) -> int | None:
+        """从 metadata.json 顶层读取上次保存的精确 context_tokens。"""
+        try:
+            from app.models.session import SessionMetadata
+
+            meta_path = Path(self._spec.work_dir) / "metadata.json"
+            if not meta_path.exists():
+                return None
+            data = json.loads(meta_path.read_text(encoding="utf-8"))
+            meta = SessionMetadata(**data)
+            value = getattr(meta, "context_tokens", 0) or 0
+            return value if isinstance(value, int) and value > 0 else None
+        except Exception:
+            return None
+
     def _save_budget(self) -> None:
         if self.budget is None:
             return
@@ -50,11 +65,11 @@ class SessionBudgetMixin:
             logger.warning("保存 budget 状态失败", exc_info=True)
 
     def _save_context_tokens_to_metadata(self) -> None:
-        """将当前上下文占用 token 数独立写入 metadata.json。
+        """将当前上下文占用 token 数写入 metadata.json。
 
-        只在 budget 真实存在时才更新 context_tokens。
-        budget 为 None 时不创建 budget 对象，避免污染初始化恢复路径。
-        LLM 返回精确 prompt_tokens 后调用，确保 session 关闭后 API 查询不回退到启发式估算。
+        同时写入 metadata 顶层 context_tokens 和 budget.context_tokens，
+        保证 budget 关闭时也能恢复精确值，避免 session 重启后回退到严重偏高的启发式估算。
+        LLM 返回精确 prompt_tokens 后调用。
         """
         try:
             from app.models.session import SessionMetadata
@@ -64,11 +79,11 @@ class SessionBudgetMixin:
                 return
             data = json.loads(meta_path.read_text(encoding="utf-8"))
             meta = SessionMetadata(**data)
-            if meta.budget is None:
-                return
             estimated = getattr(self, "_estimated_token_count", 0) or 0
             if isinstance(estimated, int) and estimated > 0:
-                meta.budget.context_tokens = estimated
+                meta.context_tokens = estimated
+                if meta.budget is not None:
+                    meta.budget.context_tokens = estimated
             meta_path.write_text(
                 meta.model_dump_json(indent=2),
                 encoding="utf-8",
@@ -82,9 +97,12 @@ class SessionBudgetMixin:
         if self.budget is not None and self.budget.status == "active":
             with self._metadata_lock:
                 self.budget.tokens_used += delta
-                self.budget.context_tokens = input_tokens or (
-                    getattr(self, "_estimated_token_count", 0) or 0
-                )
+                # 优先使用当前 LLM 调用返回的真实 input_tokens；
+                # 若未返回，使用 effective_token_count（含 pending 估算）。
+                estimated = getattr(self, "_estimated_token_count", 0) or 0
+                pending = getattr(self, "_pending_token_estimate", 0) or 0
+                effective = max(0, estimated + pending)
+                self.budget.context_tokens = input_tokens or effective
                 if self.budget.is_exhausted():
                     self.budget.status = "budget_limited"
                     logger.info(

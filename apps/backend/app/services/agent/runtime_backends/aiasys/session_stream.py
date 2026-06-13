@@ -9,6 +9,7 @@ import asyncio
 import json
 import logging
 from collections.abc import AsyncGenerator
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -34,6 +35,14 @@ from .session_utils import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class _TurnBegin:
+    """ReAct 循环新一轮开始的标记，供后端事件投影生成 turn_begin SSE 事件。"""
+
+    type: str = "turn_begin"
+    kind: str = "turn_begin"
 
 
 def _serialize_tool_content_for_event(content: str | list[dict[str, Any]]) -> str:
@@ -139,7 +148,8 @@ class SessionStreamMixin:
         self._continuation_count = 0
 
         # ---- 上下文自动压缩 ----
-        await self._maybe_compact_context()
+        async for compact_event in self._maybe_compact_context(force=False):
+            yield compact_event
 
         total_input_tokens = 0
         total_output_tokens = 0
@@ -148,6 +158,12 @@ class SessionStreamMixin:
         for _turn in range(max_turns):
             if self._cancel_event.is_set():
                 break
+
+            self._session_turn_count += 1
+            self._current_turn_n = self._session_turn_count
+
+            # 标记新一轮 ReAct turn 开始，让后端事件投影可以按顺序编号
+            yield _TurnBegin()
 
             assistant_parts: list[str] = []
             assistant_reasoning = ""
@@ -253,7 +269,8 @@ class SessionStreamMixin:
 
                     if classified.should_compress:
                         try:
-                            await self._maybe_compact_context()
+                            async for compact_event in self._maybe_compact_context(force=False):
+                                yield compact_event
                         except Exception as compact_exc:
                             logger.warning("重试前上下文压缩失败: %s", compact_exc)
 
@@ -304,6 +321,7 @@ class SessionStreamMixin:
                     prompt_tokens = latest_usage.get("input_tokens")
                 if isinstance(prompt_tokens, int) and prompt_tokens > 0:
                     self._estimated_token_count = prompt_tokens
+                    self._reset_pending_token_estimate()
                     self._save_context_tokens_to_metadata()
 
             # Session 级预算检查（在 _estimated_token_count 修正之后）
@@ -697,11 +715,16 @@ class SessionStreamMixin:
             if latest_finish_reason != "tool_calls":
                 break
 
+        # ReAct 循环结束，清除当前 turn 标记
+        self._current_turn_n = None
+
         if total_input_tokens or total_output_tokens:
             yield AgentRuntimeEvent(
                 kind="token_usage",
                 input_tokens=total_input_tokens,
                 output_tokens=total_output_tokens,
+                # 当前上下文占用，前端可直接用于刷新 TokenUsageBar
+                context_tokens=self.effective_token_count,
             )
 
         # Budget Mode: 推送最终 session budget 状态

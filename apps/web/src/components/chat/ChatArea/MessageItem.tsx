@@ -3,6 +3,7 @@
  *
  * 使用 Compound Components 模式组合各个部分
  */
+import * as React from "react";
 import type { ChatItem } from "@/pages/WorkspacePage/types";
 import { ChatAreaProvider } from "./ChatAreaProvider";
 import type { ChatAreaActions } from "./context";
@@ -23,7 +24,7 @@ interface MessageItemProps {
   isRunning?: boolean;
 }
 
-export function MessageItem({
+export const MessageItem = React.memo(function MessageItem({
   item,
   actions,
   sessionId,
@@ -52,4 +53,4 @@ export function MessageItem({
       </MessageLayout>
     </ChatAreaProvider>
   );
-}
+});

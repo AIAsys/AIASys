@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Gauge, Settings } from "lucide-react";
+import { Gauge, Loader2, Minimize2, Settings, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Popover,
@@ -22,6 +22,16 @@ interface TokenUsageBarProps {
   sessionId?: string | null;
   refreshSignal?: number | string;
   onCompactConversation?: () => Promise<void> | void;
+  hasMessages?: boolean;
+  isCompactingConversation?: boolean;
+  isRunning?: boolean;
+  compactionState?: {
+    phase: "begin" | "done";
+    tokens_before?: number;
+    tokens_after?: number;
+    saved_tokens?: number;
+    summary_tokens?: number;
+  } | null;
 }
 
 function formatTokens(n: number): string {
@@ -48,6 +58,10 @@ export function TokenUsageBar({
   sessionId,
   refreshSignal,
   onCompactConversation,
+  hasMessages = true,
+  isCompactingConversation = false,
+  isRunning = false,
+  compactionState,
 }: TokenUsageBarProps) {
   const [stats, setStats] = useState<TokenStats | null>(null);
   const [budgetEnabled, setBudgetEnabled] = useState(false);
@@ -86,6 +100,10 @@ export function TokenUsageBar({
   }, [loadStats, refreshSignal]);
 
   if (!sessionId || !stats) return null;
+
+  const isCompacting =
+    isCompactingConversation || compactionState?.phase === "begin";
+  const compactionJustFinished = compactionState?.phase === "done";
 
   const budgetPercent = stats.token_budget
     ? Math.min(100, (stats.tokens_used / stats.token_budget) * 100)
@@ -160,6 +178,12 @@ export function TokenUsageBar({
     }
   };
 
+  const compactButtonClass = cn(
+    "flex h-7 shrink-0 items-center gap-1 rounded-md border border-border bg-background px-2.5 text-[11px] font-medium text-muted-foreground transition-colors hover:border-tertiary/40 hover:bg-tertiary-container/50 hover:text-tertiary",
+    contextPercent >= 85 && !isCompacting && !isRunning && "border-warning/40 bg-warning/10 text-warning hover:text-warning hover:bg-warning/15",
+    (isCompacting || isRunning) && "cursor-not-allowed opacity-70",
+  );
+
   return (
     <div
       className="flex items-center gap-2 border-b border-border/50 bg-background px-3 py-2 text-[11px] text-muted-foreground"
@@ -170,26 +194,85 @@ export function TokenUsageBar({
         <div className="flex min-w-0 flex-1 items-center gap-1.5">
           <div className="h-1.5 min-w-10 flex-1 overflow-hidden rounded-full bg-muted">
             <div
-              className={barClass(contextPercent)}
+              className={cn(
+                barClass(contextPercent),
+                isCompacting && "animate-pulse",
+              )}
               style={{ width: `${contextPercent}%` }}
             />
           </div>
-          <span
-            className="shrink-0 tabular-nums text-foreground"
-            data-testid="context-usage-value"
-            title={
-              stats.context_window
-                ? `${stats.context_tokens.toLocaleString()} / ${stats.context_window.toLocaleString()} tokens`
-                : `${stats.context_tokens.toLocaleString()} tokens`
-            }
-          >
-            {contextValueLabel}
-          </span>
-          <span className="shrink-0 tabular-nums text-muted-foreground">
-            {contextPercentLabel}
-          </span>
+          {isCompacting ? (
+            <span className="shrink-0 tabular-nums text-tertiary animate-pulse">
+              正在压缩…
+            </span>
+          ) : compactionJustFinished ? (
+            <span className="shrink-0 tabular-nums text-success">
+              {formatTokens(compactionState?.tokens_before ?? stats.context_tokens)}
+              {" → "}
+              {formatTokens(compactionState?.tokens_after ?? stats.context_tokens)}
+            </span>
+          ) : (
+            <>
+              <span
+                className="shrink-0 tabular-nums text-foreground"
+                data-testid="context-usage-value"
+                title={
+                  stats.context_window
+                    ? `${stats.context_tokens.toLocaleString()} / ${stats.context_window.toLocaleString()} tokens`
+                    : `${stats.context_tokens.toLocaleString()} tokens`
+                }
+              >
+                {contextValueLabel}
+              </span>
+              <span className="shrink-0 tabular-nums text-muted-foreground">
+                {contextPercentLabel}
+              </span>
+            </>
+          )}
+          {compactionJustFinished && (
+            <span className="shrink-0 inline-flex items-center gap-0.5 rounded-full bg-success/10 px-1.5 py-0.5 text-[10px] font-medium text-success">
+              <Sparkles className="h-3 w-3" />
+              已压缩
+            </span>
+          )}
         </div>
       </div>
+
+      {onCompactConversation && hasMessages && (
+        <button
+          type="button"
+          onClick={() => {
+            if (isCompacting || isRunning) return;
+            void onCompactConversation();
+          }}
+          disabled={isCompacting || isRunning}
+          className={compactButtonClass}
+          title={
+            isRunning
+              ? "对话进行中，请等待完成后再压缩"
+              : isCompacting
+                ? "正在压缩上下文"
+                : "压缩上下文"
+          }
+          aria-label={
+            isRunning
+              ? "对话进行中，请等待完成后再压缩"
+              : isCompacting
+                ? "正在压缩上下文"
+                : "压缩上下文"
+          }
+          data-testid="token-bar-compact-conversation"
+        >
+          {isCompacting ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <Minimize2 className="h-3.5 w-3.5" />
+          )}
+          <span className="hidden sm:inline">
+            {isCompacting ? "压缩中" : isRunning ? "运行中" : "压缩"}
+          </span>
+        </button>
+      )}
 
       <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
         <PopoverTrigger asChild>
@@ -311,7 +394,7 @@ export function TokenUsageBar({
               )}
             </div>
           )}
-          {contextPercent >= 85 && onCompactConversation && (
+          {contextPercent >= 85 && onCompactConversation && hasMessages && !isCompacting && !isRunning && (
             <div className="rounded-lg bg-warning/10 px-3 py-2 text-[11px] text-warning">
               上下文接近上限（{contextPercentLabel}），建议压缩以释放空间。
               <button

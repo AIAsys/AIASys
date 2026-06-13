@@ -59,7 +59,13 @@ class TestListSubagentsTool:
         result = await tool.invoke(ctx=ctx)
         assert isinstance(result, ToolResult)
         assert result.is_error is False
-        assert "当前没有可派发的协作专家" in result.content
+        # 系统内置角色现在默认即可派发，因此会列出它们；自定义专家未启用不应出现
+        assert "expert_a" not in result.content
+        assert "expert_b" not in result.content
+        assert any(
+            name in result.content
+            for name in ("coder", "data_analyst", "researcher", "reviewer")
+        )
 
         save_subagent_visibility_policy(
             user_id="user1",

@@ -1,4 +1,4 @@
-import { useEffect, useState, lazy, Suspense } from "react";
+import { useCallback, useEffect, useState, lazy, Suspense } from "react";
 // 本地组件
 const WorkspaceDialogLayer = lazy(() =>
   import("./components/WorkspaceDialogLayer").then((module) => ({
@@ -104,6 +104,30 @@ function WorkspacePageContent({
     controller.overlayState.syncRouteOverlay(routeOverlay);
   }, [controller.overlayState, controller.overlayState.syncRouteOverlay, routeOverlay]);
 
+  const handleOpenDatabaseConnectionsDialog = useCallback(
+    () => controller.overlayState.openDatabaseConnectionsDialog(),
+    [controller.overlayState],
+  );
+  const handleCreateDatabaseConnectionDialog = useCallback(
+    () =>
+      controller.overlayState.openDatabaseConnectionsDialog("catalog", {
+        action: "create",
+      }),
+    [controller.overlayState],
+  );
+  const handleOpenKnowledgeBaseDialog = useCallback(
+    () => controller.overlayState.openKnowledgeBaseDialog(),
+    [controller.overlayState],
+  );
+  const handleOpenKnowledgeGraphDialog = useCallback(
+    () => controller.overlayState.openKnowledgeGraphDialog(),
+    [controller.overlayState],
+  );
+  const handleOpenLLMConfigDialog = useCallback(
+    () => controller.overlayState.openLLMConfigDialog(),
+    [controller.overlayState],
+  );
+
   return (
     <div className="flex h-screen w-full bg-muted overflow-hidden font-sans text-muted-foreground relative">
       <WorkspaceLayout
@@ -128,23 +152,11 @@ function WorkspacePageContent({
         hasMessagesForMcp={controller.hasMessagesForMcp}
         hasMCPConfig={controller.hasMCPConfig}
         onDeleteSession={controller.handleDeleteSession}
-        onOpenDatabaseConnectionsDialog={() =>
-          controller.overlayState.openDatabaseConnectionsDialog()
-        }
-        onCreateDatabaseConnectionDialog={() =>
-          controller.overlayState.openDatabaseConnectionsDialog("catalog", {
-            action: "create",
-          })
-        }
-        onOpenKnowledgeBaseDialog={() =>
-          controller.overlayState.openKnowledgeBaseDialog()
-        }
-        onOpenKnowledgeGraphDialog={() =>
-          controller.overlayState.openKnowledgeGraphDialog()
-        }
-        onOpenLLMConfigDialog={() =>
-          controller.overlayState.openLLMConfigDialog()
-        }
+        onOpenDatabaseConnectionsDialog={handleOpenDatabaseConnectionsDialog}
+        onCreateDatabaseConnectionDialog={handleCreateDatabaseConnectionDialog}
+        onOpenKnowledgeBaseDialog={handleOpenKnowledgeBaseDialog}
+        onOpenKnowledgeGraphDialog={handleOpenKnowledgeGraphDialog}
+        onOpenLLMConfigDialog={handleOpenLLMConfigDialog}
         onOpenToolConfig={controller.overlayState.openAgentConfigDialog}
         onViewToolDetails={controller.toolPreview.handleViewToolDetails}
       />

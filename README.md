@@ -329,8 +329,8 @@ cd apps/web && npm ci
 cd ../backend && uv sync
 
 # 准备配置
-[ -f config.json ] || cp config.example.json config.json
-# 编辑 config.json，填 LLM API Key 和 Embedding API Key
+[ -f config.toml ] || cp config.example.toml config.toml
+# 编辑 config.toml，填 LLM API Key 和 Embedding API Key
 
 # 起后端
 cd apps/backend
@@ -364,7 +364,7 @@ cd apps/web && npm run dev -- --host 0.0.0.0 --port 13000                  # 前
 cd apps/web && npm run typecheck          # 类型检查
 ```
 
-配置说明（完整示例见 `apps/backend/config.example.json`）：
+配置说明（完整示例见 `apps/backend/config.example.toml`）：
 
 | 配置域 | 关键字段 | 说明 |
 |--------|---------|------|

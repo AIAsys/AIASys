@@ -96,8 +96,8 @@ def test_readonly_expert_catalog_roles_do_not_expose_mutation_tools() -> None:
     role_map = {role.role_id: role for role in roles}
     forbidden_tools = {
         "app.agents.tools.code_execution_tool:RunCode",
-        "app.agents.tools.code_execution_tool:RegisterKernelEnvTool",
-        "app.agents.tools.code_execution_tool:RemoveKernelEnvTool",
+        "app.agents.tools.code_execution_tool:RegisterKernelEnv",
+        "app.agents.tools.code_execution_tool:RemoveKernelEnv",
         "app.agents.tools.env_vars_tool:SetEnvVar",
         "app.agents.tools.env_vars_tool:DeleteEnvVar",
         "app.agents.tools.file_tools:WriteFile",

@@ -409,8 +409,8 @@ function prepareBackendRuntime() {
   ];
 
   const optionalEntries = [
-    "config.json",
-    "config.example.json",
+    "config.toml",
+    "config.example.toml",
     "scripts",
     "fonts",
     "docs",
@@ -430,12 +430,12 @@ function prepareBackendRuntime() {
     copyPathIfExists(path.join(backendRoot, entry), path.join(backendStageRoot, entry));
   }
 
-  // config.json 不在仓库中时，用 config.example.json 兜底
-  const stagedConfigPath = path.join(backendStageRoot, "config.json");
-  const stagedExamplePath = path.join(backendStageRoot, "config.example.json");
+  // config.toml 不在仓库中时，用 config.example.toml 兜底
+  const stagedConfigPath = path.join(backendStageRoot, "config.toml");
+  const stagedExamplePath = path.join(backendStageRoot, "config.example.toml");
   if (!fs.existsSync(stagedConfigPath) && fs.existsSync(stagedExamplePath)) {
     fs.copyFileSync(stagedExamplePath, stagedConfigPath);
-    console.warn("[aiasys-desktop] config.json 不存在，已从 config.example.json 复制");
+    console.warn("[aiasys-desktop] config.toml 不存在，已从 config.example.toml 复制");
   }
 
   fs.mkdirSync(path.join(backendStageRoot, "data", "workspaces"), { recursive: true });

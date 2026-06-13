@@ -24,7 +24,7 @@ function normalizeMetadata(value: unknown): string {
 
 /**
  * 比较两个文件列表是否相同
- * 按文件名排序后比较，避免顺序变化导致的重新渲染
+ * 使用 Map 按文件名索引做 O(n) 比较，避免排序开销
  */
 function isFilesEqual(
   filesA: WorkspaceFile[],
@@ -32,16 +32,11 @@ function isFilesEqual(
 ): boolean {
   if (filesA.length !== filesB.length) return false;
 
-  // 按文件名排序后比较
-  const sortedA = [...filesA].sort((a, b) => a.name.localeCompare(b.name));
-  const sortedB = [...filesB].sort((a, b) => a.name.localeCompare(b.name));
-
-  for (let i = 0; i < sortedA.length; i++) {
-    const a = sortedA[i];
-    const b = sortedB[i];
-    // 比较文件名、大小和修改时间
+  const mapB = new Map(filesB.map((file) => [file.name, file]));
+  for (const a of filesA) {
+    const b = mapB.get(a.name);
+    if (!b) return false;
     if (
-      a.name !== b.name ||
       a.size !== b.size ||
       a.mtime !== b.mtime ||
       a.absolute_path !== b.absolute_path ||

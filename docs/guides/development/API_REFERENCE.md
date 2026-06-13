@@ -275,7 +275,7 @@ curl -X PUT http://localhost:13001/api/sessions/default/session-id/budget \
 
 启动后端后，在 DEBUG 模式下可访问 Swagger UI：
 
-1. 设置 `apps/backend/config.json` 中 `server.debug` 为 `true`
+1. 设置 `apps/backend/config.toml` 中 `server.debug` 为 `true`
 2. 重启后端
 3. 访问 `http://localhost:13001/docs`
 

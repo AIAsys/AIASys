@@ -11,6 +11,7 @@ import {
   CheckCircle2, 
   XCircle, 
   Pause,
+  Square,
   Clock,
   RefreshCw,
   Loader2,
@@ -63,6 +64,7 @@ const statusConfigMap: Record<string, { label: string; icon: typeof Clock; color
   completed: { label: "已完成", icon: CheckCircle2, color: "text-success" },
   failed: { label: "失败", icon: XCircle, color: "text-error" },
   cancelled: { label: "已取消", icon: Pause, color: "text-warning" },
+  closed: { label: "已关闭", icon: Square, color: "text-muted-foreground" },
   queued: { label: "排队中", icon: Clock, color: "text-warning" },
 };
 

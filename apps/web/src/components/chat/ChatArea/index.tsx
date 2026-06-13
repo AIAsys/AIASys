@@ -17,10 +17,12 @@ import {
   type RefObject,
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
 import { ArrowDown } from "lucide-react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import type { ChatItem } from "@/pages/WorkspacePage/types";
 import type { PreviewFile } from "@/components/layout/WorkspaceSidebar/preview";
 import { Button } from "@/components/ui/button";
@@ -113,14 +115,24 @@ function ChatAreaRoot({
     lastId: undefined,
     sessionId: undefined,
   });
-  const actions: ChatAreaActions = {
-    onViewExecutionSpace,
-    onWorkerClick,
-    onOpenWorkspaceArtifact,
-    onOpenInBrowserTab,
-    onViewToolDetails,
-    onRewriteUserMessage,
-  };
+  const actions: ChatAreaActions = useMemo(
+    () => ({
+      onViewExecutionSpace,
+      onWorkerClick,
+      onOpenWorkspaceArtifact,
+      onOpenInBrowserTab,
+      onViewToolDetails,
+      onRewriteUserMessage,
+    }),
+    [
+      onViewExecutionSpace,
+      onWorkerClick,
+      onOpenWorkspaceArtifact,
+      onOpenInBrowserTab,
+      onViewToolDetails,
+      onRewriteUserMessage,
+    ],
+  );
   useEffect(() => {
     if (layout === "compact" || layout === "rail" || !containerRef.current) {
       return;
@@ -246,24 +258,31 @@ function ChatAreaRoot({
     if (!container) return;
 
     let rafId: number | null = null;
+    let debounceTimer: number | null = null;
     const observer = new MutationObserver(() => {
       if (!isFollowingBottomRef.current) return;
-      if (rafId) return;
-      rafId = requestAnimationFrame(() => {
-        rafId = null;
-        scrollToBottom("auto");
-      });
+      if (debounceTimer) {
+        window.clearTimeout(debounceTimer);
+      }
+      debounceTimer = window.setTimeout(() => {
+        if (!isFollowingBottomRef.current) return;
+        if (rafId) return;
+        rafId = requestAnimationFrame(() => {
+          rafId = null;
+          scrollToBottom("auto");
+        });
+      }, 100);
     });
 
     observer.observe(container, {
       childList: true,
       subtree: true,
-      characterData: true,
     });
 
     return () => {
       observer.disconnect();
       if (rafId) cancelAnimationFrame(rafId);
+      if (debounceTimer) window.clearTimeout(debounceTimer);
     };
   }, [scrollToBottom]);
 
@@ -301,8 +320,8 @@ function ChatAreaRoot({
           className={cn(
             "mx-auto min-w-0",
             isCompactSurface
-              ? "max-w-none space-y-5 pb-24"
-              : "max-w-4xl space-y-8 pb-32",
+              ? "max-w-none pb-24"
+              : "max-w-4xl pb-32",
           )}
         >
           {children || (
@@ -346,7 +365,7 @@ interface ChatAreaListProps {
 }
 
 /**
- * ChatArea.List - 消息列表组件
+ * ChatArea.List - 消息列表组件（虚拟滚动）
  */
 function ChatAreaList({
   items,
@@ -355,71 +374,100 @@ function ChatAreaList({
   layout = "default",
   isRunning = false,
 }: ChatAreaListProps) {
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const rowVirtualizer = useVirtualizer({
+    count: items.length,
+    getScrollElement: () =>
+      wrapperRef.current?.closest('[data-testid="chat-scroll-container"]') ??
+      null,
+    estimateSize: () => 160,
+    measureElement:
+      typeof window !== "undefined" && "ResizeObserver" in window
+        ? (element) => element.getBoundingClientRect().height
+        : undefined,
+    overscan: 4,
+  });
+
   return (
-    <>
-      {items.map((item) => {
-        if (item.type === "message") {
-          return (
-            <MessageItem
-              key={item.id}
-              item={item}
-              actions={actions}
-              sessionId={sessionId}
-              layout={layout}
-              isRunning={isRunning}
-            />
-          );
-        }
-        if (item.type === "ask_user") {
-          return (
-            <AskUserInlineCard
-              key={item.id}
-              request={item.request}
-              status={item.status}
-              onResponse={async (approved, value) => {
-                if (askUserBridge.resolve) {
-                  return await askUserBridge.resolve(item.id, approved, value);
-                }
-                return false;
-              }}
-            />
-          );
-        }
-        if (item.type === "capability_confirmation") {
-          return (
-            <CapabilityConfirmationCard
-              key={item.id}
-              tool_name={item.tool_name}
-              arguments={item.arguments}
-              prompt={item.prompt}
-              subagent_name={item.subagent_name}
-              status={item.status}
-              onApprove={async (scope) => {
-                // 通过 eventBus 触发审批响应，由 useWorkspacePageController 处理
-                const { eventBus } = await import("@/lib/eventBus");
-                eventBus.emit("capability:approve", {
-                  sessionId: item.session_id,
-                  toolCallId: item.id,
-                  scope,
-                  patternKey: item.pattern_key,
-                });
-                return true;
-              }}
-              onReject={async (feedback) => {
-                const { eventBus } = await import("@/lib/eventBus");
-                eventBus.emit("capability:reject", {
-                  sessionId: item.session_id,
-                  toolCallId: item.id,
-                  feedback,
-                });
-                return true;
-              }}
-            />
-          );
-        }
-        return null;
+    <div
+      ref={wrapperRef}
+      style={{
+        height: `${rowVirtualizer.getTotalSize()}px`,
+        width: "100%",
+        position: "relative",
+      }}
+    >
+      {rowVirtualizer.getVirtualItems().map((virtualItem) => {
+        const item = items[virtualItem.index];
+        return (
+          <div
+            key={item.id}
+            data-index={virtualItem.index}
+            ref={rowVirtualizer.measureElement}
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              width: "100%",
+              transform: `translateY(${virtualItem.start}px)`,
+              paddingBottom: layout === "default" ? "32px" : "20px",
+            }}
+          >
+            {item.type === "message" ? (
+              <MessageItem
+                item={item}
+                actions={actions}
+                sessionId={sessionId}
+                layout={layout}
+                isRunning={isRunning}
+              />
+            ) : item.type === "ask_user" ? (
+              <AskUserInlineCard
+                request={item.request}
+                status={item.status}
+                onResponse={async (approved, value) => {
+                  if (askUserBridge.resolve) {
+                    return await askUserBridge.resolve(
+                      item.id,
+                      approved,
+                      value,
+                    );
+                  }
+                  return false;
+                }}
+              />
+            ) : item.type === "capability_confirmation" ? (
+              <CapabilityConfirmationCard
+                tool_name={item.tool_name}
+                arguments={item.arguments}
+                prompt={item.prompt}
+                subagent_name={item.subagent_name}
+                status={item.status}
+                onApprove={async (scope) => {
+                  const { eventBus } = await import("@/lib/eventBus");
+                  eventBus.emit("capability:approve", {
+                    sessionId: item.session_id,
+                    toolCallId: item.id,
+                    scope,
+                    patternKey: item.pattern_key,
+                  });
+                  return true;
+                }}
+                onReject={async (feedback) => {
+                  const { eventBus } = await import("@/lib/eventBus");
+                  eventBus.emit("capability:reject", {
+                    sessionId: item.session_id,
+                    toolCallId: item.id,
+                    feedback,
+                  });
+                  return true;
+                }}
+              />
+            ) : null}
+          </div>
+        );
       })}
-    </>
+    </div>
   );
 }
 

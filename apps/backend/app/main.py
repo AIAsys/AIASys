@@ -86,7 +86,7 @@ async def lifespan(app: FastAPI):
         except Exception as e:
             logger.error(f" 默认本地用户初始化失败: {e}")
 
-    # 同步 config.json → 用户 LLM 配置（仅在用户配置为空时执行）
+    # 同步 config.toml → 用户 LLM 配置（仅在用户配置为空时执行）
     try:
         from app.services.llm import get_llm_config_service
 

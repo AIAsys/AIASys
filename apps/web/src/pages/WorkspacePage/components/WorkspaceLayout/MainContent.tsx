@@ -393,7 +393,6 @@ export function MainContent({
                 );
               }}
               onAddFileClick={executor.handleAddFileClick}
-              onImportFromSession={() => executor.setShowImportModal(true)}
               fileInputRef={executor.fileInputRef}
               onFileChange={executor.handleFileChange}
               runtimeControls={runtimeControls}
@@ -413,6 +412,7 @@ export function MainContent({
               onOpenWorkspaceSettings={onOpenWorkspaceSettings}
               isCompactingConversation={sessionLifecycle.isCompactingConversation}
               onCompactConversation={sessionLifecycle.handleCompactConversation}
+              compactionState={executor.compactionState}
               sessionInputFocusSignal={sessionInputBridgeRequestKey}
               tokenUsageRefreshSignal={tokenUsageRefreshSignal}
               onUploadToWorkspace={executor.handleUploadFiles}

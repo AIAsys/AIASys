@@ -41,8 +41,8 @@ cp infra/deploy/.env.example infra/deploy/.env
 - 云端部署默认强制 `sandbox.mode=docker` 且 `sandbox.allow_local=false`
 - 前端会通过 `/api/system/capabilities` 自动隐藏本地沙盒选项
 - 默认目标建议设为 `DEPLOY_TARGET=test`，发布时显式使用 `DEPLOY_TARGET=prod`
-- 远端后端配置统一由本地 `apps/backend/config.json` 渲染生成，再按部署环境覆盖端口/主机
-- 系统级 LLM 动态配置 `apps/backend/data/llm_config.json` 会随部署同步到远端，确保默认 Provider / Model 与本地一致
+- 远端后端配置统一由本地 `apps/backend/config.toml` 渲染生成，再按部署环境覆盖端口/主机
+- 系统级 LLM 源配置 `apps/backend/config.toml` 会随部署同步到远端；启动时后端据此生成用户全局工作区的 `llm_config.json`，确保默认 Provider / Model 与本地一致
 - 如使用 SSH 密钥认证，推荐配置 `SSH_KEY_PATH` 并留空 `SERVER_PASS`
 - 默认会在本地先构建前端 `dist`，并随发布包上传；远端直接用 `infra/deploy/static_web_server.py` 托管静态产物，避免低配服务器在 `vite build` 或 `npm ci` 阶段 OOM
 - 如目标机已内置可用的 Python 3.12（例如 Miniconda `py312` 环境），部署会优先复用该解释器，避免 `uv python install 3.12` 卡住
@@ -63,7 +63,7 @@ DEPLOY_TARGET=prod ./infra/deploy/deploy_init.sh
 此脚本会：
 - 上传源码到服务器
 - 安装基础依赖、`uv`、Node.js 22、PM2、Nginx
-- 使用渲染后的 `config.json` 启动 PostgreSQL 与服务
+- 使用渲染后的 `config.toml` 启动 PostgreSQL 与服务
 - 执行 `uv sync --frozen --no-dev`、`npm ci`、`npm run build`
 - 如发布包已包含本地预构建的前端 `dist`，远端会自动跳过前端 `npm` 安装与 `npm run build`
 - `deploy_update.sh` 会校验 `package-lock.json` 哈希；依赖未变化时自动跳过远端 `npm ci`
@@ -201,7 +201,7 @@ infra/deploy/
 
 1. **首次部署**必须使用 `deploy_init.sh`
 2. **后续更新**使用 `deploy_update.sh`
-3. 部署前确保 `infra/deploy/.env` 与 `apps/backend/config.json` 配置正确
+3. 部署前确保 `infra/deploy/.env` 与 `apps/backend/config.toml` 配置正确
 4. 建议使用 SSH 密钥认证，并尽快轮换旧密码
 5. 服务器需要能访问外网以安装 `uv`、Node.js 和依赖
 6. `docling` 不是默认部署依赖；如需高成本文档解析，可在远端后端目录手动执行 `uv sync --extra docling`

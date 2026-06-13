@@ -268,6 +268,16 @@ class EventMixin:
                 "request": json.loads(item.content or "{}"),
             }
 
+        if item.kind == "compaction":
+            return {
+                "type": "compaction",
+                "phase": item.phase,
+                "tokens_before": item.tokens_before,
+                "tokens_after": item.tokens_after,
+                "saved_tokens": item.saved_tokens,
+                "summary_tokens": item.summary_tokens,
+            }
+
         return None
 
     def _project_output_item(

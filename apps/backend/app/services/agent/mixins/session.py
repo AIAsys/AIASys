@@ -316,6 +316,12 @@ class SessionMixin:
                 runtime_session_id = _extract_runtime_session_id(existing_session)
                 if not runtime_session_id:
                     raise ValueError("runtime session 缺少 session_id")
+                # 复用时刷新上下文 token 计数，避免显示过期的启发式估算
+                refresh_fn = getattr(
+                    existing_session, "refresh_context_tokens_from_metadata", None
+                )
+                if callable(refresh_fn):
+                    refresh_fn()
                 logger.debug(f"复用已有 Session: {session_id}")
                 return existing_session
             except Exception:
@@ -523,7 +529,7 @@ class SessionMixin:
             logger.error(f"加载 LLM 动态配置失败: {e}")
 
         # 动态配置为空（启动同步可能失败），返回空 Config 让 runtime 报明确错误。
-        logger.error("LLM 动态配置为空，请检查 config.json 和启动日志")
+        logger.error("LLM 动态配置为空，请检查 config.toml 和启动日志")
         return AiasysLlmConfig(
             default_model="",
             default_thinking=False,

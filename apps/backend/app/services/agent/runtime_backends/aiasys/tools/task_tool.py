@@ -29,6 +29,7 @@ from app.services.agent.runtime_backends.base import (
     AgentRuntimeEvent,
     RuntimeSessionCreateSpec,
 )
+from app.services.agent.subagent_lifecycle import SubAgentLifecycleManager
 from app.services.agent.subagent_registry import get_subagent_registry
 from app.services.agent.subagent_storage import SubAgentStorage
 from app.services.agent.system_presets import (
@@ -122,7 +123,7 @@ _TASK_PARAMETERS = {
     "properties": {
         "subagent_name": {
             "type": "string",
-            "description": "要调用的子 Agent 名称。可用预设角色: worker, coder, researcher, reviewer, data_analyst。也可使用自定义子 Agent 名称。",
+            "description": "要调用的子 Agent 名称。可用预设角色: coder, data_analyst, researcher, reviewer。也可使用自定义子 Agent 名称。省略时默认使用 coder。",
         },
         "description": {
             "type": "string",
@@ -133,7 +134,7 @@ _TASK_PARAMETERS = {
             "description": "给子 Agent 的完整任务指令",
         },
     },
-    "required": ["subagent_name", "prompt"],
+    "required": ["prompt"],
 }
 
 
@@ -233,7 +234,10 @@ def _materialize_subagent_toml(
     path = Path(tmpdir) / filename
 
     # manifest 已经是 agent 段内容，需要包装为完整 TOML
-    payload = {"version": 1, "agent": deepcopy(manifest)}
+    clean_manifest = {
+        k: v for k, v in deepcopy(manifest).items() if v is not None
+    }
+    payload = {"version": 1, "agent": clean_manifest}
     with open(path, "wb") as f:
         tomli_w.dump(payload, f)
     return path
@@ -252,7 +256,7 @@ class TaskTool(AiasysTool):
     name = "Task"
     description = (
         "将任务委派给专门的子 Agent 执行。"
-        "参数: subagent_name(子Agent名称), description(任务简述), prompt(完整指令)"
+        "参数: subagent_name(子Agent名称, 可选, 默认coder), description(任务简述), prompt(完整指令)"
     )
     parameters = _TASK_PARAMETERS
 
@@ -287,13 +291,10 @@ class TaskTool(AiasysTool):
         yield 中间事件（通过 _streaming_event artifact 标记）和最终结果。
         """
         ctx = ctx or {}
-        subagent_name = str(kwargs.get("subagent_name") or "").strip()
+        subagent_name = str(kwargs.get("subagent_name") or "").strip() or "coder"
         description = str(kwargs.get("description") or "").strip()
         prompt = str(kwargs.get("prompt") or "").strip()
 
-        if not subagent_name:
-            yield ToolResult(content="缺少 subagent_name 参数", is_error=True)
-            return
         if not prompt:
             yield ToolResult(content="缺少 prompt 参数", is_error=True)
             return
@@ -381,6 +382,19 @@ class TaskTool(AiasysTool):
         )
         child_allow_spawn = allow_nested_spawn and child_path.depth < effective_max_depth
 
+        # 2a. 预检查并发限制（快速失败，避免创建不必要的 storage/session）
+        if max_threads is not None:
+            active_count = registry.count_active_for_host(host_session_id)
+            if active_count >= max_threads:
+                yield ToolResult(
+                    content=(
+                        f"当前会话协作节点并发数已达到上限 {max_threads}，"
+                        "请等待已有节点完成后再派发。"
+                    ),
+                    is_error=True,
+                )
+                return
+
         parent_tool_call_id = str(
             ctx.get("_tool_call_id") or kwargs.get("_tool_call_id") or uuid.uuid4().hex[:12]
         )
@@ -406,39 +420,50 @@ class TaskTool(AiasysTool):
         if isinstance(nickname_pool, list) and nickname_pool:
             nickname = str(nickname_pool[0] or "").strip() or None
 
-        # 3. 物化子 Agent TOML（提前创建临时目录，确保异常时也能清理）
-        import tempfile
+        # 3. 创建子 Agent storage 工作区
+        storage = SubAgentStorage(user_id, host_session_id, agent_id)
+        storage.create_workspace(
+            parent_tool_call_id=parent_tool_call_id,
+            subagent_type=subagent_name,
+            description=description or f"子 Agent: {subagent_name}",
+            effective_model=effective_model,
+            model_override=effective_model,
+            host_session_id=host_session_id,
+            parent_agent_id=parent_agent_id,
+            agent_path=str(child_path),
+            depth=child_path.depth,
+            nickname=nickname,
+        )
 
-        temp_toml_dir = tempfile.mkdtemp(prefix="aiasys_subagent_")
-        try:
-            subagent_toml_path = _materialize_subagent_toml(
-                subagent_manifest, subagent_name, temp_toml_dir
-            )
-        except Exception:
-            import shutil
-
-            shutil.rmtree(temp_toml_dir, ignore_errors=True)
-            raise
-
-        # 5. 决定工具、MCP、Skill 继承策略
+        # 4. 决定工具、MCP、Skill 继承策略，并先完成 manifest 修正
         tool_policy = subagent_manifest.get("tool_policy") or "inherit"
         fork_turns = subagent_manifest.get("fork_turns")  # None=all, 0=none, int=N
 
-        # 5a. 运行时动态注入工具集（如果 manifest 未显式声明 tools）
+        # 4a. 运行时动态注入工具集（如果 manifest 未显式声明 tools）
+        # 必须在物化 TOML 之前完成，否则 backend 读取的是空工具表
         if not subagent_manifest.get("tools"):
             if tool_policy == "allowlist":
                 default_tools = get_role_type_default_tools(subagent_name)
                 if default_tools:
                     subagent_manifest["tools"] = list(default_tools)
                     subagent_manifest["allowed_tools"] = list(default_tools)
-            # inherit/denylist 模式下不注入 tools，由 backend.py 从 parent_registry 继承
+            elif tool_policy in ("inherit", "denylist") and not ctx.get("parent_registry"):
+                # 没有可继承的父 registry 时，fallback 到角色默认工具集
+                default_tools = get_role_type_default_tools(subagent_name)
+                if default_tools:
+                    subagent_manifest["tools"] = list(default_tools)
 
-        # 5b. 统一附加一级禁用排除
+        # 4b. 统一附加一级禁用排除
         universal_excludes = get_subagent_universal_excludes()
         if universal_excludes:
             existing_excludes = set(subagent_manifest.get("exclude_tools") or [])
             merged_excludes = existing_excludes | set(universal_excludes)
             subagent_manifest["exclude_tools"] = list(merged_excludes)
+
+        # 4c. 物化子 Agent TOML 到 storage 目录
+        subagent_toml_path = _materialize_subagent_toml(
+            subagent_manifest, subagent_name, str(storage.subagent_dir)
+        )
 
         mcp_policy = subagent_manifest.get("mcp_policy") or "none"
         mcp_servers = subagent_manifest.get("mcp_servers") or []
@@ -500,20 +525,7 @@ class TaskTool(AiasysTool):
             memory_enabled=False,  # 子 Agent 不需要 memory
         )
 
-        # 6. 预检查并发限制（快速失败，避免创建不必要的 session）
-        if max_threads is not None:
-            active_count = registry.count_active_for_host(host_session_id)
-            if active_count >= max_threads:
-                yield ToolResult(
-                    content=(
-                        f"当前会话协作节点并发数已达到上限 {max_threads}，"
-                        "请等待已有节点完成后再派发。"
-                    ),
-                    is_error=True,
-                )
-                return
-
-        # 7. 创建子 Agent session
+        # 6. 创建子 Agent session
         backend = AiasysRuntimeBackend()
         subagent_session: AiasysRuntimeSession | None = None
         try:
@@ -544,20 +556,37 @@ class TaskTool(AiasysTool):
             )
             return
 
-        # 8. 创建 storage 并初始化
-        storage = SubAgentStorage(user_id, host_session_id, agent_id)
-        storage.create_workspace(
-            parent_tool_call_id=parent_tool_call_id,
-            subagent_type=subagent_name,
-            description=description or f"子 Agent: {subagent_name}",
-            effective_model=effective_model,
-            model_override=effective_model,
-            host_session_id=host_session_id,
-            parent_agent_id=parent_agent_id,
-            agent_path=str(child_path),
-            depth=child_path.depth,
-            nickname=nickname,
-        )
+        # 8. 记录完整 launch_spec，供后续继续对话 / resume 重建
+        full_launch_spec = {
+            "agent_id": agent_id,
+            "subagent_name": subagent_name,
+            "host_session_id": host_session_id,
+            "user_id": user_id,
+            "storage_path": str(storage.subagent_dir),
+            "subagent_toml_path": subagent_toml_path,
+            "effective_model": effective_model,
+            "parent_tool_call_id": parent_tool_call_id,
+            "parent_agent_id": parent_agent_id,
+            "child_path": str(child_path),
+            "nickname": nickname,
+            "description": description,
+            "max_threads": max_threads,
+            "timeout_seconds": collaboration_policy.get("timeout_policy", {}).get("default_seconds", 300),
+            "llm_config": subagent_session._spec.config.model_dump(mode="json"),
+            "agent_file": subagent_toml_path,
+            "session_root": str(session_root),
+            "child_skills_dir": str(child_skills_dir) if child_skills_dir else None,
+            "collaboration_policy": collaboration_policy,
+            "authorization_mode": str(ctx.get("authorization_mode") or "smart"),
+            "yolo": bool(ctx.get("yolo", False)),
+            "mcp_configs": child_mcp_configs,
+            "tool_policy": tool_policy,
+            "agent_path": str(child_path),
+        }
+        storage.update_launch_spec(full_launch_spec)
+        registry.set_launch_spec(agent_id, full_launch_spec)
+
+        # 9. 持久化初始用户指令
         await storage.append_context_message(
             {
                 "role": "user",
@@ -566,131 +595,28 @@ class TaskTool(AiasysTool):
             }
         )
 
-        # 9. 运行子 Agent
-        final_content = ""
-        final_is_error = False
-        timeout_seconds = collaboration_policy.get("timeout_policy", {}).get("default_seconds", 300)
-
-        # 同步主控 contextvar 到子 Agent，确保文件工具正确解析路径
-        _workspace_token = current_workspace.set(
-            workspace if workspace and str(workspace) else session_root
-        )
-        _session_root_token = current_session_root.set(session_root)
-        _user_id_token = current_user_id.set(user_id)
-        _session_id_token = current_session_id.set(agent_id)
-
+        # 10. 运行子 Agent（生命周期管理器负责事件流、持久化、状态转换和 contextvar）
+        lifecycle_manager = SubAgentLifecycleManager(registry=registry)
         try:
-            prompt_iter = subagent_session.prompt(prompt).__aiter__()
-            while True:
-                try:
-                    event = await asyncio.wait_for(prompt_iter.__anext__(), timeout=timeout_seconds)
-                except StopAsyncIteration:
-                    break
-                enriched_event = _annotate_subagent_runtime_event(
-                    event,
-                    agent_id=agent_id,
-                    subagent_name=subagent_name,
-                )
-                # 将子 Agent 事件流式 yield 给 Host
-                yield _streaming_event(enriched_event)
-
-                # 同时持久化到 wire.jsonl
-                await storage.append_wire_agent_runtime_event(asdict(enriched_event))
-
-                # 收集 context 消息（简单起见，只记录 assistant/tool 消息）
-                if enriched_event.kind == "tool_call":
-                    msg = {
-                        "role": "assistant",
-                        "tool_calls": [
-                            {
-                                "id": enriched_event.tool_call_id,
-                                "type": "function",
-                                "function": {
-                                    "name": enriched_event.tool_name,
-                                    "arguments": json.dumps(enriched_event.arguments or {}),
-                                },
-                            }
-                        ],
-                    }
-                    await storage.append_context_message(msg)
-                elif enriched_event.kind == "tool_result":
-                    msg = {
-                        "role": "tool",
-                        "tool_call_id": enriched_event.tool_call_id,
-                        "content": enriched_event.content or "",
-                    }
-                    await storage.append_context_message(msg)
-
-                # 记录最终结果（如果有的话）
-                if (
-                    enriched_event.kind == "content"
-                    and enriched_event.content_type == "text"
-                    and enriched_event.text
-                ):
-                    final_content = enriched_event.text
-
-        except asyncio.CancelledError:
-            logger.warning("子 Agent 被取消: subagent=%s agent_id=%s", subagent_name, agent_id)
-            final_is_error = True
-            final_content = "子 Agent 执行被取消（可能是主会话断开或用户中止）"
-            storage.update_status("cancelled")
-            raise
-        except Exception as exc:
-            logger.exception("子 Agent 执行异常: subagent=%s agent_id=%s", subagent_name, agent_id)
-            final_is_error = True
-            final_content = f"子 Agent 执行异常: {exc}"
-            storage.update_status("failed")
+            async for result in lifecycle_manager.run_subagent_session(
+                subagent_session=subagent_session,
+                agent_id=agent_id,
+                subagent_name=subagent_name,
+                prompt=prompt,
+                storage=storage,
+                keep_alive=True,
+                timeout_seconds=(registry.get_launch_spec(agent_id) or {}).get("timeout_seconds", 300),
+                workspace=workspace,
+                session_root=session_root,
+                user_id=user_id,
+                host_session_id=host_session_id,
+            ):
+                yield result
         finally:
-            # 确保缓冲数据落盘（异常路径）
             try:
                 await storage.flush()
             except Exception:
                 logger.warning("子 Agent 缓冲刷盘失败", exc_info=True)
-            # 重置子 Agent 的 contextvar
-            current_workspace.reset(_workspace_token)
-            current_session_root.reset(_session_root_token)
-            current_user_id.reset(_user_id_token)
-            current_session_id.reset(_session_id_token)
-            # 注销注册表
-            registry.unregister(agent_id)
-            # 关闭子 Agent session
-            if subagent_session is not None:
-                try:
-                    await subagent_session.close()
-                except Exception:
-                    logger.warning("关闭子 Agent session 失败", exc_info=True)
-            # 清理临时 TOML 目录
-            if "temp_toml_dir" in vars():
-                try:
-                    import shutil
-
-                    shutil.rmtree(temp_toml_dir, ignore_errors=True)
-                except Exception:
-                    pass
-
-        # 9. 更新状态
-        if not final_is_error:
-            storage.update_status("completed")
-        if final_content:
-            await storage.append_context_message(
-                {
-                    "role": "assistant",
-                    "content": final_content,
-                    "parent_tool_call_id": parent_tool_call_id,
-                }
-            )
-
-        # 10. 强制刷盘（正常收尾路径的 write 可能未达阈值）
-        try:
-            await storage.flush()
-        except Exception:
-            logger.warning("子 Agent 收尾刷盘失败", exc_info=True)
-
-        # 11. yield 最终结果
-        yield ToolResult(
-            content=final_content or "子 Agent 执行完成",
-            is_error=final_is_error,
-        )
 
 
 class AgentTool(TaskTool):
@@ -703,6 +629,6 @@ class AgentTool(TaskTool):
     name = "Agent"
     description = (
         "创建并运行一个专门的子 Agent 来执行任务。"
-        "参数: subagent_name(子Agent名称), description(任务简述), prompt(完整指令)"
+        "参数: subagent_name(子Agent名称, 可选, 默认coder), description(任务简述), prompt(完整指令)"
     )
     parameters = _TASK_PARAMETERS

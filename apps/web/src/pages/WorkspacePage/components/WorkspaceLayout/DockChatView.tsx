@@ -51,7 +51,6 @@ interface DockChatViewProps {
   uploadedFiles: UploadedFile[];
   onRemoveFile: (index: number) => void;
   onAddFileClick: () => void;
-  onImportFromSession: () => void;
   fileInputRef: React.RefObject<HTMLInputElement | null>;
   onFileChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
   runtimeControls: RuntimeControlsState;
@@ -71,6 +70,13 @@ interface DockChatViewProps {
   onOpenRuntimeConfig?: () => void;
   isCompactingConversation?: boolean;
   onCompactConversation?: (instruction?: string) => Promise<void> | void;
+  compactionState?: {
+    phase: "begin" | "done";
+    tokens_before?: number;
+    tokens_after?: number;
+    saved_tokens?: number;
+    summary_tokens?: number;
+  } | null;
   sessionInputFocusSignal?: number;
   tokenUsageRefreshSignal?: number | string;
   onUploadToWorkspace?: (files: FileList | File[]) => Promise<void> | void;
@@ -98,7 +104,6 @@ export function DockChatView({
   uploadedFiles,
   onRemoveFile,
   onAddFileClick,
-  onImportFromSession,
   fileInputRef,
   onFileChange,
   runtimeControls,
@@ -118,6 +123,7 @@ export function DockChatView({
   onOpenRuntimeConfig,
   isCompactingConversation = false,
   onCompactConversation,
+  compactionState,
   sessionInputFocusSignal,
   tokenUsageRefreshSignal,
   onUploadToWorkspace,
@@ -130,6 +136,10 @@ export function DockChatView({
         sessionId={currentSessionId || undefined}
         refreshSignal={tokenUsageRefreshSignal}
         onCompactConversation={onCompactConversation}
+        hasMessages={hasMessagesForMcp}
+        isCompactingConversation={isCompactingConversation}
+        isRunning={isRunning}
+        compactionState={compactionState}
       />
       <SessionTaskPanel tasks={tasks} planState={planState} />
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-muted/15">
@@ -173,7 +183,6 @@ export function DockChatView({
         uploadedFiles={uploadedFiles}
         onRemoveFile={onRemoveFile}
         onAddFileClick={onAddFileClick}
-        onImportFromSession={onImportFromSession}
         fileInputRef={fileInputRef}
         onFileChange={onFileChange}
         currentEnv={runtimeControls.activeEnv}
@@ -181,9 +190,7 @@ export function DockChatView({
           runtimeControls.isInitializingEnvironment
         }
         sessionId={currentSessionId || undefined}
-        hasMessages={hasMessagesForMcp}
         isCompactingConversation={isCompactingConversation}
-        onCompactConversation={onCompactConversation}
         hasMCPConfig={hasMCPConfig}
         userModels={userModels}
         selectedModelId={selectedModelId}

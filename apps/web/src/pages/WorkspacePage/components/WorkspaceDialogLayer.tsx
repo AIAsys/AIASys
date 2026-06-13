@@ -8,7 +8,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { WorkspaceAuxiliaryDialogs } from "./WorkspaceAuxiliaryDialogs";
-import { FileImportModal } from "./FileImportModal";
 import { ToastContainer } from "./ToastContainer";
 import { useWorkspacePageController } from "../hooks/useWorkspacePageController";
 
@@ -52,7 +51,6 @@ export function WorkspaceDialogLayer({
   controller,
 }: WorkspaceDialogLayerProps) {
   const {
-    apiBaseUrl,
     executor,
     sessionLifecycle,
     runtimeControls,
@@ -66,15 +64,6 @@ export function WorkspaceDialogLayer({
   const workspaceId = controller.currentWorkspaceId;
   return (
     <>
-      <FileImportModal
-        isOpen={executor.showImportModal}
-        onClose={() => executor.setShowImportModal(false)}
-        targetSessionId={sessionId}
-        targetWorkspaceId={workspaceId}
-        onImportSuccess={executor.handleImportSuccess}
-        apiBaseUrl={apiBaseUrl}
-      />
-
       <ToastContainer toasts={combinedToasts} />
 
       <Suspense fallback={null}>

@@ -26,10 +26,6 @@ export function useUIState() {
     "aiasys:ui:sidebarMode",
     isDesktop() ? "collapsed" : "expanded",
   );
-  const [showImportModal, setShowImportModal] = useLocalStorageState(
-    "aiasys:ui:showImportModal",
-    false,
-  );
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -43,8 +39,6 @@ export function useUIState() {
     setSidebarWidth,
     sidebarMode,
     setSidebarMode,
-    showImportModal,
-    setShowImportModal,
     messagesEndRef,
     fileInputRef,
   };

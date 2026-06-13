@@ -32,6 +32,7 @@ from .runtime_envs import router as runtime_envs_router
 from .session_database import router as session_database_router
 from .sessions import router as sessions_router
 from .skills import router as skills_router
+from .subagent_events import router as subagent_events_router
 from .system import router as system_router
 from .ui_settings import router as ui_settings_router
 from .workspaces import router as workspaces_router
@@ -51,6 +52,7 @@ api_router.include_router(workspaces_router)
 api_router.include_router(canvas_router)
 api_router.include_router(auto_tasks_router)
 api_router.include_router(data_tables_router)
+api_router.include_router(subagent_events_router)  # 子 Agent 事件路由（必须先于 sessions_router 的通配路径）
 api_router.include_router(sessions_router)
 api_router.include_router(files_router)
 api_router.include_router(notebooks_router)

@@ -23,7 +23,7 @@
 
 - 前端端口默认使用 `13000`
 - 后端端口默认使用 `13001`
-- 后端配置文件位于 `apps/backend/config.json`
+- 后端配置文件位于 `apps/backend/config.toml`
 - 建议显式设置 `ENCRYPTION_KEY`，否则后端会使用临时密钥并在启动时发出警告
 
 ## 3. 依赖准备
@@ -72,10 +72,10 @@ uv sync --frozen
 
 ```bash
 cd apps/backend
-[ -f config.json ] || cp config.example.json config.json
+[ -f config.toml ] || cp config.example.toml config.toml
 ```
 
-然后按实际情况填写 `config.json` 里的关键配置：
+然后按实际情况填写 `config.toml` 里的关键配置：
 
 - `llm.providers.*.api_key`
 - `embedding.api_key`
@@ -148,7 +148,7 @@ npm run build
 
 可以。推荐做法是：
 
-1. 远程机器上的 `apps/backend/config.json` 只保留占位值或示例值，不写真实 key
+1. 远程机器上的 `apps/backend/config.toml` 只保留占位值或示例值，不写真实 key
 2. 把真实 key 只放在服务器环境变量里
 3. 前端始终只调用你的后端接口，不直接接触第三方模型 key
 4. 对外演示时单独使用一套额度受控的演示 key，不要复用个人主 key
@@ -171,7 +171,7 @@ AIASYS_LLM_PROVIDER_KIMI_BASE_URL=...
 AIASYS_DOCUMENT_EXTRACTION_PDF_PASSWORD=...
 ```
 
-LLM provider 的环境变量命名遵循动态规则 `AIASYS_LLM_PROVIDER_{PROVIDER_ID}_API_KEY` 和 `AIASYS_LLM_PROVIDER_{PROVIDER_ID}_BASE_URL`，其中 `{PROVIDER_ID}` 是 `config.json` 中 `llm.providers` 的键名（如 `kimi`、`dashscope`）。系统启动时会自动遍历所有已配置的 provider 并检查对应的环境变量。若需覆盖服务商 endpoint（如接入 Ollama、vLLM 等本地模型服务），可同时设置 `AIASYS_LLM_PROVIDER_{PROVIDER_ID}_BASE_URL`。
+LLM provider 的环境变量命名遵循动态规则 `AIASYS_LLM_PROVIDER_{PROVIDER_ID}_API_KEY` 和 `AIASYS_LLM_PROVIDER_{PROVIDER_ID}_BASE_URL`，其中 `{PROVIDER_ID}` 是 `config.toml` 中 `llm.providers` 的键名（如 `stepfun`）。系统启动时会自动遍历所有已配置的 provider 并检查对应的环境变量。若需覆盖服务商 endpoint（如接入 Ollama、vLLM 等本地模型服务），可同时设置 `AIASYS_LLM_PROVIDER_{PROVIDER_ID}_BASE_URL`。
 
 建议：
 

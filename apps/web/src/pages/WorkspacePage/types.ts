@@ -100,6 +100,7 @@ export type SessionHistoryMessage = {
   reasoning_content?: string | null;
   rewritten_from?: string | null;
   timestamp?: string | null;
+  turn_n?: number | null;
   tool_calls?: Array<{
     id: string;
     type: "function";

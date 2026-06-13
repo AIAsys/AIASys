@@ -25,6 +25,37 @@ pre-commit:
       glob: "apps/backend/app/**/*.py"
       run: cd apps/backend && files=$(echo "{staged_files}" | sed 's|apps/backend/||g') && [ -n "$files" ] && uv run ruff check $files && uv run ruff format --check $files || true
 
+    # --- Commit Author ---
+    author-check:
+      glob: "*"
+      run: |
+        name=$(git config user.name)
+        email=$(git config user.email)
+        if echo "$name" | grep -qiE '\b(ai|assistant|bot|copilot|agent)\b'; then
+          echo ""
+          echo "  ❌ Commit author 被拦截"
+          echo "  author name: '$name'"
+          echo "  包含禁止的占位词（ai / assistant / bot / copilot / agent）"
+          echo ""
+          echo "  请设置真实的身份后重新提交："
+          echo "    git config user.name \"Your Name\""
+          echo "    git config user.email \"your.email@example.com\""
+          echo ""
+          exit 1
+        fi
+        if echo "$email" | grep -qiE '(aiasys\.local|example\.com|test\.com|no-?reply|bot@|ai@|assistant@)'; then
+          echo ""
+          echo "  ❌ Commit author 被拦截"
+          echo "  author email: '$email'"
+          echo "  看起来像是占位地址"
+          echo ""
+          echo "  请设置真实的邮箱后重新提交："
+          echo "    git config user.email \"your.email@example.com\""
+          echo ""
+          exit 1
+        fi
+        echo "  ✓ author check passed: $name <$email>"
+
     # --- EditorConfig ---
     editorconfig:
       glob: "*"

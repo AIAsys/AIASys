@@ -3,7 +3,6 @@ import {
   Brain,
   FileText,
   FolderUp,
-  Minimize2,
   ServerCog,
   SlidersHorizontal,
   StopCircle,
@@ -27,7 +26,6 @@ import { extractClipboardFiles } from "@/utils/clipboardFiles";
 import { useDragDrop } from "@/hooks/useDragDrop";
 import { cn } from "@/lib/utils";
 import { ModelSelector } from "./ModelSelector";
-import { HistoryIcon } from "./chatShellIcons";
 
 interface UploadedFile {
   filename: string;
@@ -46,7 +44,6 @@ interface InputAreaProps {
   uploadedFiles: UploadedFile[];
   onRemoveFile: (index: number) => void;
   onAddFileClick: () => void;
-  onImportFromSession?: () => void;
   fileInputRef: RefObject<HTMLInputElement | null>;
   onFileChange: (e: ChangeEvent<HTMLInputElement>) => void;
   isUploading?: boolean;
@@ -57,12 +54,8 @@ interface InputAreaProps {
   isInitializingEnvironment?: boolean;
   /** 当前会话ID */
   sessionId?: string;
-  /** 当前会话是否已有消息 */
-  hasMessages?: boolean;
   /** 是否正在压缩当前会话的上下文 */
   isCompactingConversation?: boolean;
-  /** 压缩当前会话上下文 */
-  onCompactConversation?: (instruction?: string) => Promise<void> | void;
   /** 工作区是否已配置 MCP */
   hasMCPConfig?: boolean;
   /** 用户自定义的 LLM 模型列表 */
@@ -100,7 +93,6 @@ export function InputArea({
   uploadedFiles,
   onRemoveFile,
   onAddFileClick,
-  onImportFromSession,
   fileInputRef,
   onFileChange,
   isUploading = false,
@@ -108,9 +100,7 @@ export function InputArea({
   currentEnv,
   isInitializingEnvironment = false,
   sessionId,
-  hasMessages = false,
   isCompactingConversation = false,
-  onCompactConversation,
   userModels = [],
   selectedModelId,
   effectiveModelDisplayName,
@@ -228,20 +218,6 @@ export function InputArea({
     },
     [onFileChange, isUploading, isPrewarming, isInitializingEnvironment]
   );
-  const canCompactConversation =
-    Boolean(sessionId) &&
-    hasMessages &&
-    !isRunning &&
-    !isCompactingConversation;
-  const compactTooltip = !sessionId
-    ? "请先创建或切换到一个可用会话。"
-    : !hasMessages
-      ? "当前会话还没有可压缩的历史消息。"
-      : isRunning
-        ? "当前会话运行中，结束本轮执行后才能压缩上下文。"
-        : isCompactingConversation
-          ? "正在压缩上下文，请稍候。"
-          : "压缩历史记录，不影响工作区文件和执行记录。";
   const runtimeLabel = currentEnv?.name?.trim() || "无 Python 环境";
   const runtimeMode =
     currentEnv?.sandbox_mode === "docker" || currentEnv?.image === "docker"
@@ -350,17 +326,6 @@ export function InputArea({
                   <Upload size={16} />
                   <span className="font-mono">本地上传</span>
                 </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    onImportFromSession?.();
-                    setShowAttachments(false);
-                  }}
-                  className="w-full text-left px-4 py-2 hover:bg-accent flex items-center gap-2 text-sm text-foreground transition-colors"
-                >
-                    <HistoryIcon className="h-4 w-4" />
-                    <span className="font-mono">从历史导入</span>
-                  </button>
                 </div>
             )}
             {/* 添加文件按钮 */}
@@ -501,35 +466,6 @@ export function InputArea({
                 </TooltipTrigger>
                 <TooltipContent side="top" sideOffset={6}>
                   当前会话工具配置
-                </TooltipContent>
-              </Tooltip>
-            ) : null}
-
-            {sessionId && onCompactConversation && hasMessages ? (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (!canCompactConversation) {
-                        return;
-                      }
-                      void onCompactConversation();
-                    }}
-                    disabled={!canCompactConversation}
-                    className="flex-shrink-0 inline-flex items-center gap-1.5 rounded-md bg-secondary px-2.5 py-2 text-xs text-secondary-foreground transition-colors hover:bg-secondary/80 disabled:cursor-not-allowed disabled:opacity-50"
-                    title="压缩上下文"
-                    aria-label="压缩上下文"
-                    data-testid="input-compact-conversation"
-                  >
-                    <Minimize2 className="h-4 w-4" />
-                    <span className="font-medium">
-                      {isCompactingConversation ? "压缩中" : "压缩"}
-                    </span>
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent side="top" sideOffset={6}>
-                  {compactTooltip}
                 </TooltipContent>
               </Tooltip>
             ) : null}

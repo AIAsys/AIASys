@@ -7,22 +7,6 @@ interface UseTaskWorkspacesOptions {
   currentSessionId?: string | null;
 }
 
-function workspaceHasSession(
-  workspace: TaskWorkspaceSummary,
-  sessionId?: string | null,
-): boolean {
-  if (!sessionId) {
-    return false;
-  }
-
-  return (
-    workspace.current_conversation?.session_id === sessionId ||
-    (workspace.conversations || []).some(
-      (conversation) => conversation.session_id === sessionId,
-    )
-  );
-}
-
 function toMillis(value?: string | null): number {
   if (!value) {
     return 0;
@@ -68,42 +52,9 @@ export function useTaskWorkspaces({
     const requestId = latestLoadRequestRef.current + 1;
     latestLoadRequestRef.current = requestId;
 
-    // 在异步回调内部读取最新 URL，避免将 routeWorkspaceId 放入 deps 导致频繁重建
-    const currentRouteWorkspaceId =
-      typeof window === "undefined" ||
-      window.location.pathname.replace(/\/+$/, "") !== "/workspace"
-        ? undefined
-        : new URLSearchParams(window.location.search).get("workspace_id") || undefined;
-
     setIsLoadingWorkspaces(true);
     try {
       const next = await fetchWorkspaces();
-      const routeWorkspace = currentRouteWorkspaceId
-        ? next.find((workspace) => workspace.workspace_id === currentRouteWorkspaceId)
-        : undefined;
-
-      if (
-        currentRouteWorkspaceId &&
-        currentSessionId &&
-        routeWorkspace &&
-        !workspaceHasSession(routeWorkspace, currentSessionId) &&
-        (routeWorkspace.conversations?.length ?? 0) < routeWorkspace.conversation_count
-      ) {
-        try {
-          const detail = await getTaskWorkspace(currentRouteWorkspaceId);
-          const detailHasRouteSession = workspaceHasSession(detail, currentSessionId);
-          if (detailHasRouteSession) {
-            const targetIndex = next.findIndex(
-              (workspace) => workspace.workspace_id === currentRouteWorkspaceId,
-            );
-            if (targetIndex >= 0) {
-              next[targetIndex] = detail;
-            }
-          }
-        } catch (error) {
-          console.warn("Failed to hydrate route workspace detail:", error);
-        }
-      }
 
       next.sort(
         (left, right) => getWorkspaceActivityTimestamp(right) - getWorkspaceActivityTimestamp(left),
@@ -123,7 +74,7 @@ export function useTaskWorkspaces({
         setIsLoadingWorkspaces(false);
       }
     }
-  }, [currentSessionId, fetchWorkspaces]);
+  }, [fetchWorkspaces]);
 
   useEffect(() => {
     void loadWorkspaces();

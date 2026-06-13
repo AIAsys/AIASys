@@ -13,6 +13,7 @@ import {
   XCircle,
   Clock,
   Pause,
+  Square,
   ChevronRight,
   Terminal,
   Pin,
@@ -52,6 +53,7 @@ export const statusConfig: Record<string, StatusIconConfig> = {
   completed: { label: "已完成", icon: CheckCircle2, color: "text-success", bgColor: "bg-success/10", dotColor: "bg-success" },
   failed: { label: "失败", icon: XCircle, color: "text-error", bgColor: "bg-error/10", dotColor: "bg-error" },
   cancelled: { label: "已取消", icon: Pause, color: "text-warning", bgColor: "bg-warning-container0/10", dotColor: "bg-warning" },
+  closed: { label: "已关闭", icon: Square, color: "text-muted-foreground", bgColor: "bg-muted/10", dotColor: "bg-muted-foreground" },
   queued: { label: "排队中", icon: Clock, color: "text-warning", bgColor: "bg-warning/10", dotColor: "bg-warning" },
 };
 

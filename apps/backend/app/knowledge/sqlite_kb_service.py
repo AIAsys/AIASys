@@ -77,7 +77,7 @@ class SQLiteKBService:
         else:
             raise ValueError(
                 f"未找到 embedding 模型配置: {embedding_model}。"
-                "请在 LLM 设置中配置 embedding 模型，或在 config.json 中设置 embedding 段作为系统默认。"
+                "请在 LLM 设置中配置 embedding 模型，或在 config.toml 中设置 embedding 段作为系统默认。"
             )
         self._embedder_cache[cache_key] = embedder
         if len(self._embedder_cache) > self._EMBEDDER_CACHE_MAX_SIZE:
@@ -92,7 +92,7 @@ class SQLiteKBService:
         if not resolved:
             raise ValueError(
                 f"未找到 embedding 模型配置: {embedding_model}。"
-                "请在 LLM 设置中配置 embedding 模型，或在 config.json 中设置 embedding 段作为系统默认。"
+                "请在 LLM 设置中配置 embedding 模型，或在 config.toml 中设置 embedding 段作为系统默认。"
             )
         # resolved 存在但没有 dimension 字段，根据模型名推断
         model_name = str(resolved.get("model_name") or embedding_model).lower()

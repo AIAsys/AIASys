@@ -78,9 +78,14 @@ class AiasysRuntimeSession(
         self._consecutive_tool_counts: dict[str, int] = {}
         self._previous_tool_args: dict[str, str] = {}
         self._estimated_token_count: int = 0
+        # 自上次 LLM 调用真实 usage 修正以来，追加的消息的 token 估算累加。
+        # 与 _estimated_token_count 共同组成 effective_token_count，
+        # 用于运行中触发压缩、预算检查的更准确判断。
+        self._pending_token_estimate: int = 0
         self._continuation_count: int = 0
         self.budget: Any | None = spec.budget if spec.budget is not None else self._load_budget()
         self._session_turn_count: int = 0
+        self._current_turn_n: int | None = None
         self._agent_instructions: str | None = self._load_agent_instructions()
 
         # context.jsonl 路径，与 get_session_history() 读取路径保持一致
@@ -89,12 +94,12 @@ class AiasysRuntimeSession(
             _work_dir_path / ".aiasys" / "session" / self.session_id / "context.jsonl"
         )
 
-        # 从 metadata.json 恢复上次 LLM 返回的精确 context_tokens，
-        # 作为保底值；始终重新估算当前内容，取两者较大者。
-        # 精确值优先于启发式估算，但系统提示词 / memory / AGENTS.md
-        # 可能在 session 关闭期间变化，不能只信任旧快照。
-        _saved_tokens: int | None = None
-        if self.budget is not None:
+        # 从 metadata.json 恢复上次 LLM 返回的精确 context_tokens。
+        # 顶层 context_tokens 与 budget 独立，确保 budget 关闭后仍能恢复精确值。
+        # 启发式估算对 system prompt 容易严重偏高，因此当估算值远高于保存的
+        # 精确值时，优先使用精确值；若内容明显增长（估算未高出 50%），则使用估算。
+        _saved_tokens = self._load_saved_context_tokens()
+        if _saved_tokens is None and self.budget is not None:
             _ct = getattr(self.budget, "context_tokens", 0) or 0
             if isinstance(_ct, int) and _ct > 0:
                 _saved_tokens = _ct
@@ -137,10 +142,50 @@ class AiasysRuntimeSession(
             self.messages.extend(persisted)
             self._estimated_token_count += estimate_text_tokens(persisted)
 
-        # 精确值保底：若系统提示词等未变化，恢复值通常更准确；
-        # 若内容增长了，当前估算值更大，不会被覆盖。
-        if _saved_tokens is not None and _saved_tokens > self._estimated_token_count:
-            self._estimated_token_count = _saved_tokens
+        # 用保存的精确值修正启发式估算。
+        # 启发式估算对 system prompt / skill 注入 / AGENTS.md 容易严重偏高，
+        # 当估算值比保存的精确值高出 50% 以上时，优先使用精确值；否则说明内容
+        # 确实增长了，使用当前估算。
+        if _saved_tokens is not None and _saved_tokens > 0:
+            if self._estimated_token_count > int(_saved_tokens * 1.5):
+                self._estimated_token_count = _saved_tokens
+            elif _saved_tokens > self._estimated_token_count:
+                self._estimated_token_count = _saved_tokens
+
+    def refresh_context_tokens_from_metadata(self) -> None:
+        """复用旧 Session 时，从 metadata 重新加载精确值修正估算。
+
+        不关闭旧 Session 直接复用的情况下，`_estimated_token_count` 可能仍是
+        创建时的旧估算；调用本方法把它刷新到最近一次 LLM 返回的精确值，避免
+        前端在 during-stream 阶段看到跳低的数字。
+        """
+        saved = self._load_saved_context_tokens()
+        if saved is None and self.budget is not None:
+            _ct = getattr(self.budget, "context_tokens", 0) or 0
+            if isinstance(_ct, int) and _ct > 0:
+                saved = _ct
+        if saved is None or saved <= 0:
+            return
+        # 精确值优先：估算明显偏高（>50%）时用精确值；
+        # 估算偏低或相时使用精确值，确保复用时不低于上次保存的基准。
+        if self._estimated_token_count > int(saved * 1.5):
+            self._estimated_token_count = saved
+        elif saved >= self._estimated_token_count:
+            self._estimated_token_count = saved
+
+    @property
+    def effective_token_count(self) -> int:
+        """当前有效上下文 token 数。
+
+        = 最近一次 LLM 调用修正后的精确值（或压缩后估算值）
+          + 自那以后追加消息的 token 估算。
+        用于运行中触发压缩、预算检查，比单纯的 _estimated_token_count 更准确。
+        """
+        return max(0, self._estimated_token_count + self._pending_token_estimate)
+
+    def _reset_pending_token_estimate(self) -> None:
+        """在获得新的真实 usage 或完成压缩后清零 pending 估算。"""
+        self._pending_token_estimate = 0
 
     def _messages_for_model(self) -> list[InternalMessage]:
         """返回发送给模型的消息序列。"""
@@ -404,9 +449,17 @@ class AiasysRuntimeSession(
 
         确保工具调用和工具返回结果在会话切换后仍然可见。
         compaction 只替换内存中的 self.messages，不影响已落盘的数据。
+
+        当处于 ReAct turn 中时，为 assistant/tool 消息附加 turn_n，
+        供历史恢复时还原 turn 边界。
         """
+        if self._current_turn_n is not None and message.get("role") in ("assistant", "tool"):
+            message = dict(message, turn_n=self._current_turn_n)
+
         self.messages.append(message)
-        self._estimated_token_count += estimate_text_tokens([message])
+        # 把新增消息计入 pending，等待下次 LLM 真实 usage 修正。
+        # 避免运行中 _estimated_token_count 停留在旧精确值，导致上下文占用被低估。
+        self._pending_token_estimate += estimate_text_tokens([message])
 
         try:
             self._context_file.parent.mkdir(parents=True, exist_ok=True)
@@ -444,6 +497,7 @@ class AiasysRuntimeSession(
             return []
 
         restored: list[InternalMessage] = []
+        max_turn_n = 0
         for item in raw_messages:
             if not isinstance(item, dict):
                 continue
@@ -461,7 +515,13 @@ class AiasysRuntimeSession(
                 message["tool_calls"] = item.get("tool_calls")
             if item.get("reasoning_content") is not None:
                 message["reasoning_content"] = item.get("reasoning_content")
+            turn_n = item.get("turn_n")
+            if isinstance(turn_n, int):
+                message["turn_n"] = turn_n
+                if turn_n > max_turn_n:
+                    max_turn_n = turn_n
             restored.append(message)
+        self._session_turn_count = max_turn_n
         return restored
 
     def _downgrade_historical_image_messages(
@@ -635,6 +695,10 @@ class AiasysRuntimeSession(
 
     def cancel(self) -> None:
         self._cancel_event.set()
+
+    def is_active(self) -> bool:
+        """Session 是否仍可用于对话（未关闭、未取消）。"""
+        return not self._closed and not self._cancel_event.is_set()
 
     async def close(self) -> None:
         if self._closed:

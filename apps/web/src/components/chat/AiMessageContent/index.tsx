@@ -219,42 +219,18 @@ export const AiMessageContent = memo(function AiMessageContent({
     onOpenInBrowserTab,
   };
 
-  // 按顺序渲染 segments
-  // 流式过程中保持到达时序，只在历史恢复（非流式）时做防御性排序
+  // 按顺序渲染 segments，保持 segments 原始到达/恢复顺序
+  // 不再按类型排序，避免 multi-turn 场景下 turn 标记与对应内容被拆散堆叠
   const renderSegments = () => {
     if (!segments || segments.length === 0) {
       return null;
     }
 
-    // 防御性排序：仅在非流式（历史恢复）时按类型排序
-    // 流式过程中 segments 已按到达时序排列
-    // 每个类型必须有唯一 order，避免 sort 不稳定导致顺序随机
-    const SEGMENT_ORDER: Record<string, number> = {
-      turn: 0,
-      think: 1,
-      tool_call: 2,
-      tool_output: 3,
-      text: 4,
-      monitor: 5,
-    };
-    let sortedSegments: ChatSegment[];
-    if (isStreaming) {
-      // 流式过程中保持到达时序
-      sortedSegments = segments;
-    } else {
-      // 历史恢复时按类型排序
-      sortedSegments = [...segments].sort((a, b) => {
-        const orderA = SEGMENT_ORDER[a.type] ?? 99;
-        const orderB = SEGMENT_ORDER[b.type] ?? 99;
-        return orderA - orderB;
-      });
-    }
-
     // 合并连续的同类型 segments
-    // 仅合并 text / think，tool_call / tool_output / monitor 保持独立
+    // 仅合并 text / think，tool_call / tool_output / monitor / turn 保持独立
     const MERGEABLE_TYPES = new Set<string>(["text", "think"]);
     const mergedSegments: ChatSegment[] = [];
-    for (const seg of sortedSegments) {
+    for (const seg of segments) {
       const lastSeg = mergedSegments[mergedSegments.length - 1];
       if (
         lastSeg &&

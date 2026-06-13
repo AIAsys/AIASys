@@ -80,21 +80,21 @@ _TOOL_METADATA: dict[str, dict[str, Any]] = {
         "provider": "aiasys",
         "description": "轻量 Python 代码执行，适合快速计算验证，无需 notebook 文件。",
     },
-    "app.agents.tools.code_execution_tool:ListKernelEnvsTool": {
+    "app.agents.tools.code_execution_tool:ListKernelEnvs": {
         "capability_id": "runtime.list_kernel_envs",
         "display_name": "List Kernel Envs",
         "kind": CapabilityKind.RUNTIME_HELPER,
         "provider": "aiasys",
         "description": "列出当前系统中可用的 IPython kernel 环境，帮助 Agent 在执行代码前确认可用环境。",
     },
-    "app.agents.tools.code_execution_tool:RegisterKernelEnvTool": {
+    "app.agents.tools.code_execution_tool:RegisterKernelEnv": {
         "capability_id": "runtime.register_kernel_env",
         "display_name": "Register Kernel Env",
         "kind": CapabilityKind.RUNTIME_HELPER,
         "provider": "aiasys",
         "description": "注册新的 Python kernel 环境，指定名称和 Python 可执行文件路径。",
     },
-    "app.agents.tools.code_execution_tool:RemoveKernelEnvTool": {
+    "app.agents.tools.code_execution_tool:RemoveKernelEnv": {
         "capability_id": "runtime.remove_kernel_env",
         "display_name": "Remove Kernel Env",
         "kind": CapabilityKind.RUNTIME_HELPER,

@@ -88,7 +88,7 @@ export function RolesManagerPanel({
   );
   const panelDescription = description ?? (
     isMarket
-      ? "查看系统提供的协作专家，按需安装到我的协作专家或工作区。"
+      ? "系统内置专家默认可用。如需自定义，可覆盖到我的协作专家或工作区。"
       : scope === "global"
         ? "管理已安装到可选集合的协作专家。新工作区会按这里的策略继承。"
         : "管理安装到当前工作区的协作专家，保存后下一轮执行生效。"

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import {
   Container,
+  Hexagon,
   KeyRound,
   Loader2,
   RefreshCw,
@@ -23,6 +24,7 @@ import type { KernelEnvItem } from "@/lib/api/kernelEnvs";
 import {
   bindWorkspaceRuntimeEnvironment,
   ensureWorkspaceUvEnvironment,
+  getWorkspaceNodeEnvironments,
   getWorkspaceRuntimeEnvironments,
   installWorkspaceRuntimePackages,
   registerWorkspacePythonEnvironment,
@@ -30,6 +32,7 @@ import {
   unregisterWorkspaceRuntimeEnvironment,
 } from "@/lib/api/workspaces";
 import type {
+  NodeRuntimeEnvRegistry,
   WorkspaceContainerResource,
   WorkspaceRuntimeEnvironment,
   WorkspaceRuntimeEnvironmentRegistry,
@@ -38,9 +41,10 @@ import type { TaskWorkspaceSummary } from "@/pages/WorkspacePage/types";
 import { cn } from "@/lib/utils";
 import { EnvVarsPanel } from "@/components/workspace/EnvVarsPanel";
 import { PythonRuntimeTab } from "./PythonRuntimeTab";
+import { NodeRuntimeTab } from "./NodeRuntimeTab";
 import { ContainerResourcesPanel } from "@/components/container-resources/ContainerResourcesPanel";
 
-type RuntimePanelSection = "overview" | "python" | "docker" | "env";
+type RuntimePanelSection = "overview" | "python" | "node" | "docker" | "env";
 type PanelNotice = { type: "success" | "error" | "info"; message: string } | null;
 
 interface ExecutionResourcesPanelProps {
@@ -189,6 +193,7 @@ function ExecutionResourcesOverview({
   workspaceId,
   workspaceTitle,
   registry,
+  nodeRegistry,
   isLoading,
   error,
   notice,
@@ -204,6 +209,7 @@ function ExecutionResourcesOverview({
   workspaceId?: string | null;
   workspaceTitle?: string | null;
   registry: WorkspaceRuntimeEnvironmentRegistry | null;
+  nodeRegistry: NodeRuntimeEnvRegistry | null;
   isLoading: boolean;
   error: string | null;
   notice: PanelNotice;
@@ -218,7 +224,6 @@ function ExecutionResourcesOverview({
 }) {
   const envs = registry?.envs ?? [];
   const uvEnvs = envs.filter((env) => env.kind === "uv");
-  const registeredPythonEnvs = envs.filter((env) => env.kind === "registered_python");
   const activeEnv = getActiveRuntimeEnv(registry);
   const envLabel = activeEnv
     ? activeEnv.display_name
@@ -233,6 +238,20 @@ function ExecutionResourcesOverview({
   const dockerStatusVariant = isDockerActive ? "success" : "secondary";
   const loadedDockerCount = containerResources.length;
 
+  const nodeEnvs = nodeRegistry?.envs ?? [];
+  const activeNodeEnv =
+    nodeEnvs.find((env) => env.active) ??
+    nodeEnvs.find((env) => env.env_id === nodeRegistry?.active_env_id) ??
+    null;
+  const nodeLabel = activeNodeEnv
+    ? activeNodeEnv.display_name
+    : "未设置";
+  const nodeStatusVariant = activeNodeEnv
+    ? runtimeStatusVariant(activeNodeEnv.status)
+    : nodeRegistry?.fnm_available
+      ? "secondary"
+      : "error";
+
   return (
     <div className="space-y-4">
       <section className="rounded-2xl border border-border bg-card p-5">
@@ -245,7 +264,7 @@ function ExecutionResourcesOverview({
               {executionLabel}
             </h3>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-              {workspaceTitle || "当前工作区"} 的代码执行资源集中在这里查看。Python、Docker 和注入变量分别进入独立分组管理。
+              {workspaceTitle || "当前工作区"} 的代码执行资源集中在这里查看。Python、Node.js、Docker 和注入变量分别进入独立分组管理。
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -265,7 +284,7 @@ function ExecutionResourcesOverview({
           </div>
         </div>
 
-        <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
           <OverviewMetric
             label="Python"
             value={activeEnv ? runtimeStatusLabel(activeEnv.status) : "未设置"}
@@ -274,6 +293,18 @@ function ExecutionResourcesOverview({
               activeEnv
                 ? `${envKindLabel(activeEnv.kind)} · ${envLabel}`
                 : "启用 UV 或登记已有解释器"
+            }
+          />
+          <OverviewMetric
+            label="Node.js"
+            value={activeNodeEnv ? runtimeStatusLabel(activeNodeEnv.status) : "未设置"}
+            variant={nodeStatusVariant}
+            description={
+              activeNodeEnv
+                ? `fnm · ${nodeLabel}`
+                : nodeRegistry?.fnm_available
+                  ? "安装或激活一个 Node.js 版本"
+                  : "fnm 未检测到"
             }
           />
           <OverviewMetric
@@ -295,8 +326,8 @@ function ExecutionResourcesOverview({
           />
           <OverviewMetric
             label="工作区登记"
-            value={`${registry?.total ?? envs.length} 个`}
-            description={`UV ${uvEnvs.length} 个，已登记 ${registeredPythonEnvs.length} 个`}
+            value={`${(registry?.total ?? envs.length) + (nodeRegistry?.total ?? 0)} 个`}
+            description={`UV ${uvEnvs.length} 个，Node ${nodeEnvs.length} 个`}
           />
         </div>
 
@@ -321,7 +352,7 @@ function ExecutionResourcesOverview({
         <p className="mt-1 text-sm leading-6 text-muted-foreground">
           概览页只放当前状态。需要修改配置时，从下面进入对应分组。
         </p>
-        <div className="mt-4 grid gap-3 md:grid-cols-3">
+        <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           <OverviewAction
             icon={<SquareTerminal className="h-4 w-4 text-tertiary" />}
             title="Python 环境"
@@ -332,6 +363,17 @@ function ExecutionResourcesOverview({
             }
             badge={envs.length ? `${envs.length}` : undefined}
             onClick={() => onOpenSection("python")}
+          />
+          <OverviewAction
+            icon={<Hexagon className="h-4 w-4 text-tertiary" />}
+            title="Node.js 环境"
+            description={
+              activeNodeEnv
+                ? `${nodeLabel} · Node ${activeNodeEnv.node_version || "未锁定"}`
+                : "通过 fnm 安装、切换 Node.js 版本"
+            }
+            badge={nodeEnvs.length ? `${nodeEnvs.length}` : undefined}
+            onClick={() => onOpenSection("node")}
           />
           <OverviewAction
             icon={<Container className="h-4 w-4 text-info" />}
@@ -375,6 +417,9 @@ export function ExecutionResourcesPanel({
     useState<WorkspaceRuntimeEnvironmentRegistry | null>(null);
   const [isLoadingRegistry, setIsLoadingRegistry] = useState(false);
   const [registryError, setRegistryError] = useState<string | null>(null);
+  const [nodeRegistry, setNodeRegistry] = useState<NodeRuntimeEnvRegistry | null>(null);
+  const [isLoadingNodeRegistry, setIsLoadingNodeRegistry] = useState(false);
+  const [nodeRegistryError, setNodeRegistryError] = useState<string | null>(null);
   const [notice, setNotice] = useState<PanelNotice>(null);
   const [isEnsuringUv, setIsEnsuringUv] = useState(false);
   const [bindingEnvId, setBindingEnvId] = useState<string | null>(null);
@@ -416,6 +461,37 @@ export function ExecutionResourcesPanel({
     }, 30000);
     return () => window.clearInterval(timer);
   }, [loadRegistry, workspaceId]);
+
+  const loadNodeRegistry = useCallback(async () => {
+    if (!workspaceId) {
+      setNodeRegistry(null);
+      setNodeRegistryError(null);
+      return;
+    }
+    setIsLoadingNodeRegistry(true);
+    try {
+      setNodeRegistryError(null);
+      const data = await getWorkspaceNodeEnvironments(workspaceId);
+      setNodeRegistry(data);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "加载 Node.js 环境失败";
+      setNodeRegistryError(message);
+    } finally {
+      setIsLoadingNodeRegistry(false);
+    }
+  }, [workspaceId]);
+
+  useEffect(() => {
+    void loadNodeRegistry();
+  }, [loadNodeRegistry]);
+
+  useEffect(() => {
+    if (!workspaceId) return;
+    const timer = window.setInterval(() => {
+      void loadNodeRegistry();
+    }, 30000);
+    return () => window.clearInterval(timer);
+  }, [loadNodeRegistry, workspaceId]);
 
   const handleEnsureUv = useCallback(async () => {
     if (!workspaceId) return;
@@ -571,6 +647,7 @@ export function ExecutionResourcesPanel({
   const sectionTabs: Array<{ id: RuntimePanelSection; label: string }> = [
     { id: "overview", label: "概览" },
     { id: "python", label: "Python 环境" },
+    { id: "node", label: "Node.js 环境" },
     { id: "docker", label: "Docker 沙盒" },
     { id: "env", label: "工作区变量" },
   ];
@@ -608,11 +685,15 @@ export function ExecutionResourcesPanel({
                 workspaceId={workspaceId}
                 workspaceTitle={workspaceTitle}
                 registry={registry}
-                isLoading={isLoadingRegistry}
+                nodeRegistry={nodeRegistry}
+                isLoading={isLoadingRegistry || isLoadingNodeRegistry}
                 error={registryError}
                 notice={notice}
                 isEnsuringUv={isEnsuringUv}
-                onRefresh={() => void loadRegistry()}
+                onRefresh={() => {
+                  void loadRegistry();
+                  void loadNodeRegistry();
+                }}
                 onEnsureUv={handleEnsureUvWithConfirm}
                 onOpenSection={setActiveSection}
                 activeSandboxMode={activeSandboxMode}
@@ -672,6 +753,16 @@ export function ExecutionResourcesPanel({
               />
             ) : null}
 
+            {activeSection === "node" ? (
+              <div className="space-y-4">
+                {nodeRegistryError ? (
+                  <div className="rounded-lg border border-error/30 bg-error-container px-3 py-2 text-sm text-on-error-container">
+                    {nodeRegistryError}
+                  </div>
+                ) : null}
+                <NodeRuntimeTab workspaceId={workspaceId} />
+              </div>
+            ) : null}
 
         </main>
       </div>

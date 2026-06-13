@@ -38,15 +38,22 @@ export function RoleListItem({
   const isMarketView = Boolean(onEnableDefault);
 
   // 浏览视图（market）显示安装状态；管理视图（manage）显示可见性
+  // 系统内置角色未安装时默认可用，显示“内置可用”
   const statusLabel = !isInstalled
-    ? "可安装"
+    ? isSystemRole
+      ? "内置可用"
+      : "可安装"
     : isMarketView
-      ? "已安装"
+      ? isSystemRole
+        ? "已覆盖"
+        : "已安装"
       : role.hostSelectable
         ? "Agent 可见"
         : "Agent 不可见";
   const statusVariant = !isInstalled
-    ? "secondary"
+    ? isSystemRole
+      ? "success"
+      : "secondary"
     : isMarketView
       ? "success"
       : role.hostSelectable
@@ -145,7 +152,7 @@ export function RoleListItem({
                 }}
               >
                 <Plus className="h-3.5 w-3.5" />
-                安装到我的协作专家
+                {isSystemRole ? "覆盖到我的协作专家" : "安装到我的协作专家"}
               </Button>
             ) : null}
 
@@ -161,7 +168,7 @@ export function RoleListItem({
                 }}
               >
                 <Plus className="h-3.5 w-3.5" />
-                安装到工作区
+                {isSystemRole ? "覆盖到工作区" : "安装到工作区"}
               </Button>
             ) : null}
 

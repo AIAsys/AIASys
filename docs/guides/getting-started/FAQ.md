@@ -71,11 +71,11 @@ AIASYS_FRONTEND_PORT=13002 AIASYS_BACKEND_PORT=13003 ./dev.sh
 2. 模型是否已启用（模型列表中开关是开的）
 3. 默认模型是否已设置（在"默认模型"下拉里选中了一个 Chat 模型）
 
-### Q: 修改了 `config.json` 但界面上没变化？
+### Q: 修改了 `config.toml` 但界面上没变化？
 
-`config.json` 只在用户配置为空时作为初始值同步一次。如果已经在界面里配置过模型，`config.json` 的修改不会覆盖现有用户配置。需要调整时在界面的"模型配置"里改。
+`config.toml` 只在用户配置为空时作为初始值同步一次。如果已经在界面里配置过模型，`config.toml` 的修改不会覆盖现有用户配置。需要调整时在界面的"模型配置"里改。
 
-如果需要强制从 `config.json` 重新同步，需要先清空用户的全局工作区 LLM 配置文件（`workspaces/{user_id}/global_workspace/.aiasys/llm_config.json`），然后重启后端。LLM 配置在启动时加载，没有热更新接口。
+如果需要强制从 `config.toml` 重新同步，需要先清空用户的全局工作区 LLM 配置文件（`workspaces/{user_id}/global_workspace/.aiasys/llm_config.json`），然后重启后端。LLM 配置在启动时加载，没有热更新接口。
 
 ### Q: 模型测试连接失败？
 
@@ -185,7 +185,7 @@ tar -czf backup.tar.gz apps/backend/data/
 
 ```bash
 # 查看当前配置中的数据目录
-grep -r "data" apps/backend/config.json
+grep -r "data" apps/backend/config.toml
 ```
 
 ### Q: Docker 沙盒里的数据库怎么访问？

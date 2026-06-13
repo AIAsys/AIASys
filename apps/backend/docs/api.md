@@ -10,7 +10,7 @@
 
 | 项目 | 当前事实 |
 | --- | --- |
-| 默认端口 | `13001`，来自 `apps/backend/config.json -> server.port` |
+| 默认端口 | `13001`，来自 `apps/backend/config.toml -> server.port` |
 | 根级健康检查 | `GET /health`、`GET /health/auth`、`GET /health/docker` |
 | API 主前缀 | `/api` |
 | OpenAPI 文档 | 仅在 `DEBUG=true` 时开放 `/docs` 和 `/redoc` |

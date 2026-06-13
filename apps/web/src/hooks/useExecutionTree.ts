@@ -19,7 +19,8 @@ type ExecutionDisplayStatus =
   | "completed"
   | "failed"
   | "cancelled"
-  | "queued";
+  | "queued"
+  | "closed";
 
 function normalizeExecutionStatus(status: string | null | undefined): ExecutionDisplayStatus {
   const normalized = status?.trim().toLowerCase();
@@ -31,6 +32,7 @@ function normalizeExecutionStatus(status: string | null | undefined): ExecutionD
     case "cancelled":
     case "queued":
     case "idle":
+    case "closed":
       return normalized;
     case "finished":
       return "completed";

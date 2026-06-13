@@ -52,4 +52,11 @@ export interface SessionLifecycleActionContext
   removeAskUserSession: (sessionId: string) => void;
   showSuccess: (message: string) => void;
   showError: (message: string) => void;
+  onCompactionEvent?: (payload: {
+    phase: "begin" | "done";
+    tokens_before?: number;
+    tokens_after?: number;
+    saved_tokens?: number;
+    summary_tokens?: number;
+  }) => void;
 }

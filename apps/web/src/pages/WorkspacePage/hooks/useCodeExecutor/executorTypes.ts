@@ -49,8 +49,6 @@ export interface UseCodeExecutorReturn {
       | "collapsed"
       | ((prev: "expanded" | "collapsed") => "expanded" | "collapsed"),
   ) => void;
-  showImportModal: boolean;
-  setShowImportModal: (show: boolean) => void;
   messagesEndRef: React.RefObject<HTMLDivElement | null>;
   fileInputRef: React.RefObject<HTMLInputElement | null>;
   toasts: Array<{ id: string; message: string; type: "success" | "error" }>;
@@ -106,7 +104,6 @@ export interface UseCodeExecutorReturn {
     sessionId: string,
     title: string,
   ) => Promise<void>;
-  handleImportSuccess: () => Promise<void>;
   handleViewExecutionSpace: () => void;
   handleSubmit: (
     overridePrompt?: string,
@@ -122,6 +119,20 @@ export interface UseCodeExecutorReturn {
   handleStop: () => void;
   isRunning: boolean;
   tokenUsageRevision: number;
+  compactionState?: {
+    phase: "begin" | "done";
+    tokens_before?: number;
+    tokens_after?: number;
+    saved_tokens?: number;
+    summary_tokens?: number;
+  } | null;
+  handleCompactionEvent: (payload: {
+    phase: "begin" | "done";
+    tokens_before?: number;
+    tokens_after?: number;
+    saved_tokens?: number;
+    summary_tokens?: number;
+  }) => void;
   hasChatContent: boolean;
   currentHasAnyRunning: boolean;
   executionSummary: unknown;

@@ -4,7 +4,7 @@
 
 ## 当前模式
 
-认证配置来自 `apps/backend/config.json -> auth.mode`，当前代码支持三种模式：
+认证配置来自 `apps/backend/config.toml -> auth.mode`，当前代码支持三种模式：
 
 | 模式 | 说明 | 适用场景 |
 | --- | --- | --- |
@@ -52,7 +52,7 @@ Cookie 现状：
 
 默认 SSO 校验地址来自：
 
-- `apps/backend/config.json -> auth.sso_url`
+- `apps/backend/config.toml -> auth.sso_url`
 - 默认值: `http://localhost:3001/api/auth/session`
 
 ## `none` 模式

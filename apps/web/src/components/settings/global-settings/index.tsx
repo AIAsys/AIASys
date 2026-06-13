@@ -67,7 +67,7 @@ const NAV_GROUPS: NavGroup[] = [
       { id: "env-vars", label: "全局环境变量", icon: <Braces className="h-4 w-4" /> },
       { id: "uv-mirror", label: "uv 包管理器镜像", icon: <Globe className="h-4 w-4" /> },
       { id: "storage", label: "存储位置", icon: <FolderCog className="h-4 w-4" /> },
-      { id: "execution-resources", label: "Python 与执行资源", icon: <FlaskConical className="h-4 w-4" /> },
+      { id: "execution-resources", label: "执行资源", icon: <FlaskConical className="h-4 w-4" /> },
     ],
   },
   {
@@ -123,8 +123,8 @@ const SECTION_META: Record<
     icon: Zap,
   },
   "execution-resources": {
-    title: "Python 与执行资源",
-    description: "管理 Python 环境、Docker 容器和注入变量",
+    title: "执行资源",
+    description: "管理 Python、Node.js、Docker 容器和注入变量",
     icon: FlaskConical,
   },
   "auto-tasks": {

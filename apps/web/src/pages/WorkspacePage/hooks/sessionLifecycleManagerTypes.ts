@@ -22,6 +22,13 @@ export interface UseSessionLifecycleManagerParams {
   removeAskUserSession: (sessionId: string) => void;
   setAskUserActiveSessionId: (sessionId: string) => void;
   showAskUser: (request: AskUserRequest, sessionId: string) => void;
+  onCompactionEvent?: (payload: {
+    phase: "begin" | "done";
+    tokens_before?: number;
+    tokens_after?: number;
+    saved_tokens?: number;
+    summary_tokens?: number;
+  }) => void;
 }
 
 export type LifecycleToast = {

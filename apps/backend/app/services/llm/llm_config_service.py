@@ -414,24 +414,24 @@ class LLMConfigService:
         self._storage.initialize_defaults(user_id)
 
     def sync_config_json_to_user(self, user_id: str) -> None:
-        """将 config.json 的 llm.providers 同步到用户配置
+        """将 config.toml 的 llm.providers 同步到用户配置
 
         仅在用户配置为空时执行（幂等），避免覆盖用户已有配置。
-        使用 config.json 中的静态模型列表，避免启动时网络请求阻塞。
+        使用 config.toml 中的静态模型列表，避免启动时网络请求阻塞。
         """
         # 检查用户配置是否已有数据
         existing = self._storage.get_full_config(user_id)
         if existing.get("providers") or existing.get("models"):
-            logger.info("用户 LLM 配置已存在，跳过 config.json 同步")
+            logger.info("用户 LLM 配置已存在，跳过 config.toml 同步")
             return
 
         if not LLM_PROVIDERS:
-            logger.warning("config.json 中无 llm.providers，跳过同步")
+            logger.warning("config.toml 中无 llm.providers，跳过同步")
             return
 
         default_provider_id = LLM_CONFIG.get("default_provider")
 
-        logger.info("开始同步 config.json → 用户 LLM 配置")
+        logger.info("开始同步 config.toml → 用户 LLM 配置")
 
         created_providers = 0
         created_models = 0
@@ -464,19 +464,48 @@ class LLMConfigService:
                 logger.warning("创建 provider '%s' 失败: %s", provider_id, e)
                 continue
 
-            # 使用 config.json 中的静态模型列表
+            # 使用 config.toml 中的静态模型列表
             defaults = self._infer_model_defaults(provider_type)
-            for model_name in models_list:
+            default_model_name = LLM_CONFIG.get("default_model")
+            for item in models_list:
+                if isinstance(item, str):
+                    model_name = item
+                    model_cfg: Dict[str, Any] = {}
+                elif isinstance(item, dict):
+                    model_name = item.get("name")
+                    model_cfg = item
+                else:
+                    logger.warning("provider '%s' 中 models 条目类型不支持: %s", provider_id, type(item))
+                    continue
+
+                if not isinstance(model_name, str) or not model_name.strip():
+                    logger.warning("provider '%s' 中 models 条目缺少 name，已跳过", provider_id)
+                    continue
+
                 model_id = f"{provider_id}-{model_name}"
+
+                # 优先使用模型自身声明的上下文长度与能力
+                max_context_size = model_cfg.get("max_context_size")
+                if not isinstance(max_context_size, int) or max_context_size <= 0:
+                    max_context_size = defaults["max_context_size"]
+
+                capabilities = model_cfg.get("capabilities")
+                if capabilities is None:
+                    capabilities = defaults["capabilities"]
+                elif isinstance(capabilities, set):
+                    capabilities = list(capabilities)
+                elif not isinstance(capabilities, list):
+                    capabilities = []
+
                 model_data = LLMModelConfig(
                     id=model_id,
                     name=f"{model_name} ({provider_id})",
                     provider=provider_id,
                     model=model_name,
-                    max_context_size=defaults["max_context_size"],
-                    capabilities=defaults["capabilities"],
+                    max_context_size=max_context_size,
+                    capabilities=set(capabilities) if capabilities else None,
                     enabled=True,
-                    is_default=False,
+                    is_default=(model_name == default_model_name),
                 )
                 try:
                     self.create_model(user_id, model_data)
@@ -484,7 +513,7 @@ class LLMConfigService:
                 except Exception as e:
                     logger.warning("创建 model '%s' 失败: %s", model_id, e)
 
-        logger.info(f"config.json 同步完成: {created_providers} providers, {created_models} models")
+        logger.info(f"config.toml 同步完成: {created_providers} providers, {created_models} models")
 
     async def test_provider(self, user_id: str, provider_id: str) -> ProviderTestResult:
         """测试服务商连接"""

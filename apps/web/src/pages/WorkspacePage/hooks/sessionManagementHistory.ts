@@ -122,7 +122,10 @@ function buildSegmentsFromSDKMessage(
   }
 
   if (reasoningContent && !hasStructuredThink) {
-    segments.unshift({
+    // 将 reasoning_content 的 think 段插入到 turn 标记之后，保持 turn 在首位的视觉顺序
+    const turnIndex = segments.findIndex((seg) => seg.type === "turn");
+    const insertIndex = turnIndex >= 0 ? turnIndex + 1 : 0;
+    segments.splice(insertIndex, 0, {
       type: "think",
       content: reasoningContent,
       isComplete: true,
@@ -141,22 +144,6 @@ function buildSegmentsFromSDKMessage(
     }
   }
 
-  // 按类型排序：turn → think → tool_call → tool_output → text → monitor
-  // 每个类型必须有唯一 order，避免 sort 不稳定导致顺序随机
-  const SEGMENT_ORDER: Record<string, number> = {
-    turn: 0,
-    think: 1,
-    tool_call: 2,
-    tool_output: 3,
-    text: 4,
-    monitor: 5,
-  };
-  segments.sort((a, b) => {
-    const orderA = SEGMENT_ORDER[a.type] ?? 99;
-    const orderB = SEGMENT_ORDER[b.type] ?? 99;
-    return orderA - orderB;
-  });
-
   return segments.length > 0 ? segments : undefined;
 }
 
@@ -173,7 +160,8 @@ function mergeAssistantMessages(messages: HistoryMessage[]): HistoryMessage[] {
 
     if (msg.role === "assistant" && mergedMessages.length > 0) {
       const lastMsg = mergedMessages[mergedMessages.length - 1];
-      if (lastMsg.role === "assistant") {
+      // 只有同 turn 的 assistant 消息才合并，避免破坏 turn 边界
+      if (lastMsg.role === "assistant" && lastMsg.turn_n === msg.turn_n) {
         const lastContent = Array.isArray(lastMsg.content)
           ? lastMsg.content
           : typeof lastMsg.content === "string" && lastMsg.content.trim()
@@ -227,7 +215,7 @@ export function restoreChatItemsFromHistory(
   const restoredItems: ChatItem[] = [];
   const mergedMessages = mergeAssistantMessages(messages);
   const toolNameMap = new Map<string, string>();
-  let turnIndex = 0;
+  let legacyTurnIndex = 0;
 
   mergedMessages.forEach((msg, index) => {
     const timeValue = Date.now() + index;
@@ -261,10 +249,17 @@ export function restoreChatItemsFromHistory(
 
     if (msg.role === "assistant") {
       const hasContent = _hasSubstantiveContent(msg);
+      // 优先使用后端返回的 turn_n，无则退化为旧的自增逻辑（兼容旧会话）
+      let turnN: number | undefined;
       if (hasContent) {
-        turnIndex++;
+        if (typeof msg.turn_n === "number") {
+          turnN = msg.turn_n;
+        } else {
+          legacyTurnIndex++;
+          turnN = legacyTurnIndex;
+        }
       }
-      const segments = buildSegmentsFromSDKMessage(msg, hasContent ? turnIndex : undefined);
+      const segments = buildSegmentsFromSDKMessage(msg, turnN);
       const lastItem = restoredItems[restoredItems.length - 1];
 
       if (lastItem && lastItem.type === "message" && lastItem.sender === "ai") {

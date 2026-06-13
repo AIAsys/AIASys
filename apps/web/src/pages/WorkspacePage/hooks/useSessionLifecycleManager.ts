@@ -36,6 +36,7 @@ export function useSessionLifecycleManager({
   removeAskUserSession,
   setAskUserActiveSessionId,
   showAskUser,
+  onCompactionEvent,
 }: UseSessionLifecycleManagerParams): UseSessionLifecycleManagerReturn {
   const {
     toasts,
@@ -151,6 +152,7 @@ export function useSessionLifecycleManager({
     setRecordsDialogTab,
     setHighlightedExecutionSequence,
     setIsLoadingExecutionRecords,
+    onCompactionEvent,
   });
 
   return {

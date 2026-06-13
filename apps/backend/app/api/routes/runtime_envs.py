@@ -210,6 +210,209 @@ async def bind_workspace_runtime_env(
         _raise_runtime_error(exc)
 
 
+
+# ── Node.js / fnm 端点 ──
+
+
+@router.get(
+    "/node",
+    response_model=NodeRuntimeEnvRegistryResponse,
+)
+async def list_workspace_node_envs(
+    workspace_id: str,
+    current_user: UserInfo = Depends(require_auth()),
+):
+    """列出当前工作区登记的 Node.js/fnm 运行环境。"""
+    try:
+        return _node_service().list_node_envs(
+            current_user.user_id,
+            workspace_id,
+        )
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        _raise_runtime_error(exc)
+
+
+@router.post(
+    "/node",
+    response_model=NodeRuntimeEnvActionResponse,
+)
+async def ensure_workspace_node_env(
+    workspace_id: str,
+    request: EnsureWorkspaceNodeEnvRequest,
+    current_user: UserInfo = Depends(require_auth()),
+):
+    """创建或刷新工作区 Node.js/fnm 环境。"""
+    try:
+        env, command_result = _node_service().ensure_node_env(
+            current_user.user_id,
+            workspace_id,
+            env_id=request.env_id,
+            display_name=request.display_name,
+            node_version=request.node_version,
+            npm_packages=request.npm_packages,
+        )
+        refresh_required = False
+        if request.activate:
+            env = _node_service().bind_node_env(
+                current_user.user_id,
+                workspace_id,
+                env.env_id,
+            )
+            refresh_required = True
+        return NodeRuntimeEnvActionResponse(
+            workspace_id=workspace_id,
+            env=env,
+            refresh_required=refresh_required,
+            command_result=command_result,
+        )
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        _raise_runtime_error(exc)
+
+
+@router.post(
+    "/node/install",
+    response_model=NodeRuntimeActionResponse,
+)
+async def install_node_version(
+    workspace_id: str,
+    request: InstallNodeVersionRequest,
+    current_user: UserInfo = Depends(require_auth()),
+):
+    """通过 fnm 安装指定 Node.js 版本。"""
+    try:
+        result = _node_service().install_node_version(
+            current_user.user_id, workspace_id, version=request.node_version
+        )
+        return NodeRuntimeActionResponse(workspace_id=workspace_id, result=result)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        _raise_runtime_error(exc)
+
+
+@router.post(
+    "/node/use",
+    response_model=NodeRuntimeActionResponse,
+)
+async def use_node_version(
+    workspace_id: str,
+    request: UseNodeVersionRequest,
+    current_user: UserInfo = Depends(require_auth()),
+):
+    """在工作区切换到指定 Node.js 版本。"""
+    try:
+        result = _node_service().use_node_version(
+            current_user.user_id, workspace_id, request.env_id, request.node_version
+        )
+        return NodeRuntimeActionResponse(workspace_id=workspace_id, result=result)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        _raise_runtime_error(exc)
+
+
+@router.post(
+    "/node/default",
+    response_model=NodeRuntimeActionResponse,
+)
+async def set_default_node_version(
+    workspace_id: str,
+    request: SetDefaultNodeVersionRequest,
+    current_user: UserInfo = Depends(require_auth()),
+):
+    """设置全局默认 Node.js 版本。"""
+    try:
+        result = _node_service().set_default_node_version(
+            current_user.user_id, workspace_id, request.node_version
+        )
+        return NodeRuntimeActionResponse(workspace_id=workspace_id, result=result)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        _raise_runtime_error(exc)
+
+
+@router.get(
+    "/node/current",
+    response_model=NodeRuntimeActionResponse,
+)
+async def get_current_node_version(
+    workspace_id: str,
+    current_user: UserInfo = Depends(require_auth()),
+):
+    """查看当前激活的 Node.js 版本。"""
+    try:
+        result = _node_service().get_current_node_version(
+            current_user.user_id, workspace_id
+        )
+        return NodeRuntimeActionResponse(workspace_id=workspace_id, result=result)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        _raise_runtime_error(exc)
+
+
+@router.post(
+    "/node/uninstall",
+    response_model=NodeRuntimeActionResponse,
+)
+async def uninstall_node_version(
+    workspace_id: str,
+    request: UninstallNodeVersionRequest,
+    current_user: UserInfo = Depends(require_auth()),
+):
+    """卸载指定 Node.js 版本。"""
+    try:
+        result = _node_service().uninstall_node_version(
+            current_user.user_id, workspace_id, request.node_version
+        )
+        return NodeRuntimeActionResponse(workspace_id=workspace_id, result=result)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        _raise_runtime_error(exc)
+
+
+@router.get(
+    "/node/remote",
+    response_model=NodeRuntimeActionResponse,
+)
+async def list_remote_node_versions(
+    workspace_id: str,
+    current_user: UserInfo = Depends(require_auth()),
+):
+    """查看可远程安装的 Node.js 版本列表。"""
+    try:
+        result = _node_service().list_remote_versions(
+            current_user.user_id, workspace_id
+        )
+        return NodeRuntimeActionResponse(workspace_id=workspace_id, result=result)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        _raise_runtime_error(exc)
+
+
 @router.get(
     "/{env_id}",
     response_model=WorkspaceRuntimeEnvInspectionResponse,
@@ -277,196 +480,3 @@ async def unregister_workspace_runtime_env(
         _raise_runtime_error(exc)
 
 
-# ── Node.js / fnm 端点 ──
-
-
-@router.get(
-    "/node",
-    response_model=NodeRuntimeEnvRegistryResponse,
-)
-async def list_workspace_node_envs(
-    workspace_id: str,
-    current_user: UserInfo = Depends(require_auth()),
-):
-    """列出当前工作区登记的 Node.js/fnm 运行环境。"""
-    try:
-        return _node_service().list_node_envs(
-            current_user.user_id,
-            workspace_id,
-        )
-    except FileNotFoundError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    except RuntimeError as exc:
-        _raise_runtime_error(exc)
-
-
-@router.post(
-    "/node",
-    response_model=NodeRuntimeEnvActionResponse,
-)
-async def ensure_workspace_node_env(
-    workspace_id: str,
-    request: EnsureWorkspaceNodeEnvRequest,
-    current_user: UserInfo = Depends(require_auth()),
-):
-    """创建或刷新工作区 Node.js/fnm 环境。"""
-    try:
-        env, command_result = _node_service().ensure_node_env(
-            workspace_id,
-            env_id=request.env_id,
-            display_name=request.display_name,
-            node_version=request.node_version,
-            npm_packages=request.npm_packages,
-        )
-        refresh_required = False
-        if request.activate:
-            env = _node_service().bind_node_env(
-                current_user.user_id,
-                workspace_id,
-                env.env_id,
-            )
-            refresh_required = True
-        return RuntimeEnvActionResponse(
-            workspace_id=workspace_id,
-            env=env,
-            refresh_required=refresh_required,
-            command_result=command_result,
-        )
-    except FileNotFoundError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    except RuntimeError as exc:
-        _raise_runtime_error(exc)
-
-
-@router.post(
-    "/node/install",
-    response_model=NodeRuntimeActionResponse,
-)
-async def install_node_version(
-    workspace_id: str,
-    request: InstallNodeVersionRequest,
-    current_user: UserInfo = Depends(require_auth()),
-):
-    """通过 fnm 安装指定 Node.js 版本。"""
-    try:
-        result = _node_service().install_node_version(workspace_id, request.node_version)
-        return NodeRuntimeActionResponse(workspace_id=workspace_id, result=result)
-    except FileNotFoundError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    except RuntimeError as exc:
-        _raise_runtime_error(exc)
-
-
-@router.post(
-    "/node/use",
-    response_model=NodeRuntimeActionResponse,
-)
-async def use_node_version(
-    workspace_id: str,
-    request: UseNodeVersionRequest,
-    current_user: UserInfo = Depends(require_auth()),
-):
-    """在工作区切换到指定 Node.js 版本。"""
-    try:
-        result = _node_service().use_node_version(
-            workspace_id, request.env_id, request.node_version
-        )
-        return NodeRuntimeActionResponse(workspace_id=workspace_id, result=result)
-    except FileNotFoundError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    except RuntimeError as exc:
-        _raise_runtime_error(exc)
-
-
-@router.post(
-    "/node/default",
-    response_model=NodeRuntimeActionResponse,
-)
-async def set_default_node_version(
-    workspace_id: str,
-    request: SetDefaultNodeVersionRequest,
-    current_user: UserInfo = Depends(require_auth()),
-):
-    """设置全局默认 Node.js 版本。"""
-    try:
-        result = _node_service().set_default_node_version(
-            workspace_id, request.node_version
-        )
-        return NodeRuntimeActionResponse(workspace_id=workspace_id, result=result)
-    except FileNotFoundError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    except RuntimeError as exc:
-        _raise_runtime_error(exc)
-
-
-@router.get(
-    "/node/current",
-    response_model=NodeRuntimeActionResponse,
-)
-async def get_current_node_version(
-    workspace_id: str,
-    current_user: UserInfo = Depends(require_auth()),
-):
-    """查看当前激活的 Node.js 版本。"""
-    try:
-        result = _node_service().get_current_node_version(workspace_id)
-        return NodeRuntimeActionResponse(workspace_id=workspace_id, result=result)
-    except FileNotFoundError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    except RuntimeError as exc:
-        _raise_runtime_error(exc)
-
-
-@router.post(
-    "/node/uninstall",
-    response_model=NodeRuntimeActionResponse,
-)
-async def uninstall_node_version(
-    workspace_id: str,
-    request: UninstallNodeVersionRequest,
-    current_user: UserInfo = Depends(require_auth()),
-):
-    """卸载指定 Node.js 版本。"""
-    try:
-        result = _node_service().uninstall_node_version(
-            workspace_id, request.node_version
-        )
-        return NodeRuntimeActionResponse(workspace_id=workspace_id, result=result)
-    except FileNotFoundError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    except RuntimeError as exc:
-        _raise_runtime_error(exc)
-
-
-@router.get(
-    "/node/remote",
-    response_model=NodeRuntimeActionResponse,
-)
-async def list_remote_node_versions(
-    workspace_id: str,
-    current_user: UserInfo = Depends(require_auth()),
-):
-    """查看可远程安装的 Node.js 版本列表。"""
-    try:
-        result = _node_service().list_remote_versions(workspace_id)
-        return NodeRuntimeActionResponse(workspace_id=workspace_id, result=result)
-    except FileNotFoundError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    except RuntimeError as exc:
-        _raise_runtime_error(exc)

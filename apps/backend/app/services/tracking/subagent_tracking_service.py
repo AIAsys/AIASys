@@ -23,7 +23,7 @@ def _normalize_execution_tree_status(status: Optional[str], *, default: str = "i
     if not normalized:
         return default
 
-    if normalized in {"completed", "failed", "cancelled", "queued", "running", "idle"}:
+    if normalized in {"completed", "failed", "cancelled", "queued", "running", "idle", "closed"}:
         return normalized
     if normalized == "finished":
         return "completed"

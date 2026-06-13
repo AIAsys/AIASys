@@ -34,6 +34,16 @@ interface UseStreamEventHandlerProps {
   onAskUserRequest?: (request: AskUserRequest, sessionId: string) => void;
   /** 当收到 Sub Agent 事件时调用（用于刷新执行树） */
   onSubAgentEvent?: (event: unknown) => void;
+  /** 当收到上下文压缩事件时调用 */
+  onCompactionEvent?: (payload: {
+    phase: "begin" | "done";
+    tokens_before?: number;
+    tokens_after?: number;
+    saved_tokens?: number;
+    summary_tokens?: number;
+  }) => void;
+  /** 当收到 token_usage 事件时调用（用于刷新右栏上下文占用） */
+  onTokenUsageShouldRefresh?: () => void;
 }
 
 export function useStreamEventHandler({
@@ -43,12 +53,18 @@ export function useStreamEventHandler({
   isSessionRunning,
   onAskUserRequest,
   onSubAgentEvent,
+  onCompactionEvent,
+  onTokenUsageShouldRefresh,
 }: UseStreamEventHandlerProps) {
   // 用 ref 持有频繁变化的外部回调，避免 handleStreamEvent 每帧重建
   const onAskUserRequestRef = useRef(onAskUserRequest);
   onAskUserRequestRef.current = onAskUserRequest;
   const onSubAgentEventRef = useRef(onSubAgentEvent);
   onSubAgentEventRef.current = onSubAgentEvent;
+  const onCompactionEventRef = useRef(onCompactionEvent);
+  onCompactionEventRef.current = onCompactionEvent;
+  const onTokenUsageShouldRefreshRef = useRef(onTokenUsageShouldRefresh);
+  onTokenUsageShouldRefreshRef.current = onTokenUsageShouldRefresh;
   const isSessionRunningRef = useRef(isSessionRunning);
   isSessionRunningRef.current = isSessionRunning;
 
@@ -497,6 +513,23 @@ export function useStreamEventHandler({
         });
       }
       syncSegmentsToUI(sessionId);
+    }
+
+    // Type: Token Usage — 后端已返回最终精确 token 数，立即刷新右栏上下文占用
+    if (eventType === "token_usage") {
+      onTokenUsageShouldRefreshRef.current?.();
+    }
+
+    // Type: Compaction
+    if (eventType === "compaction") {
+      const payload = event as {
+        phase: "begin" | "done";
+        tokens_before?: number;
+        tokens_after?: number;
+        saved_tokens?: number;
+        summary_tokens?: number;
+      };
+      onCompactionEventRef.current?.(payload);
     }
 
     // Type: Ask User Request

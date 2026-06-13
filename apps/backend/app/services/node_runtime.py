@@ -23,13 +23,13 @@ from app.models.runtime_environment import (
     RuntimeEnvCommandResult,
     RuntimeEnvPackage,
 )
-from app.models.workspace import WorkspaceRuntimeBinding
+
 
 logger = logging.getLogger(__name__)
 
 DEFAULT_NODE_ENV_ID = "node-default"
 WORKSPACE_RUNTIME_DIR_NAME = ".env"
-_REGISTRY_FILE = "environments.json"
+_REGISTRY_FILE = "node-environments.json"
 _ID_PATTERN = re.compile(r"^[a-zA-Z0-9_-]+$")
 _VERSION_PATTERN = re.compile(r"^v?\d+(\.\d+)*(\.\d+)?$")
 
@@ -455,6 +455,7 @@ class NodeRuntimeService:
 
     def ensure_node_env(
         self,
+        user_id: str,
         workspace_id: str,
         env_id: str = DEFAULT_NODE_ENV_ID,
         display_name: str = "Workspace Node",
@@ -473,7 +474,7 @@ class NodeRuntimeService:
             )
 
         env_id = _normalize_env_id(env_id, DEFAULT_NODE_ENV_ID)
-        workspace_dir = self._workspace_dir(workspace_id)
+        workspace_dir = self._workspace_dir(user_id, workspace_id)
         env_dir = self._env_dir(workspace_dir)
         env_dir.mkdir(parents=True, exist_ok=True)
         now = _now_iso()
@@ -557,26 +558,6 @@ class NodeRuntimeService:
         registry["envs"] = updated_envs
         registry["updated_at"] = _now_iso()
         self._write_registry(workspace_dir, registry)
-
-        # 同步更新 workspace 的 runtime_binding
-        try:
-            workspace = self.workspace_registry.get_workspace(
-                user_id,
-                workspace_id,
-                include_conversations=False,
-            )
-            current_binding = workspace.runtime_binding
-            self.workspace_registry.update_workspace(
-                user_id=user_id,
-                workspace_id=workspace_id,
-                runtime_binding=WorkspaceRuntimeBinding(
-                    sandbox_mode="local",
-                    env_id=env.env_id,
-                    env_vars=current_binding.env_vars,
-                ),
-            )
-        except Exception:
-            pass  # workspace_registry 可能不可用，不影响本地注册表
 
         env.active = True
         return env

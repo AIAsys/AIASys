@@ -2,7 +2,7 @@
 
 > 当前版本: v0.3.9
 
-本指南用于帮助新协作者把当前仓库跑起来。当前后端运行配置使用 `apps/backend/config.json`，前端默认从 `13000` 访问后端 `13001`。
+本指南用于帮助新协作者把当前仓库跑起来。当前后端运行配置使用 `apps/backend/config.toml`，前端默认从 `13000` 访问后端 `13001`。
 
 ## 1. 前置要求
 
@@ -26,7 +26,7 @@ cd AIASys
 
 ```bash
 cd apps/backend
-[ -f config.json ] || cp config.example.json config.json
+[ -f config.toml ] || cp config.example.toml config.toml
 uv sync
 cd ../..
 ```
@@ -43,7 +43,7 @@ cd ../..
 
 - 后端依赖事实源是 `apps/backend/pyproject.toml` 和 `apps/backend/uv.lock`。
 
-- `config.json` 需要按本机模型、认证和运行时配置补齐。
+- `config.toml` 需要按本机模型、认证和运行时配置补齐。新增项目请优先使用 TOML。
 
 ## 3. 启动开发环境
 
@@ -115,37 +115,55 @@ cd ../..
 
 ```bash
 cd apps/backend
-vim config.json
+vim config.toml
 ```
 
 关键项示例：
 
-```json
-{
-  "server": { "port": 13001 },
-  "auth": { "mode": "local" },
-  "sandbox": {
-    "default_mode": "local",
-    "enabled_modes": ["local"]
-  },
-  "llm": {
-    "default_provider": "kimi",
-    "default_model": "kimi-for-coding",
-    "providers": {
-      "kimi": {
-        "type": "anthropic_messages",
-        "base_url": "https://api.kimi.com/coding/v1",
-        "api_key": "sk-...",
-        "models": ["kimi-for-coding"]
-      }
-    }
-  }
-}
+```toml
+[server]
+host = "0.0.0.0"
+port = 13001
+
+[llm]
+default_provider = "stepfun"
+default_model = "step-3.7-flash"
+temperature = 0.6
+
+[llm.providers.stepfun]
+type = "openai_chat_completions"
+base_url = "https://api.stepfun.com/v1"
+api_key = "sk-..."
+
+# 纯文本模型
+[[llm.providers.stepfun.models]]
+name = "step-router-v1"
+max_context_size = 256000
+capabilities = []
+
+[[llm.providers.stepfun.models]]
+name = "step-3.5-flash"
+max_context_size = 200000
+capabilities = []
+
+# 多模态模型
+[[llm.providers.stepfun.models]]
+name = "step-3.7-flash"
+max_context_size = 256000
+capabilities = ["thinking", "image_in", "video_in"]
+
+[[llm.providers.stepfun.models]]
+name = "step-router-v2-pro"
+max_context_size = 190000
+capabilities = ["thinking", "image_in"]
 ```
 
-Kimi Coding API 使用 `Anthropic Messages` 协议。请求头里的 `User-Agent: KimiCLI/1.16.0` 由后端按 `kimi.com/coding` 地址自动补齐。
+模型配置支持两种写法：
 
-`config.json` 适合本地首次启动前预置模型。用户配置为空时，后端会把这里的 `llm.providers` 同步到当前用户的全局工作区模型配置中，之后界面上的模型配置会保存到：
+- 字符串数组：`models = ["step-3.7-flash"]`，capabilities 由后端按接口类型推断。
+- 对象数组：每个模型可声明 `name`、`max_context_size`、`capabilities`，用于精确区分纯文本模型和多模态模型。
+
+`config.toml` 适合本地首次启动前预置模型。用户配置为空时，后端会把这里的 `llm.providers` 同步到当前用户的全局工作区模型配置中，之后界面上的模型配置会保存到：
 
 ```text
 workspaces/{user_id}/global_workspace/.aiasys/llm_config.json
@@ -153,7 +171,7 @@ workspaces/{user_id}/global_workspace/.aiasys/llm_config.json
 
 默认代码执行路径使用本地 UV 运行环境。Docker 不作为默认 `RuntimeEnvironment`，需要在工作区的 Docker 沙盒资源中显式登记已有容器，或按镜像创建容器后再使用。容器通过 `/workspace` 访问工作区文件和产物，容器内系统依赖与 Python 环境由镜像或容器内安装提供。
 
-如果已经在界面里配置过模型，修改 `config.json` 不会覆盖现有用户配置。需要调整时，优先在界面的`模型配置`里修改。
+如果已经在界面里配置过模型，修改 `config.toml` 不会覆盖现有用户配置。需要调整时，优先在界面的`模型配置`里修改。
 
 ### 前端配置
 

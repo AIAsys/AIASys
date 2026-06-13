@@ -45,21 +45,18 @@ uv run uvicorn app.main:app --reload --port 13001
 
 ## 运行配置（最小）
 
-当前后端统一从 `apps/backend/config.json` 读取运行配置，可参考 `apps/backend/config.example.json`。
+当前后端统一从 `apps/backend/config.toml` 读取运行配置，可参考 `apps/backend/config.example.toml`。
 
-```json
-{
-  "server": {
-    "port": 13001
-  },
-  "auth": {
-    "mode": "local"
-  },
-  "sandbox": {
-    "default_mode": "local",
-    "enabled_modes": ["local"]
-  }
-}
+```toml
+[server]
+port = 13001
+
+[auth]
+mode = "local"
+
+[sandbox]
+default_mode = "local"
+enabled_modes = ["local"]
 ```
 
 说明：
@@ -67,8 +64,8 @@ uv run uvicorn app.main:app --reload --port 13001
 - `auth.mode` 支持 `local / sso / none`
 - `sandbox.default_mode` 当前主线支持 `local`
 - `sandbox.enabled_modes` 用于声明当前允许启用的运行时模式
-- LLM、Embedding、上传限制等也统一在 `config.json` 中维护
-- 修改 `config.json` 后需重启后端服务
+- LLM、Embedding、上传限制等也统一在 `config.toml` 中维护
+- 修改 `config.toml` 后需重启后端服务
 
 ## 认证模式
 

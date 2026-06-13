@@ -106,6 +106,8 @@ class SessionManager(StatusMixin, HistoryMixin, FileSnapshotMixin):
         existing_enabled_expert_role_ids = None
         existing_expert_role_tool_ids = None
         existing_collaboration_policy = None
+        existing_context_tokens = None
+        existing_budget = None
         if is_recreate:
             # 保留现有的 hidden 标记和标题
             try:
@@ -154,6 +156,12 @@ class SessionManager(StatusMixin, HistoryMixin, FileSnapshotMixin):
                         "collaboration_policy",
                         None,
                     )
+                    existing_context_tokens = getattr(
+                        existing_meta,
+                        "context_tokens",
+                        None,
+                    )
+                    existing_budget = getattr(existing_meta, "budget", None)
             except FileNotFoundError:
                 pass
             except Exception:
@@ -212,6 +220,15 @@ class SessionManager(StatusMixin, HistoryMixin, FileSnapshotMixin):
                 kwargs["collaboration_policy"] = normalize_collaboration_policy(
                     existing_collaboration_policy
                 )
+            # 保留已保存的精确 token 占用和 budget，避免 runtime rebuild 把它重置为默认值
+            if (
+                kwargs.get("context_tokens") is None
+                and existing_context_tokens is not None
+                and existing_context_tokens > 0
+            ):
+                kwargs["context_tokens"] = existing_context_tokens
+            if kwargs.get("budget") is None and existing_budget is not None:
+                kwargs["budget"] = existing_budget
 
         # 如果是重新创建且原会话有标题（不是默认标题），保留原有标题
         generic_titles = ("新会话", "新会话", "新任务")

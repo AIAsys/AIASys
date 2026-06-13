@@ -16,7 +16,6 @@
 
 ### 功能模态框与辅助
 
-- **`FileImportModal.tsx`**: 文件导入模态框。允许用户从历史对话或其他来源导入文件到当前工作区。
 - **`ExecutionResourcesPanel.tsx`**: Python 与执行资源面板。通过齿轮设置菜单或输入框 Python 状态徽标打开，管理当前工作区 Python 环境、Docker 资源、工作区变量注入。Docker 资源直接嵌在 Docker 分组里，不再作为文件树资源或二级跳转入口。
 - **`SessionLifecycleDialogs.tsx`**: 历史记录详情弹窗。用于查看当前会话保留的对话上下文与代码执行轨迹，并按维护时间戳折叠较早批次。
 - **`WorkspaceAuxiliaryDialogs.tsx`**: 页面级辅助对话框集合。负责执行环境重置确认以及其他非主链弹窗；其中本地执行链路需要明确提示“释放当前 notebook 内核，下一次代码执行时创建新的执行环境”。
@@ -32,7 +31,6 @@ WorkspacePage
   -> WorkspaceSidebar
   -> WorkspaceContextSurface
      -> WorkspaceSettingsCanvas
-  -> FileImportModal
   -> ToolPreviewPopover
 ```
 

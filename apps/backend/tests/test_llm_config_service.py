@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import pytest
+
 from app.services.llm.llm_config_service import LLMConfigService
+from app.storage.llm_provider_storage import LLMProviderStorage
 
 
 class _FakeStorage:
@@ -141,3 +144,93 @@ def test_update_model_defaults_rejects_wrong_model_type():
         assert "embedding" in str(exc)
     else:
         raise AssertionError("expected ValueError for wrong embedding model type")
+
+
+@pytest.fixture
+def temp_user_config_dir(monkeypatch, tmp_path):
+    """把用户全局配置目录重定向到临时目录，避免污染真实数据。"""
+    from app.core import config as core_config
+
+    def fake_dir(user_id: str) -> __import__("pathlib").Path:
+        return tmp_path / str(user_id) / ".aiasys"
+
+    monkeypatch.setattr(core_config, "get_user_global_config_dir", fake_dir)
+    return tmp_path
+
+
+def test_sync_config_json_to_user_with_object_models_and_capabilities(
+    temp_user_config_dir, monkeypatch
+):
+    """验证 TOML 对象数组模型配置能正确同步 capabilities、上下文长度和默认模型。"""
+    monkeypatch.setattr(
+        "app.services.llm.llm_config_service.LLM_CONFIG",
+        {"default_provider": "stepfun", "default_model": "step-3.7-flash"},
+    )
+    monkeypatch.setattr(
+        "app.services.llm.llm_config_service.LLM_PROVIDERS",
+        {
+            "stepfun": {
+                "type": "openai_chat_completions",
+                "base_url": "https://api.stepfun.com/v1",
+                "api_key": "test-key",
+                "models": [
+                    {"name": "step-router-v1", "max_context_size": 256000, "capabilities": []},
+                    {"name": "step-3.5-flash", "max_context_size": 200000, "capabilities": []},
+                    {
+                        "name": "step-3.7-flash",
+                        "max_context_size": 256000,
+                        "capabilities": ["thinking", "image_in", "video_in"],
+                    },
+                ],
+            }
+        },
+    )
+
+    service = LLMConfigService(storage=LLMProviderStorage())
+    service.sync_config_json_to_user("user1")
+
+    full = service.get_full_config("user1")
+    models = full["models"]
+
+    assert len(models) == 3
+    assert models["stepfun-step-router-v1"]["max_context_size"] == 256000
+    assert models["stepfun-step-router-v1"].get("capabilities") in (None, [])
+    assert models["stepfun-step-3.5-flash"]["max_context_size"] == 200000
+    assert models["stepfun-step-3.5-flash"].get("capabilities") in (None, [])
+
+    multimodal = models["stepfun-step-3.7-flash"]
+    assert multimodal["max_context_size"] == 256000
+    assert set(multimodal["capabilities"]) == {"thinking", "image_in", "video_in"}
+    assert full["default_model"] == "stepfun-step-3.7-flash"
+
+
+def test_sync_config_json_to_user_with_string_models_fallback(
+    temp_user_config_dir, monkeypatch
+):
+    """验证字符串数组模型配置仍兼容，capabilities 由接口类型推断。"""
+    monkeypatch.setattr(
+        "app.services.llm.llm_config_service.LLM_CONFIG",
+        {"default_provider": "stepfun", "default_model": "step-3.7-flash"},
+    )
+    monkeypatch.setattr(
+        "app.services.llm.llm_config_service.LLM_PROVIDERS",
+        {
+            "stepfun": {
+                "type": "openai_chat_completions",
+                "base_url": "https://api.stepfun.com/v1",
+                "api_key": "test-key",
+                "models": ["step-router-v1", "step-3.7-flash"],
+            }
+        },
+    )
+
+    service = LLMConfigService(storage=LLMProviderStorage())
+    service.sync_config_json_to_user("user2")
+
+    full = service.get_full_config("user2")
+    models = full["models"]
+
+    assert len(models) == 2
+    assert models["stepfun-step-router-v1"]["max_context_size"] == 128000
+    assert set(models["stepfun-step-router-v1"]["capabilities"]) == {"thinking", "image_in"}
+    assert full["default_model"] == "stepfun-step-3.7-flash"

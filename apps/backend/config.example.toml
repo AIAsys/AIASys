@@ -1,0 +1,77 @@
+# AIASys 后端配置示例
+# 复制为 config.toml 后填写真实 key，config.toml 已加入 .gitignore，不会进入版本控制
+
+[server]
+host = "0.0.0.0"
+port = 13001
+log_level = "info"
+
+[llm]
+default_provider = "stepfun"
+default_model = "step-3.7-flash"
+temperature = 0.6
+
+[llm.providers.stepfun]
+type = "openai_chat_completions"
+base_url = "https://api.stepfun.com/v1"
+api_key = "your-stepfun-api-key"
+
+# 纯文本模型
+[[llm.providers.stepfun.models]]
+name = "step-router-v1"
+max_context_size = 256000
+capabilities = []
+
+[[llm.providers.stepfun.models]]
+name = "step-3.5-flash"
+max_context_size = 200000
+capabilities = []
+
+[[llm.providers.stepfun.models]]
+name = "step-3.5-flash-2603"
+max_context_size = 200000
+capabilities = []
+
+# 多模态模型
+[[llm.providers.stepfun.models]]
+name = "step-3.7-flash"
+max_context_size = 256000
+capabilities = ["thinking", "image_in", "video_in"]
+
+[[llm.providers.stepfun.models]]
+name = "step-router-v2-pro"
+max_context_size = 190000
+capabilities = ["thinking", "image_in"]
+
+[[llm.providers.stepfun.models]]
+name = "step-router-v2-ultra"
+max_context_size = 190000
+capabilities = ["thinking", "image_in"]
+
+[embedding]
+enabled = true
+provider = "siliconflow"
+model = "BAAI/bge-m3"
+api_key = "your-siliconflow-api-key"
+base_url = "https://api.siliconflow.cn/v1"
+dimension = 1024
+chroma_path = "data/chroma"
+
+[auth]
+mode = "local"
+jwt_secret = "your-jwt-secret-change-in-production"
+
+[sandbox]
+default_mode = "local"
+enabled_modes = ["local"]
+
+[resources]
+global_scan_limit = 100
+prompt_item_limit = 5
+
+[document_extraction]
+default_model = "step-3.7-flash"
+pdf_password = ""
+
+[canvas]
+auto_save_debounce_ms = 800

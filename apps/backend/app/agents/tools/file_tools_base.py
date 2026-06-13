@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Literal
 
 from app.services.history import current_global_workspace, current_session_root, current_workspace
 
@@ -111,3 +112,66 @@ def _resolve_file_path(path_str: str) -> Path:
             )
 
     return resolved
+
+
+# ---------------------------------------------------------------------------
+# 换行符处理 helper
+# ---------------------------------------------------------------------------
+
+LineEndingStyle = Literal["lf", "crlf", "mixed"]
+
+
+def detect_line_ending_style(text: str) -> LineEndingStyle:
+    """检测文本的换行符风格。
+
+    - 同时存在 \r\n 和 \n（且后者不跟在 \r 后）→ mixed
+    - 只有 \r\n → crlf
+    - 只有 \n 或只有 \r → lf
+    """
+    has_crlf = False
+    has_lf = False
+    has_lone_cr = False
+
+    i = 0
+    while i < len(text):
+        ch = text[i]
+        if ch == "\r":
+            if i + 1 < len(text) and text[i + 1] == "\n":
+                has_crlf = True
+                i += 2
+                continue
+            has_lone_cr = True
+        elif ch == "\n":
+            has_lf = True
+        i += 1
+
+    if has_crlf and (has_lf or has_lone_cr):
+        return "mixed"
+    if has_crlf:
+        return "crlf"
+    return "lf"
+
+
+def normalize_line_endings_for_display(text: str, style: LineEndingStyle) -> str:
+    """把原始文本转为模型可读的显示格式。
+
+    - crlf：把 \r\n 转为 \n（模型看到 LF，但 style 信息会单独返回）
+    - mixed：把 lone \r 显示为 \\r，保留 \n
+    """
+    if style == "crlf":
+        return text.replace("\r\n", "\n")
+    if style == "mixed":
+        # lone CR 显示为转义序列，让模型知道这里有个 CR
+        return text.replace("\r\n", "\n").replace("\r", "\\r")
+    return text
+
+
+def restore_line_endings(text: str, style: LineEndingStyle) -> str:
+    """把编辑后的显示文本恢复为指定换行符风格。"""
+    if style == "crlf":
+        # 先把已有的 \r\n 规范化，再把 \n 转成 \r\n
+        return text.replace("\r\n", "\n").replace("\n", "\r\n")
+    if style == "mixed":
+        # 模型看到的 \\r 需要恢复为 \r；这里不处理 CRLF，因为 mixed 场景下我们已把 CRLF 拆成 lone CR
+        return text.replace("\\r", "\r")
+    return text

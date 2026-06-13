@@ -36,7 +36,10 @@ RuntimeEventKind = Literal[
     "budget_updated",
     "ask_user_request",
     "capability_confirmation",
+    "compaction",
 ]
+
+RuntimeCompactionPhase = Literal["begin", "done"]
 
 RuntimeContentType = Literal["text", "think"]
 RuntimeLifecycleScope = Literal["host", "subagent"]
@@ -66,6 +69,12 @@ class AgentRuntimeEvent:
     subagent_name: str | None = None
     input_tokens: int | None = None
     output_tokens: int | None = None
+    context_tokens: int | None = None
+    phase: RuntimeCompactionPhase | None = None
+    tokens_before: int | None = None
+    tokens_after: int | None = None
+    saved_tokens: int | None = None
+    summary_tokens: int | None = None
 
 
 @runtime_checkable

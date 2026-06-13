@@ -1,5 +1,5 @@
 """
-核心配置 - 从 config.json 加载
+核心配置 - 从 config.toml 加载
 
 存储架构：
 - workspaces/{user_id}/{session_id}/          - 用户工作目录
@@ -35,16 +35,17 @@ def _resolve_runtime_path(
 
 
 def _load_config() -> Dict[str, Any]:
-    """从 config.json 加载配置"""
-    config_path = BASE_DIR / "config.json"
+    """从 config.toml 加载配置。"""
+    toml_path = BASE_DIR / "config.toml"
 
-    if not config_path.exists():
+    if not toml_path.exists():
         raise FileNotFoundError(
-            f"配置文件不存在: {config_path}\n请复制 config.example.json 为 config.json 并填写配置"
+            f"配置文件不存在: {toml_path}\n"
+            "请复制 config.example.toml 为 config.toml 并填写配置"
         )
 
-    with open(config_path, "r", encoding="utf-8") as f:
-        return json.load(f)
+    with open(toml_path, "rb") as f:
+        return tomllib.load(f)
 
 
 def _set_nested_config(config: Dict[str, Any], path: str, value: Any) -> None:
@@ -329,7 +330,7 @@ JWT_SECRET = AUTH_CONFIG_DATA.get("jwt_secret")
 if not JWT_SECRET:
     raise RuntimeError(
         "auth.jwt_secret 未配置。"
-        "生产环境请在 config.json 中设置 jwt_secret 或使用 AIASYS_AUTH_JWT_SECRET 环境变量覆盖。"
+        "生产环境请在 config.toml 中设置 jwt_secret 或使用 AIASYS_AUTH_JWT_SECRET 环境变量覆盖。"
     )
 CORS_ORIGINS = _get_config("server.cors_origins", [])
 

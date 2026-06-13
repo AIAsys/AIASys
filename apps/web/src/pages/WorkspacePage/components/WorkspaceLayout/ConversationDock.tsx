@@ -56,7 +56,6 @@ interface ConversationDockProps {
   uploadedFiles: UploadedFile[];
   onRemoveFile: (index: number) => void;
   onAddFileClick: () => void;
-  onImportFromSession: () => void;
   fileInputRef: React.RefObject<HTMLInputElement | null>;
   onFileChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
   runtimeControls: RuntimeControlsState;
@@ -76,6 +75,13 @@ interface ConversationDockProps {
   onOpenWorkspaceSettings?: () => void;
   isCompactingConversation?: boolean;
   onCompactConversation?: (instruction?: string) => Promise<void> | void;
+  compactionState?: {
+    phase: "begin" | "done";
+    tokens_before?: number;
+    tokens_after?: number;
+    saved_tokens?: number;
+    summary_tokens?: number;
+  } | null;
   sessionInputFocusSignal?: number;
   tokenUsageRefreshSignal?: number | string;
   onUploadToWorkspace?: (files: FileList | File[]) => Promise<void> | void;
@@ -114,7 +120,6 @@ export function ConversationDock({
   uploadedFiles,
   onRemoveFile,
   onAddFileClick,
-  onImportFromSession,
   fileInputRef,
   onFileChange,
   runtimeControls,
@@ -134,6 +139,7 @@ export function ConversationDock({
   onOpenWorkspaceSettings,
   isCompactingConversation = false,
   onCompactConversation,
+  compactionState,
   sessionInputFocusSignal,
   tokenUsageRefreshSignal,
   onUploadToWorkspace,
@@ -225,7 +231,6 @@ export function ConversationDock({
         uploadedFiles={uploadedFiles}
         onRemoveFile={onRemoveFile}
         onAddFileClick={onAddFileClick}
-        onImportFromSession={onImportFromSession}
         fileInputRef={fileInputRef}
         onFileChange={onFileChange}
         runtimeControls={runtimeControls}
@@ -245,6 +250,7 @@ export function ConversationDock({
         onOpenRuntimeConfig={onOpenWorkspaceSettings}
         isCompactingConversation={isCompactingConversation}
         onCompactConversation={onCompactConversation}
+        compactionState={compactionState}
         sessionInputFocusSignal={sessionInputFocusSignal}
         tokenUsageRefreshSignal={tokenUsageRefreshSignal}
         onUploadToWorkspace={onUploadToWorkspace}

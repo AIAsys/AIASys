@@ -142,7 +142,7 @@ async def create_llm_client_from_config(
     """
     从系统 llm_config.json 创建客户端
 
-    读取 config.json 默认配置或 workspaces/{user_id}/global_workspace/.aiasys/llm_config.json
+    读取 config.toml 默认配置或 workspaces/{user_id}/global_workspace/.aiasys/llm_config.json
     """
     from app.services.llm import LLMConfigService
 

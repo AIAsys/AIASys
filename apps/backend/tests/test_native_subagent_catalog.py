@@ -18,6 +18,7 @@ from app.services.agent.subagent_catalog import (
     list_subagents,
     load_custom_subagents_for_manifest,
     load_enabled_experts,
+    load_subagent_for_runtime,
     load_subagent_visibility_policy,
     resolve_subagent_visibility_policy,
     load_subagent,
@@ -333,11 +334,11 @@ class TestSubagentCatalog:
         )
         assert before != after
 
-    def test_system_catalog_role_is_not_dispatch_enabled_until_explicitly_enabled(
+    def test_system_builtin_role_is_dispatch_enabled_by_default(
         self,
         temp_workspace,
     ):
-        """系统市场候选存在，不等于运行态可派发。"""
+        """系统内置角色默认即可进入运行态派发，无需安装。"""
         catalog = list_subagents(
             "user1",
             workspace_id="workspace_a",
@@ -347,7 +348,7 @@ class TestSubagentCatalog:
             user_id="user1",
             role_id="coder",
             workspace_id="workspace_a",
-        ) is False
+        ) is True
 
     def test_delete_default_builtin_experts_does_not_reinstall(self, temp_workspace):
         """用户移出默认内置专家后，不会被下一次目录加载重新安装。"""
@@ -403,11 +404,12 @@ class TestSubagentCatalog:
             host_selectable=True,
             default_enabled=True,
         )
+        # 内置角色在 global 策略显式启用后即可派发，不需要实际安装文件
         assert is_subagent_dispatch_enabled(
             user_id="user1",
             role_id="coder",
             workspace_id="workspace_a",
-        ) is False
+        ) is True
 
         save_subagent_visibility_policy(
             user_id="user1",
@@ -417,8 +419,74 @@ class TestSubagentCatalog:
             host_selectable=True,
             default_enabled=False,
         )
+        # workspace 策略显式禁用后，内置角色也不可派发
         assert is_subagent_dispatch_enabled(
             user_id="user1",
             role_id="coder",
             workspace_id="workspace_a",
         ) is False
+
+    def test_builtin_role_dispatch_no_installation_required(self, temp_workspace):
+        """系统内置角色即使未安装到任何作用域，也应默认可派发。"""
+        for name in ("coder", "data_analyst", "researcher", "reviewer"):
+            assert is_subagent_installed_to_scope(
+                user_id="user_no_install",
+                name=name,
+                scope="global",
+            ) is False
+            assert is_subagent_dispatch_enabled(
+                user_id="user_no_install",
+                role_id=name,
+                workspace_id="workspace_a",
+            ) is True, f"{name} 应默认可派发"
+
+    def test_builtin_role_can_be_explicitly_disabled(self, temp_workspace):
+        """系统内置角色可以通过显式策略禁用。"""
+        save_subagent_visibility_policy(
+            user_id="user_disabled",
+            role_id="coder",
+            scope="workspace",
+            workspace_id="workspace_a",
+            host_selectable=True,
+            default_enabled=False,
+        )
+        assert is_subagent_dispatch_enabled(
+            user_id="user_disabled",
+            role_id="coder",
+            workspace_id="workspace_a",
+        ) is False
+
+        save_subagent_visibility_policy(
+            user_id="user_disabled2",
+            role_id="coder",
+            scope="workspace",
+            workspace_id="workspace_a",
+            host_selectable=False,
+            default_enabled=True,
+        )
+        assert is_subagent_dispatch_enabled(
+            user_id="user_disabled2",
+            role_id="coder",
+            workspace_id="workspace_a",
+        ) is False
+
+    def test_load_subagent_for_runtime_fallback_to_builtin_seed(self, temp_workspace):
+        """未安装的内置角色运行时查找应 fallback 到代码预设 seed。"""
+        manifest = load_subagent_for_runtime(
+            user_id="user_seed",
+            name="coder",
+            session_id="s1",
+            workspace_id="workspace_a",
+        )
+        assert manifest is not None
+        assert manifest["name"] == "coder"
+        assert "system_prompt" in manifest
+
+        # 自定义未安装角色不应 fallback
+        custom_manifest = load_subagent_for_runtime(
+            user_id="user_seed",
+            name="custom_not_installed",
+            session_id="s1",
+            workspace_id="workspace_a",
+        )
+        assert custom_manifest is None

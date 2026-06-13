@@ -591,19 +591,41 @@ class SimpleCompaction:
     def __init__(
         self,
         max_preserved_messages: int = 2,
+        max_preserved_tokens: int = 20000,
         max_summary_tokens: int = 2000,
         max_snip_chars: int = _DEFAULT_SNIP_MAX_CHARS,
     ) -> None:
         self.max_preserved_messages = max_preserved_messages
+        self.max_preserved_tokens = max_preserved_tokens
         self.max_summary_tokens = max_summary_tokens
         self.max_snip_chars = max_snip_chars
+
+    def _can_split_after(self, messages: list[dict[str, Any]], index: int) -> bool:
+        """判断在 messages[index] 之后切分是否安全。
+
+        核心原则：被压缩侧和保留侧各自内部必须保持 ReAct 链路自洽。
+        不安全的情况：
+        - 当前是 assistant(tool_call)，下一条是 tool result：会切断调用-结果对
+        - 当前是 user，下一条是 tool result：tool result 缺少调用方
+        """
+        if index < 0 or index >= len(messages) - 1:
+            return True
+        current = messages[index]
+        next_msg = messages[index + 1]
+        role = current.get("role")
+        if role == "assistant" and current.get("tool_calls") and next_msg.get("role") == "tool":
+            return False
+        if role == "user" and next_msg.get("role") == "tool":
+            return False
+        return True
 
     def _select_preserved(
         self, messages: list[dict[str, Any]]
     ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
         """选择要保留的消息和要压缩的消息。
 
-        从后往前数，保留最近 N 条 user/assistant 消息。
+        从后往前数，保留最近 N 条 user/assistant 消息，
+        同时保证切分点安全，且不超出 token 上限。
         返回 (to_compact, to_preserve)。
         """
         if not messages or self.max_preserved_messages <= 0:
@@ -613,6 +635,7 @@ class SimpleCompaction:
         preserve_start_index = len(history)
         n_preserved = 0
 
+        # 第一阶段：找到满足条数要求的初始切分点
         for index in range(len(history) - 1, -1, -1):
             if history[index].get("role") in {"user", "assistant"}:
                 n_preserved += 1
@@ -623,6 +646,42 @@ class SimpleCompaction:
         if n_preserved < self.max_preserved_messages:
             # 消息总数不足 N 条 user/assistant，不压缩
             return [], messages
+
+        # 第二阶段：若切分点不安全，继续往前扩展到下一个安全点。
+        # 最多扩展到 2 * max_preserved_messages 条，避免保留过多。
+        max_expanded = self.max_preserved_messages * 2
+        while preserve_start_index > 0 and not self._can_split_after(
+            history, preserve_start_index - 1
+        ):
+            found = False
+            for index in range(preserve_start_index - 1, -1, -1):
+                if history[index].get("role") in {"user", "assistant"}:
+                    n_preserved += 1
+                    preserve_start_index = index
+                    found = True
+                    break
+            if not found or n_preserved > max_expanded:
+                # 找不到安全切分点或扩展过多，放弃压缩
+                return [], messages
+
+        # 第三阶段：若保留消息 token 超过上限，继续往前压缩更多消息。
+        # 上限为 0 表示不限制。
+        if self.max_preserved_tokens > 0:
+            while preserve_start_index > 0:
+                to_preserve = history[preserve_start_index:]
+                preserved_tokens = estimate_text_tokens(to_preserve)
+                if preserved_tokens <= self.max_preserved_tokens:
+                    break
+                found = False
+                for index in range(preserve_start_index - 1, -1, -1):
+                    if history[index].get("role") in {"user", "assistant"}:
+                        n_preserved += 1
+                        preserve_start_index = index
+                        found = True
+                        break
+                if not found or n_preserved > max_expanded:
+                    # 扩展到上限仍无法满足 token 约束，放弃压缩
+                    return [], messages
 
         to_compact = history[:preserve_start_index]
         to_preserve = history[preserve_start_index:]

@@ -6,8 +6,8 @@ tmp/
 example_datas/
 .skills/
 
-# Configuration (use config.example.json as template)
-config.json
+# Configuration (use config.example.toml as template)
+config.toml
 .env
 .env.*
 !.env.example

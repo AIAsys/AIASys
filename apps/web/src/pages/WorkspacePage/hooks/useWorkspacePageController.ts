@@ -103,11 +103,13 @@ export function useWorkspacePageController({
     thinkingEffort,
   });
 
+  const { updateSessionChatItems } = executor;
+
   const handleAskUserRequest = useCallback(
     (request: AskUserRequest, requestSessionId: string) => {
       showAskUser(request, requestSessionId);
       // 将 AskUser 请求插入聊天流，以内联卡片形式展示
-      executor.updateSessionChatItems(requestSessionId, (prev) => {
+      updateSessionChatItems(requestSessionId, (prev) => {
         // 避免重复插入相同 request_id 的项
         if (prev.some((item) => item.type === "ask_user" && item.id === request.request_id)) {
           return prev;
@@ -124,7 +126,7 @@ export function useWorkspacePageController({
         ];
       });
     },
-    [showAskUser, executor],
+    [showAskUser, updateSessionChatItems],
   );
 
   // 同步 ref 为最新回调（useInsertionEffect 在 DOM mutation 前同步执行，无竞态窗口）
@@ -157,7 +159,7 @@ export function useWorkspacePageController({
     handleAskUserResponseRef.current = (requestId, approved, _value, responseSessionId) => {
       const targetSessionId = responseSessionId || sessionId || undefined;
       if (!targetSessionId) return;
-      executor.updateSessionChatItems(targetSessionId, (prev) =>
+      updateSessionChatItems(targetSessionId, (prev) =>
         prev.map((item) =>
           item.type === "ask_user" && item.id === requestId
             ? { ...item, status: approved ? "approved" : "rejected" }
@@ -165,7 +167,7 @@ export function useWorkspacePageController({
         )
       );
     };
-  }, [executor, executor.updateSessionChatItems, sessionId]);
+  }, [updateSessionChatItems, sessionId]);
 
   // Capability Confirmation 审批响应处理
   useEffect(() => {
@@ -182,7 +184,7 @@ export function useWorkspacePageController({
           payload.toolCallId,
           { approved: true, scope: payload.scope }
         );
-        executor.updateSessionChatItems(payload.sessionId, (prev) =>
+        updateSessionChatItems(payload.sessionId, (prev) =>
           prev.map((item) =>
             item.type === "capability_confirmation" && item.id === payload.toolCallId
               ? { ...item, status: "approved" as const }
@@ -207,7 +209,7 @@ export function useWorkspacePageController({
           payload.toolCallId,
           { approved: false, feedback: payload.feedback }
         );
-        executor.updateSessionChatItems(payload.sessionId, (prev) =>
+        updateSessionChatItems(payload.sessionId, (prev) =>
           prev.map((item) =>
             item.type === "capability_confirmation" && item.id === payload.toolCallId
               ? { ...item, status: "rejected" as const }
@@ -225,7 +227,7 @@ export function useWorkspacePageController({
       eventBus.off("capability:approve", handleApprove);
       eventBus.off("capability:reject", handleReject);
     };
-  }, [userId, executor, executor.updateSessionChatItems]);
+  }, [userId, updateSessionChatItems]);
 
   const {
     workspaces,
@@ -277,6 +279,7 @@ export function useWorkspacePageController({
     removeAskUserSession,
     setAskUserActiveSessionId,
     showAskUser,
+    onCompactionEvent: executor.handleCompactionEvent,
   });
   const runtimeControls = useWorkspaceRuntimeControls({
     userId,

@@ -98,6 +98,8 @@ export interface TokenUsageEvent extends SSEEvent {
   type: "token_usage";
   input: number;
   output: number;
+  /** 当前上下文占用 token 数（后端推送，前端可直接刷新右栏） */
+  context_tokens?: number;
 }
 
 /** 文件变化事件 */
@@ -165,6 +167,16 @@ export interface AskUserRequestEvent extends SSEEvent {
   request: import("@/types/askUser").AskUserRequest;
 }
 
+/** 上下文压缩事件 */
+export interface CompactionEvent extends SSEEvent {
+  type: "compaction";
+  phase: "begin" | "done";
+  tokens_before?: number;
+  tokens_after?: number;
+  saved_tokens?: number;
+  summary_tokens?: number;
+}
+
 /** 能力确认请求（运行时审批） */
 export interface CapabilityConfirmationEvent extends SSEEvent {
   type: "capability_confirmation";
@@ -205,7 +217,8 @@ export type AgentEvent =
   | BudgetUpdatedEvent
   | AskUserRequestEvent
   | CapabilityConfirmationEvent
-  | SubagentCapabilityConfirmationEvent;
+  | SubagentCapabilityConfirmationEvent
+  | CompactionEvent;
 
 // ==================== Agent 执行 ====================
 

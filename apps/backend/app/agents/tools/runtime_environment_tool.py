@@ -372,8 +372,8 @@ Node.js/fnm 操作：
 
             if params.action == "list_node":
                 registry = node_service.list_node_envs(
+                    user_id,
                     workspace_id,
-                    inspect=params.inspect,
                 )
                 return _json_result(
                     {
@@ -385,6 +385,7 @@ Node.js/fnm 操作：
 
             if params.action == "ensure_node":
                 env, command_result = node_service.ensure_node_env(
+                    user_id,
                     workspace_id,
                     env_id=params.env_id or DEFAULT_NODE_ENV_ID,
                     display_name=params.display_name or "Workspace Node",
@@ -414,8 +415,9 @@ Node.js/fnm 操作：
                 if not params.node_version:
                     return _error_result("install_node 需要提供 node_version。")
                 result = node_service.install_node_version(
+                    user_id,
                     workspace_id,
-                    params.node_version,
+                    version=params.node_version,
                 )
                 return _json_result(
                     {
@@ -430,6 +432,7 @@ Node.js/fnm 操作：
                 if not params.node_version:
                     return _error_result("use_node 需要提供 node_version。")
                 result = node_service.use_node_version(
+                    user_id,
                     workspace_id,
                     params.env_id or DEFAULT_NODE_ENV_ID,
                     params.node_version,
@@ -447,6 +450,7 @@ Node.js/fnm 操作：
                 if not params.node_version:
                     return _error_result("set_default_node 需要提供 node_version。")
                 result = node_service.set_default_node_version(
+                    user_id,
                     workspace_id,
                     params.node_version,
                 )
@@ -460,7 +464,7 @@ Node.js/fnm 操作：
                 )
 
             if params.action == "node_current":
-                result = node_service.get_current_node_version(workspace_id)
+                result = node_service.get_current_node_version(user_id, workspace_id)
                 return _json_result(
                     {
                         "status": "success",
@@ -473,6 +477,7 @@ Node.js/fnm 操作：
                 if not params.node_version:
                     return _error_result("uninstall_node 需要提供 node_version。")
                 result = node_service.uninstall_node_version(
+                    user_id,
                     workspace_id,
                     params.node_version,
                 )
@@ -486,7 +491,7 @@ Node.js/fnm 操作：
                 )
 
             if params.action == "list_remote_node":
-                registry = node_service.list_remote_versions(workspace_id)
+                registry = node_service.list_remote_versions(user_id, workspace_id)
                 return _json_result(
                     {
                         "status": "success",

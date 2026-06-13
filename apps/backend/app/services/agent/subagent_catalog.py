@@ -352,12 +352,16 @@ def resolve_subagent_visibility_policy(
     role_id: str,
     workspace_id: str | None = None,
 ) -> SubAgentVisibilitySettings:
-    """按系统提供、用户默认、工作区启用的顺序合成单个协作专家策略。"""
+    """按系统提供、用户默认、工作区启用的顺序合成单个协作专家策略。
+
+    系统内置角色默认启用；自定义角色默认不启用，需要显式安装。
+    """
     normalized_role_id = str(role_id or "").strip()
+    is_builtin = is_system_subagent_name(normalized_role_id)
     effective = SubAgentVisibilitySettings(
         catalog_visible=True,
         host_selectable=True,
-        default_enabled=False,
+        default_enabled=is_builtin,
         visibility_source="system",
     )
     if not normalized_role_id:
@@ -391,7 +395,8 @@ def is_subagent_dispatch_enabled(
 ) -> bool:
     """判断协作专家是否允许进入当前运行态派发。
 
-    目录项可以来自系统市场，但运行态必须来自用户默认层或工作区层的显式启用。
+    - 系统内置角色默认直接可用，除非被显式禁用。
+    - 自定义角色必须已安装到用户默认层或工作区层并启用。
     """
     normalized_role_id = str(role_id or "").strip()
     if not normalized_role_id:
@@ -402,23 +407,36 @@ def is_subagent_dispatch_enabled(
         role_id=normalized_role_id,
         workspace_id=workspace_id,
     )
-    if not policy.host_selectable or not policy.default_enabled:
-        return False
-    if policy.visibility_source == "system":
-        return False
-    if policy.visibility_source == "global" and not is_subagent_installed_to_scope(
-        user_id=user_id,
-        name=normalized_role_id,
-        scope="global",
-    ):
-        return False
-    if policy.visibility_source == "workspace" and not is_subagent_installed_to_scope(
-        user_id=user_id,
-        name=normalized_role_id,
-        scope="workspace",
-        workspace_id=workspace_id,
-    ):
-        return False
+    is_builtin = is_system_subagent_name(normalized_role_id)
+
+    if is_builtin:
+        # 内置角色：未被显式禁用即默认可派发。
+        # visibility_source == "system" 表示用户没有配置过该角色，视为启用。
+        is_explicitly_disabled = (
+            not policy.host_selectable
+            or (policy.visibility_source != "system" and not policy.default_enabled)
+        )
+        if is_explicitly_disabled:
+            return False
+    else:
+        # 自定义角色：保持原有严格检查
+        if not policy.host_selectable or not policy.default_enabled:
+            return False
+        if policy.visibility_source == "system":
+            return False
+        if policy.visibility_source == "global" and not is_subagent_installed_to_scope(
+            user_id=user_id,
+            name=normalized_role_id,
+            scope="global",
+        ):
+            return False
+        if policy.visibility_source == "workspace" and not is_subagent_installed_to_scope(
+            user_id=user_id,
+            name=normalized_role_id,
+            scope="workspace",
+            workspace_id=workspace_id,
+        ):
+            return False
 
     if explicit_enabled_role_ids is not None:
         explicit_set = {
@@ -1764,5 +1782,11 @@ def load_subagent_for_runtime(
             manifest = _parse_subagent_file(global_path)
             if manifest is not None:
                 return manifest
+
+    # 3. 系统内置角色 fallback 到代码预设 seed
+    if is_system_subagent_name(name):
+        seed_manifest = build_subagent_manifest_from_seed(name)
+        if seed_manifest is not None:
+            return seed_manifest
 
     return None

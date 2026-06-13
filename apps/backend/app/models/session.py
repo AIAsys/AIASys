@@ -435,6 +435,8 @@ class SessionMetadata(BaseModel):
         default_factory=SessionPlanState,
         description="当前会话计划模式状态",
     )
+    # 当前上下文占用的 token 数（精确值），与 budget 独立，避免 budget 关闭后丢失。
+    context_tokens: int = Field(default=0, description="最近一次 LLM 调用时的精确 prompt token 数")
     budget: Optional[SessionBudget] = Field(default=None, description="当前会话的独立预算控制")
 
     @model_validator(mode="after")

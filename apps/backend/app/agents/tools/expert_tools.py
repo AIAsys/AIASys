@@ -14,7 +14,7 @@ from pydantic import BaseModel, Field
 
 from app.core.agent_tool import AiasysTool
 from app.core.tool_result import ToolResult
-from app.services.history import current_user_id, current_workspace
+from app.services.history import current_session_id, current_user_id, current_workspace
 
 
 class ListSystemExpertsParams(BaseModel):
@@ -58,19 +58,38 @@ class ConfigureExpertParams(BaseModel):
     )
 
 
-def _resolve_user_workspace() -> tuple[str, str | None]:
+def _resolve_user_workspace(
+    ctx: dict[str, Any] | None = None,
+) -> tuple[str, str]:
     """从当前上下文解析 user_id 和 workspace_id。
 
-    workspace_id 由当前工作区路径的最后一个目录名推导。
+    优先通过 session_id 到 workspace_registry 查询真实 workspace_id；
+    回退到 current_workspace 路径的最后一个目录名。
     """
     user_id = current_user_id.get()
     if not user_id:
         raise ValueError("当前上下文未设置用户 ID")
 
-    workspace_path = current_workspace.get()
     workspace_id: str | None = None
-    if workspace_path is not None:
-        workspace_id = workspace_path.name
+
+    # 1. 优先用 ctx / contextvar 中的 session_id 反查 workspace_id
+    ctx = ctx or {}
+    session_id = ctx.get("session_id") or current_session_id.get()
+    if session_id:
+        from app.services.workspace_registry import get_workspace_registry_service
+
+        workspace_id = get_workspace_registry_service().find_workspace_id_by_session_id(
+            user_id, str(session_id)
+        )
+
+    # 2. 回退到 current_workspace 路径名
+    if not workspace_id:
+        workspace_path = current_workspace.get()
+        if workspace_path is not None:
+            workspace_id = workspace_path.name
+
+    if not workspace_id:
+        raise ValueError("当前上下文缺少工作区 ID")
 
     return user_id, workspace_id
 
@@ -111,7 +130,7 @@ class ListSystemExperts(AiasysTool):
         params = ListSystemExpertsParams.model_validate(kwargs)
 
         try:
-            user_id, workspace_id = _resolve_user_workspace()
+            user_id, workspace_id = _resolve_user_workspace(ctx)
         except ValueError as exc:
             return ToolResult(content=str(exc), is_error=True)
 
@@ -120,7 +139,7 @@ class ListSystemExperts(AiasysTool):
         try:
             catalog = get_workspace_expert_catalog(
                 user_id=user_id,
-                workspace_id=workspace_id or user_id,
+                workspace_id=workspace_id,
             )
         except Exception as exc:
             return ToolResult(content=f"读取专家目录失败: {exc}", is_error=True)
@@ -189,7 +208,7 @@ class InstallExpert(AiasysTool):
         params = InstallExpertParams.model_validate(kwargs)
 
         try:
-            user_id, workspace_id = _resolve_user_workspace()
+            user_id, workspace_id = _resolve_user_workspace(ctx)
         except ValueError as exc:
             return ToolResult(content=str(exc), is_error=True)
 
@@ -294,7 +313,7 @@ class ConfigureExpert(AiasysTool):
         params = ConfigureExpertParams.model_validate(kwargs)
 
         try:
-            user_id, workspace_id = _resolve_user_workspace()
+            user_id, workspace_id = _resolve_user_workspace(ctx)
         except ValueError as exc:
             return ToolResult(content=str(exc), is_error=True)
 

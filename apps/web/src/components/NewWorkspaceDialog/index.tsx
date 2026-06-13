@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ChevronDown,
   ChevronUp,
@@ -135,6 +135,10 @@ export function NewWorkspaceDialog({
   const [creationMode, setCreationMode] = useState<CreationMode>("blank");
   const [selectedFolderPath, setSelectedFolderPath] = useState<string | null>(null);
   const [folderTree, setFolderTree] = useState<FolderImportTreeItem[]>([]);
+  const folderTreeFiles = useMemo(
+    () => folderTree.map((f) => ({ path: f.relative_path })),
+    [folderTree],
+  );
   const [selectedImportFiles, setSelectedImportFiles] = useState<Set<string>>(new Set());
   const [isScanningFolder, setIsScanningFolder] = useState(false);
   const [folderScanError, setFolderScanError] = useState<string | null>(null);
@@ -186,7 +190,10 @@ export function NewWorkspaceDialog({
     });
   }, [selectedCapabilities, selectedTemplateId, templates]);
 
-  const selectableRegisteredEnvs = listBindableKernelEnvs(registeredPythonEnvs);
+  const selectableRegisteredEnvs = useMemo(
+    () => listBindableKernelEnvs(registeredPythonEnvs),
+    [registeredPythonEnvs],
+  );
   const { user } = useAuthState();
 
   // 加载模板列表
@@ -275,15 +282,19 @@ export function NewWorkspaceDialog({
     setSelectedKernelName(selectableRegisteredEnvs[0]?.name ?? "");
   }, [envKind, selectableRegisteredEnvs, selectedKernelName]);
 
-  const effectiveLifecycleState = lifecycleState ?? {
-    stage,
-    stageLabel: "",
-    showProgress: false,
-    isBusy: isSubmitting,
-    isError: stage === "error" || Boolean(errorMessage),
-    errorMessage,
-    progress: undefined,
-  };
+  const effectiveLifecycleState = useMemo(
+    () =>
+      lifecycleState ?? {
+        stage,
+        stageLabel: "",
+        showProgress: false,
+        isBusy: isSubmitting,
+        isError: stage === "error" || Boolean(errorMessage),
+        errorMessage,
+        progress: undefined,
+      },
+    [lifecycleState, stage, isSubmitting, errorMessage],
+  );
 
   const trimmedTitle = title.trim();
   const trimmedDescription = description.trim();
@@ -872,9 +883,7 @@ export function NewWorkspaceDialog({
                   {folderImportExpanded && (
                     <div className="max-h-60 overflow-y-auto px-2 py-2">
                       <TemplateFileTreeSelector
-                        files={folderTree.map((f) => ({
-                          path: f.relative_path,
-                        }))}
+                        files={folderTreeFiles}
                         selectedPaths={selectedImportFiles}
                         onSelectionChange={setSelectedImportFiles}
                       />
@@ -946,7 +955,9 @@ export function NewWorkspaceDialog({
                     使用已登记 Python
                   </span>
                   <span className="mt-0.5 block text-xs leading-5 text-muted-foreground">
-                    绑定本机已登记解释器。依赖安装会影响该解释器对应环境。
+                    {selectableRegisteredEnvs.length === 0
+                      ? "当前没有可用的已登记 Python，请先在执行资源中登记本机解释器。"
+                      : "绑定本机已登记解释器。依赖安装会影响该解释器对应环境。"}
                   </span>
                 </span>
               </label>

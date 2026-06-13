@@ -308,7 +308,7 @@ MCP 配置路径：导航栏 > MCP 配置
 
 ### 13.1 全局配置
 
-当前默认优先使用 Kimi。首次启动前可以在 `apps/backend/config.json` 中预置 Kimi 的 `default_provider`、`default_model`、`Base URL` 和 API Key。用户配置为空时，后端会把这里的 `llm.providers` 同步到当前用户的全局工作区模型配置。
+当前默认优先使用 Step 系列模型。首次启动前可以在 `apps/backend/config.toml` 中预置 `default_provider`、`default_model`、服务商 `Base URL` 和 API Key，并为每个模型声明 `capabilities` 以区分纯文本模型和多模态模型。用户配置为空时，后端会把这里的 `llm.providers` 同步到当前用户的全局工作区模型配置。
 
 ### 13.2 用户级配置
 
@@ -319,7 +319,7 @@ MCP 配置路径：导航栏 > MCP 配置
 - 获取或手动添加模型
 - 设置默认 Chat 模型和默认 Embedding 模型
 
-DashScope、OpenAI、Anthropic 等其他服务商可以按协议补充接入。默认示例和首次启动推荐优先写 Kimi。
+DashScope、OpenAI、Anthropic 等其他服务商可以按协议补充接入。默认示例和首次启动推荐优先配置 Step 系列模型。
 
 ### 13.3 工作区/会话级配置
 

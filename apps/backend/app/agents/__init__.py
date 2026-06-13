@@ -6,14 +6,10 @@ Agent 配置管理模块
 
 运行态固定为 local，不再对外暴露模式切换控制。
 
-配置示例 (config.json):
-{
-  "sandbox": {
-    "mode": "local",
-    "postgres": {...},
-    "pip_index_url": "..."
-  }
-}
+配置示例 (config.toml):
+[sandbox]
+default_mode = "local"
+enabled_modes = ["local"]
 """
 
 from pathlib import Path

@@ -45,6 +45,7 @@ export function useSessionLifecycleCompactAction({
   setSessionStatus,
   setExecutionRecordsSummary,
   setIsCompactingConversation,
+  onCompactionEvent,
 }: Pick<
   SessionLifecycleActionContext,
   | "apiBaseUrl"
@@ -59,6 +60,7 @@ export function useSessionLifecycleCompactAction({
   | "setSessionStatus"
   | "setExecutionRecordsSummary"
   | "setIsCompactingConversation"
+  | "onCompactionEvent"
 >) {
   const handleCompactConversation = useCallback(
     async (instruction?: string) => {
@@ -67,6 +69,7 @@ export function useSessionLifecycleCompactAction({
       }
 
       setIsCompactingConversation(true);
+      onCompactionEvent?.({ phase: "begin" });
       try {
         const data = await apiRequest<{
           session?: SessionStatusInfo;
@@ -86,6 +89,17 @@ export function useSessionLifecycleCompactAction({
         removeAskUserSession(sessionId);
         // 不再清空视图——后端已自动插入压缩提示系统消息
         refreshSessionStatus();
+        if (data.compaction) {
+          onCompactionEvent?.({
+            phase: "done",
+            tokens_before: data.compaction.tokens_before,
+            tokens_after: data.compaction.tokens_after,
+            saved_tokens: data.compaction.saved_tokens,
+            summary_tokens: data.compaction.summary_tokens,
+          });
+        } else {
+          onCompactionEvent?.({ phase: "done" });
+        }
         showSuccess(
           data.compaction
             ? buildCompactionToast(data.compaction)
@@ -104,6 +118,7 @@ export function useSessionLifecycleCompactAction({
       apiBaseUrl,
       isCompactingConversation,
       isRunning,
+      onCompactionEvent,
       refreshSessionStatus,
       removeAskUserSession,
       sessionId,

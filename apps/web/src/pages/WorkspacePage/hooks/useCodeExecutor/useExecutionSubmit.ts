@@ -75,6 +75,13 @@ interface UseExecutionSubmitProps {
   clearFiles: () => void;
   onAskUserRequest?: (request: AskUserRequest, sessionId: string) => void;
   onSubAgentEvent?: (event: unknown) => void;
+  onCompactionEvent?: (payload: {
+    phase: "begin" | "done";
+    tokens_before?: number;
+    tokens_after?: number;
+    saved_tokens?: number;
+    summary_tokens?: number;
+  }) => void;
   apiBaseUrl: string;
   /** 权威 activeSessionId ref — 用于判断 onFinish/onError 是否来自活跃 session */
   activeSessionIdRef: { readonly current: string };
@@ -118,6 +125,7 @@ export function useExecutionSubmit(props: UseExecutionSubmitProps) {
     clearFiles,
     onAskUserRequest,
     onSubAgentEvent,
+    onCompactionEvent,
     apiBaseUrl,
     activeSessionIdRef,
     onTokenUsageShouldRefresh,
@@ -132,6 +140,8 @@ export function useExecutionSubmit(props: UseExecutionSubmitProps) {
     isSessionRunning,
     onAskUserRequest,
     onSubAgentEvent,
+    onCompactionEvent,
+    onTokenUsageShouldRefresh,
   });
 
   const handleSubmit = useCallback(async (
@@ -226,22 +236,6 @@ export function useExecutionSubmit(props: UseExecutionSubmitProps) {
               (seg) =>
                 seg.type === "think" ? { ...seg, isComplete: true } : seg,
             );
-
-            // 流结束时按类型排序，确保 think 始终在 text 前面
-            // 每个类型必须有唯一 order，避免 sort 不稳定导致顺序随机
-            const SEGMENT_ORDER: Record<string, number> = {
-              turn: 0,
-              think: 1,
-              tool_call: 2,
-              tool_output: 3,
-              text: 4,
-              monitor: 5,
-            };
-            finishSlot.streamingSegments.sort((a, b) => {
-              const orderA = SEGMENT_ORDER[a.type] ?? 99;
-              const orderB = SEGMENT_ORDER[b.type] ?? 99;
-              return orderA - orderB;
-            });
 
             const finalSegments = [...finishSlot.streamingSegments];
             msgId = finishSlot.streamingMessageId;

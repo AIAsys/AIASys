@@ -401,6 +401,58 @@ class TestTaskToolRuntimeEnablement:
         assert results[-1].is_error is False
         assert mock_backend.create_session.called
 
+    @pytest.mark.asyncio
+    @patch("app.services.agent.subagent_catalog.load_subagent_for_runtime")
+    @patch("app.services.agent.runtime_backends.aiasys.tools.task_tool.SubAgentStorage")
+    @patch("app.services.agent.runtime_backends.aiasys.tools.task_tool._materialize_subagent_toml")
+    @patch("app.services.agent.runtime_backends.aiasys.tools.task_tool.AiasysRuntimeBackend")
+    async def test_task_tool_defaults_subagent_name_to_coder(
+        self,
+        mock_backend_cls,
+        mock_materialize,
+        mock_storage_cls,
+        mock_load_runtime,
+        temp_workspace,
+    ):
+        """省略 subagent_name 时，TaskTool 应默认使用 coder。"""
+        mock_load_runtime.return_value = {
+            "name": "coder",
+            "system_prompt": "You are a coder",
+        }
+        mock_materialize.return_value = Path("/tmp/fake.toml")
+        mock_storage = MagicMock()
+        mock_storage.append_context_message = AsyncMock()
+        mock_storage.append_wire_agent_runtime_event = AsyncMock()
+        mock_storage.update_status = Mock()
+        mock_storage_cls.return_value = mock_storage
+        mock_storage.subagent_dir = Path("/fake")
+        mock_session = AsyncMock()
+        mock_session.prompt = MagicMock(return_value=async_gen([]))
+        mock_backend = MagicMock()
+        mock_backend.create_session = AsyncMock(return_value=mock_session)
+        mock_backend_cls.return_value = mock_backend
+
+        results = []
+        async for item in TaskTool().invoke_stream(
+            {
+                "user_id": "u1",
+                "session_id": "s1",
+                "workspace": temp_workspace,
+                "session_root": temp_workspace,
+                "agent_config": {"subagents": {}},
+                "llm_config": MagicMock(),
+                "messages": [],
+                "parent_registry": ToolRegistry(),
+            },
+            prompt="run without specifying subagent_name",
+        ):
+            results.append(item)
+
+        assert results
+        assert results[-1].is_error is False
+        mock_load_runtime.assert_called_once()
+        assert mock_load_runtime.call_args.kwargs.get("name") == "coder"
+
 
 class TestSubagentWorkspaceSharing:
     """测试子 Agent 共享 Host workspace。"""

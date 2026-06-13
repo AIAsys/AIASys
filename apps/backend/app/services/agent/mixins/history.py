@@ -154,30 +154,47 @@ def _is_empty_assistant_message(msg: Dict[str, Any]) -> bool:
 def _merge_empty_assistant_messages(
     history: List[Dict[str, Any]],
 ) -> List[Dict[str, Any]]:
-    """合并连续的空白 assistant 消息到相邻的有内容消息中。
+    """合并同一 turn 内的空白 assistant 消息到相邻的有内容消息中。
 
     策略：遍历消息列表，当遇到空 assistant 消息时，将其 tool_calls（如有）
-    合并到前一个或后一个有内容的 assistant 消息中，自身被丢弃。
-    这避免了前端历史恢复时为无实质内容的 ReAct 轮次生成空白 Turn 分隔线。
+    合并到同一 turn 内前一个非空 assistant 消息中。如果找不到同 turn 的非空 assistant，
+    则保留该空消息自身（带 turn_n），供前端自行处理。
+    这避免了前端历史恢复时为无实质内容的 ReAct 轮次生成空白 Turn 分隔线，
+    同时保证不同 turn 之间的边界不被破坏。
     """
     merged: List[Dict[str, Any]] = []
     pending_empty: List[Dict[str, Any]] = []
+
+    def _pending_turn_n() -> int | None:
+        """返回 pending_empty 中第一个有 turn_n 的消息的 turn_n。"""
+        for m in pending_empty:
+            turn_n = m.get("turn_n")
+            if isinstance(turn_n, int):
+                return turn_n
+        return None
 
     def _flush_pending() -> None:
         nonlocal merged
         if not pending_empty:
             return
-        # 尝试把 pending_empty 的 tool_calls 合并到最后一个非空 assistant
         tool_calls_to_merge: List[Dict[str, Any]] = []
         for m in pending_empty:
             if m.get("tool_calls"):
                 tool_calls_to_merge.extend(m["tool_calls"])
-        if tool_calls_to_merge:
+
+        target_turn_n = _pending_turn_n()
+        merged_into_same_turn = False
+        if tool_calls_to_merge and target_turn_n is not None:
             for i in range(len(merged) - 1, -1, -1):
-                if merged[i].get("role") == "assistant":
+                if merged[i].get("role") == "assistant" and merged[i].get("turn_n") == target_turn_n:
                     existing = merged[i].get("tool_calls") or []
                     merged[i]["tool_calls"] = existing + tool_calls_to_merge
+                    merged_into_same_turn = True
                     break
+
+        # 如果无法合并到同 turn，保留空消息（带 turn_n），让前端处理
+        if not merged_into_same_turn:
+            merged.extend(pending_empty)
         pending_empty.clear()
 
     for msg in history:

@@ -342,7 +342,9 @@ async def test_runtime_session_model_resolution_uses_configured_default_for_requ
 
     events = [event async for event in session.prompt("hello")]
 
-    assert [event.kind for event in events] == ["content", "token_usage"]
+    # _TurnBegin 是 ReAct 轮次内部控制标记，测试时过滤掉
+    public_events = [event for event in events if getattr(event, "kind", None) != "turn_begin"]
+    assert [event.kind for event in public_events] == ["content", "token_usage"]
     assert session._resolve_model_id() == "kimi-kimi-for-coding"
     assert client.request_options[0] is not None
     assert client.request_options[0].thinking_enabled is True
@@ -499,7 +501,9 @@ async def test_aiasys_runtime_session_runs_react_loop(tmp_path):
 
     events = [event async for event in session.prompt("hello")]
 
-    assert [event.kind for event in events] == [
+    # _TurnBegin 是 ReAct 轮次内部控制标记，测试时过滤掉
+    public_events = [event for event in events if getattr(event, "kind", None) != "turn_begin"]
+    assert [event.kind for event in public_events] == [
         "content",
         "content",
         "tool_call",
@@ -507,17 +511,17 @@ async def test_aiasys_runtime_session_runs_react_loop(tmp_path):
         "content",
         "token_usage",
     ]
-    assert events[0].text == "分析中。"
-    assert events[1].content_type == "think"
-    assert events[1].think == "先整理问题，再调用工具。"
-    assert events[2].tool_name == "EchoTool"
-    assert events[2].arguments == {"text": "hello"}
-    assert events[3].content == "echo: hello"
-    assert events[4].text == "最终答案"
+    assert public_events[0].text == "分析中。"
+    assert public_events[1].content_type == "think"
+    assert public_events[1].think == "先整理问题，再调用工具。"
+    assert public_events[2].tool_name == "EchoTool"
+    assert public_events[2].arguments == {"text": "hello"}
+    assert public_events[3].content == "echo: hello"
+    assert public_events[4].text == "最终答案"
     # input_tokens 是多轮 prompt_tokens 的累加
-    assert events[5].input_tokens == sum(u["prompt_tokens"] for u in client.usages)
+    assert public_events[5].input_tokens == sum(u["prompt_tokens"] for u in client.usages)
     # output_tokens 是多轮 completion_tokens 的累加
-    assert events[5].output_tokens == sum(u["completion_tokens"] for u in client.usages)
+    assert public_events[5].output_tokens == sum(u["completion_tokens"] for u in client.usages)
 
     await session.close()
     assert client.closed is True

@@ -37,8 +37,8 @@ node_modules/
 static/
 
 # Backend
-# Config file contains secrets
-apps/backend/config.json
+# Config file contains secrets.
+apps/backend/config.toml
 # Data directories
 apps/backend/data/
 apps/backend/logs/

@@ -5,8 +5,8 @@ set -euo pipefail
 DEPLOY_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${DEPLOY_DIR}/../.." && pwd)"
 DEPLOY_ENV_FILE="${DEPLOY_DIR}/.env"
-BACKEND_CONFIG_FILE="${PROJECT_ROOT}/apps/backend/config.json"
-BACKEND_CONFIG_EXAMPLE="${PROJECT_ROOT}/apps/backend/config.example.json"
+BACKEND_CONFIG_FILE="${PROJECT_ROOT}/apps/backend/config.toml"
+BACKEND_CONFIG_EXAMPLE="${PROJECT_ROOT}/apps/backend/config.example.toml"
 
 BLUE='\033[0;34m'
 GREEN='\033[0;32m'
@@ -41,7 +41,7 @@ ensure_backend_config() {
   fi
 
   cp "${BACKEND_CONFIG_EXAMPLE}" "${BACKEND_CONFIG_FILE}"
-  log_warn "已创建 apps/backend/config.json，请先确认部署配置。"
+  log_warn "已创建 apps/backend/config.toml，请先确认部署配置。"
 }
 
 load_deploy_env() {
@@ -357,7 +357,7 @@ create_release_bundle() {
     "${tar_excludes[@]}" \
     -cf - -C "${PROJECT_ROOT}" . | tar -xf - -C "${stage_dir}"
 
-  render_backend_config "${stage_dir}/apps/backend/config.json"
+  render_backend_config "${stage_dir}/apps/backend/config.toml"
   render_frontend_env "${stage_dir}/apps/web/.env.production"
   render_ecosystem_config "${stage_dir}/ecosystem.config.cjs"
   render_nginx_config "${stage_dir}/infra/deploy/nginx/aiasys.conf"
@@ -382,6 +382,12 @@ import json
 import sys
 from pathlib import Path
 
+try:
+    import tomllib
+    import tomli_w
+except ImportError as exc:
+    raise SystemExit(f"部署渲染需要 tomllib 和 tomli_w: {exc}")
+
 (
     source_path,
     output_path,
@@ -392,8 +398,8 @@ from pathlib import Path
     jwt_secret_override,
 ) = sys.argv[1:]
 
-with Path(source_path).open("r", encoding="utf-8") as fh:
-    config = json.load(fh)
+with Path(source_path).open("rb") as fh:
+    config = tomllib.load(fh)
 
 config.setdefault("server", {})
 config.setdefault("auth", {})
@@ -429,13 +435,10 @@ if not enabled_modes:
 
 config["sandbox"]["default_mode"] = default_mode
 config["sandbox"]["enabled_modes"] = enabled_modes
-# 同步旧字段，便于旧版本回退时仍能读懂同一份配置。
-config["sandbox"]["mode"] = default_mode
-config["sandbox"]["allow_local"] = "local" in enabled_modes
 
 output = Path(output_path)
 output.parent.mkdir(parents=True, exist_ok=True)
-output.write_text(json.dumps(config, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+output.write_bytes(tomli_w.dumps(config))
 PY
 }
 
