@@ -152,6 +152,9 @@ CLAUDE.md
 GEMINI.md
 AGENTS.md
 
+# AI 协作任务会话（临时任务文档，不纳入版本控制）
+.agents/task-sessions/
+
 # uv 二进制（按需下载，不纳入版本控制）
 apps/backend/vendor/uv/*/uv
 apps/backend/vendor/uv/*/uv.exe
