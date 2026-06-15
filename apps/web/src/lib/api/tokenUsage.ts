@@ -3,6 +3,7 @@ import { apiRequest } from "@/lib/api/httpClient";
 
 export interface HeatmapQueryParams {
   workspace_id?: string | null;
+  model?: string | null;
   from?: string | null;
   to?: string | null;
   granularity?: "day" | "week" | "month";
@@ -15,6 +16,9 @@ export async function fetchTokenHeatmap(
 
   if (params.workspace_id) {
     searchParams.set("workspace_id", params.workspace_id);
+  }
+  if (params.model) {
+    searchParams.set("model", params.model);
   }
   if (params.from) {
     searchParams.set("from", params.from);

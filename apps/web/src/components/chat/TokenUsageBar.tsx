@@ -32,6 +32,7 @@ interface TokenUsageBarProps {
     saved_tokens?: number;
     summary_tokens?: number;
   } | null;
+  variant?: "bar" | "dropdown";
 }
 
 function formatTokens(n: number): string {
@@ -62,6 +63,7 @@ export function TokenUsageBar({
   isCompactingConversation = false,
   isRunning = false,
   compactionState,
+  variant = "bar",
 }: TokenUsageBarProps) {
   const [stats, setStats] = useState<TokenStats | null>(null);
   const [budgetEnabled, setBudgetEnabled] = useState(false);
@@ -184,6 +186,176 @@ export function TokenUsageBar({
     (isCompacting || isRunning) && "cursor-not-allowed opacity-70",
   );
 
+  const triggerButtonClass = cn(
+    "flex h-7 shrink-0 items-center gap-1 rounded-md border border-border bg-background px-2.5 text-[11px] font-medium text-muted-foreground transition-colors hover:border-tertiary/40 hover:bg-tertiary-container/50 hover:text-tertiary",
+    budgetExhausted && "border-error/40 bg-error/10 text-error hover:text-error hover:bg-error/15",
+  );
+
+  const popoverContent = (
+    <PopoverContent className="w-80 space-y-4 p-4" align="end">
+      <div className="space-y-1">
+        <div className="text-sm font-semibold text-foreground">当前会话预算</div>
+        <div className="text-xs leading-5 text-muted-foreground">
+          预算限制当前会话的累计 token 消耗，普通对话和自动化任务都会受这个上限约束。预算可以高于模型上下文总量，压缩不会重置用量。
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-2 text-xs">
+        <div className="rounded-lg border border-border bg-muted/20 px-3 py-2">
+          <div className="text-muted-foreground">上下文占用</div>
+          <div className="mt-1 font-medium tabular-nums text-foreground">
+            {contextValueLabel}
+          </div>
+        </div>
+        <div className="rounded-lg border border-border bg-muted/20 px-3 py-2">
+          <div className="text-muted-foreground">预算用量</div>
+          <div className="mt-1 font-medium tabular-nums text-foreground">
+            {budgetValueLabel}
+          </div>
+        </div>
+      </div>
+
+      {variant === "dropdown" && onCompactConversation && hasMessages && (
+        <button
+          type="button"
+          onClick={() => {
+            if (isCompacting || isRunning) return;
+            setPopoverOpen(false);
+            void onCompactConversation();
+          }}
+          disabled={isCompacting || isRunning}
+          className={cn(
+            "flex w-full items-center justify-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium transition-colors",
+            contextPercent >= 85 && !isCompacting && !isRunning
+              ? "border-warning/40 bg-warning/10 text-warning hover:bg-warning/15"
+              : "border-border bg-background text-muted-foreground hover:bg-tertiary-container/50 hover:text-tertiary",
+            (isCompacting || isRunning) && "cursor-not-allowed opacity-70",
+          )}
+        >
+          {isCompacting ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <Minimize2 className="h-3.5 w-3.5" />
+          )}
+          {isCompacting ? "压缩中" : isRunning ? "运行中" : "压缩上下文"}
+        </button>
+      )}
+
+      <div className="flex items-center justify-between">
+        <Label htmlFor="budget-switch" className="text-sm cursor-pointer">
+          开启预算控制
+        </Label>
+        <Switch
+          id="budget-switch"
+          checked={budgetEnabled}
+          onCheckedChange={(c) => void handleToggleBudget(c)}
+          disabled={isSaving}
+        />
+      </div>
+      {budgetEnabled && (
+        <div className="space-y-2">
+          <Label htmlFor="budget-tokens" className="text-xs">
+            Token 预算上限
+          </Label>
+          <div className="flex gap-2">
+            <Input
+              id="budget-tokens"
+              type="text"
+              inputMode="numeric"
+              min={1}
+              step={1}
+              value={tokenBudget}
+              onChange={(e) => {
+                // 只允许数字字符
+                const digits = e.target.value.replace(/\D/g, "");
+                setTokenBudget(digits);
+                if (budgetError) setBudgetError(null);
+              }}
+              onFocus={() => {
+                editingRef.current = true;
+              }}
+              onBlur={() => {
+                editingRef.current = false;
+                void handleSaveBudget();
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") void handleSaveBudget();
+              }}
+              disabled={isSaving}
+              className="h-8 text-sm"
+            />
+            <Button
+              type="button"
+              variant="default"
+              size="sm"
+              className="h-8 shrink-0"
+              onClick={() => void handleSaveBudget()}
+              disabled={isSaving}
+            >
+              设置
+            </Button>
+          </div>
+          {budgetError && (
+            <div className="text-[11px] leading-5 text-error">
+              {budgetError}
+            </div>
+          )}
+        </div>
+      )}
+      {contextPercent >= 85 && onCompactConversation && hasMessages && !isCompacting && !isRunning && (
+        <div className="rounded-lg bg-warning/10 px-3 py-2 text-[11px] text-warning">
+          上下文接近上限（{contextPercentLabel}），建议压缩以释放空间。
+          <button
+            type="button"
+            onClick={() => {
+              setPopoverOpen(false);
+              void onCompactConversation();
+            }}
+            className="ml-1 underline font-medium"
+          >
+            立即压缩
+          </button>
+        </div>
+      )}
+      {budgetExhausted && (
+        <div className="rounded-lg bg-error/10 px-3 py-2 text-[11px] text-error">
+          当前会话预算已耗尽，普通对话和自动化任务都会停止继续消耗。
+        </div>
+      )}
+      <div className="flex items-center gap-2 rounded-lg bg-muted/30 px-3 py-2 text-[11px] text-muted-foreground">
+        <Settings className="h-3 w-3 shrink-0" />
+        {budgetEnabled
+          ? "token 用量达到预算后，这条会话会停止继续执行。"
+          : "开启后可限制当前会话的 token 消耗上限。"}
+      </div>
+    </PopoverContent>
+  );
+
+  if (variant === "dropdown") {
+    return (
+      <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
+        <PopoverTrigger asChild>
+          <button
+            type="button"
+            className={triggerButtonClass}
+            aria-label="上下文与预算"
+            title="上下文与预算"
+          >
+            <Gauge className="h-3.5 w-3.5" />
+            <span className="tabular-nums">{contextPercentLabel}</span>
+            {compactionJustFinished && (
+              <span className="inline-flex items-center gap-0.5 rounded-full bg-success/10 px-1.5 py-0.5 text-[10px] font-medium text-success">
+                <Sparkles className="h-3 w-3" />
+                已压缩
+              </span>
+            )}
+          </button>
+        </PopoverTrigger>
+        {popoverContent}
+      </Popover>
+    );
+  }
+
   return (
     <div
       className="flex items-center gap-2 border-b border-border/50 bg-background px-3 py-2 text-[11px] text-muted-foreground"
@@ -296,10 +468,7 @@ export function TokenUsageBar({
         <PopoverTrigger asChild>
           <button
             type="button"
-            className={cn(
-              "flex h-7 shrink-0 items-center gap-1 rounded-md border border-border bg-background px-2.5 text-[11px] font-medium text-muted-foreground transition-colors hover:border-tertiary/40 hover:bg-tertiary-container/50 hover:text-tertiary",
-              budgetExhausted && "border-error/40 bg-error/10 text-error hover:text-error",
-            )}
+            className={triggerButtonClass}
             aria-label="设置当前会话预算"
           >
             <Gauge className="h-3.5 w-3.5" />
@@ -328,117 +497,7 @@ export function TokenUsageBar({
             )}
           </button>
         </PopoverTrigger>
-        <PopoverContent className="w-80 space-y-4 p-4" align="end">
-          <div className="space-y-1">
-            <div className="text-sm font-semibold text-foreground">当前会话预算</div>
-            <div className="text-xs leading-5 text-muted-foreground">
-              预算限制当前会话的累计 token 消耗，普通对话和自动化任务都会受这个上限约束。预算可以高于模型上下文总量，压缩不会重置用量。
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-2 text-xs">
-            <div className="rounded-lg border border-border bg-muted/20 px-3 py-2">
-              <div className="text-muted-foreground">上下文占用</div>
-              <div className="mt-1 font-medium tabular-nums text-foreground">
-                {contextValueLabel}
-              </div>
-            </div>
-            <div className="rounded-lg border border-border bg-muted/20 px-3 py-2">
-              <div className="text-muted-foreground">预算用量</div>
-              <div className="mt-1 font-medium tabular-nums text-foreground">
-                {budgetValueLabel}
-              </div>
-            </div>
-          </div>
-
-          <div className="flex items-center justify-between">
-            <Label htmlFor="budget-switch" className="text-sm cursor-pointer">
-              开启预算控制
-            </Label>
-            <Switch
-              id="budget-switch"
-              checked={budgetEnabled}
-              onCheckedChange={(c) => void handleToggleBudget(c)}
-              disabled={isSaving}
-            />
-          </div>
-          {budgetEnabled && (
-            <div className="space-y-2">
-              <Label htmlFor="budget-tokens" className="text-xs">
-                Token 预算上限
-              </Label>
-              <div className="flex gap-2">
-                <Input
-                  id="budget-tokens"
-                  type="text"
-                  inputMode="numeric"
-                  min={1}
-                  step={1}
-                  value={tokenBudget}
-                  onChange={(e) => {
-                    // 只允许数字字符
-                    const digits = e.target.value.replace(/\D/g, "");
-                    setTokenBudget(digits);
-                    if (budgetError) setBudgetError(null);
-                  }}
-                  onFocus={() => {
-                    editingRef.current = true;
-                  }}
-                  onBlur={() => {
-                    editingRef.current = false;
-                    void handleSaveBudget();
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") void handleSaveBudget();
-                  }}
-                  disabled={isSaving}
-                  className="h-8 text-sm"
-                />
-                <Button
-                  type="button"
-                  variant="default"
-                  size="sm"
-                  className="h-8 shrink-0"
-                  onClick={() => void handleSaveBudget()}
-                  disabled={isSaving}
-                >
-                  设置
-                </Button>
-              </div>
-              {budgetError && (
-                <div className="text-[11px] leading-5 text-error">
-                  {budgetError}
-                </div>
-              )}
-            </div>
-          )}
-          {contextPercent >= 85 && onCompactConversation && hasMessages && !isCompacting && !isRunning && (
-            <div className="rounded-lg bg-warning/10 px-3 py-2 text-[11px] text-warning">
-              上下文接近上限（{contextPercentLabel}），建议压缩以释放空间。
-              <button
-                type="button"
-                onClick={() => {
-                  setPopoverOpen(false);
-                  void onCompactConversation();
-                }}
-                className="ml-1 underline font-medium"
-              >
-                立即压缩
-              </button>
-            </div>
-          )}
-          {budgetExhausted && (
-            <div className="rounded-lg bg-error/10 px-3 py-2 text-[11px] text-error">
-              当前会话预算已耗尽，普通对话和自动化任务都会停止继续消耗。
-            </div>
-          )}
-          <div className="flex items-center gap-2 rounded-lg bg-muted/30 px-3 py-2 text-[11px] text-muted-foreground">
-            <Settings className="h-3 w-3 shrink-0" />
-            {budgetEnabled
-              ? "token 用量达到预算后，这条会话会停止继续执行。"
-              : "开启后可限制当前会话的 token 消耗上限。"}
-          </div>
-        </PopoverContent>
+        {popoverContent}
       </Popover>
 
     </div>

@@ -342,6 +342,7 @@ export function GlobalSettingsDialog({
         aria-modal="true"
         aria-labelledby="global-settings-title"
         aria-describedby="global-settings-desc"
+        data-testid="global-settings-dialog"
       >
         <span id="global-settings-title" className="sr-only">
           全局控制面板
@@ -414,6 +415,7 @@ export function GlobalSettingsDialog({
                             <button
                               key={child.id}
                               type="button"
+                              data-testid={`global-settings-nav-${child.id}`}
                               onClick={() => !isDisabled && handleSelectSection(child.id)}
                               disabled={isDisabled}
                               aria-current={activeSection === child.id ? "page" : undefined}

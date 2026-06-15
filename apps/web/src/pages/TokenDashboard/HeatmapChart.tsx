@@ -18,12 +18,26 @@ function getMaxValue(daily: DailyUsage[]): number {
   return Math.max(1, ...daily.map((d) => d.total));
 }
 
+function getDateRange(daily: DailyUsage[]): [string, string] {
+  if (daily.length === 0) {
+    const today = new Date().toISOString().slice(0, 10);
+    return [today, today];
+  }
+  // 前后各扩展一天，让边界单元格显示更完整
+  const first = new Date(daily[0].date);
+  const last = new Date(daily[daily.length - 1].date);
+  first.setDate(first.getDate() - 1);
+  last.setDate(last.getDate() + 1);
+  return [first.toISOString().slice(0, 10), last.toISOString().slice(0, 10)];
+}
+
 export function HeatmapChart({ daily }: { daily: DailyUsage[] }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const chartRef = useRef<EChartsType | null>(null);
 
   useEffect(() => {
     let cancelled = false;
+    let cleanupResize: (() => void) | undefined;
 
     async function initChart() {
       const echarts = await import("echarts");
@@ -31,6 +45,7 @@ export function HeatmapChart({ daily }: { daily: DailyUsage[] }) {
 
       if (chartRef.current) {
         chartRef.current.dispose();
+        chartRef.current = null;
       }
 
       const chart = echarts.init(containerRef.current, undefined, {
@@ -40,22 +55,14 @@ export function HeatmapChart({ daily }: { daily: DailyUsage[] }) {
 
       const heatmapData = getHeatmapData(daily);
       const maxVal = getMaxValue(daily);
-
-      // 确定日期范围
-      const startDate = daily.length > 0
-        ? new Date(daily[0].date)
-        : new Date();
-      const endDate = daily.length > 0
-        ? new Date(daily[daily.length - 1].date)
-        : new Date();
-      // 扩展到整年范围以便日历布局完整
-      const yearStart = String(startDate.getFullYear());
-      const yearEnd = String(endDate.getFullYear());
+      const [rangeStart, rangeEnd] = getDateRange(daily);
 
       chart.setOption({
         tooltip: {
-          formatter: (params: { data: [string, number] }) => {
-            const [date, value] = params.data;
+          formatter: (params: { data?: [string, number] }) => {
+            const data = params.data;
+            if (!data) return "";
+            const [date, value] = data;
             return `<b>${date}</b><br/>Token 消耗: ${formatTokens(value)}`;
           },
         },
@@ -75,11 +82,11 @@ export function HeatmapChart({ daily }: { daily: DailyUsage[] }) {
           ],
         },
         calendar: {
-          top: 20,
-          left: 30,
+          top: 28,
+          left: 36,
           right: 20,
-          range: [yearStart, yearEnd],
-          cellSize: ["auto", 14],
+          range: [rangeStart, rangeEnd],
+          cellSize: ["auto", 16],
           yearLabel: { show: true },
           dayLabel: { firstDay: 1, nameMap: "EN" },
           monthLabel: { show: true },
@@ -107,16 +114,14 @@ export function HeatmapChart({ daily }: { daily: DailyUsage[] }) {
 
       const handleResize = () => chart.resize();
       window.addEventListener("resize", handleResize);
-
-      return () => {
-        window.removeEventListener("resize", handleResize);
-      };
+      cleanupResize = () => window.removeEventListener("resize", handleResize);
     }
 
     initChart().catch(console.error);
 
     return () => {
       cancelled = true;
+      if (cleanupResize) cleanupResize();
       if (chartRef.current) {
         chartRef.current.dispose();
         chartRef.current = null;
@@ -124,11 +129,15 @@ export function HeatmapChart({ daily }: { daily: DailyUsage[] }) {
     };
   }, [daily]);
 
+  // 高度：按周数估算，最小 240px
+  const weeks = Math.max(4, Math.ceil(daily.length / 7));
+  const height = Math.max(240, 60 + weeks * 24);
+
   return (
     <div
       ref={containerRef}
       className="w-full"
-      style={{ height: 180 + Math.ceil(daily.length / 365) * 130 }}
+      style={{ height }}
     />
   );
 }

@@ -17,6 +17,7 @@ from filelock import FileLock
 
 from app.services.memory.models import MemorySnapshotRecord
 from app.services.memory.security import scan_memory_content
+from app.utils.path_utils import as_system_path
 
 logger = logging.getLogger(__name__)
 
@@ -24,11 +25,13 @@ logger = logging.getLogger(__name__)
 def _atomic_write_text(path: Path, content: str) -> None:
     """同目录临时文件 + fsync + os.replace，避免半写文件。"""
 
-    path.parent.mkdir(parents=True, exist_ok=True)
+    sys_path = as_system_path(path)
+    sys_parent = as_system_path(path.parent)
+    os.makedirs(sys_parent, exist_ok=True)
     fd, temp_name = tempfile.mkstemp(
         prefix=f".{path.name}.",
         suffix=".tmp",
-        dir=path.parent,
+        dir=sys_parent,
         text=True,
     )
     temp_path = Path(temp_name)
@@ -37,10 +40,10 @@ def _atomic_write_text(path: Path, content: str) -> None:
             temp_file.write(content)
             temp_file.flush()
             os.fsync(temp_file.fileno())
-        os.replace(temp_path, path)
+        os.replace(as_system_path(temp_path), sys_path)
         if os.name != "nt":
             try:
-                dir_fd = os.open(path.parent, os.O_RDONLY)
+                dir_fd = os.open(sys_parent, os.O_RDONLY)
                 try:
                     os.fsync(dir_fd)
                 finally:
@@ -49,7 +52,7 @@ def _atomic_write_text(path: Path, content: str) -> None:
                 pass
     except Exception:
         try:
-            temp_path.unlink()
+            os.unlink(as_system_path(temp_path))
         except OSError:
             pass
         raise
@@ -72,6 +75,7 @@ class MemoryStore:
             raise ValueError("MemoryStore 只接受 Markdown memory 文件路径")
         self._snapshots_path = self.file_path.with_suffix(".snapshots.json")
         self._lock_path = self.file_path.with_suffix(self.file_path.suffix + ".lock")
+        self._lock = FileLock(str(as_system_path(self._lock_path)))
         self._cache_text: str | None = None
         self._cache_mtime_ns: int | None = None
         self._dirty = False
@@ -82,7 +86,7 @@ class MemoryStore:
 
     @contextmanager
     def _file_lock(self):
-        with FileLock(str(self._lock_path)):
+        with self._lock:
             yield
 
     # ------------------------------------------------------------------
@@ -91,14 +95,15 @@ class MemoryStore:
 
     def read_text(self) -> str:
         """读取文件内容，不存在则返回空字符串。"""
-        if not self.file_path.exists():
+        file_sys_path = as_system_path(self.file_path)
+        if not os.path.exists(file_sys_path):
             self._cache_text = ""
             self._cache_mtime_ns = None
             self._dirty = False
             return ""
         with self._file_lock():
             try:
-                mtime_ns = self.file_path.stat().st_mtime_ns
+                mtime_ns = os.stat(file_sys_path).st_mtime_ns
             except OSError:
                 self._cache_text = ""
                 self._cache_mtime_ns = None
@@ -110,7 +115,8 @@ class MemoryStore:
                 and self._cache_mtime_ns == mtime_ns
             ):
                 return self._cache_text
-            text = self.file_path.read_text(encoding="utf-8")
+            with open(file_sys_path, encoding="utf-8") as f:
+                text = f.read()
             self._cache_text = text
             self._cache_mtime_ns = mtime_ns
             self._dirty = False
@@ -151,7 +157,7 @@ class MemoryStore:
         with self._file_lock():
             _atomic_write_text(self.file_path, content)
             try:
-                self._cache_mtime_ns = self.file_path.stat().st_mtime_ns
+                self._cache_mtime_ns = os.stat(as_system_path(self.file_path)).st_mtime_ns
             except OSError:
                 self._cache_mtime_ns = None
             self._cache_text = content
@@ -179,7 +185,8 @@ class MemoryStore:
         with self._file_lock():
             try:
                 try:
-                    existing = self.file_path.read_text(encoding="utf-8")
+                    with open(as_system_path(self.file_path), encoding="utf-8") as f:
+                        existing = f.read()
                 except FileNotFoundError:
                     existing = ""
 
@@ -203,7 +210,7 @@ class MemoryStore:
 
                 _atomic_write_text(self.file_path, content)
                 try:
-                    self._cache_mtime_ns = self.file_path.stat().st_mtime_ns
+                    self._cache_mtime_ns = os.stat(as_system_path(self.file_path)).st_mtime_ns
                 except OSError:
                     self._cache_mtime_ns = None
                 self._cache_text = content
@@ -220,18 +227,18 @@ class MemoryStore:
         self._dirty = False
 
     def exists(self) -> bool:
-        return self.file_path.exists()
+        return os.path.exists(as_system_path(self.file_path))
 
     def initialize(self) -> None:
         """确保文件存在（空文件）。"""
-        self.file_path.parent.mkdir(parents=True, exist_ok=True)
-        if not self.file_path.exists():
+        os.makedirs(as_system_path(self.file_path.parent), exist_ok=True)
+        if not os.path.exists(as_system_path(self.file_path)):
             with self._file_lock():
-                if not self.file_path.exists():
+                if not os.path.exists(as_system_path(self.file_path)):
                     _atomic_write_text(self.file_path, "")
                     self._cache_text = ""
                     try:
-                        self._cache_mtime_ns = self.file_path.stat().st_mtime_ns
+                        self._cache_mtime_ns = os.stat(as_system_path(self.file_path)).st_mtime_ns
                     except OSError:
                         self._cache_mtime_ns = None
                     self._dirty = False
@@ -256,10 +263,12 @@ class MemoryStore:
         return snapshot
 
     def _load_snapshots(self) -> list[dict[str, object]]:
-        if not self._snapshots_path.exists():
+        snapshots_sys_path = as_system_path(self._snapshots_path)
+        if not os.path.exists(snapshots_sys_path):
             return []
         try:
-            data = json.loads(self._snapshots_path.read_text(encoding="utf-8"))
+            with open(snapshots_sys_path, encoding="utf-8") as f:
+                data = json.loads(f.read())
         except (json.JSONDecodeError, OSError):
             return []
         if not isinstance(data, list):

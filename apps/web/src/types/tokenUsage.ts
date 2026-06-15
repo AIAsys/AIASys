@@ -17,5 +17,6 @@ export interface HeatmapResponse {
   total_input: number;
   total_output: number;
   total_tokens: number;
+  models: string[];
   daily: DailyUsage[];
 }

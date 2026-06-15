@@ -2,6 +2,13 @@ import { useCallback, useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { fetchTokenHeatmap } from "@/lib/api/tokenUsage";
 import type { HeatmapResponse } from "@/types/tokenUsage";
 import { SummaryCards } from "@/pages/TokenDashboard/SummaryCards";
@@ -16,6 +23,7 @@ export function TokenUsagePanel({ embedded }: TokenUsagePanelProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [dateRange, setDateRange] = useState<"90d" | "180d" | "365d">("365d");
+  const [model, setModel] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -34,18 +42,29 @@ export function TokenUsagePanel({ embedded }: TokenUsagePanelProps) {
         from = d.toISOString().slice(0, 10);
       }
 
-      const result = await fetchTokenHeatmap({ from, granularity: "day" });
+      const result = await fetchTokenHeatmap({
+        from,
+        granularity: "day",
+        model,
+      });
       setData(result);
     } catch (e) {
       setError(e instanceof Error ? e.message : "加载失败");
     } finally {
       setLoading(false);
     }
-  }, [dateRange]);
+  }, [dateRange, model]);
 
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  // 当后端返回的模型列表不包含当前选中的模型时（数据被清空等），重置选择
+  useEffect(() => {
+    if (data && model && data.models.length > 0 && !data.models.includes(model)) {
+      setModel(null);
+    }
+  }, [data, model]);
 
   if (loading) {
     return (
@@ -76,6 +95,24 @@ export function TokenUsagePanel({ embedded }: TokenUsagePanelProps) {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {data && data.models.length > 0 && (
+            <Select
+              value={model ?? "__all__"}
+              onValueChange={(value) => setModel(value === "__all__" ? null : value)}
+            >
+              <SelectTrigger className="w-[180px] h-8 text-xs">
+                <SelectValue placeholder="全部模型" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__all__">全部模型</SelectItem>
+                {data.models.map((m) => (
+                  <SelectItem key={m} value={m}>
+                    {m}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
           {(["90d", "180d", "365d"] as const).map((range) => (
             <Button
               key={range}
