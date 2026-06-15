@@ -9,6 +9,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from app.utils.path_utils import as_system_path
+
 MAX_LINES = 1000
 MAX_LINE_LENGTH = 2000
 MAX_BYTES = 100 << 10  # 100KB
@@ -31,7 +33,7 @@ from .file_tools_restrictions import (
 def _is_binary_file(path: Path) -> bool:
     """通过检查文件头是否包含 NUL 字节判断是否为二进制文件。"""
     try:
-        with path.open("rb") as f:
+        with open(as_system_path(path), "rb") as f:
             header = f.read(MEDIA_SNIFF_BYTES)
     except Exception:
         return False

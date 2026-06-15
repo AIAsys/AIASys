@@ -13,12 +13,12 @@ temperature = 0.6
 
 [llm.providers.stepfun]
 type = "openai_chat_completions"
-# 两种计费模式，base_url 不同，API key 也不同：
+# 两种计费模式，base_url 不同，API key 相同：
 #   - 普通 API（按量计费）：base_url = "https://api.stepfun.com/v1"
 #   - Step Plan / Coding Plan（套餐计费，推荐高频使用）：
 #     base_url = "https://api.stepfun.com/step_plan/v1"
-#   详见 docs/guides/pkm-hub.md 和 AGENTS.md 模型选型策略
-base_url = "https://api.stepfun.com/v1"
+#   详见 AGENTS.md 模型选型策略
+base_url = "https://api.stepfun.com/step_plan/v1"
 api_key = "your-stepfun-api-key"
 
 # 纯文本模型
@@ -43,15 +43,7 @@ name = "step-3.7-flash"
 max_context_size = 256000
 capabilities = ["thinking", "image_in", "video_in"]
 
-[[llm.providers.stepfun.models]]
-name = "step-router-v2-pro"
-max_context_size = 190000
-capabilities = ["thinking", "image_in"]
 
-[[llm.providers.stepfun.models]]
-name = "step-router-v2-ultra"
-max_context_size = 190000
-capabilities = ["thinking", "image_in"]
 
 [embedding]
 enabled = true

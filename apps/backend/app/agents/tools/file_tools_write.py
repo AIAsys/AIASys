@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 from pathlib import Path
 from typing import Any, Literal
 
@@ -15,6 +16,7 @@ from pydantic import BaseModel, Field, model_validator
 from app.core.agent_tool import AiasysTool
 from app.core.tool_result import ToolResult
 from app.services.file_history import FileHistoryOperation, file_history_service
+from app.utils.path_utils import as_system_path
 
 from .file_tools_base import (
     _resolve_file_path,
@@ -33,19 +35,19 @@ from .file_tools_restrictions import (
 
 
 def _append_text(path: Path, text: str) -> None:
-    with path.open("a", encoding="utf-8") as f:
+    with open(as_system_path(path), "a", encoding="utf-8") as f:
         f.write(text)
 
 
 def _read_text_preserve_newlines(path: Path) -> str:
     """以保留原始换行符的方式读取文件。"""
-    with open(path, encoding="utf-8", errors="replace", newline="") as f:
+    with open(as_system_path(path), encoding="utf-8", errors="replace", newline="") as f:
         return f.read()
 
 
 def _write_text_preserve_newlines(path: Path, text: str) -> None:
     """以保留原始换行符的方式写入文件。"""
-    with open(path, "w", encoding="utf-8", newline="") as f:
+    with open(as_system_path(path), "w", encoding="utf-8", newline="") as f:
         f.write(text)
 
 
@@ -179,7 +181,7 @@ class WriteFile(AiasysTool):
 
         # 创建父目录
         try:
-            file_path.parent.mkdir(parents=True, exist_ok=True)
+            os.makedirs(as_system_path(file_path.parent), exist_ok=True)
         except Exception as e:
             return ToolResult(content=f"创建父目录失败: {e}", is_error=True)
 
@@ -191,7 +193,7 @@ class WriteFile(AiasysTool):
                     source_detail=self.name,
                 )
                 await asyncio.get_event_loop().run_in_executor(
-                    None, file_path.write_text, params.content, "utf-8"
+                    None, _write_text_preserve_newlines, file_path, params.content
                 )
             else:
                 _record_agent_file_history(
@@ -206,7 +208,7 @@ class WriteFile(AiasysTool):
             return ToolResult(content=f"写入失败: {e}", is_error=True)
 
         action = "覆盖" if params.mode == "overwrite" else "追加"
-        size = file_path.stat().st_size
+        size = os.path.getsize(as_system_path(file_path))
         return ToolResult(
             content=f"文件已成功{action}。当前大小: {size} 字节。",
         )
@@ -311,9 +313,9 @@ class StrReplaceFile(AiasysTool):
         if magic_result:
             return magic_result
 
-        if not file_path.exists():
+        if not os.path.exists(as_system_path(file_path)):
             return ToolResult(content=f"`{params.path}` 不存在", is_error=True)
-        if not file_path.is_file():
+        if not os.path.isfile(as_system_path(file_path)):
             return ToolResult(content=f"`{params.path}` 不是文件", is_error=True)
 
         try:

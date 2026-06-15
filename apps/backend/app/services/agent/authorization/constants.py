@@ -28,6 +28,7 @@ HIGH_RISK_TOOLS: set[str] = {
     "DisableSkill",
     "InstallMCPServer",
     "UninstallMCPServer",
+    "InstallConnector",
     "SetEnvVar",
     "DeleteEnvVar",
     "CreateAutoTask",
