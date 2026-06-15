@@ -17,6 +17,27 @@ from app.services.history import (
     load_display_history_entries,
 )
 
+
+def _get_workspace_dir_for_session(user_id: str, session_id: str) -> Path:
+    """返回会话所属工作区目录；若未绑定工作区则回退到会话目录。"""
+    try:
+        from app.services.workspace_registry import get_workspace_registry_service
+
+        workspace_id = get_workspace_registry_service().find_workspace_id_by_session_id(
+            user_id, session_id
+        )
+        if workspace_id:
+            return get_workspace_registry_service()._get_workspace_dir(user_id, workspace_id)
+    except Exception:
+        pass
+    return Path(str(get_work_dir(user_id, session_id)))
+
+
+from app.services.session.constants import (
+    ACTIVE_SESSION_STATE_DIR_NAME,
+    HISTORY_SNAPSHOT_FILE_NAME,
+)
+
 if TYPE_CHECKING:
     from app.services.agent import AgentService
 
@@ -249,6 +270,42 @@ def _backfill_reasoning_content_from_wire(
     return hydrated
 
 
+def _should_skip_context_message(msg: dict) -> bool:
+    """过滤不应对 UI 暴露的内部 SDK 消息。"""
+    if msg.get("role") in ("_checkpoint", "_usage", "_system_prompt", "_compaction"):
+        return True
+    if msg.get("role") == "user":
+        content = msg.get("content")
+        if isinstance(content, str) and content.strip().startswith("<system-reminder>"):
+            return True
+    return False
+
+
+def _load_compaction_snapshot(
+    snapshot_path: Path,
+) -> tuple[list[dict[str, Any]], bool]:
+    """读取压缩快照。
+
+    Returns:
+        (messages, is_compaction_snapshot)
+    """
+    if not snapshot_path.exists():
+        return [], False
+    try:
+        payload = json.loads(snapshot_path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        logger.warning("读取 history snapshot 失败: %s", exc)
+        return [], False
+    if not isinstance(payload, dict):
+        return [], False
+    if not payload.get("_compaction_snapshot"):
+        return [], False
+    raw_messages = payload.get("messages") or []
+    if not isinstance(raw_messages, list):
+        return [], False
+    return [msg for msg in raw_messages if isinstance(msg, dict)], True
+
+
 class HistoryMixin:
     """历史记录功能"""
 
@@ -261,13 +318,18 @@ class HistoryMixin:
         存储位置:
         - SDK 原始历史: workspaces/{user_id}/{session_id}/.aiasys/session/{session_id}/context.jsonl
         - UI 展示历史: workspaces/{user_id}/{session_id}/.aiasys/session/{session_id}/display_history.jsonl
+        - 压缩快照: workspaces/{user_id}/{session_id}/.aiasys/session/_active/history.json
+
+        当 history.json 带有 `_compaction_snapshot` 标记时，说明会话经历过压缩，
+        此时直接返回快照中的消息（SessionManager 会持续维护该文件，包含压缩后的摘要
+        和后续新消息）。否则继续读取 context.jsonl，保持非压缩会话的原有行为。
 
         Args:
             limit: 限制返回最近 N 条消息，0 表示不限制。
                    实现方式为从文件尾部读取，避免全量加载大文件。
         """
         try:
-            work_dir = get_work_dir(user_id, session_id)
+            work_dir = _get_workspace_dir_for_session(user_id, session_id)
             # 使用标准 Path 而不是 WorkspacePath，避免异步 exists() 问题
             from pathlib import Path as StdPath
 
@@ -275,9 +337,24 @@ class HistoryMixin:
                 StdPath(str(work_dir)) / ".aiasys" / "session" / session_id / "context.jsonl"
             )
             session_dir = session_file.parent
+            snapshot_file = (
+                StdPath(str(work_dir))
+                / ".aiasys"
+                / "session"
+                / ACTIVE_SESSION_STATE_DIR_NAME
+                / HISTORY_SNAPSHOT_FILE_NAME
+            )
 
-            history = []
-            if session_file.exists():
+            history: list[dict[str, Any]] = []
+
+            # 优先判断是否为压缩快照；非压缩的 history.json 由 SessionManager 维护，
+            # 不应覆盖 context.jsonl 的读取逻辑，避免把普通会话历史误当压缩状态。
+            snapshot_messages, is_compaction = _load_compaction_snapshot(snapshot_file)
+            if is_compaction:
+                history = snapshot_messages
+                if limit > 0 and len(history) > limit:
+                    history = history[-limit:]
+            elif session_file.exists():
                 if limit > 0:
                     # 从文件尾部读取最近 N 条有效消息，避免全量解析
                     history = self._read_history_tail(session_file, limit)
@@ -285,28 +362,16 @@ class HistoryMixin:
                     with open(session_file, "r", encoding="utf-8") as f:
                         for line in f:
                             line = line.strip()
-                            if line:
-                                try:
-                                    msg = json.loads(line)
-                                    # 过滤内部 SDK 消息和 system-reminder 消息
-                                    if msg.get("role") in (
-                                        "_checkpoint",
-                                        "_usage",
-                                        "_system_prompt",
-                                    ):
-                                        continue
-                                    # 内联 system-reminder 检测，避免依赖 EventsMixin
-                                    if (
-                                        msg.get("role") == "user"
-                                        and isinstance(msg.get("content"), str)
-                                        and msg.get("content", "")
-                                        .strip()
-                                        .startswith("<system-reminder>")
-                                    ):
-                                        continue
-                                    history.append(msg)
-                                except json.JSONDecodeError:
+                            if not line:
+                                continue
+                            try:
+                                msg = json.loads(line)
+                                if _should_skip_context_message(msg):
                                     continue
+                                history.append(msg)
+                            except json.JSONDecodeError:
+                                continue
+
             display_entries = load_display_history_entries(StdPath(str(work_dir)), session_id)
             if history:
                 # 先合并连续的空白 assistant 消息，避免前端生成空白 Turn 分隔线
@@ -334,7 +399,7 @@ class HistoryMixin:
 
         def _should_skip(msg: dict) -> bool:
             """过滤内部 SDK 消息和 system-reminder 消息。"""
-            if msg.get("role") in ("_checkpoint", "_usage", "_system_prompt"):
+            if msg.get("role") in ("_checkpoint", "_usage", "_system_prompt", "_compaction"):
                 return True
             if msg.get("role") == "user":
                 content = msg.get("content")
@@ -427,7 +492,7 @@ class HistoryMixin:
         用于构建执行树和展示 Host Agent 的执行步骤
         """
         try:
-            work_dir = get_work_dir(user_id, session_id)
+            work_dir = _get_workspace_dir_for_session(user_id, session_id)
             from pathlib import Path as StdPath
 
             # 尝试读取 wire.jsonl（如果存在）

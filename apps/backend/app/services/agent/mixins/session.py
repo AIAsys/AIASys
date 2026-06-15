@@ -135,8 +135,41 @@ class SessionMixin:
             write_runtime_config_state,
         )
 
-        work_dir = get_work_dir(user_id, session_id)
-        workspace_path = Path(str(work_dir))
+        # 获取会话的 sandbox_mode（如果会话已创建）
+        session_metadata = self._session_manager.get_session(session_id, user_id)
+
+        # 解析会话所属工作区；若会话绑定到工作区，runtime 工作目录应落在工作区根目录，
+        # 保证文件工具、运行时环境、知识图谱等都在工作区命名空间内操作。
+        workspace_id_for_session: str | None = None
+        try:
+            workspace_id_for_session = (
+                getattr(session_metadata, "workspace_id", None)
+                if session_metadata is not None
+                else None
+            )
+            if not workspace_id_for_session:
+                from app.services.workspace_registry import get_workspace_registry_service
+
+                workspace_id_for_session = (
+                    get_workspace_registry_service().find_workspace_id_by_session_id(
+                        user_id,
+                        session_id,
+                    )
+                )
+        except Exception:
+            logger.debug("解析会话所属工作区失败，继续使用会话目录: session=%s", session_id, exc_info=True)
+
+        if workspace_id_for_session:
+            from app.services.workspace_registry import get_workspace_registry_service
+
+            workspace_path = get_workspace_registry_service()._get_workspace_dir(
+                user_id, workspace_id_for_session
+            )
+            work_dir = WorkspacePath(str(workspace_path))
+        else:
+            work_dir = get_work_dir(user_id, session_id)
+            workspace_path = Path(str(work_dir))
+
         ensure_workspace_layout(workspace_path)
         session_key = f"{user_id}/{session_id}"
 
@@ -148,8 +181,6 @@ class SessionMixin:
 
         resolved_env_id = current_env_id.get()
 
-        # 获取会话的 sandbox_mode（如果会话已创建）
-        session_metadata = self._session_manager.get_session(session_id, user_id)
         # 优先使用传入的参数（用于新会话），否则使用会话元数据中的值
         if sandbox_mode is None:
             sandbox_mode = session_metadata.sandbox_mode if session_metadata else None

@@ -4,6 +4,8 @@ import asyncio
 import hashlib
 import json
 import logging
+import os
+import time
 import tomllib
 from pathlib import Path
 from typing import Any
@@ -88,6 +90,20 @@ class AiasysRuntimeSession(
         self._current_turn_n: int | None = None
         self._agent_instructions: str | None = self._load_agent_instructions()
 
+        # Auto-Nudge 状态：每个 user message 只触发一次
+        self._auto_nudge_sent_for_current_turn: bool = False
+        self._post_list_nudge_sent_for_current_turn: bool = False
+        self._tools_used_since_user_message: bool = False
+        self._last_tool_name: str | None = None
+
+        # Feature flags for runtime adaptive behaviors
+        self._auto_nudge_enabled = (
+            os.getenv("AIASYS_AUTO_NUDGE_ENABLED", "true").lower() == "true"
+        )
+        self._loop_guard_enabled = (
+            os.getenv("AIASYS_LOOP_GUARD_ENABLED", "true").lower() == "true"
+        )
+
         # context.jsonl 路径，与 get_session_history() 读取路径保持一致
         _work_dir_path = Path(str(self._spec.work_dir))
         self._context_file = (
@@ -109,6 +125,7 @@ class AiasysRuntimeSession(
             self.messages.append(
                 {
                     "role": "system",
+                    "origin": "system",
                     "content": system_prompt,
                 }
             )
@@ -126,6 +143,7 @@ class AiasysRuntimeSession(
         if context_parts:
             context_message: InternalMessage = {
                 "role": "user",
+                "origin": "contextual_user",
                 "content": "\n\n".join(context_parts),
             }
             self._context_messages.append(context_message)
@@ -151,6 +169,16 @@ class AiasysRuntimeSession(
                 self._estimated_token_count = _saved_tokens
             elif _saved_tokens > self._estimated_token_count:
                 self._estimated_token_count = _saved_tokens
+
+    @property
+    def session_turn_count(self) -> int:
+        """返回当前会话已持久化的最大 turn 编号，供事件投影初始化 turn 计数。
+
+        该值在 __init__ 时从 history snapshot 恢复，并在每次 ReAct turn 开始
+        时递增。执行入口应以此作为 event_state["turn_n"] 的初始值，避免每次
+        新的 execute 请求都把第一 turn 重新标为 1。
+        """
+        return self._session_turn_count
 
     def refresh_context_tokens_from_metadata(self) -> None:
         """复用旧 Session 时，从 metadata 重新加载精确值修正估算。
@@ -453,8 +481,22 @@ class AiasysRuntimeSession(
         当处于 ReAct turn 中时，为 assistant/tool 消息附加 turn_n，
         供历史恢复时还原 turn 边界。
         """
+        message = dict(message)
+
+        # 为没有 origin 的消息设置默认值，用于区分用户真实输入、系统注入、压缩摘要等。
+        if "origin" not in message:
+            role = message.get("role")
+            if role == "system":
+                message["origin"] = "system"
+            elif role == "user":
+                message["origin"] = "user"
+            elif role == "assistant":
+                message["origin"] = "assistant"
+            elif role == "tool":
+                message["origin"] = "tool"
+
         if self._current_turn_n is not None and message.get("role") in ("assistant", "tool"):
-            message = dict(message, turn_n=self._current_turn_n)
+            message["turn_n"] = self._current_turn_n
 
         self.messages.append(message)
         # 把新增消息计入 pending，等待下次 LLM 真实 usage 修正。
@@ -495,7 +537,12 @@ class AiasysRuntimeSession(
             raw_messages = []
         if not isinstance(raw_messages, list):
             return []
+        return self._normalize_restored_messages(raw_messages)
 
+    def _normalize_restored_messages(
+        self, raw_messages: list[Any]
+    ) -> list[InternalMessage]:
+        """将历史快照中的原始消息规范化并恢复 turn_n / origin 等元数据。"""
         restored: list[InternalMessage] = []
         max_turn_n = 0
         for item in raw_messages:
@@ -520,9 +567,95 @@ class AiasysRuntimeSession(
                 message["turn_n"] = turn_n
                 if turn_n > max_turn_n:
                     max_turn_n = turn_n
+            origin = item.get("origin")
+            if origin in (
+                "user",
+                "assistant",
+                "tool",
+                "system",
+                "compaction_summary",
+                "system_notice",
+                "contextual_user",
+                "forked",
+            ):
+                message["origin"] = origin
             restored.append(message)
         self._session_turn_count = max_turn_n
         return restored
+
+    def _write_history_snapshot(self, messages: list[dict[str, Any]]) -> None:
+        """将当前消息列表写回 history.json 快照。
+
+        压缩完成后调用，确保会话重建时能看到压缩后的状态。
+        只保存 user/assistant/tool 消息，system prompt 由 __init__ 重新注入。
+        """
+        session_dir = Path(str(self._spec.work_dir))
+        history_path = (
+            session_dir
+            / ".aiasys"
+            / "session"
+            / ACTIVE_SESSION_STATE_DIR_NAME
+            / HISTORY_SNAPSHOT_FILE_NAME
+        )
+        try:
+            history_path.parent.mkdir(parents=True, exist_ok=True)
+            snapshot_messages = [
+                msg
+                for msg in messages
+                if isinstance(msg, dict) and msg.get("role") in {"user", "assistant", "tool"}
+            ]
+            history_path.write_text(
+                json.dumps(
+                    {
+                        "_schema_version": 1,
+                        "_compaction_snapshot": True,
+                        "messages": snapshot_messages,
+                    },
+                    indent=2,
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+        except Exception:
+            logger.warning("写入 history snapshot 失败: session=%s", self.session_id, exc_info=True)
+
+    def _append_compaction_record(
+        self,
+        *,
+        summary_path: str,
+        compacted_count: int,
+        preserved_count: int,
+        summary_turn_n: int | None,
+        compacted_turn_range: tuple[int, int] | None,
+    ) -> None:
+        """向 context.jsonl 追加一条压缩事件记录。
+
+        context.jsonl 保持 append-only；该记录不进入 LLM 输入，
+        用于审计和未来可能的事件重放。
+        """
+        record: dict[str, Any] = {
+            "role": "_compaction",
+            "origin": "compaction_record",
+            "summary_path": summary_path,
+            "compacted_count": compacted_count,
+            "preserved_count": preserved_count,
+            "timestamp": time.time(),
+        }
+        if summary_turn_n is not None:
+            record["summary_turn_n"] = summary_turn_n
+        if compacted_turn_range is not None:
+            record["compacted_turn_range"] = list(compacted_turn_range)
+
+        try:
+            self._context_file.parent.mkdir(parents=True, exist_ok=True)
+            with open(self._context_file, "a", encoding="utf-8") as f:
+                f.write(json.dumps(record, ensure_ascii=False) + "\n")
+        except Exception:
+            logger.warning(
+                "追加压缩记录失败: session=%s",
+                self.session_id,
+                exc_info=True,
+            )
 
     def _downgrade_historical_image_messages(
         self,
@@ -633,15 +766,15 @@ class AiasysRuntimeSession(
         ]
         filtered = self._trim_incomplete_tool_call_history(filtered)
 
-        if fork_turns is None:
-            return filtered
+        result = filtered
+        if fork_turns is not None:
+            user_indices = [i for i, msg in enumerate(filtered) if msg.get("role") == "user"]
+            if user_indices:
+                start_idx = user_indices[-fork_turns] if fork_turns <= len(user_indices) else 0
+                result = filtered[start_idx:]
 
-        user_indices = [i for i, msg in enumerate(filtered) if msg.get("role") == "user"]
-        if not user_indices:
-            return filtered
-
-        start_idx = user_indices[-fork_turns] if fork_turns <= len(user_indices) else 0
-        return filtered[start_idx:]
+        # 标记继承自 Host 的消息，便于后续区分来源。
+        return [dict(msg, origin="forked") for msg in result]
 
     def _trim_incomplete_tool_call_history(
         self,

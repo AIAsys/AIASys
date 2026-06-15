@@ -7,45 +7,11 @@ import os
 import re
 import shutil
 import subprocess
-import sys
 from pathlib import Path
 
 
-def _bundled_uv_path() -> Path | None:
-    """查找 AIASys 内置的 uv 二进制。
-
-    桌面版打包时会把对应平台的 uv 放到后端 tools/uv 目录，并写入
-    AIASYS_BUNDLED_UV_PATH 环境变量。优先使用该版本，避免运行时去网络下载。
-    """
-    bundled = os.environ.get("AIASYS_BUNDLED_UV_PATH")
-    if bundled:
-        p = Path(bundled)
-        if p.is_file():
-            return p
-
-    # 兜底：从当前 Python 解释器所在目录向上查找 tools/uv
-    # 覆盖开发模式（venv/bin/python3 与 tools/uv 同级）和打包模式
-    try:
-        python_dir = Path(sys.executable).resolve().parent
-    except Exception:
-        return None
-
-    for base in [python_dir, python_dir.parent, python_dir.parent.parent]:
-        candidate = base / "tools" / "uv"
-        if os.name == "nt":
-            candidate = candidate.with_suffix(".exe")
-        if candidate.is_file():
-            return candidate
-
-    return None
-
-
 def find_uv_binary() -> str | None:
-    """在 PATH、常见安装位置和 AIASys 内置目录中查找 uv 可执行文件。"""
-    bundled = _bundled_uv_path()
-    if bundled is not None:
-        return str(bundled)
-
+    """在 PATH 和常见安装位置中查找 uv 可执行文件。"""
     uv = shutil.which("uv")
     if uv:
         return uv

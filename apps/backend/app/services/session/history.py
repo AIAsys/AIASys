@@ -45,8 +45,17 @@ class HistoryMixin:
         """写入历史快照信封格式。"""
         history_path = self._get_history_snapshot_path(session_dir)
         history_path.parent.mkdir(parents=True, exist_ok=True)
+        payload: dict = {"_schema_version": 1, "messages": messages}
+        # 保留压缩快照标记，避免 SessionManager 追加消息后 UI 历史接口丢失压缩状态。
+        if history_path.exists():
+            try:
+                existing = json.loads(history_path.read_text(encoding="utf-8"))
+                if isinstance(existing, dict) and existing.get("_compaction_snapshot"):
+                    payload["_compaction_snapshot"] = True
+            except Exception:
+                pass
         history_path.write_text(
-            json.dumps({"_schema_version": 1, "messages": messages}, indent=2, ensure_ascii=False),
+            json.dumps(payload, indent=2, ensure_ascii=False),
             encoding="utf-8",
         )
         return history_path

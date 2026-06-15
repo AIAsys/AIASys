@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -40,6 +41,49 @@ class SessionBudgetMixin:
             return value if isinstance(value, int) and value > 0 else None
         except Exception:
             return None
+
+    def _append_usage_record(
+        self, usage: dict[str, Any] | None, input_tokens: int, output_tokens: int
+    ) -> None:
+        """追加一条 LLM 调用 token 消耗记录到 usage.jsonl。
+
+        每条记录对应一次完整的 LLM API 调用，存储为 JSONL 行，
+        用于后续聚合生成 Token 消耗贡献图等可视化。
+        """
+        try:
+            model = self._resolve_model_id()
+            model_config = getattr(self, "_model_config", None)
+            provider = (
+                getattr(model_config, "provider", None)
+                if model_config is not None
+                else None
+            )
+            if not provider:
+                provider = model
+
+            usage = usage or {}
+            record = {
+                "ts": datetime.now(timezone.utc).isoformat(),
+                "model": model,
+                "provider": provider,
+                "input": input_tokens,
+                "output": output_tokens,
+                "cache_read": usage.get("cache_read_input_tokens", 0) or 0,
+                "cache_write": usage.get("cache_creation_input_tokens", 0) or 0,
+                "reasoning": usage.get("reasoning_tokens", 0) or 0,
+            }
+
+            record_path = (
+                Path(str(self._spec.work_dir))
+                / ".aiasys"
+                / "session"
+                / "usage.jsonl"
+            )
+            record_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(record_path, "a", encoding="utf-8") as f:
+                f.write(json.dumps(record, ensure_ascii=False) + "\n")
+        except Exception:
+            logger.debug("追加 usage record 失败", exc_info=True)
 
     def _save_budget(self) -> None:
         if self.budget is None:

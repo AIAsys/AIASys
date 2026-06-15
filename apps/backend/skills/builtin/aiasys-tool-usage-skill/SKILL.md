@@ -1,12 +1,20 @@
 +++
 name = "AIASys Tool Usage"
-description = "AIASys 内置工具使用指南。提供当前 Agent 可用工具的选择策略、收益说明和常见任务推荐。当不确定用什么工具时，先读取本 skill 再执行。"
+description = "AIASys 工具使用速查表。触发条件：不确定该调用哪个工具、或任务涉及环境变量/Skill/专家/Notebook/Canvas/数据表/MCP/数据库/AutoTask。加载后可获得对应工具的参数说明、使用流程和禁止事项。"
 +++
 
 
 # AIASys 工具使用指南
 
-本 skill 帮助 Agent 在每次执行任务时选择最合适的工具。Agent 的可用工具列表是动态的（用户可能启用或禁用某些工具），因此选择工具前先搜索确认。
+本 skill 帮助 Agent 在执行任务时选择最合适的工具。Agent 的可用工具列表是动态的（用户可能启用或禁用某些工具），因此选择工具前先搜索确认。
+
+## 前置检查：任务开始前先想一下
+
+在开始执行任务前，花几秒判断：
+
+1. **这个任务能用已有 skill 加速吗？** 先用 `ListSkills` 看看当前工作区启用了哪些 skill，有相关的就先 `LoadSkill` 加载
+2. **这个任务需要特定专家吗？** 先用 `ListSystemExperts` 看看有没有对口的专家角色，有的话 `InstallExpert` 安装后通过 `TaskTool` 委派
+3. **不确定用什么工具？** 继续读下面的工具速查表
 
 ## 通用原则
 
@@ -29,9 +37,10 @@ description = "AIASys 内置工具使用指南。提供当前 Agent 可用工具
 - 不要用 WriteFile 或 StrReplaceFile 修改 `.canvas` 文件，增删改节点和边请用 `BatchCanvasOperations`
 
 ### 环境变量
+- `ListEnvVars`：列出工作区已配置的环境变量名（只返回工作区变量，不混入系统变量）
 - `GetEnvVar`：读取某个环境变量的值（敏感变量自动脱敏）
 - `SetEnvVar`：设置/修改工作区环境变量（持久化，跨会话可用）
-- `DeleteEnvVar`：删除工作区环境变量（永久删除，跨会话生效）
+- `DeleteEnvVar`：删除工作区环境变量（从 registry 永久删除，跨会话生效）
 
 **禁止用 Shell 替代环境变量操作**：`echo $VAR`、`env`、`export`、`unset` 只在当前进程生效，且 `env` 会输出大量系统变量干扰判断。Windows 上 `env` 不可用，环境变量工具是跨平台的唯一正确入口。
 
@@ -153,12 +162,57 @@ InstallMCPServer(name="server-name")
 约束：数据分析、生成图表、处理 CSV 优先用 `RunCode` 或 `ManageNotebook`，不要写到 /tmp/ 再执行。
 
 ### Skill 管理
-- `ListSkills`：列出当前已启用 skill
-- `SearchStoreSkills`：在仓库中搜索 skill
-- `EnableSkill` / `DisableSkill`：启用/禁用 skill
-- `LoadSkill`：读取 skill 内容
 
-约束：搜索到匹配的 skill 后，必须立即调用 `EnableSkill` 安装，不能只搜索不安装。
+当前工作区可能启用了某些 skill，它们能提供领域知识和工作流指导。Skill 管理流程：
+
+| 场景 | 工具 | 说明 |
+|------|------|------|
+| 查看已启用的 skill | `ListSkills` | 列出当前工作区已启用的所有 skill |
+| 搜索仓库中的 skill | `SearchStoreSkills` | 按关键词搜索，`source=""` 不过滤，`query=""` 返回全部 |
+| 启用/安装 skill | `EnableSkill` | 搜索到合适的 skill 后**必须立即调用** `EnableSkill` 安装 |
+| 禁用 skill | `DisableSkill` | 用户要求"关掉""禁用""不要了"时使用，参数 `name` 为 skill 目录名 |
+| 读取 skill 内容 | `LoadSkill` | 加载 skill 的 SKILL.md，了解该 skill 能做什么 |
+
+**关键规则**：
+- `SearchStoreSkills` 找到匹配的 skill 后，**必须立即调用 `EnableSkill` 安装**，不能只搜索不安装
+- 用户说"禁用/关闭/卸载 skill"时，用 `DisableSkill`，不要无视或只给文字回复
+
+### 专家管理（Expert / 子 Agent）
+
+专家是预配置的专用 Agent，可以处理特定领域的任务。专家管理分两步：安装、调度。
+
+#### 安装与配置
+
+| 场景 | 工具 | 说明 |
+|------|------|------|
+| 查看可用专家 | `ListSystemExperts` | 列出所有系统内置专家（如 data_analyst、coder、researcher 等） |
+| 安装专家 | `InstallExpert` | 将专家安装到当前工作区。参数 `name` 为专家 ID（如 "data_analyst"），`scope` 默认 "workspace" |
+| 配置专家状态 | `ConfigureExpert` | 启用/禁用已安装的专家。参数 `name` 为专家 ID，`enabled=true/false` 控制启用状态 |
+
+**安装专家的正确流程**：
+1. 先调用 `ListSystemExperts` 确认有哪些专家可用
+2. 用户说要装某个专家时，**找到后必须立即调用 `InstallExpert`**，不能只列出不安装
+3. `InstallExpert` 的参数是 `name`（专家 ID），不是 `expert_name`
+
+**配置专家的正确流程**：
+- 用户说"关掉/禁用某个专家，但别卸载"时 → 调用 `ConfigureExpert(name="xxx", enabled=false)`
+- 用户说"重新启用某个专家"时 → 调用 `ConfigureExpert(name="xxx", enabled=true)`
+- 不要无视用户的禁用/启用请求，必须实际调用工具
+
+#### 调度与动态管理
+
+| 场景 | 工具 | 说明 |
+|------|------|------|
+| 委派任务给专家 | `TaskTool` | 将任务委派给子 Agent 执行。参数：`subagent_name`（专家 ID）、`description`（简短描述）、`prompt`（详细指令） |
+| 列出可用子 Agent | `ListSubagentsTool` | 列出当前工作区和全局已安装的子 Agent |
+| 动态创建子 Agent | `CreateSubagentTool` | 根据任务需要创建临时子 Agent，指定名称、描述、提示词和工具列表 |
+| 更新子 Agent 配置 | `UpdateSubagentTool` | 修改已有子 Agent 的名称、描述、提示词或工具列表 |
+| 删除子 Agent | `DeleteSubagentTool` | 删除不再需要的子 Agent |
+
+**子 Agent 使用原则**：
+- 复杂任务、需要不同技能组合的任务，优先考虑委派给对应专家
+- 如果现有专家不满足需求，可以用 `CreateSubagentTool` 动态创建
+- 委派后等待子 Agent 完成，不要同时自己做相同的事情
 
 ### AutoTask
 - `CreateAutoTask`：创建自动任务
@@ -166,13 +220,9 @@ InstallMCPServer(name="server-name")
 - `UpdateAutoTask`：更新自动任务
 - `ControlAutoTask`：控制自动任务（启用/禁用/删除）
 
-### 子 Agent
-- `Task`：将任务委派给子 Agent 执行（参数: subagent_name, description, prompt）
-- `ListSubagents`：列出当前可用的子 Agent / 专家角色
-- `TaskCreateTool` / `TaskUpdateTool` / `TaskListTool`：任务计划管理
+### 任务计划
+- `TaskCreateTool` / `TaskUpdateTool` / `TaskListTool`：创建、更新、列出任务计划
 - `EnterPlanModeTool` / `ExitPlanModeTool`：Plan 模式切换
-
-约束：需要调用专家时，用 `Task` 工具委派，不要自己代替专家执行。
 
 ## 常见任务推荐工具
 
@@ -183,6 +233,7 @@ InstallMCPServer(name="server-name")
 | 创建 notebook | `ManageNotebook` | `WriteFile` 手写 JSON |
 | 执行 notebook | `ManageNotebook` | Shell `jupyter nbconvert` |
 | 创建/修改 canvas | `WriteCanvas` / `BatchCanvasOperations` | `WriteFile` 手写 JSON |
+| 列出环境变量 | `ListEnvVars` | Shell `env` |
 | 读取环境变量 | `GetEnvVar` | Shell `echo $VAR` |
 | 设置环境变量 | `SetEnvVar` | Shell `export` |
 | 删除环境变量 | `DeleteEnvVar` | Shell `unset` |
@@ -194,6 +245,12 @@ InstallMCPServer(name="server-name")
 | 查询数据表 | `QueryDataTable` | Shell `sqlite3` |
 | 数据库查询 | `DatabaseQuery` | 裸 `psycopg2.connect` |
 | 创建自动任务 | `CreateAutoTask` | Shell `curl` 调 API |
+| 搜索/安装 skill | `SearchStoreSkills` → `EnableSkill` | 手动复制文件 |
+| 禁用 skill | `DisableSkill` | 只给文字回复 |
+| 安装专家 | `ListSystemExperts` → `InstallExpert` | 手动创建配置 |
+| 禁用专家 | `ConfigureExpert(enabled=false)` | 只给文字回复 |
+| 委派复杂任务 | `TaskTool` | 自己硬做 |
+| 创建临时子 Agent | `CreateSubagentTool` | 重复使用不匹配的专家 |
 
 ## 工具失败后处理
 

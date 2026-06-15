@@ -20,7 +20,7 @@ _INVISIBLE_UNICODE_PATTERN = re.compile(
 
 # ---------- Prompt Injection ----------
 _PROMPT_INJECTION_PATTERNS = [
-    re.compile(r"ignore\s+(previous|all|above|prior)\s+instructions", re.IGNORECASE),
+    re.compile(r"ignore\s+((all|previous|above|prior)\s+)*instructions", re.IGNORECASE),
     re.compile(r"from\s+now\s+on\s+you\s+are\s+(?:a|an|the)", re.IGNORECASE),
     re.compile(r"do\s+not\s+tell\s+(the\s+)?user", re.IGNORECASE),
     re.compile(r"system\s+prompt\s+override", re.IGNORECASE),

@@ -34,6 +34,7 @@ from .sessions import router as sessions_router
 from .skills import router as skills_router
 from .subagent_events import router as subagent_events_router
 from .system import router as system_router
+from .token_usage import router as token_usage_router
 from .ui_settings import router as ui_settings_router
 from .workspaces import router as workspaces_router
 
@@ -76,3 +77,4 @@ api_router.include_router(file_database_router)
 api_router.include_router(llm_config_router)  # LLM 配置路由
 api_router.include_router(agent_config_router)  # Agent 配置路由
 api_router.include_router(kernel_envs_router)  # Jupyter kernel 环境路由
+api_router.include_router(token_usage_router)  # Token 用量聚合查询

@@ -98,6 +98,8 @@ def _persist_message_to_session_history(
     content: Any,
     display_content: Any | None = None,
     reasoning_content: str | None = None,
+    turn_n: int | None = None,
+    origin: str | None = None,
 ) -> None:
     payload: dict[str, Any] = {
         "role": role,
@@ -108,6 +110,10 @@ def _persist_message_to_session_history(
         payload["display_content"] = display_content
     if reasoning_content is not None:
         payload["reasoning_content"] = reasoning_content
+    if turn_n is not None:
+        payload["turn_n"] = turn_n
+    if origin is not None:
+        payload["origin"] = origin
     agent_service._session_manager.add_message(
         session_id=session_id,
         user_id=user_id,
@@ -779,6 +785,9 @@ class ExecutionMixin:
                         outputs: list[str] = []
                         reasoning_outputs: list[str] = []
                         event_state = self._new_event_projection_state()
+                        event_state["turn_n"] = getattr(
+                            session, "session_turn_count", 0
+                        )
                         event_state["current_host_step"] = _read_last_host_step(
                             session_root,
                             session_id,
@@ -886,6 +895,7 @@ class ExecutionMixin:
                                 role="assistant",
                                 content=result,
                                 reasoning_content=reasoning_result or None,
+                                turn_n=getattr(session, "session_turn_count", None),
                             )
                             if not suppress_claw_outbound_sync:
                                 _schedule_claw_outbound_sync(
@@ -1207,6 +1217,9 @@ class ExecutionMixin:
                             logger.warning("注册 monitor queue 失败（忽略）", exc_info=True)
 
                         event_state = self._new_event_projection_state()
+                        event_state["turn_n"] = getattr(
+                            session, "session_turn_count", 0
+                        )
                         event_state["current_host_step"] = _read_last_host_step(
                             session_root,
                             session_id,
@@ -1376,6 +1389,7 @@ class ExecutionMixin:
                                             role="assistant",
                                             content="".join(_bg_outputs),
                                             reasoning_content="".join(_bg_reasoning) or None,
+                                            turn_n=getattr(session, "session_turn_count", None),
                                         )
                                         if not suppress_claw_outbound_sync:
                                             _schedule_claw_outbound_sync(
@@ -1648,6 +1662,7 @@ class ExecutionMixin:
                                 role="assistant",
                                 content="".join(stream_outputs),
                                 reasoning_content="".join(stream_reasoning_outputs) or None,
+                                turn_n=getattr(session, "session_turn_count", None),
                             )
                             if not suppress_claw_outbound_sync:
                                 _schedule_claw_outbound_sync(

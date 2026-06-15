@@ -37,7 +37,7 @@ class EntityExtractor:
         self,
         llm_client,
         entity_types: Optional[List[str]] = None,
-        max_gleanings: int = 3,
+        max_gleanings: int = 1,
         language: str = "Chinese",
     ):
         self.llm_client = llm_client

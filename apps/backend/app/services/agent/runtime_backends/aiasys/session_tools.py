@@ -26,8 +26,10 @@ logger = logging.getLogger(__name__)
 class SessionToolsMixin:
     """工具相关方法，供 AiasysRuntimeSession 混入。"""
 
-    # 循环检测配置
-    LOOP_DETECTION_THRESHOLD = 6  # 连续相同参数调用超过此次数才拦截
+    # 渐进式循环检测配置
+    LOOP_WARN1_THRESHOLD = 3  # 第 3 次：轻警告
+    LOOP_WARN2_THRESHOLD = 5  # 第 5 次：强警告
+    LOOP_BLOCK_THRESHOLD = 8  # 第 8 次：阻塞（升级自原 6）
     LOOP_SIMILARITY_RATIO = 1.0  # 仅完全相同才累计计数
 
     def _tool_context(self) -> dict[str, Any]:
@@ -157,14 +159,17 @@ class SessionToolsMixin:
         return {"value": parsed}, None
 
     def _check_loop_detection(self, tool_name: str, arguments: Any = "") -> str | None:
-        """检测同一工具的连续相似调用，防止死循环。
+        """渐进式循环检测：先警告，后阻塞。
 
         规则：
         1. 切换到不同工具时，重置之前工具的计数
         2. 参数与上次调用相似度 >= LOOP_SIMILARITY_RATIO 才累计计数
         3. 参数明显不同时重置计数（说明是有意义的连续调用）
-        4. 连续相似调用 >= LOOP_DETECTION_THRESHOLD 时拦截
+        4. 连续相似调用达到 WARN1/WARN2/BLOCK 阈值时分别处理
         """
+        if not getattr(self, "_loop_guard_enabled", True):
+            return None
+
         for name in list(self._consecutive_tool_counts):
             if name != tool_name:
                 self._consecutive_tool_counts[name] = 0
@@ -185,11 +190,29 @@ class SessionToolsMixin:
 
         self._consecutive_tool_counts[tool_name] = current_count + 1
         self._previous_tool_args[tool_name] = normalized_arguments
+        count = self._consecutive_tool_counts[tool_name]
 
-        if self._consecutive_tool_counts[tool_name] >= self.LOOP_DETECTION_THRESHOLD:
+        if count >= self.LOOP_BLOCK_THRESHOLD:
             return (
-                f"检测到重复搜索模式：连续 {self._consecutive_tool_counts[tool_name]} 次"
-                f" 调用 {tool_name} 且参数高度相似，已拦截以防死循环"
+                "<system-reminder>\n"
+                f"已连续 {count} 次调用 {tool_name} 且参数高度相似。"
+                "强制中断以防止死循环。请向用户报告当前阻塞原因，"
+                "并建议替代方案。\n"
+                "</system-reminder>"
+            )
+        if count >= self.LOOP_WARN2_THRESHOLD:
+            return (
+                "<system-reminder>\n"
+                f"第 {count} 次重复调用 {tool_name}。继续重复不会产生不同结果。"
+                "请立即停止重试，分析失败原因，向用户报告。\n"
+                "</system-reminder>"
+            )
+        if count >= self.LOOP_WARN1_THRESHOLD:
+            return (
+                "<system-reminder>\n"
+                f"这已经是第 {count} 次用相同参数调用 {tool_name}。"
+                "请检查是否需要调整策略或尝试其他方法。\n"
+                "</system-reminder>"
             )
         return None
 

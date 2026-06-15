@@ -24,6 +24,7 @@ import tomli_w
 
 from app.core.config import WORKSPACE_DIR
 from app.models.expert import SubAgentVisibilitySettings
+from app.services.agent.config import _normalize_enabled_expert_role_ids
 from app.services.agent.system_presets import (
     _LOCAL_BASELINES,
     build_subagent_manifest_from_seed,
@@ -33,6 +34,7 @@ from app.services.runtime_tooling import (
     is_subagent_orchestration_tool_name,
     probe_runtime_tool,
 )
+from app.services.session.core import SessionManager
 
 logger = logging.getLogger(__name__)
 
@@ -384,6 +386,22 @@ def resolve_subagent_visibility_policy(
             effective = workspace_policy
 
     return effective
+
+
+def get_normalized_enabled_expert_role_ids(
+    user_id: str,
+    session_id: str,
+) -> list[str] | None:
+    """读取当前会话的 enabled_expert_role_ids 并规范化。"""
+    try:
+        session_manager = SessionManager(WORKSPACE_DIR)
+        session_metadata = session_manager.get_session(session_id, user_id)
+    except Exception:
+        return None
+    if session_metadata is None:
+        return None
+    enabled_expert_role_ids = getattr(session_metadata, "enabled_expert_role_ids", None)
+    return _normalize_enabled_expert_role_ids(enabled_expert_role_ids)
 
 
 def is_subagent_dispatch_enabled(

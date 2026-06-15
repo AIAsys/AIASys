@@ -565,6 +565,10 @@ class CompactionResult:
     """被保留的原样消息数量。"""
     usage_output_tokens: int | None = None
     """LLM 生成摘要时的输出 token 数（如有）。"""
+    summary_turn_n: int | None = None
+    """摘要消息占据的 turn 编号（等于被压缩段最后一个 assistant turn）。"""
+    compacted_turn_range: tuple[int, int] | None = None
+    """被压缩消息的 turn_n 范围（含端点），用于前端展示和审计。"""
 
     def estimated_token_count(self) -> int:
         """估算压缩后消息列表的 token 数。
@@ -753,17 +757,31 @@ class SimpleCompaction:
                 preserved_count=len(messages),
             )
 
-        # 构建压缩后的消息列表
-        # 摘要放在 user 角色消息中
-        compacted_messages: list[dict[str, Any]] = [
-            {
-                "role": "user",
-                "content": (
-                    "Previous context has been compacted. "
-                    "Here is the compaction output:\n\n" + summary_text
-                ),
-            }
+        # 计算被压缩段的 turn 范围，确保摘要消息的 turn_n 与前后消息连续。
+        compacted_turn_ns = [
+            m.get("turn_n")
+            for m in to_compact
+            if isinstance(m.get("turn_n"), int)
         ]
+        summary_turn_n: int | None = None
+        compacted_turn_range: tuple[int, int] | None = None
+        if compacted_turn_ns:
+            summary_turn_n = max(compacted_turn_ns)
+            compacted_turn_range = (min(compacted_turn_ns), max(compacted_turn_ns))
+
+        # 构建压缩后的消息列表
+        # 摘要放在 user 角色消息中，但标记 origin=compaction_summary，便于前端识别。
+        summary_message: dict[str, Any] = {
+            "role": "user",
+            "origin": "compaction_summary",
+            "content": (
+                "Previous context has been compacted. "
+                "Here is the compaction output:\n\n" + summary_text
+            ),
+        }
+        if summary_turn_n is not None:
+            summary_message["turn_n"] = summary_turn_n
+        compacted_messages: list[dict[str, Any]] = [summary_message]
         # 保留消息也清理多模态内容（图片/音频/视频等），避免 base64 长期膨胀
         sanitized_preserve = [_strip_multimodal_content(m) for m in to_preserve]
         # 对保留窗口内过长的 tool 消息做截断
@@ -796,4 +814,6 @@ class SimpleCompaction:
             compacted_count=len(to_compact),
             preserved_count=len(to_preserve),
             usage_output_tokens=usage_output_tokens,
+            summary_turn_n=summary_turn_n,
+            compacted_turn_range=compacted_turn_range,
         )

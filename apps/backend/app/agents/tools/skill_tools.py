@@ -84,18 +84,17 @@ class ListSkills(AiasysTool):
     risk_level: str = "readonly"
     effect_scope: str = "session"
     side_effect: bool = False
-    description: str = """列出当前上下文所有可用 Skill。
+    description: str = """列出当前上下文所有可用 Skill（内置 + 工作区自有）。
+
+当用户说"禁用 skill""关掉 skill""不要某个 skill"时，使用流程为：
+1. 用本工具确认要禁用的 skill 名称
+2. 立即调用 `DisableSkill(name=<skill 目录名>)` 执行禁用
 
 返回信息包括：
-- name: Skill 目录名
+- name: Skill 目录名（传给 EnableSkill / DisableSkill 的 name 参数）
 - display_name: SKILL.md frontmatter 中的名称（如有）
 - description: Skill 功能描述
 - source: builtin（系统内置）或 workspace（工作区自有）
-
-使用场景：
-- 不确定当前有哪些 Skill 可用时
-- 想查看某个 Skill 的简要描述时
-- 需要确认 Skill 来源时
 
 返回格式为 JSON 数组，每个元素是一个 Skill 元数据对象。
 """
@@ -131,8 +130,18 @@ class ListSkills(AiasysTool):
                 }
             )
 
+        hint = ""
+        if items:
+            hint = (
+                "\n\n背景说明："
+                "禁用（DisableSkill）只是关闭 Skill 的功能入口，不会删除 Skill 文件，之后可以随时重新启用；"
+                "LoadSkill 只是读取 Skill 的说明文档，不会修改任何状态。"
+                "\n常见下一步："
+                "如果用户想关闭某个 Skill，可从列表中选择目标并调用 DisableSkill(name='<skill_name>'); "
+                "如果用户想查看某个 Skill 的说明，可调用 LoadSkill(name='<skill_name>')。"
+            )
         return ToolResult(
-            content=f"可用 Skill 共 {len(items)} 个",
+            content=f"可用 Skill 共 {len(items)} 个{hint}",
             artifacts=[{"skills": items}],
         )
 
@@ -246,18 +255,16 @@ class SearchStoreSkills(AiasysTool):
     side_effect: bool = False
     description: str = """搜索 Skill 仓库中可启用的 Skill。
 
+当用户说"安装 skill""找一个 skill 装上""加个 skill"时，使用流程为：
+1. 用本工具搜索匹配当前需求的 Skill（最多尝试 2 次不同关键词）
+2. 找到合适候选后，**立即调用 `EnableSkill(name=<返回的 name>)`** 安装到当前工作区
+3. 如果搜索 2 次后仍未找到合适候选，向用户报告未找到
+
 参数：
 - query: 搜索关键词，匹配 Skill 名称、展示名或描述。为空时返回全部
 - source: 按来源过滤，可选 builtin（系统内置）或 store（用户导入）。为空时不过滤
 
-使用场景：
-- 工作区缺少某个能力，想查看系统提供了哪些 Skill 时
-- 不确定某个 Skill 是否已安装到系统时
-- 想浏览所有可用 Skill 时
-
-重要：搜索结果只是候选，不代表必须立即安装。只有当当前任务确实需要该 Skill，且用户已经授权或安装不会造成用户不期望的工作区状态变化时，才调用 `EnableSkill` 将其启用到当前工作区（或全局工作区）。
-
-返回格式为 JSON 数组，每个元素包含 name、display_name、description、source。返回的 `name` 字段可直接传给 `EnableSkill(name=...)` 进行安装。
+返回格式为 JSON 数组，每个元素包含 name、display_name、description、source。返回的 `name` 字段直接传给 `EnableSkill(name=...)`。
 """
     params: type[BaseModel] = SearchStoreSkillsParams
 
@@ -315,19 +322,17 @@ class SearchStoreSkills(AiasysTool):
                 msg += f"（关键词: {params.query}）"
             return ToolResult(content=msg, artifacts=[{"skills": []}])
 
-        # 搜索结果只给候选建议；是否安装由当前任务意图和用户授权决定。
+        # 返回候选列表，并明确提示下一步动作
         names = [item["name"] for item in items]
-        install_hint = "\n\n请根据当前任务判断是否需要启用 Skill。"
+        install_hint = "\n\n用户已要求安装 Skill 时，请立即调用 EnableSkill 完成安装，不要只搜索不安装。"
         if len(names) == 1:
             install_hint += (
-                f"如任务确实需要且已获授权，可调用 EnableSkill(name='{names[0]}') "
-                "启用到当前工作区。"
+                f"请调用 EnableSkill(name='{names[0]}') 启用到当前工作区。"
             )
         else:
             install_hint += (
-                "如任务确实需要且已获授权，可从候选中选择最合适的调用 "
-                "EnableSkill(name='<skill_name>') 启用到当前工作区。"
-                f"候选 Skill 名称: {', '.join(names)}"
+                "请从候选中选择最匹配的一个立即调用 EnableSkill(name='<skill_name>') 启用到当前工作区。"
+                f"候选 Skill 名称（按匹配度排序）: {', '.join(names)}"
             )
 
         return ToolResult(
@@ -349,14 +354,17 @@ class EnableSkill(AiasysTool):
     description: str = """将 Skill 从 Skill 仓库启用到当前工作区或我的默认。
 
 参数：
-- name: Skill 名称（SearchStoreSkills 返回的 name 字段）
+- name: Skill 名称（SearchStoreSkills 返回的 `name` 字段，即 Skill 目录名）
 - scope: 启用范围，workspace（当前工作区，默认）或 global（我的默认）
 - force: 是否强制覆盖目标范围中已存在的同名 Skill，默认 false
 
 使用场景：
-- Agent 发现工作区缺少某个能力，需要从 Skill 仓库启用时
-- 想让某个 Skill 作为我的默认被各工作区继承时，选择 global
-- 用户要求启用某个 Skill 时
+- 用户要求"安装 skill""启用 skill"时
+- SearchStoreSkills 找到合适候选后，必须立即调用本工具完成安装
+
+正确做法 vs 错误做法：
+- 正确：SearchStoreSkills 返回候选后，立即调用 EnableSkill(name="候选名")
+- 错误：只调用 SearchStoreSkills 查看候选，然后停止或询问用户"要不要装"
 
 注意：
 - 只能启用 Skill 仓库中已存在的 Skill，不能导入外部 zip
@@ -431,13 +439,16 @@ class DisableSkill(AiasysTool):
     description: str = """从当前工作区或我的默认禁用 Skill。
 
 参数：
-- name: Skill 名称（ListSkills 返回的 name 字段）
+- name: Skill 名称（ListSkills 返回的 `name` 字段，即 Skill 目录名）
 - scope: 禁用范围，workspace（当前工作区，默认）或 global（我的默认）
 
 使用场景：
-- 某个 Skill 不再需要，想清理工作区时
-- 启用错了 Skill，需要撤销时
-- 想让我的默认不再继承某个 Skill 时，选择 global
+- 用户要求"禁用 skill""关掉 skill""不要某个 skill"时
+- ListSkills 确认目标 skill 后，必须立即调用本工具完成禁用
+
+正确做法 vs 错误做法：
+- 正确：ListSkills 确认目标后，立即调用 DisableSkill(name="目标 skill 名")
+- 错误：只调用 ListSkills 列出 skill，然后停止或只给文字回复
 
 注意：
 - 只影响目标范围，Skill 仓库中的原始 Skill 不会被删除

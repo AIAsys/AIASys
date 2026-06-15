@@ -22,6 +22,11 @@ READ_MEDIA_TOOL_PATH = "app.agents.tools.read_media_tool:ReadMediaFile"
 _RUNTIME_TOOL_ALIASES: dict[str, str] = {
     # AgentTool 与 TaskTool 是同一实现的不同名称，统一映射到 TaskTool
     NATIVE_AGENT_TOOL_PATH: NATIVE_TASK_TOOL_PATH,
+    # code_execution_tool 旧类名（带 Tool 后缀）兼容映射
+    "app.agents.tools.code_execution_tool:RunCodeTool": "app.agents.tools.code_execution_tool:RunCode",
+    "app.agents.tools.code_execution_tool:ListKernelEnvsTool": "app.agents.tools.code_execution_tool:ListKernelEnvs",
+    "app.agents.tools.code_execution_tool:RegisterKernelEnvTool": "app.agents.tools.code_execution_tool:RegisterKernelEnv",
+    "app.agents.tools.code_execution_tool:RemoveKernelEnvTool": "app.agents.tools.code_execution_tool:RemoveKernelEnv",
 }
 _SUBAGENT_DISPATCH_TOOL_EVENT_NAMES = {"Task", "Agent"}
 _SUBAGENT_DISPATCH_TOOL_PATHS = {

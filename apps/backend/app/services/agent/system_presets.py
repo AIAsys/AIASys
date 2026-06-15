@@ -22,6 +22,7 @@ LOCAL_PRESET_SUFFIX = ".preset"
 GET_ENV_VAR_TOOL_PATH = "app.agents.tools.env_vars_tool:GetEnvVar"
 SET_ENV_VAR_TOOL_PATH = "app.agents.tools.env_vars_tool:SetEnvVar"
 DELETE_ENV_VAR_TOOL_PATH = "app.agents.tools.env_vars_tool:DeleteEnvVar"
+LIST_ENV_VAR_TOOL_PATH = "app.agents.tools.env_vars_tool:ListEnvVars"
 RUNTIME_ENVIRONMENT_TOOL_PATH = "app.agents.tools.runtime_environment_tool:RuntimeEnvironment"
 NOTEBOOK_LIST_TOOL_PATHS: tuple[str, ...] = (
     "app.agents.tools.notebook_session_tool:ListSessionNotebooks",
@@ -139,6 +140,7 @@ _ROLE_TYPE_TOOL_MAP: dict[str, tuple[str, ...]] = {
             "app.agents.tools.code_execution_tool:RemoveKernelEnv",
             GET_ENV_VAR_TOOL_PATH,
             SET_ENV_VAR_TOOL_PATH,
+            LIST_ENV_VAR_TOOL_PATH,
             DELETE_ENV_VAR_TOOL_PATH,
             # 知识图谱工具
             *KNOWLEDGE_GRAPH_TOOL_PATHS,
@@ -166,6 +168,7 @@ _ROLE_TYPE_TOOL_MAP: dict[str, tuple[str, ...]] = {
             "app.agents.tools.file_tools:StrReplaceFile",
             GET_ENV_VAR_TOOL_PATH,
             SET_ENV_VAR_TOOL_PATH,
+            LIST_ENV_VAR_TOOL_PATH,
             DELETE_ENV_VAR_TOOL_PATH,
             "app.agents.tools.shell_tool:Shell",
             "app.agents.tools.skill_tools:ListSkills",
@@ -212,6 +215,7 @@ _ROLE_TYPE_TOOL_MAP: dict[str, tuple[str, ...]] = {
             "app.agents.tools.file_tools:StrReplaceFile",
             GET_ENV_VAR_TOOL_PATH,
             SET_ENV_VAR_TOOL_PATH,
+            LIST_ENV_VAR_TOOL_PATH,
             DELETE_ENV_VAR_TOOL_PATH,
             RUNTIME_ENVIRONMENT_TOOL_PATH,
             "app.agents.tools.shell_tool:Shell",
@@ -429,6 +433,7 @@ DATA_ANALYSIS_BASELINE = SystemAgentBaseline(
             "app.agents.tools.file_tools:StrReplaceFile",
             GET_ENV_VAR_TOOL_PATH,
             SET_ENV_VAR_TOOL_PATH,
+            LIST_ENV_VAR_TOOL_PATH,
             DELETE_ENV_VAR_TOOL_PATH,
             RUNTIME_ENVIRONMENT_TOOL_PATH,
             "app.agents.tools.shell_tool:Shell",
@@ -572,6 +577,20 @@ def get_builtin_subagent_seed(name: str) -> SystemAgentBaseline | None:
 
 def list_builtin_subagent_names() -> list[str]:
     return list(_BUILTIN_SUBAGENT_SEEDS.keys())
+
+
+def resolve_builtin_subagent_role_id(name: str) -> str | None:
+    """把 role_id 或显示名解析为内置专家 role_id。无法识别返回 None。"""
+    text = str(name or "").strip()
+    if not text:
+        return None
+    if text in _BUILTIN_SUBAGENT_SEEDS:
+        return text
+    text_lower = text.lower()
+    for role_id, baseline in _BUILTIN_SUBAGENT_SEEDS.items():
+        if baseline.label and baseline.label.strip().lower() == text_lower:
+            return role_id
+    return None
 
 
 def build_subagent_manifest_from_seed(name: str) -> dict[str, Any] | None:

@@ -6,8 +6,6 @@ AIASys 原生子 Agent 调度工具 (TaskTool)。
 
 from __future__ import annotations
 
-import asyncio
-import json
 import logging
 import tomllib
 import uuid
@@ -123,7 +121,7 @@ _TASK_PARAMETERS = {
     "properties": {
         "subagent_name": {
             "type": "string",
-            "description": "要调用的子 Agent 名称。可用预设角色: coder, data_analyst, researcher, reviewer。也可使用自定义子 Agent 名称。省略时默认使用 coder。",
+            "description": "要调用的子 Agent 名称。可用预设角色: coder, data_analyst, researcher, reviewer。也可使用自定义子 Agent 名称。省略时默认使用 coder。当用户说'让数据分析专家处理'或'委派给某个专家'时，必须把对应 role_id 填到这里。",
         },
         "description": {
             "type": "string",
@@ -131,7 +129,7 @@ _TASK_PARAMETERS = {
         },
         "prompt": {
             "type": "string",
-            "description": "给子 Agent 的完整任务指令",
+            "description": "给子 Agent 的完整任务指令。当用户要求委派任务给专家时，把用户原任务改写为清晰指令填到这里。",
         },
     },
     "required": ["prompt"],
@@ -316,8 +314,14 @@ class TaskTool(AiasysTool):
         if subagent_manifest is None:
             # fallback 到协作专家运行时查找（workspace > global）
             from app.services.agent.subagent_catalog import (
+                get_normalized_enabled_expert_role_ids,
                 is_subagent_dispatch_enabled,
                 load_subagent_for_runtime,
+            )
+
+            normalized_enabled_expert_role_ids = get_normalized_enabled_expert_role_ids(
+                user_id=user_id,
+                session_id=session_id,
             )
 
             workspace_id = user_id
@@ -334,6 +338,7 @@ class TaskTool(AiasysTool):
                 user_id=user_id,
                 role_id=subagent_name,
                 workspace_id=workspace_id,
+                explicit_enabled_role_ids=normalized_enabled_expert_role_ids,
             ):
                 available = list((host_agent_config.get("subagents") or {}).keys())
                 yield ToolResult(

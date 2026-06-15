@@ -67,6 +67,7 @@ PLAN_MODE_ALLOWED_TOOL_NAMES: tuple[str, ...] = (
     "task_list",
     "enter_plan_mode",
     "exit_plan_mode",
+    "Task",
 )
 
 

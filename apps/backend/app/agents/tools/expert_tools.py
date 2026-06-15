@@ -14,6 +14,7 @@ from pydantic import BaseModel, Field
 
 from app.core.agent_tool import AiasysTool
 from app.core.tool_result import ToolResult
+from app.services.agent.system_presets import resolve_builtin_subagent_role_id
 from app.services.history import current_session_id, current_user_id, current_workspace
 
 
@@ -45,8 +46,7 @@ class ConfigureExpertParams(BaseModel):
         description="配置目标：workspace（当前工作区）或 global（我的默认）",
     )
     enabled: bool = Field(
-        default=True,
-        description="true 表示启用该专家到当前会话候选；false 表示禁用但不卸载",
+        description="true 表示启用该专家到当前会话候选；false 表示禁用但不卸载。必须显式传入，不能省略。",
     )
     catalog_visible: bool | None = Field(
         default=None,
@@ -103,22 +103,17 @@ class ListSystemExperts(AiasysTool):
     side_effect: bool = False
     description: str = """列出当前工作区可用的协作专家（子 Agent）目录。
 
-返回信息包括：
-- role_id: 专家角色 ID
-- display_name: 展示名称
-- description: 专家描述
-- source: system / global / workspace
-- installed_to_global: 是否已安装到我的默认
-- installed_to_workspace: 是否已安装到当前工作区
-- default_enabled: 是否默认启用
-- capabilities: 能力标签
+当用户说"安装专家""加个专家""启用某个专家"时，使用流程为：
+1. 用本工具查看可用专家
+2. 找到目标后，立即调用 `InstallExpert(name=<role_id>)` 安装
 
-使用场景：
-- 用户问"有哪些专家可以用"时
-- 安装专家前查看候选列表时
-- 配置专家前确认专家状态时
+当用户说"关掉专家""禁用专家"时，使用流程为：
+1. 用本工具确认专家已安装
+2. 立即调用 `ConfigureExpert(name=<role_id>, enabled=false)` 禁用
 
-注意：本工具列出的是专家目录，不是 Skill。不要与 ListSkills / SearchStoreSkills 混淆。
+注意：
+- 本工具列出的是专家目录，不是 Skill。不要与 ListSkills / SearchStoreSkills 混淆
+- InstallExpert / ConfigureExpert 的参数都是 `name`（role_id），**不是 `expert_name`**
 """
     params: type[BaseModel] = ListSystemExpertsParams
 
@@ -169,8 +164,21 @@ class ListSystemExperts(AiasysTool):
                 }
             )
 
+        hint = ""
+        if roles:
+            hint = (
+                "背景说明："
+                "InstallExpert 把专家安装到工作区或全局默认；"
+                "ConfigureExpert(enabled=false) 只是让专家不在当前会话候选中出现，不会卸载，可随时重新启用；"
+                "Task 工具用于把具体任务委派给专家执行。"
+                "\n常见下一步："
+                "用户想安装专家 → InstallExpert(name='<role_id>'); "
+                "用户想关闭专家 → ConfigureExpert(name='<role_id>', enabled=false); "
+                "用户想让专家处理任务 → Task(subagent_name='<role_id>', description='任务简述', prompt='详细指令')。"
+                "\n\n"
+            )
         return ToolResult(
-            content=f"当前工作区可见专家共 {len(roles)} 个",
+            content=f"{hint}当前工作区可见专家共 {len(roles)} 个",
             artifacts=[{"experts": roles}],
         )
 
@@ -185,13 +193,16 @@ class InstallExpert(AiasysTool):
     description: str = """将系统内置专家安装到当前工作区或我的默认。
 
 参数：
-- name: 专家角色 ID（如 data_analyst、coder、researcher、reviewer）
+- name: 专家角色 ID（ListSystemExperts 返回的 `role_id`，如 data_analyst、coder、researcher、reviewer），**注意不是 `expert_name`**
 - scope: workspace（当前工作区，默认）或 global（我的默认）
 
 使用场景：
-- 用户明确要求安装某个专家时
-- 当前任务需要某个专家能力，且该专家尚未安装时
-- 想让某个专家成为我的默认配置时，选择 global
+- 用户明确要求"安装专家""加个专家"时
+- ListSystemExperts 找到目标专家后，必须立即调用本工具完成安装
+
+正确做法 vs 错误做法：
+- 正确：ListSystemExperts 返回 role_id 后，立即调用 InstallExpert(name="role_id")
+- 错误：只调用 ListSystemExperts 查看列表，然后停止或询问用户"要不要装"
 
 注意：
 - 只能安装系统内置专家（ListSystemExperts 中 source=system 的角色）
@@ -231,11 +242,11 @@ class InstallExpert(AiasysTool):
 
         from app.services.agent.subagent_catalog import (
             enable_builtin_subagent_to_scope,
-            is_system_subagent_name,
             load_subagent,
         )
 
-        if not is_system_subagent_name(name):
+        resolved_name = resolve_builtin_subagent_role_id(name)
+        if resolved_name is None:
             return ToolResult(
                 content=f"'{name}' 不是系统内置专家，无法通过 InstallExpert 安装。",
                 is_error=True,
@@ -244,13 +255,13 @@ class InstallExpert(AiasysTool):
         try:
             enable_builtin_subagent_to_scope(
                 user_id=user_id,
-                name=name,
+                name=resolved_name,
                 scope=scope,
                 workspace_id=workspace_id,
             )
             manifest = load_subagent(
                 user_id=user_id,
-                name=name,
+                name=resolved_name,
                 workspace_id=workspace_id,
             )
         except ValueError as exc:
@@ -262,10 +273,10 @@ class InstallExpert(AiasysTool):
             return ToolResult(content="安装后读取专家配置失败", is_error=True)
 
         return ToolResult(
-            content=f"专家 '{name}' 已成功安装到 {scope}",
+            content=f"专家 '{resolved_name}' 已成功安装到 {scope}",
             artifacts=[
                 {
-                    "name": name,
+                    "name": resolved_name,
                     "scope": scope,
                     "description": manifest.get("description", ""),
                     "model": manifest.get("model"),
@@ -286,17 +297,19 @@ class ConfigureExpert(AiasysTool):
     side_effect: bool = True
     description: str = """配置已安装专家的启用状态和可见性。
 
+当用户说"关掉专家""禁用专家，但别卸载"时，必须调用 `ConfigureExpert(name=<role_id>, enabled=false)`。
+当用户说"重新启用某个专家"时，调用 `ConfigureExpert(name=<role_id>, enabled=true)`。
+
 参数：
-- name: 专家角色 ID
+- name: 专家角色 ID（ListSystemExperts 返回的 `role_id`，**不是 `expert_name`**）
 - scope: workspace（当前工作区，默认）或 global（我的默认）
 - enabled: true（启用）或 false（禁用但不卸载）
 - catalog_visible: 是否在专家目录中展示（可选）
 - host_selectable: 是否允许主控选择（可选）
 
-使用场景：
-- 用户想让某个专家在当前会话中不出现时，传 enabled=false
-- 用户想重新启用之前禁用的专家时，传 enabled=true
-- 调整专家在目录中的可见性和可选性
+正确做法 vs 错误做法：
+- 正确：ListSystemExperts 确认专家后，立即调用 ConfigureExpert(name="role_id", enabled=false)
+- 错误：只调用 ListSystemExperts 确认状态，然后停止或只给文字回复
 
 注意：
 - 只能配置已安装的专家（未安装的专家请先调用 InstallExpert）
@@ -339,21 +352,28 @@ class ConfigureExpert(AiasysTool):
             save_subagent_visibility_policy,
         )
 
+        resolved_name = resolve_builtin_subagent_role_id(name)
+        if resolved_name is None:
+            return ToolResult(
+                content=f"'{name}' 不是已知的系统内置专家，无法配置。",
+                is_error=True,
+            )
+
         if not is_subagent_installed_to_scope(
             user_id=user_id,
-            name=name,
+            name=resolved_name,
             scope=scope,
             workspace_id=workspace_id,
         ):
             return ToolResult(
-                content=f"专家 '{name}' 尚未安装到 {scope}，请先调用 InstallExpert 安装。",
+                content=f"专家 '{resolved_name}' 尚未安装到 {scope}，请先调用 InstallExpert 安装。",
                 is_error=True,
             )
 
         try:
             settings = save_subagent_visibility_policy(
                 user_id=user_id,
-                role_id=name,
+                role_id=resolved_name,
                 scope=scope,
                 workspace_id=workspace_id,
                 default_enabled=params.enabled,
@@ -366,10 +386,10 @@ class ConfigureExpert(AiasysTool):
             return ToolResult(content=f"配置专家失败: {exc}", is_error=True)
 
         return ToolResult(
-            content=f"专家 '{name}' 在 {scope} 的配置已更新",
+            content=f"专家 '{resolved_name}' 在 {scope} 的配置已更新",
             artifacts=[
                 {
-                    "name": name,
+                    "name": resolved_name,
                     "scope": scope,
                     "default_enabled": settings.default_enabled,
                     "catalog_visible": settings.catalog_visible,

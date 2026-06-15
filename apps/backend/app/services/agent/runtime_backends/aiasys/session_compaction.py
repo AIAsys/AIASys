@@ -300,13 +300,32 @@ class SessionCompactionMixin:
                 "summary_tokens": summary_tokens,
                 "elapsed_ms": elapsed_ms,
             }
-            self._persist_compaction_summary(
+            summary_path = self._persist_compaction_summary(
                 summary=result.summary,
                 compacted_count=result.compacted_count,
                 preserved_count=result.preserved_count,
                 tokens_before=before_tokens,
                 tokens_after=after_tokens,
             )
+
+            # 持久化压缩后的状态，确保会话重建后仍能看到压缩结果。
+            # 在测试用例的 mock session 中可能不存在这些方法，做防御性判断。
+            if hasattr(self, "_write_history_snapshot"):
+                self._write_history_snapshot(self.messages)
+            if summary_path is not None and hasattr(self, "_append_compaction_record"):
+                try:
+                    work_dir = Path(str(self._spec.work_dir))
+                    relative_summary_path = str(summary_path.relative_to(work_dir))
+                except Exception:
+                    relative_summary_path = str(summary_path)
+                self._append_compaction_record(
+                    summary_path=relative_summary_path,
+                    compacted_count=result.compacted_count,
+                    preserved_count=result.preserved_count,
+                    summary_turn_n=result.summary_turn_n,
+                    compacted_turn_range=result.compacted_turn_range,
+                )
+
             self._invalidate_system_prompt_snapshot()
 
             # 通知前端压缩完成
@@ -392,8 +411,12 @@ class SessionCompactionMixin:
         preserved_count: int,
         tokens_before: int,
         tokens_after: int,
-    ) -> None:
-        """将压缩摘要写入 session 目录，供用户查阅和调试。"""
+    ) -> Path | None:
+        """将压缩摘要写入 session 目录，供用户查阅和调试。
+
+        Returns:
+            写入的文件路径；失败时返回 None。
+        """
         try:
             work_dir = Path(str(self._spec.work_dir))
             summary_dir = work_dir / ".aiasys" / "session" / "compaction_summaries"
@@ -411,8 +434,10 @@ class SessionCompactionMixin:
                 encoding="utf-8",
             )
             logger.info("压缩摘要已持久化: %s", path)
+            return path
         except Exception:
             logger.debug("压缩摘要持久化失败，已跳过", exc_info=True)
+            return None
 
     def _fallback_trim_head(
         self,

@@ -12,6 +12,7 @@ from typing import Any
 from app.core.agent_tool import AiasysTool
 from app.core.tool_result import ToolResult
 from app.services.agent.subagent_catalog import (
+    get_normalized_enabled_expert_role_ids,
     is_subagent_dispatch_enabled,
     list_subagents,
 )
@@ -55,6 +56,11 @@ class ListSubagentsTool(AiasysTool):
         if not user_id or not session_id:
             return ToolResult(content="无法确定当前会话上下文", is_error=True)
 
+        normalized_enabled_expert_role_ids = get_normalized_enabled_expert_role_ids(
+            user_id=user_id,
+            session_id=session_id,
+        )
+
         # 解析 workspace_id
         workspace_id = user_id
         try:
@@ -79,6 +85,7 @@ class ListSubagentsTool(AiasysTool):
                     user_id=user_id,
                     role_id=str(name),
                     workspace_id=workspace_id,
+                    explicit_enabled_role_ids=normalized_enabled_expert_role_ids,
                 )
                 if not dispatch_enabled:
                     continue

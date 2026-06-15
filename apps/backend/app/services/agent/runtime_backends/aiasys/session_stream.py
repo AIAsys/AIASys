@@ -147,6 +147,13 @@ class SessionStreamMixin:
             self._append_message(msg)
         self._continuation_count = 0
 
+        # 每个新的 user message 重置 Auto-Nudge 状态
+        self._auto_nudge_sent_for_current_turn = False
+        self._post_list_nudge_sent_for_current_turn = False
+        self._tools_used_since_user_message = False
+        self._last_tool_name = None
+        self._expert_delegation_hint_sent = False
+
         # ---- 上下文自动压缩 ----
         async for compact_event in self._maybe_compact_context(force=False):
             yield compact_event
@@ -304,7 +311,11 @@ class SessionStreamMixin:
                     self._append_message(fallback_message)
                     yield AgentRuntimeEvent(
                         kind="system_warning",
-                        text=f"流式输出中断，使用已传输的 {len(fallback_content)} 字符作为最终响应。",
+                        text=(
+                            "<system>\n"
+                            f"流式输出中断，使用已传输的 {len(fallback_content)} 字符作为最终响应。\n"
+                            "</system>"
+                        ),
                     )
                     break
                 raise stream_error
@@ -313,6 +324,7 @@ class SessionStreamMixin:
             total_input_tokens += input_tokens
             total_output_tokens += output_tokens
             self._log_cache_stats(latest_usage)
+            self._append_usage_record(latest_usage, input_tokens, output_tokens)
 
             # 用 LLM 返回的精确 prompt_tokens 修正估算值，优先于预算检查
             if latest_usage is not None:
@@ -389,6 +401,9 @@ class SessionStreamMixin:
                         pass
 
             if tool_calls:
+                # 标记当前 user message 已有工具调用
+                self._tools_used_since_user_message = True
+
                 assistant_message: dict[str, Any] = {
                     "role": "assistant",
                     "tool_calls": [
@@ -408,6 +423,7 @@ class SessionStreamMixin:
 
                 tool_ctx = self._tool_context()
                 for item in tool_calls:
+                    self._last_tool_name = item["function"]["name"]
                     yield AgentRuntimeEvent(
                         kind="tool_call",
                         tool_call_id=item["id"],
@@ -642,6 +658,46 @@ class SessionStreamMixin:
                         )
                         tool_result = ToolResult(content=str(exc), is_error=True)
 
+                    # 对用户明确要求专家委派但 Agent 未使用专家工具的场景追加强制提示
+                    user_message = self._get_last_user_text()
+                    text = user_message.lower()
+                    is_expert_delegation_request = (
+                        "专家" in text
+                        and any(k in text for k in ("委派", "派给", "让", "交给", "处理", "来做"))
+                    )
+                    if is_expert_delegation_request:
+                        tool_name = item["function"]["name"]
+                        if tool_name == "Task":
+                            # 已正确委派，不再追加提示
+                            self._expert_delegation_hint_sent = True
+                        elif tool_name == "ListSystemExperts":
+                            # 已列出专家，下一步必须执行委派
+                            tool_result.content = (
+                                str(tool_result.content)
+                                + "\n<system-reminder>\n"
+                                "用户要求将任务委派给专家处理。你已经获得专家目录，必须立即停止搜索/列出。\n"
+                                "下一步直接调用 Task(subagent_name='<role_id>', description='任务简述', prompt='详细指令') 执行委派。\n"
+                                "如果目标专家未安装，先调用 InstallExpert(name='<role_id>')，然后立即 Task。\n"
+                                "</system-reminder>"
+                            )
+                        elif tool_name in ("InstallExpert", "ConfigureExpert"):
+                            # 已安装/配置专家，继续完成委派
+                            tool_result.content = (
+                                str(tool_result.content)
+                                + "\n<system-reminder>\n"
+                                "用户要求将任务委派给专家处理。专家已安装/配置，下一步立即调用 Task(subagent_name='<role_id>', description='任务简述', prompt='详细指令') 执行委派。\n"
+                                "</system-reminder>"
+                            )
+                        else:
+                            tool_result.content = (
+                                str(tool_result.content)
+                                + "\n<system-reminder>\n"
+                                "用户要求将任务委派给专家处理。请停止自己执行当前操作，"
+                                "直接调用 Task(subagent_name='<role_id>', description='任务简述', prompt='详细指令') 执行委派。"
+                                "如果目标专家未安装，先调用 InstallExpert(name='<role_id>')，然后立即 Task。\n"
+                                "</system-reminder>"
+                            )
+
                     yield AgentRuntimeEvent(
                         kind="tool_result",
                         tool_call_id=item["id"],
@@ -671,13 +727,60 @@ class SessionStreamMixin:
                     assistant_message["reasoning_content"] = assistant_reasoning_content
                 self._append_message(assistant_message)
 
+            # Auto-Nudge: 用户消息可执行但 Agent 首回合只回复文字时，注入运行时纠正
+            if (
+                not tool_calls
+                and assistant_content is not None
+                and not self._auto_nudge_sent_for_current_turn
+                and not self._tools_used_since_user_message
+            ):
+                user_message = self._get_last_user_text()
+                nudge = self._maybe_auto_nudge(
+                    user_message,
+                    has_tool_calls=bool(tool_calls),
+                )
+                if nudge:
+                    self._auto_nudge_sent_for_current_turn = True
+                    yield AgentRuntimeEvent(
+                        kind="system_warning",
+                        text=nudge,
+                    )
+                    self._append_message({"role": "system", "content": nudge})
+                    continue
+
+            # Post-List Nudge: Agent 已列出/搜索目录但只回复文字，未执行后续操作
+            if (
+                not tool_calls
+                and assistant_content is not None
+                and not self._post_list_nudge_sent_for_current_turn
+                and self._tools_used_since_user_message
+                and self._last_tool_name
+            ):
+                user_message = self._get_last_user_text()
+                nudge = self._maybe_post_list_nudge(
+                    user_message,
+                    self._last_tool_name,
+                )
+                if nudge:
+                    self._post_list_nudge_sent_for_current_turn = True
+                    yield AgentRuntimeEvent(
+                        kind="system_warning",
+                        text=nudge,
+                    )
+                    self._append_message({"role": "system", "content": nudge})
+                    continue
+
             if latest_finish_reason == "length":
                 self._continuation_count += 1
                 if self._continuation_count > 3:
                     logger.warning("输出截断续写次数超过上限（3次），停止")
                     yield AgentRuntimeEvent(
                         kind="system_warning",
-                        text="输出被截断，续写次数已达上限。",
+                        text=(
+                            "<system>\n"
+                            "输出被截断，续写次数已达上限。\n"
+                            "</system>"
+                        ),
                     )
                     break
 
@@ -742,6 +845,166 @@ class SessionStreamMixin:
                     ensure_ascii=False,
                 ),
             )
+
+    def _maybe_auto_nudge(
+        self,
+        user_message: str,
+        has_tool_calls: bool,
+    ) -> str | None:
+        """CheetahClaws 风格的运行时纠正。
+
+        当用户消息包含可执行任务（文件路径、任务动词），
+        但 Agent 只回复了文字没有调用工具时，
+        透明注入一条 <system-reminder> 提示重试。
+        """
+        if not getattr(self, "_auto_nudge_enabled", True):
+            return None
+        if has_tool_calls:
+            return None
+        if not self._looks_like_actionable(user_message):
+            return None
+
+        return (
+            "<system-reminder>\n"
+            "你只回复了文字，但用户的消息包含具体文件路径或可执行任务。\n"
+            "不要询问用户已经提供了什么信息。请直接：\n"
+            "1. 用 Bash ls 或 Glob 确认路径\n"
+            "2. 用 ReadFile 读取相关文件\n"
+            "3. 执行用户要求的操作\n"
+            "请重新尝试。\n"
+            "</system-reminder>"
+        )
+
+    def _maybe_post_list_nudge(
+        self,
+        user_message: str,
+        last_tool_name: str | None,
+    ) -> str | None:
+        """列表/搜索工具已返回，但 Agent 只回复文字未执行下一步时，提示标准工作流。"""
+        if not getattr(self, "_auto_nudge_enabled", True):
+            return None
+        if not last_tool_name:
+            return None
+
+        text = user_message.lower()
+
+        # Skill 列表/搜索后的禁用意图：给出标准下一步，目标未明确时仍允许询问
+        if last_tool_name in ("ListSkills", "SearchStoreSkills"):
+            if any(k in text for k in ("禁用", "关闭", "卸载", "移除", "删掉", "不要")):
+                return (
+                    "<system-reminder>\n"
+                    "标准工作流：用户表达禁用 Skill 的意图并已获得列表。\n"
+                    "下一步通常是调用 DisableSkill(name='<skill_name>')。\n"
+                    "如果用户明确说了名字，直接禁用该名字；如果名字不明确，可以先确认再操作。\n"
+                    "</system-reminder>"
+                )
+
+        # 专家列表后的禁用/委派意图
+        if last_tool_name == "ListSystemExperts":
+            if any(k in text for k in ("禁用", "关闭", "关掉", "不要出现")):
+                return (
+                    "<system-reminder>\n"
+                    "标准工作流：用户表达关闭专家的意图并已获得目录。\n"
+                    "下一步通常是 ConfigureExpert(name='<role_id>', enabled=false)。\n"
+                    "如果用户明确说了专家名字，直接关闭；如果不明确，可以先确认再操作。\n"
+                    "</system-reminder>"
+                )
+            if any(k in text for k in ("委派", "派给", "让", "处理", "交给")):
+                return (
+                    "<system-reminder>\n"
+                    "标准工作流：用户要求把任务交给专家处理。\n"
+                    "请使用 TaskTool(subagent_name='<role_id>', description='任务简述', prompt='详细指令') 委派给对应专家。\n"
+                    "</system-reminder>"
+                )
+
+        # 环境变量列表后的删除意图
+        if last_tool_name == "ListEnvVars":
+            if any(k in text for k in ("删除", "移除", "删掉", "不用")):
+                return (
+                    "<system-reminder>\n"
+                    "标准工作流：用户表达删除环境变量的意图并已获得列表。\n"
+                    "下一步通常是 DeleteEnvVar(name='<var_name>')。\n"
+                    "</system-reminder>"
+                )
+
+        # 安装专家后的禁用意图：明确要求禁用
+        if last_tool_name == "InstallExpert":
+            if any(k in text for k in ("禁用", "关闭", "关掉", "不要出现")):
+                return (
+                    "<system-reminder>\n"
+                    "标准工作流：用户要求安装专家后再禁用。\n"
+                    "InstallExpert 只是安装/启用，下一步必须调用 ConfigureExpert(name='<role_id>', enabled=false) 完成禁用。\n"
+                    "</system-reminder>"
+                )
+
+        # 兜底：用户消息明确要求专家委派，但 Agent 没有使用专家相关工具
+        if (
+            last_tool_name not in ("ListSystemExperts", "InstallExpert", "ConfigureExpert", "Task")
+            and "专家" in text
+            and any(k in text for k in ("委派", "派给", "让", "交给", "处理", "来做"))
+        ):
+            return (
+                "<system-reminder>\n"
+                "用户要求将任务委派给专家处理。请立即停止自己执行，也不要再重复调用 ListSystemExperts。\n"
+                "直接调用 Task(subagent_name='<role_id>', description='任务简述', prompt='详细指令') 将任务交给对应专家。\n"
+                "如果专家未安装，先调用 InstallExpert(name='<role_id>')，然后立即 Task。\n"
+                "</system-reminder>"
+            )
+
+        return None
+
+    @staticmethod
+    def _looks_like_actionable(text: str) -> bool:
+        """检测是否为可执行任务。"""
+        import re
+
+        # 剥离 URL
+        stripped = re.sub(r"https?://\S+", "", text)
+        # 含绝对路径
+        if re.search(r"(?:^|\s)(/[a-zA-Z0-9_./-]{2,})", stripped):
+            return True
+        # 含文件扩展名
+        if re.search(
+            r"\.(?:py|ts|js|json|yaml|md|ipynb|csv|toml|cfg|sh)\b", stripped
+        ):
+            return True
+        # 明确的任务动词
+        task_verbs = [
+            "修改",
+            "创建",
+            "运行",
+            "测试",
+            "删除",
+            "安装",
+            "配置",
+            "编译",
+            "构建",
+            "更新",
+            "添加",
+            "移除",
+            "替换",
+            "读取",
+            "写入",
+            "查看",
+        ]
+        if any(w in stripped for w in task_verbs):
+            return True
+        return False
+
+    def _get_last_user_text(self) -> str:
+        """从 messages 中提取最近一条 user 消息的文本内容。"""
+        for message in reversed(self.messages):
+            if isinstance(message, dict) and message.get("role") == "user":
+                content = message.get("content", "")
+                if isinstance(content, str):
+                    return content
+                if isinstance(content, list):
+                    parts = []
+                    for item in content:
+                        if isinstance(item, dict) and item.get("type") == "text":
+                            parts.append(item.get("text", ""))
+                    return "\n".join(parts)
+        return ""
 
     def _get_skill_security(self, skill_name: str) -> dict[str, Any]:
         """查询 Skill 安全元数据，用于 EnableSkill/DisableSkill 授权决策。"""
