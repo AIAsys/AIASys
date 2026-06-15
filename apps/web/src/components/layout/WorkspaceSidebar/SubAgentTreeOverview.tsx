@@ -27,6 +27,7 @@ interface SubAgentTreeOverviewProps {
   allowStopActions?: boolean;
   allowRetryActions?: boolean;
   onOpenInMainCanvas?: (subagentId: string) => void;
+  compact?: boolean;
 }
 
 export function SubAgentTreeOverview({
@@ -39,7 +40,8 @@ export function SubAgentTreeOverview({
   onTogglePin,
   pinnedSubAgentIds = new Set(),
   allowStopActions = false,
-  onOpenInMainCanvas,
+  onOpenInMainCanvas: _onOpenInMainCanvas,
+  compact = false,
 }: SubAgentTreeOverviewProps) {
   const nestedCalls = executionTree
     ? buildNestedSubAgentCalls(executionTree.subagent_calls)
@@ -53,10 +55,6 @@ export function SubAgentTreeOverview({
   }
 
   const handleSelectSubAgent = (agentId: string) => {
-    if (onOpenInMainCanvas) {
-      onOpenInMainCanvas(agentId);
-      return;
-    }
     onSelectSubAgent(agentId);
   };
 
@@ -83,6 +81,8 @@ export function SubAgentTreeOverview({
               onTaskClick={onSubAgentTaskClick}
               onTogglePin={onTogglePin}
               allowStopActions={allowStopActions}
+              onOpenInMainCanvas={_onOpenInMainCanvas}
+              compact={compact}
             />
           ))}
         </div>

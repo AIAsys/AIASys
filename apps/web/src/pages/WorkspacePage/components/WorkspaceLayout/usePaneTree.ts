@@ -228,6 +228,40 @@ export function usePaneTree(
     });
   }, [activeLeafId]);
 
+  const openRuntimeTab = useCallback(() => {
+    setPaneTree((current) => {
+      const targetLeafId = findLeaf(current, activeLeafId)
+        ? activeLeafId
+        : (getAllLeafIds(current)[0] ?? "main");
+      const leaf = findLeaf(current, targetLeafId);
+      if (!leaf) return current;
+      const allLeafIds = getAllLeafIds(current);
+      const existingTab = allLeafIds
+        .map((leafId) => findLeaf(current, leafId))
+        .flatMap((currentLeaf) => currentLeaf?.tabs ?? [])
+        .find((tab) => tab.runtime);
+      if (existingTab) {
+        const existingLeaf = findLeafWithTab(current, existingTab.id);
+        const existingLeafId = existingLeaf?.id ?? targetLeafId;
+        setActiveLeafId(existingLeafId);
+        return updateLeaf(current, existingLeafId, (l) => ({
+          ...l,
+          activeTabId: existingTab.id,
+        }));
+      }
+      const newTab: WorkspaceTab = {
+        id: `runtime:${Date.now()}`,
+        runtime: true,
+      };
+      setActiveLeafId(targetLeafId);
+      return updateLeaf(current, targetLeafId, (l) => ({
+        ...l,
+        tabs: [...l.tabs, newTab],
+        activeTabId: newTab.id,
+      }));
+    });
+  }, [activeLeafId]);
+
   const globalResourceNodeToPreviewFile = useCallback(
     (node: GlobalResourceNode): PreviewFile =>
       createGlobalWorkspacePreviewFile(
@@ -588,6 +622,7 @@ export function usePaneTree(
     openBrowserTab,
     openDatabaseQueryTab,
     openCapabilityDetailTab,
+    openRuntimeTab,
     handleOpenGlobalResource,
     activateWorkspaceTab,
     closeWorkspaceTab,

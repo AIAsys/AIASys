@@ -31,6 +31,26 @@ export interface UseTerminalReturn {
 }
 
 function buildWsUrl(userId: string, sessionId: string): string {
+  // Desktop 运行时由主进程注入后端地址，避免前端 preview server 无法代理 WebSocket。
+  // 参考 VSCode 设计：Electron 前端直接连接已知的后端服务端点，而不是依赖页面同源。
+  const desktopBackend =
+    (window as unknown as { __AIASYS_DESKTOP__?: { backendBaseUrl?: string } }).__AIASYS_DESKTOP__
+      ?.backendBaseUrl;
+  if (desktopBackend) {
+    const backendUrl = new URL(desktopBackend);
+    const protocol = backendUrl.protocol === "https:" ? "wss:" : "ws:";
+    return `${protocol}//${backendUrl.host}/ws/terminal/${encodeURIComponent(userId)}/${encodeURIComponent(sessionId)}`;
+  }
+
+  // 构建时覆盖（例如 Docker 独立部署）
+  const apiBase = (import.meta.env.VITE_API_BASE_URL || "").trim();
+  if (apiBase) {
+    const base = new URL(apiBase);
+    const protocol = base.protocol === "https:" ? "wss:" : "ws:";
+    return `${protocol}//${base.host}/ws/terminal/${encodeURIComponent(userId)}/${encodeURIComponent(sessionId)}`;
+  }
+
+  // 默认走页面同源（Vite dev proxy / nginx 同域部署）
   const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
   const host = window.location.host;
   return `${protocol}//${host}/ws/terminal/${encodeURIComponent(userId)}/${encodeURIComponent(sessionId)}`;

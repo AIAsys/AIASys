@@ -56,12 +56,6 @@ import { WorkspaceSearchPanel } from "./WorkspaceSearchPanel";
 import { FileChangesPanel } from "./FileChangesPanel";
 import { isActivityPanelView } from "./context/activityBarUtils";
 
-const LazyWorkspaceMonitorPanel = lazy(() =>
-  import("./WorkspaceMonitorPanel").then((module) => ({
-    default: module.WorkspaceMonitorPanel,
-  })),
-);
-
 const LazyWorkspaceAssetPanel = lazy(() =>
   import("./WorkspaceAssetPanel").then((module) => ({
     default: module.WorkspaceAssetPanel,
@@ -69,12 +63,6 @@ const LazyWorkspaceAssetPanel = lazy(() =>
 );
 
 const LazyWorkspaceSubagentPanel = lazy(() => import("./WorkspaceSubagentPanel"));
-
-const LazyTerminalPanel = lazy(() =>
-  import("@/components/terminal/TerminalPanel").then((module) => ({
-    default: module.TerminalPanel,
-  })),
-);
 
 function SidebarPanelFallback() {
   return (
@@ -127,6 +115,7 @@ interface WorkspaceSidebarProps {
   executionSummary?: unknown;
   /** 打开工作区配置 */
   onOpenWorkspaceSettings?: () => void;
+  onOpenRuntimeTab?: () => void;
   /** 打开数据库连接管理 */
   onManageDatabaseConnections?: () => void;
   /** 新建数据库连接 */
@@ -159,16 +148,14 @@ interface WorkspaceSidebarProps {
   }) => void;
   onRequestSubagentDock?: () => void;
   onRequestHostingDock?: () => void;
-  /** 打开全局自动化任务管理 */
-  onOpenGlobalAutoTask?: () => void;
   onOpenTerminalTab?: () => void;
   onOpenCapabilityDetailTab?: (capabilityId: string, displayName: string) => void;
   onNewConversation?: () => void;
   /** 是否为深度研究模式 */
   /** 研究状态 */
   /** 是否正在加载研究状态 */
-  autoTaskContent?: React.ReactNode;
-  children?: React.ReactNode;}
+  children?: React.ReactNode;
+}
 
 interface WorkspaceSidebarContentProps {
   onOpenCanvasPreview?: (file: PreviewFile) => void;
@@ -179,6 +166,7 @@ interface WorkspaceSidebarContentProps {
   onOpenKnowledgeGraphDialog?: () => void;
   onOpenWorkspaceSettings?: () => void;
   onOpenWorkspaceResourcesSettings?: () => void;
+  onOpenRuntimeTab?: () => void;
   layoutMode?: "sidebar" | "center";
   userModels?: LLMModelConfig[];
   pendingUploadedFiles?: Pick<UploadedFile, "filename" | "file_path">[];
@@ -191,9 +179,11 @@ interface WorkspaceSidebarContentProps {
   onRequestSubagentDock?: () => void;
   onOpenSubagentInMainCanvas?: (subagentId: string) => void;
   editorContent?: React.ReactNode;
-  autoTaskContent?: React.ReactNode;
-  onOpenGlobalAutoTask?: () => void;
   onNewConversation?: () => void;
+  onSelectConversation?: (sessionId: string) => void;
+  onForkConversation?: (sessionId: string) => void;
+  onRenameConversation?: (sessionId: string, title: string) => Promise<void>;
+  onDeleteConversation?: (sessionId: string) => Promise<void>;
   onOpenDatabaseQueryTab?: (handle: string) => void;
   onOpenTerminalTab?: () => void;
   onOpenCapabilityDetailTab?: (capabilityId: string, displayName: string) => void;
@@ -208,6 +198,7 @@ function WorkspaceSidebarContent({
   onOpenKnowledgeGraphDialog,
   onOpenWorkspaceSettings: providedOpenWorkspaceSettings,
   onOpenWorkspaceResourcesSettings,
+  onOpenRuntimeTab,
   layoutMode = "sidebar",
   userModels: _userModels = [],
   pendingUploadedFiles = [],
@@ -217,9 +208,11 @@ function WorkspaceSidebarContent({
   onRequestSubagentDock,
   onOpenSubagentInMainCanvas,
   editorContent,
-  autoTaskContent,
-  onOpenGlobalAutoTask,
   onNewConversation,
+  onSelectConversation,
+  onForkConversation,
+  onRenameConversation,
+  onDeleteConversation,
   onOpenDatabaseQueryTab,
   onOpenTerminalTab,
   onOpenCapabilityDetailTab,
@@ -279,8 +272,8 @@ function WorkspaceSidebarContent({
   );
 
   useEffect(() => {
-    // 当切换到协作节点或托管模式时，按需加载执行树。
-    setShouldLoadExecutionTree(activeTab === "subagents" || activeTab === "monitor");
+    // 当切换到协作节点时，按需加载执行树。
+    setShouldLoadExecutionTree(activeTab === "subagents");
   }, [sessionId, activeTab]);
 
   const handleExecutionTreeActivated = useCallback(() => {
@@ -349,11 +342,13 @@ function WorkspaceSidebarContent({
       onOpenKnowledgeBaseDialog={onOpenKnowledgeBaseDialog}
       onOpenKnowledgeGraphDialog={onOpenKnowledgeGraphDialog}
       onOpenWorkspaceResourcesSettings={onOpenWorkspaceResourcesSettings}
-      onOpenGlobalAutoTask={onOpenGlobalAutoTask}
       onNewConversation={onNewConversation}
+      onSelectConversation={onSelectConversation}
+      onForkConversation={onForkConversation}
+      onRenameConversation={onRenameConversation}
+      onDeleteConversation={onDeleteConversation}
       userId={user?.id}
       editorContent={editorContent}
-      autoTaskContent={autoTaskContent}
       searchContent={
         <WorkspaceSearchPanel
           files={workspaceFiles}
@@ -364,14 +359,6 @@ function WorkspaceSidebarContent({
         <FileChangesPanel
           workspaceId={workspaceSummary?.workspace_id ?? null}
         />
-      }
-      monitorContent={
-        <Suspense fallback={<SidebarPanelFallback />}>
-          <LazyWorkspaceMonitorPanel
-            userId={user?.id}
-            sessionId={sessionId}
-          />
-        </Suspense>
       }
       subagentContent={
         <Suspense fallback={<SidebarPanelFallback />}>
@@ -412,6 +399,7 @@ function WorkspaceSidebarContent({
             onOpenInBrowserTab={onOpenInBrowserTab}
             onEditInMainCanvas={onEditInMainCanvas}
             onOpenWorkspaceSettings={onOpenWorkspaceSettings}
+            onOpenRuntimeTab={onOpenRuntimeTab}
             surfaceMode={layoutMode === "center" ? "navigation" : "workbench"}
           />
         </Suspense>
@@ -426,19 +414,10 @@ function WorkspaceSidebarContent({
             onOpenInMainCanvas={onOpenCanvasPreview}
             onOpenInBrowserTab={onOpenInBrowserTab}
             onEditInMainCanvas={onEditInMainCanvas}
+            onOpenWorkspaceResourcesSettings={onOpenWorkspaceResourcesSettings}
             surfaceMode={layoutMode === "center" ? "navigation" : "workbench"}
           />
         </Suspense>
-      }
-      terminalContent={
-        user?.id && sessionId ? (
-          <Suspense fallback={<SidebarPanelFallback />}>
-            <LazyTerminalPanel
-              userId={user.id}
-              sessionId={sessionId}
-            />
-          </Suspense>
-        ) : undefined
       }
       subagentCount={subagentCount}
       runningSubagentCount={runningSubagentCount}
@@ -473,6 +452,11 @@ export type WorkspaceContextSurfaceProps = Omit<
   defaultActiveTab?: SidebarTab;
   editorContent?: React.ReactNode;
   onOpenSubagentInMainCanvas?: (subagentId: string) => void;
+  onNewConversation?: () => void;
+  onSelectConversation?: (sessionId: string) => void;
+  onForkConversation?: (sessionId: string) => void;
+  onRenameConversation?: (sessionId: string, title: string) => Promise<void>;
+  onDeleteConversation?: (sessionId: string) => Promise<void>;
   onOpenDatabaseQueryTab?: (handle: string) => void;
   onOpenTerminalTab?: () => void;
   onOpenCapabilityDetailTab?: (capabilityId: string, displayName: string) => void;
@@ -509,6 +493,7 @@ export function WorkspaceContextSurface({
   workspaceSummary,
   sessionStatus,
   onOpenWorkspaceSettings,
+  onOpenRuntimeTab,
   onManageDatabaseConnections,
   onCreateDatabaseConnection,
   onOpenKnowledgeBaseDialog,
@@ -522,9 +507,12 @@ export function WorkspaceContextSurface({
   onRequestSubagentDock,
   onOpenSubagentInMainCanvas,
   onNewConversation,
+  onSelectConversation,
+  onForkConversation,
+  onRenameConversation,
+  onDeleteConversation,
   defaultActiveTab = "artifacts",
   editorContent,
-  autoTaskContent,
   children,
   onOpenDatabaseQueryTab,
   onOpenTerminalTab,
@@ -580,6 +568,7 @@ export function WorkspaceContextSurface({
           onOpenKnowledgeGraphDialog={onOpenKnowledgeGraphDialog}
           onOpenWorkspaceSettings={onOpenWorkspaceSettings}
           onOpenWorkspaceResourcesSettings={onOpenWorkspaceResourcesSettings}
+          onOpenRuntimeTab={onOpenRuntimeTab}
           layoutMode="center"
           userModels={userModels}
           pendingUploadedFiles={pendingUploadedFiles}
@@ -589,11 +578,14 @@ export function WorkspaceContextSurface({
           onRequestSubagentDock={onRequestSubagentDock}
           onOpenSubagentInMainCanvas={onOpenSubagentInMainCanvas}
           onNewConversation={onNewConversation}
+          onSelectConversation={onSelectConversation}
+          onForkConversation={onForkConversation}
+          onRenameConversation={onRenameConversation}
+          onDeleteConversation={onDeleteConversation}
           onOpenDatabaseQueryTab={onOpenDatabaseQueryTab}
           onOpenTerminalTab={onOpenTerminalTab}
           onOpenCapabilityDetailTab={onOpenCapabilityDetailTab}
           editorContent={editorContent}
-          autoTaskContent={autoTaskContent}
         />
       )}
     </SidebarProvider>
@@ -628,6 +620,7 @@ function WorkspaceSidebarRoot({
   onDeleteFolder,
   onReadFileContent,
   onRefreshWorkspaceFiles,
+  onMoveFile,
   onUploadFiles,
   onViewExecutionRecords,
   onCompactConversation,
@@ -647,7 +640,6 @@ function WorkspaceSidebarRoot({
   onEditInMainCanvas,
   onOpenWorkspaceResourcesSettings,
   onOpenKnowledgeGraphCanvas: _onOpenKnowledgeGraphCanvas,
-  autoTaskContent,
   onRequestHostClarification,
   onRequestSubagentDock,
   onOpenTerminalTab,
@@ -684,6 +676,7 @@ function WorkspaceSidebarRoot({
       onDeleteFolder={onDeleteFolder}
       onReadFileContent={onReadFileContent}
       onRefreshWorkspaceFiles={onRefreshWorkspaceFiles}
+      onMoveFile={onMoveFile}
       onUploadFiles={onUploadFiles}
       onViewExecutionRecords={onViewExecutionRecords}
       onCompactConversation={onCompactConversation}
@@ -715,7 +708,6 @@ function WorkspaceSidebarRoot({
           onRequestSubagentDock={onRequestSubagentDock}
           onOpenTerminalTab={onOpenTerminalTab}
           onOpenCapabilityDetailTab={onOpenCapabilityDetailTab}
-          autoTaskContent={autoTaskContent}
         />
       )}
     </SidebarProvider>

@@ -129,14 +129,11 @@ export function WorkspaceLayout({
 
   const { user } = useAuthContext();
 
-  const handleOpenAutoTaskManagement = () => handleOpenGlobalSettings("auto-tasks");
   const handleOpenChannelSettings = () => setIsChannelOpen(true);
   const handleOpenGlobalSettings = (section: import("@/components/settings/global-settings").SettingsSection) => {
     setGlobalSettingsSection(section);
     setIsGlobalSettingsOpen(true);
   };
-  const handleOpenExecutionResources = () => handleOpenGlobalSettings("execution-resources");
-  const handleOpenWorkspaceSettings = handleOpenExecutionResources;
   const handleOpenChannel = useCallback(() => {
     setIsChannelOpen(true);
   }, []);
@@ -284,8 +281,6 @@ export function WorkspaceLayout({
         onViewToolDetails={onViewToolDetails}
         sessionTitle={sessionTitle}
         currentWorkspace={currentWorkspace}
-        onOpenGlobalAutoTask={handleOpenAutoTaskManagement}
-        onOpenWorkspaceSettings={handleOpenWorkspaceSettings}
         onSelectWorkspace={handleWorkspaceSelect}
         onSelectConversation={handleSessionSelect}
         onNewConversation={handleNewSession}

@@ -16,6 +16,7 @@ import type { PreviewFile } from "@/components/layout/WorkspaceSidebar/preview";
 import type { WorkspaceFile } from "@/types/task";
 import type { PaneTreeNode, PaneLeaf } from "./paneTree";
 import type { WorkspaceRefreshOptions } from "../../hooks/useCodeExecutor/executorTypes";
+import type { TaskWorkspaceSummary } from "../../types";
 
 const LazyMainCanvasPreview = lazy(() =>
   import("./MainCanvasPreview").then((module) => ({
@@ -50,6 +51,12 @@ const LazyDatabaseQueryWorkbench = lazy(() =>
 const LazyCapabilityDetailPanel = lazy(() =>
   import("@/components/CapabilityPanel/CapabilityDetailPanel").then((module) => ({
     default: module.CapabilityDetailPanel,
+  })),
+);
+
+const LazyExecutionResourcesPanel = lazy(() =>
+  import("@/components/execution-resources/ExecutionResourcesPanel").then((module) => ({
+    default: module.ExecutionResourcesPanel,
   })),
 );
 
@@ -90,6 +97,7 @@ export interface PaneRendererProps {
     workspaceFiles: WorkspaceFile[] | undefined;
   };
   currentWorkspaceId: string | undefined;
+  workspaceSummary?: TaskWorkspaceSummary;
   userId?: string;
   tabDirtyMap: Record<string, boolean>;
   onActivateTab: (leafId: string, tabId: string) => void;
@@ -100,6 +108,7 @@ export interface PaneRendererProps {
   onSplitPane: (leafId: string, tabId: string, direction: "horizontal" | "vertical") => void;
   onTabReorder: (leafId: string, fromIndex: number, toIndex: number) => void;
   onNewTerminalTab?: () => void;
+  onOpenRuntimeTab?: () => void;
   onNewBrowserTab?: (url: string) => void;
   onOpenWorkspaceFileFromCanvas: (fileName: string) => void;
   onOpenInBrowserTab?: (url: string) => void;
@@ -117,6 +126,7 @@ export function PaneRenderer({
   dropZones,
   executor,
   currentWorkspaceId,
+  workspaceSummary,
   userId,
   tabDirtyMap,
   onActivateTab,
@@ -127,6 +137,7 @@ export function PaneRenderer({
   onSplitPane,
   onTabReorder,
   onNewTerminalTab,
+  onOpenRuntimeTab,
   onNewBrowserTab,
   onOpenInBrowserTab,
   onOpenWorkspaceFileFromCanvas,
@@ -193,6 +204,17 @@ export function PaneRenderer({
     }
     if (tab.url) {
       return <BrowserTabView url={tab.url} readFileContent={executor.readWorkspaceFileContent} />;
+    }
+    if (tab.runtime) {
+      return (
+        <Suspense fallback={<MainSurfaceFallback label="正在加载执行环境..." />}>
+          <LazyExecutionResourcesPanel
+            workspaceId={currentWorkspaceId ?? null}
+            workspaceTitle={workspaceSummary?.title ?? null}
+            workspaceSummary={workspaceSummary ?? null}
+          />
+        </Suspense>
+      );
     }
     if (!file) return null;
     const resourceNode = resolveAssetResourceNodeFromWorkspaceFile(file);
@@ -359,6 +381,7 @@ export function PaneRenderer({
           }
           onTabDirtyCheck={(tabId) => tabDirtyMap[tabId] ?? false}
           onNewTerminalTab={onNewTerminalTab}
+          onOpenRuntimeTab={onOpenRuntimeTab}
           onNewBrowserTab={onNewBrowserTab}
         />
         <div className="min-h-0 flex-1 flex flex-col overflow-hidden">

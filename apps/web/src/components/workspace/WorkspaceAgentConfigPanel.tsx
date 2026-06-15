@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from "react";import {
+import { useCallback, useEffect, useState } from "react";
+import {
   Loader2,
   Save,
   RotateCcw,
@@ -40,9 +41,11 @@ import type {
   EditableConfigResponse,
   MergedConfigResponse,
 } from "@/types/agentConfig";
+import { cn } from "@/lib/utils";
 
 interface WorkspaceAgentConfigPanelProps {
   workspaceId: string;
+  scope?: "user" | "workspace";
 }
 
 const TOOL_STRATEGY_OPTIONS = [
@@ -84,7 +87,10 @@ function getSourceLabel(source: string): string {
 
 export function WorkspaceAgentConfigPanel({
   workspaceId,
+  scope = "workspace",
 }: WorkspaceAgentConfigPanelProps) {
+  const isUserScope = scope === "user";
+
   const [userConfig, setUserConfig] = useState<UserConfigResponse | null>(null);
   const [workspaceConfig, setWorkspaceConfig] = useState<EditableConfigResponse | null>(null);
   const [mergedConfig, setMergedConfig] = useState<MergedConfigResponse | null>(null);
@@ -110,24 +116,35 @@ export function WorkspaceAgentConfigPanel({
     setLoading(true);
     setError(null);
     try {
-      const [user, ws, merged] = await Promise.all([
-        getUserConfig("analysis"),
-        getWorkspaceEditorConfig("analysis", workspaceId),
-        getMergedConfig("analysis", undefined, workspaceId),
-      ]);
-      setUserConfig(user);
-      setWorkspaceConfig(ws);
-      setMergedConfig(merged);
-      setPromptDraft(ws.prompt_content ?? "");
-      setToolStrategyDraft(ws.tool_strategy ?? "auto");
-      setReservedContextDraft(String(ws.reserved_context_size ?? 50000));
-      setCompactionRatioDraft(String(ws.compaction_trigger_ratio ?? 0.85));
+      if (isUserScope) {
+        const user = await getUserConfig("analysis");
+        setUserConfig(user);
+        setWorkspaceConfig(null);
+        setMergedConfig(null);
+        setPromptDraft(user.prompt_content ?? "");
+        setToolStrategyDraft(user.tool_strategy ?? "auto");
+        setReservedContextDraft(String(user.reserved_context_size ?? 50000));
+        setCompactionRatioDraft(String(user.compaction_trigger_ratio ?? 0.85));
+      } else {
+        const [user, ws, merged] = await Promise.all([
+          getUserConfig("analysis"),
+          getWorkspaceEditorConfig("analysis", workspaceId),
+          getMergedConfig("analysis", undefined, workspaceId),
+        ]);
+        setUserConfig(user);
+        setWorkspaceConfig(ws);
+        setMergedConfig(merged);
+        setPromptDraft(ws.prompt_content ?? "");
+        setToolStrategyDraft(ws.tool_strategy ?? "auto");
+        setReservedContextDraft(String(ws.reserved_context_size ?? 50000));
+        setCompactionRatioDraft(String(ws.compaction_trigger_ratio ?? 0.85));
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "加载配置失败");
     } finally {
       setLoading(false);
     }
-  }, [workspaceId]);
+  }, [workspaceId, isUserScope]);
 
   useEffect(() => {
     void load();
@@ -136,7 +153,7 @@ export function WorkspaceAgentConfigPanel({
   const savePrompt = async () => {
     setSaving(true);
     try {
-      await updatePrompt("analysis", promptDraft, undefined, workspaceId);
+      await updatePrompt("analysis", promptDraft, undefined, isUserScope ? undefined : workspaceId);
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : "保存提示词失败");
@@ -152,7 +169,7 @@ export function WorkspaceAgentConfigPanel({
         "analysis",
         { toolStrategy: toolStrategyDraft as "auto" | "search" | "deferred" | "passthrough" },
         undefined,
-        workspaceId,
+        isUserScope ? undefined : workspaceId,
       );
       await load();
     } catch (err) {
@@ -172,7 +189,7 @@ export function WorkspaceAgentConfigPanel({
           compaction_trigger_ratio: Number.parseFloat(compactionRatioDraft) || undefined,
         },
         undefined,
-        workspaceId,
+        isUserScope ? undefined : workspaceId,
       );
       await load();
     } catch (err) {
@@ -186,12 +203,12 @@ export function WorkspaceAgentConfigPanel({
     setSaving(true);
     try {
       await Promise.all([
-        updatePrompt("analysis", promptDraft, undefined, workspaceId),
+        updatePrompt("analysis", promptDraft, undefined, isUserScope ? undefined : workspaceId),
         updateTools(
           "analysis",
           { toolStrategy: toolStrategyDraft as "auto" | "search" | "deferred" | "passthrough" },
           undefined,
-          workspaceId,
+          isUserScope ? undefined : workspaceId,
         ),
         updateRuntimeConfig(
           "analysis",
@@ -200,7 +217,7 @@ export function WorkspaceAgentConfigPanel({
             compaction_trigger_ratio: Number.parseFloat(compactionRatioDraft) || undefined,
           },
           undefined,
-          workspaceId,
+          isUserScope ? undefined : workspaceId,
         ),
       ]);
       await load();
@@ -214,7 +231,11 @@ export function WorkspaceAgentConfigPanel({
   const handleReset = async () => {
     setSaving(true);
     try {
-      await resetAgentConfigToDefault("analysis", undefined, workspaceId);
+      if (isUserScope) {
+        await resetAgentConfigToDefault("analysis");
+      } else {
+        await resetAgentConfigToDefault("analysis", undefined, workspaceId);
+      }
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : "重置配置失败");
@@ -240,7 +261,7 @@ export function WorkspaceAgentConfigPanel({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Settings className="h-4 w-4 text-muted-foreground" />
-            <h3 className="text-sm font-medium">工作区设置</h3>
+            <h3 className="text-sm font-medium">{isUserScope ? "用户默认配置" : "工作区设置"}</h3>
           </div>
           <div className="flex items-center gap-1.5">
             <Button
@@ -256,7 +277,9 @@ export function WorkspaceAgentConfigPanel({
           </div>
         </div>
         <p className="mt-1 text-[11px] text-muted-foreground">
-          覆盖用户默认配置，仅对当前工作区生效。未覆盖的项继承自用户默认。
+          {isUserScope
+            ? "用户默认配置会作为所有工作区的基线。未在工作区覆盖的项将继承这里的设置。"
+            : "覆盖用户默认配置，仅对当前工作区生效。未覆盖的项继承自用户默认。"}
         </p>
       </div>
 
@@ -274,13 +297,13 @@ export function WorkspaceAgentConfigPanel({
             <div className="flex items-center gap-2">
               <MessageSquare className="h-3.5 w-3.5 text-muted-foreground" />
               工作说明
-              {sourceBadge(promptSource)}
+              {!isUserScope && sourceBadge(promptSource)}
             </div>
             <ChevronDown className={cn("h-3.5 w-3.5 text-muted-foreground transition-transform", promptOpen && "rotate-180")} />
           </CollapsibleTrigger>
           <CollapsibleContent>
             <div className="px-2 pb-3 pt-1 space-y-2">
-              {userConfig?.prompt_content ? (
+              {!isUserScope && userConfig?.prompt_content ? (
                 <div className="rounded-md border border-border bg-muted/30 px-3 py-2 text-[11px] text-muted-foreground">
                   <div className="mb-1 font-medium">继承的用户默认工作说明：</div>
                   <div className="line-clamp-3">{userConfig.prompt_content}</div>
@@ -290,15 +313,23 @@ export function WorkspaceAgentConfigPanel({
               <Textarea
                 value={promptDraft}
                 onChange={(e) => setPromptDraft(e.target.value)}
-                placeholder={userConfig?.prompt_content
-                  ? "输入工作区覆盖的工作说明，留空则继承用户默认..."
-                  : "用户未设置默认工作说明。输入后将在工作区级覆盖系统基线..."}
+                placeholder={
+                  isUserScope
+                    ? "输入用户默认工作说明，会作为所有工作区的基线..."
+                    : userConfig?.prompt_content
+                      ? "输入工作区覆盖的工作说明，留空则继承用户默认..."
+                      : "用户未设置默认工作说明。输入后将在工作区级覆盖系统基线..."
+                }
                 className="min-h-[100px] text-xs"
               />
               <div className="flex items-center justify-between">
                 <div className="text-[10px] text-muted-foreground">
-                  {getSourceLabel(promptSource)}
-                  {hasWorkspacePrompt ? "（编辑上方内容可修改工作区覆盖）" : "（编辑上方内容可添加工作区覆盖）"}
+                  {!isUserScope && (
+                    <>
+                      {getSourceLabel(promptSource)}
+                      {hasWorkspacePrompt ? "（编辑上方内容可修改工作区覆盖）" : "（编辑上方内容可添加工作区覆盖）"}
+                    </>
+                  )}
                 </div>
                 <Button
                   size="sm"
@@ -327,9 +358,11 @@ export function WorkspaceAgentConfigPanel({
           </CollapsibleTrigger>
           <CollapsibleContent>
             <div className="px-2 pb-3 pt-1 space-y-2">
-              <div className="text-[11px] text-muted-foreground">
-                用户默认策略：{TOOL_STRATEGY_OPTIONS.find(o => o.value === userConfig?.tool_strategy)?.label ?? "自动（系统基线）"}
-              </div>
+              {!isUserScope && (
+                <div className="text-[11px] text-muted-foreground">
+                  用户默认策略：{TOOL_STRATEGY_OPTIONS.find(o => o.value === userConfig?.tool_strategy)?.label ?? "自动（系统基线）"}
+                </div>
+              )}
 
               <Select
                 value={toolStrategyDraft}
@@ -350,7 +383,7 @@ export function WorkspaceAgentConfigPanel({
                 </SelectContent>
               </Select>
 
-              {mergedConfig ? (
+              {!isUserScope && mergedConfig ? (
                 <div className="rounded-md border border-border bg-muted/30 px-3 py-2 text-[11px]">
                   <div className="font-medium text-muted-foreground">当前生效的工具策略</div>
                   <div className="mt-1">
@@ -397,9 +430,11 @@ export function WorkspaceAgentConfigPanel({
                   onChange={(e) => setReservedContextDraft(e.target.value)}
                   className="h-8 text-xs"
                 />
-                <div className="text-[10px] text-muted-foreground">
-                  用户默认：{userConfig?.reserved_context_size ?? "系统基线"}
-                </div>
+                {!isUserScope && (
+                  <div className="text-[10px] text-muted-foreground">
+                    用户默认：{userConfig?.reserved_context_size ?? "系统基线"}
+                  </div>
+                )}
               </div>
               <div className="space-y-1">
                 <Label className="text-[11px]">自动压缩触发比例</Label>
@@ -412,15 +447,21 @@ export function WorkspaceAgentConfigPanel({
                   onChange={(e) => setCompactionRatioDraft(e.target.value)}
                   className="h-8 text-xs"
                 />
-                <div className="text-[10px] text-muted-foreground">
-                  用户默认：{userConfig?.compaction_trigger_ratio ?? "系统基线"}
-                </div>
+                {!isUserScope && (
+                  <div className="text-[10px] text-muted-foreground">
+                    用户默认：{userConfig?.compaction_trigger_ratio ?? "系统基线"}
+                  </div>
+                )}
               </div>
 
               <div className="flex items-center justify-between">
                 <div className="text-[10px] text-muted-foreground">
-                  {getSourceLabel(runtimeSource)}
-                  {hasWorkspaceRuntime ? "（已覆盖）" : "（继承用户默认）"}
+                  {!isUserScope && (
+                    <>
+                      {getSourceLabel(runtimeSource)}
+                      {hasWorkspaceRuntime ? "（已覆盖）" : "（继承用户默认）"}
+                    </>
+                  )}
                 </div>
                 <Button
                   size="sm"
@@ -453,5 +494,3 @@ export function WorkspaceAgentConfigPanel({
     </div>
   );
 }
-
-import { cn } from "@/lib/utils";

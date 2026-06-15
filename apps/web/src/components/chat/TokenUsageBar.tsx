@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Gauge, Loader2, Minimize2, Settings, Sparkles } from "lucide-react";
+import { BarChart3, Gauge, Loader2, Minimize2, Settings, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Popover,
@@ -273,6 +273,24 @@ export function TokenUsageBar({
           </span>
         </button>
       )}
+      <button
+        type="button"
+        onClick={() => {
+          const appNavigate = (globalThis as typeof globalThis & {
+            appNavigate?: (path: string) => void;
+          }).appNavigate;
+          if (appNavigate) {
+            appNavigate("/dashboard");
+          } else {
+            globalThis.location.href = "/dashboard";
+          }
+        }}
+        className="flex h-7 shrink-0 items-center gap-1 rounded-md border border-border bg-background px-2.5 text-[11px] font-medium text-muted-foreground transition-colors hover:border-tertiary/40 hover:bg-tertiary-container/50 hover:text-tertiary"
+        title="Token 消耗面板"
+      >
+        <BarChart3 className="h-3.5 w-3.5" />
+        <span className="hidden sm:inline">用量</span>
+      </button>
 
       <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
         <PopoverTrigger asChild>

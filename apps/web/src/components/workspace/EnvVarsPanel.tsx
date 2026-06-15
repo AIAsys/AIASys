@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Eye, EyeOff, Plus, Trash2, Globe, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,6 +10,7 @@ interface EnvVarsPanelProps {
   workspaceSummary?: TaskWorkspaceSummary;
   onSaved?: () => void;
   variant?: "compact" | "runtime-dialog";
+  scope?: "global" | "workspace";
 }
 
 type VarSource = "global" | "workspace" | "overridden";
@@ -24,12 +25,14 @@ export function EnvVarsPanel({
   workspaceSummary,
   onSaved,
   variant = "compact",
+  scope = "workspace",
 }: EnvVarsPanelProps) {
+  const isGlobal = scope === "global";
   const workspaceEnvVars = useMemo(
-    () => workspaceSummary?.runtime_binding?.env_vars ?? {},
-    [workspaceSummary?.runtime_binding?.env_vars],
+    () => (isGlobal ? {} : workspaceSummary?.runtime_binding?.env_vars ?? {}),
+    [isGlobal, workspaceSummary?.runtime_binding?.env_vars],
   );
-  const workspaceId = workspaceSummary?.workspace_id;
+  const workspaceId = isGlobal ? undefined : workspaceSummary?.workspace_id;
 
   const [globalEnvVars, setGlobalEnvVars] = useState<Record<string, string>>({});
   const [globalLoading, setGlobalLoading] = useState(false);
@@ -40,6 +43,7 @@ export function EnvVarsPanel({
   const [editValue, setEditValue] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const newKeyInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setGlobalLoading(true);
@@ -66,6 +70,13 @@ export function EnvVarsPanel({
     return Array.from(map.values()).sort((a, b) => a.key.localeCompare(b.key));
   }, [globalEnvVars, workspaceEnvVars]);
 
+  const displayVars = useMemo<MergedEnvVar[]>(() => {
+    if (!isGlobal) return mergedVars;
+    return Object.entries(globalEnvVars)
+      .map(([key, value]) => ({ key, value, source: "global" as VarSource }))
+      .sort((a, b) => a.key.localeCompare(b.key));
+  }, [isGlobal, globalEnvVars, mergedVars]);
+
   const toggleVisible = useCallback((key: string) => {
     setVisibleKeys((prev) => {
       const next = new Set(prev);
@@ -77,14 +88,22 @@ export function EnvVarsPanel({
 
   const save = useCallback(
     async (updated: Record<string, string>) => {
-      if (!workspaceId) return;
       setSaving(true);
       setError(null);
       try {
-        await apiRequest(`/api/workspaces/${workspaceId}`, {
-          method: "PATCH",
-          body: { runtime_binding: { env_vars: updated } },
-        });
+        if (isGlobal) {
+          await apiRequest("/api/global-env-vars/me", {
+            method: "PUT",
+            body: { env_vars: updated },
+          });
+          setGlobalEnvVars(updated);
+        } else {
+          if (!workspaceId) return;
+          await apiRequest(`/api/workspaces/${workspaceId}`, {
+            method: "PATCH",
+            body: { runtime_binding: { env_vars: updated } },
+          });
+        }
         onSaved?.();
       } catch (err) {
         setError(err instanceof Error ? err.message : "保存环境变量失败");
@@ -92,25 +111,30 @@ export function EnvVarsPanel({
         setSaving(false);
       }
     },
-    [workspaceId, onSaved],
+    [isGlobal, workspaceId, onSaved],
+  );
+
+  const baseEnvVars = useMemo(
+    () => (isGlobal ? globalEnvVars : workspaceEnvVars),
+    [isGlobal, globalEnvVars, workspaceEnvVars],
   );
 
   const handleAdd = useCallback(() => {
     const key = newKey.trim();
     if (!key) return;
-    const updated = { ...workspaceEnvVars, [key]: newValue };
+    const updated = { ...baseEnvVars, [key]: newValue };
     save(updated);
     setNewKey("");
     setNewValue("");
-  }, [newKey, newValue, workspaceEnvVars, save]);
+  }, [newKey, newValue, baseEnvVars, save]);
 
   const handleDelete = useCallback(
     (key: string) => {
-      const updated = { ...workspaceEnvVars };
+      const updated = { ...baseEnvVars };
       delete updated[key];
       save(updated);
     },
-    [workspaceEnvVars, save],
+    [baseEnvVars, save],
   );
 
   const startEdit = useCallback((key: string, value: string) => {
@@ -121,12 +145,13 @@ export function EnvVarsPanel({
   const commitEdit = useCallback(() => {
     if (!editingKey) return;
     const key = editingKey.trim();
-    if (!key || !workspaceId) return;
-    const updated = { ...workspaceEnvVars, [key]: editValue };
+    if (!key) return;
+    if (!isGlobal && !workspaceId) return;
+    const updated = { ...baseEnvVars, [key]: editValue };
     save(updated);
     setEditingKey(null);
     setEditValue("");
-  }, [editingKey, editValue, workspaceEnvVars, save, workspaceId]);
+  }, [editingKey, editValue, baseEnvVars, save, isGlobal, workspaceId]);
 
   const cancelEdit = useCallback(() => {
     setEditingKey(null);
@@ -134,6 +159,7 @@ export function EnvVarsPanel({
   }, []);
 
   const isWorkspaceVar = (source: VarSource) => source === "workspace" || source === "overridden";
+  const isEditable = (source: VarSource) => (isGlobal ? source === "global" : isWorkspaceVar(source));
 
   const sourceBadge = (source: VarSource) => {
     if (source === "global") {
@@ -165,7 +191,25 @@ export function EnvVarsPanel({
     <div className={variant === "runtime-dialog" ? "flex flex-col gap-4 p-5" : "flex flex-col gap-3 p-3"}>
       {variant === "compact" ? (
         <div className="text-sm text-muted-foreground">
-          注入到 Shell / Python / Notebook 执行环境中的变量
+          {isGlobal ? "全局环境变量会注入到所有工作区" : "注入到 Shell / Python / Notebook 执行环境中的变量"}
+        </div>
+      ) : isGlobal ? (
+        <div className="grid gap-3 md:grid-cols-3">
+          <div className="rounded-xl border border-border bg-background px-3 py-3">
+            <div className="text-[11px] font-semibold text-muted-foreground">作用范围</div>
+            <div className="mt-1 text-sm font-semibold text-foreground">所有工作区</div>
+            <div className="mt-1 text-xs leading-5 text-muted-foreground">全局环境变量会注入到所有工作区</div>
+          </div>
+          <div className="rounded-xl border border-border bg-background px-3 py-3">
+            <div className="text-[11px] font-semibold text-muted-foreground">注入位置</div>
+            <div className="mt-1 text-sm font-semibold text-foreground">Shell / Python</div>
+            <div className="mt-1 text-xs leading-5 text-muted-foreground">下一次执行会读取最新值</div>
+          </div>
+          <div className="rounded-xl border border-border bg-background px-3 py-3">
+            <div className="text-[11px] font-semibold text-muted-foreground">生效变量</div>
+            <div className="mt-1 text-sm font-semibold text-foreground">{displayVars.length} 个</div>
+            <div className="mt-1 text-xs leading-5 text-muted-foreground">全局 {Object.keys(globalEnvVars).length} 个</div>
+          </div>
         </div>
       ) : (
         <div className="grid gap-3 md:grid-cols-3">
@@ -199,28 +243,40 @@ export function EnvVarsPanel({
       <div className="space-y-1">
         <div className="flex items-center justify-between">
           <div className="text-xs font-medium text-muted-foreground">
-            生效环境变量
-            {mergedVars.length > 0 && (
-              <span className="ml-1 text-muted-foreground/60">({mergedVars.length} 个)</span>
+            {isGlobal ? "全局环境变量" : "生效环境变量"}
+            {displayVars.length > 0 && (
+              <span className="ml-1 text-muted-foreground/60">({displayVars.length} 个)</span>
             )}
           </div>
         </div>
 
-        {globalLoading && mergedVars.length === 0 && (
+        {globalLoading && displayVars.length === 0 && (
           <div className="rounded-lg border border-dashed border-border py-6 text-center text-sm text-muted-foreground">
             加载中...
           </div>
         )}
 
-        {!globalLoading && mergedVars.length === 0 && (
-          <div className="rounded-lg border border-dashed border-border py-6 text-center text-sm text-muted-foreground">
-            暂无任何环境变量
+        {!globalLoading && displayVars.length === 0 && (
+          <div className="rounded-lg border border-dashed border-border py-6 text-center">
+            <div className="text-sm font-medium text-foreground">暂无任何环境变量</div>
+            <div className="mt-1 text-xs leading-5 text-muted-foreground">
+              {isGlobal ? "添加后会在所有工作区的执行环境中生效。" : "添加后会在 Shell / Python / Notebook 执行环境中生效。"}
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="mt-3 h-8 text-xs"
+              onClick={() => newKeyInputRef.current?.focus()}
+            >
+              添加环境变量
+            </Button>
           </div>
         )}
 
-        {mergedVars.map(({ key, value, source }) => {
-          const isEditing = editingKey === key && isWorkspaceVar(source);
-          const wsOnly = isWorkspaceVar(source);
+        {displayVars.map(({ key, value, source }) => {
+          const isEditing = editingKey === key && isEditable(source);
+          const editable = isEditable(source);
           return (
             <div
               key={key}
@@ -286,7 +342,7 @@ export function EnvVarsPanel({
                       <Eye className="h-3.5 w-3.5" />
                     )}
                   </Button>
-                  {wsOnly && (
+                  {editable && (
                     <Button
                       variant="ghost"
                       size="icon"
@@ -296,7 +352,7 @@ export function EnvVarsPanel({
                       <Pencil className="h-3.5 w-3.5" />
                     </Button>
                   )}
-                  {wsOnly && (
+                  {editable && (
                     <Button
                       variant="ghost"
                       size="icon"
@@ -316,6 +372,7 @@ export function EnvVarsPanel({
       {/* 添加 / 编辑提示 */}
       <div className="grid gap-2 border-t pt-3 md:grid-cols-[minmax(0,1fr)_auto_minmax(0,2fr)_auto]">
         <Input
+          ref={newKeyInputRef}
           className="h-8 text-xs font-mono flex-1"
           placeholder="KEY"
           value={newKey}
@@ -342,13 +399,13 @@ export function EnvVarsPanel({
         </Button>
       </div>
 
-      {newKey.trim() && newKey.trim() in globalEnvVars && (
+      {!isGlobal && newKey.trim() && newKey.trim() in globalEnvVars && (
         <div className="text-[11px] text-amber-600 dark:text-amber-400">
           此变量名与全局环境变量同名，保存后将覆盖全局值
         </div>
       )}
 
-      {newKey.trim() && newKey.trim() in workspaceEnvVars && (
+      {!isGlobal && newKey.trim() && newKey.trim() in workspaceEnvVars && (
         <div className="text-[11px] text-blue-600 dark:text-blue-400">
           此变量已存在于工作区变量中，保存后将更新其值
         </div>

@@ -1,6 +1,8 @@
+import { useEffect, useRef, useState } from "react";
 import {
   Bot,
   CheckCircle2,
+  ChevronDown,
   Clock3,
   Loader2,
   Workflow,
@@ -9,6 +11,11 @@ import {
 
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import type {
   ExecutionTree,
   SubAgentDetail,
@@ -139,6 +146,17 @@ export function WorkspaceSubagentPanel({
   onOpenInMainCanvas,
   compact = false,
 }: WorkspaceSubagentPanelProps) {
+  const [isDetailExpanded, setIsDetailExpanded] = useState(false);
+  const previousSelectedIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    const currentId = selectedSubAgent?.id ?? null;
+    if (currentId && currentId !== previousSelectedIdRef.current) {
+      setIsDetailExpanded(true);
+    }
+    previousSelectedIdRef.current = currentId;
+  }, [selectedSubAgent]);
+
   const subagentCalls = executionTree?.subagent_calls ?? [];
   const subagentById = new Map(subagentCalls.map((c) => [c.subagent.id, c.subagent]));
   const pinnedList = Array.from(pinnedSubAgentIds)
@@ -236,17 +254,15 @@ export function WorkspaceSubagentPanel({
                 正在读取专家协作节点状态...
               </div>
             ) : subagentCalls.length === 0 ? (
-              <div className={cn("flex items-center justify-center text-center", compact ? "min-h-[80px] px-3" : "min-h-[200px] px-6")}>
+              <div className={cn("flex items-center justify-center text-center rounded-lg border border-border/60 bg-background", compact ? "min-h-[80px] px-3 py-4" : "min-h-[200px] px-6 py-8")}>
                 <div className="text-center">
                   <Clock3 className={cn("mx-auto text-muted-foreground", compact ? "h-4 w-4" : "h-5 w-5")} />
                   <div className={cn("font-medium text-foreground mt-2", compact ? "text-xs" : "text-sm")}>
                     暂无专家协作节点
                   </div>
-                  {!compact && (
-                    <div className="mt-1 text-xs leading-5 text-muted-foreground">
-                      主控派发任务后自动显示
-                    </div>
-                  )}
+                  <div className={cn("mt-1 leading-5 text-muted-foreground", compact ? "text-[10px]" : "text-xs")}>
+                    主控派发任务后自动显示
+                  </div>
                 </div>
               </div>
             ) : (
@@ -265,10 +281,98 @@ export function WorkspaceSubagentPanel({
                   allowStopActions={false}
                   allowRetryActions={false}
                   onOpenInMainCanvas={onOpenInMainCanvas}
+                  compact={compact}
                 />
               </div>
             )}
           </div>
+
+          {compact && subagentCalls.length > 0 && (
+            <Collapsible open={isDetailExpanded} onOpenChange={setIsDetailExpanded}>
+              <CollapsibleTrigger asChild>
+                <button
+                  type="button"
+                  className="flex w-full items-center justify-between rounded-xl border border-border bg-background px-3 py-2 text-left text-sm font-medium text-foreground transition-colors hover:bg-muted/30"
+                >
+                  <span>
+                    {selectedSubAgent
+                      ? `节点详情：${selectedSubAgent.nickname || selectedSubAgent.name || selectedSubAgent.id.slice(0, 8)}`
+                      : "节点详情"}
+                  </span>
+                  <ChevronDown
+                    className={cn(
+                      "h-4 w-4 text-muted-foreground transition-transform",
+                      isDetailExpanded && "rotate-180",
+                    )}
+                  />
+                </button>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <div className="mt-3 flex flex-col gap-4">
+                  <AgentExecutionView
+                    subagent={selectedSubAgent}
+                    isLoading={isLoadingSubAgent}
+                    className="px-3 py-3"
+                  />
+
+                  <SubagentSectionCard
+                    title="当前会话状态"
+                    description=""
+                    compact={compact}
+                  >
+                    <SubagentInfoRow
+                      icon={<Workflow className="h-3.5 w-3.5" />}
+                      label="当前会话"
+                      value={getHostStatusLabel(executionTree?.host.status)}
+                      description=""
+                      compact={compact}
+                    />
+                    <SubagentInfoRow
+                      icon={<Clock3 className="h-3.5 w-3.5" />}
+                      label="最近更新"
+                      value={
+                        latestUpdatedAt
+                          ? new Date(latestUpdatedAt).toLocaleString("zh-CN", {
+                              hour12: false,
+                            })
+                          : "暂无"
+                      }
+                      description=""
+                      compact={compact}
+                    />
+                  </SubagentSectionCard>
+
+                  <SubagentSectionCard
+                    title="推进链路"
+                    description=""
+                    compact={compact}
+                  >
+                    <SubagentInfoRow
+                      icon={<Workflow className="h-3.5 w-3.5" />}
+                      label="1"
+                      value="主控拆分任务"
+                      description=""
+                      compact={compact}
+                    />
+                    <SubagentInfoRow
+                      icon={<Bot className="h-3.5 w-3.5" />}
+                      label="2"
+                      value="节点独立执行"
+                      description=""
+                      compact={compact}
+                    />
+                    <SubagentInfoRow
+                      icon={<CheckCircle2 className="h-3.5 w-3.5" />}
+                      label="3"
+                      value="结果回流主会话"
+                      description=""
+                      compact={compact}
+                    />
+                  </SubagentSectionCard>
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
+          )}
 
           {!compact && (
             <div className="flex flex-col gap-4">

@@ -261,11 +261,13 @@ export function StorageSettingsDialog() {
                   </Alert>
                 ) : null}
                 {savedNotice ? (
-                  <Alert className="mb-4 border-warning-container bg-warning-container/40">
-                    <Info className="h-4 w-4" />
-                    <AlertTitle>需要重启系统</AlertTitle>
-                    <AlertDescription>{savedNotice}</AlertDescription>
-                  </Alert>
+                  <div className="mb-4 flex items-start gap-3 rounded-lg border border-warning-container bg-warning-container/40 p-4 text-sm">
+                    <Info className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
+                    <div>
+                      <p className="font-medium text-foreground">需要重启系统</p>
+                      <p className="text-muted-foreground">{savedNotice}</p>
+                    </div>
+                  </div>
                 ) : null}
 
                 <div className="space-y-4">
@@ -339,13 +341,15 @@ export function StorageSettingsDialog() {
                 </div>
 
                 <div className="mt-6 space-y-4">
-                  <Alert>
-                    <Info className="h-4 w-4" />
-                    <AlertTitle>保存后需要重启</AlertTitle>
-                    <AlertDescription>
-                      当前会话、工作区注册、文件工具和资源索引已经绑定到当前目录。系统不会在运行中切换到新目录。
-                    </AlertDescription>
-                  </Alert>
+                  <div className="flex items-start gap-3 rounded-lg border border-border bg-muted/30 p-4 text-sm">
+                    <Info className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                    <div>
+                      <p className="font-medium text-foreground">保存后需要重启</p>
+                      <p className="text-muted-foreground">
+                        当前会话、工作区注册、文件工具和资源索引已经绑定到当前目录。系统不会在运行中切换到新目录。
+                      </p>
+                    </div>
+                  </div>
                   <div className="rounded-lg border border-border bg-muted/40 p-4 text-sm text-muted-foreground">
                     <p className="font-medium text-foreground">保存配置不会搬迁已有数据</p>
                     <p className="mt-2">

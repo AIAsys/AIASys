@@ -28,6 +28,7 @@ import {
   Loader2,
   RefreshCw,
   ServerCog,
+  Settings,
   Upload,
   X,
 } from "lucide-react";
@@ -531,6 +532,8 @@ interface WorkspaceAssetPanelProps {
   onOpenInBrowserTab?: (file: WorkspaceFile) => void;
   onOpenGlobalResourceInMainCanvas?: (node: GlobalResourceNode) => void;
   onOpenWorkspaceSettings?: () => void;
+  onOpenWorkspaceResourcesSettings?: () => void;
+  onOpenRuntimeTab?: () => void;
   surfaceMode?: "workbench" | "navigation";
 }
 
@@ -700,6 +703,8 @@ const WorkspaceAssetPanelComponent: React.FC<WorkspaceAssetPanelProps> = ({
   onOpenInBrowserTab,
   onOpenGlobalResourceInMainCanvas,
   onOpenWorkspaceSettings,
+  onOpenWorkspaceResourcesSettings,
+  onOpenRuntimeTab,
   surfaceMode = "workbench",
 }) => {
   const { session } = useAuthContext();
@@ -785,14 +790,14 @@ const WorkspaceAssetPanelComponent: React.FC<WorkspaceAssetPanelProps> = ({
   );
 
   const handleOpenRuntimeDetails = useCallback(() => {
-    if (isNavigationMode) {
-      onOpenWorkspaceSettings?.();
+    if (onOpenRuntimeTab) {
+      onOpenRuntimeTab();
       return;
     }
     setIsRuntimeDetailsOpen(true);
     setRuntimeCopyMessage(null);
     void loadRuntimeRegistry();
-  }, [isNavigationMode, loadRuntimeRegistry, onOpenWorkspaceSettings]);
+  }, [onOpenRuntimeTab, loadRuntimeRegistry]);
 
   const handleCopyRuntimePath = useCallback(async (value: string, label: string) => {
     const result = await writeTextToClipboard(value);
@@ -2023,6 +2028,13 @@ const WorkspaceAssetPanelComponent: React.FC<WorkspaceAssetPanelProps> = ({
                   onClick={() => setFolderCollapseSignal((current) => current + 1)}
                   icon={<FolderTree className="h-3.5 w-3.5" />}
                 />
+                {onOpenWorkspaceSettings ? (
+                  <AssetHeaderAction
+                    label="工作区设置"
+                    onClick={onOpenWorkspaceSettings}
+                    icon={<Settings className="h-3.5 w-3.5" />}
+                  />
+                ) : null}
               </div>
             }
           />
@@ -2084,6 +2096,17 @@ const WorkspaceAssetPanelComponent: React.FC<WorkspaceAssetPanelProps> = ({
                   <p className="text-sm font-medium text-foreground/80">{emptyTitle}</p>
                   <p className="text-xs leading-5 text-muted-foreground">{emptyDescription}</p>
                 </div>
+                {isGlobal && (onOpenWorkspaceResourcesSettings || onOpenWorkspaceSettings) ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="mt-4 h-8 text-xs"
+                    onClick={onOpenWorkspaceResourcesSettings ?? onOpenWorkspaceSettings}
+                  >
+                    管理全局资源
+                  </Button>
+                ) : null}
               </div>
             )}
           </div>

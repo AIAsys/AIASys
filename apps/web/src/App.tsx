@@ -4,6 +4,7 @@ import { PublicRoute, ProtectedRoute } from "./components/auth/RouteGuard";
 
 const HomePage = lazy(() => import("./pages/HomePage"));
 const WorkspacePage = lazy(() => import("./pages/WorkspacePage"));
+const TokenDashboard = lazy(() => import("./pages/TokenDashboard"));
 
 const UserProfilePage = lazy(() => import("@/pages/UserProfilePage"));
 
@@ -101,6 +102,7 @@ function App() {
     isHome: normalizedPathname === "/" || normalizedPathname === "/home",
     isWorkspace: normalizedPathname === "/workspace",
     isProfile: normalizedPathname === "/profile",
+    isDashboard: normalizedPathname === "/dashboard",
   };
 
   // 首页 - 公开访问
@@ -131,6 +133,17 @@ function App() {
       <ProtectedRoute fallbackUrl="/profile">
         <Suspense fallback={<RouteLoading />}>
           <UserProfilePage />
+        </Suspense>
+      </ProtectedRoute>
+    );
+  }
+
+  // Token 消耗面板 - 需要登录
+  if (routeConfig.isDashboard) {
+    return (
+      <ProtectedRoute fallbackUrl="/dashboard">
+        <Suspense fallback={<RouteLoading />}>
+          <TokenDashboard />
         </Suspense>
       </ProtectedRoute>
     );

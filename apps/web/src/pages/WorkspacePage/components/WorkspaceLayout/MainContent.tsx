@@ -1,5 +1,4 @@
 import { WorkspaceContextSurface } from "@/components/layout/WorkspaceSidebar";
-import { WorkspaceAutoTaskPanel } from "@/components/layout/WorkspaceSidebar/WorkspaceAutoTaskPanel";
 import { useAuthContext } from "@/contexts/AuthContext";
 import { TopBar } from "../TopBar";
 import type { MainContentProps } from "./types";
@@ -7,6 +6,10 @@ import { Suspense, lazy, useCallback, useEffect, useState } from "react";
 import { usePaneTree } from "./usePaneTree";
 import { PaneRenderer } from "./PaneRenderer";
 import { reorderTabs } from "./paneTree";
+import {
+  WorkspaceConfigDialog,
+  type WorkspaceConfigSection,
+} from "@/components/workspace/WorkspaceConfigDialog";
 
 const LazyWorkspaceHomeScreen = lazy(() =>
   import("./WorkspaceHomeScreen").then((module) => ({
@@ -53,14 +56,15 @@ export function MainContent({
   onForkConversation,
   onRenameConversation,
   onDeleteConversation,
-  onOpenGlobalAutoTask,
-  onOpenWorkspaceSettings,
   activeTabRequest,
   requestSidebarTab,
 }: MainContentProps) {
   const { session, user } = useAuthContext();
   const token = session?.token;
   const [sessionInputBridgeRequestKey, setSessionInputBridgeRequestKey] = useState(0);
+  const [isWorkspaceConfigOpen, setIsWorkspaceConfigOpen] = useState(false);
+  const [workspaceConfigInitialSection, setWorkspaceConfigInitialSection] =
+    useState<WorkspaceConfigSection>("agent-config");
 
   const executorSessionId = executor.sessionId;
 
@@ -91,6 +95,7 @@ export function MainContent({
     openBrowserTab,
     openDatabaseQueryTab,
     openCapabilityDetailTab,
+    openRuntimeTab,
     handleOpenGlobalResource,
     activateWorkspaceTab,
     closeWorkspaceTab,
@@ -109,6 +114,18 @@ export function MainContent({
     setConversationDockOpen(true);
     setConversationDockClosedByUser(false);
   }, [setConversationDockOpen, setConversationDockClosedByUser]);
+
+  const handleOpenWorkspaceConfigSection = useCallback(
+    (section: WorkspaceConfigSection) => {
+      setWorkspaceConfigInitialSection(section);
+      setIsWorkspaceConfigOpen(true);
+    },
+    [],
+  );
+
+  const handleOpenWorkspaceSettings = useCallback(() => {
+    handleOpenWorkspaceConfigSection("agent-config");
+  }, [handleOpenWorkspaceConfigSection]);
 
   const focusCurrentSessionInput = async (options?: {
     targetSessionId?: string | null;
@@ -184,6 +201,7 @@ export function MainContent({
       dropZones={dropZones}
       executor={executor}
       currentWorkspaceId={currentWorkspaceId}
+      workspaceSummary={currentWorkspace}
       userId={user?.id}
       tabDirtyMap={tabDirtyMap}
       onActivateTab={activateWorkspaceTab}
@@ -196,6 +214,7 @@ export function MainContent({
         setPaneTree((current) => reorderTabs(current, leafId, fromIndex, toIndex));
       }}
       onNewTerminalTab={() => openTerminalTab({ forceNew: true })}
+      onOpenRuntimeTab={openRuntimeTab}
       onNewBrowserTab={(url) => openBrowserTab(url)}
       onOpenWorkspaceFileFromCanvas={openWorkspaceFileFromCanvas}
       onOpenInBrowserTab={(url) => openBrowserTab(url)}
@@ -293,9 +312,13 @@ export function MainContent({
                 onOpenGlobalResourceInMainCanvas={handleOpenGlobalResource}
                 onEditInMainCanvas={handleEditFileInMainCanvas}
                 onOpenKnowledgeGraphCanvas={onOpenKnowledgeGraphDialog}
-                onOpenGlobalAutoTask={onOpenGlobalAutoTask}
-                onOpenWorkspaceSettings={onOpenWorkspaceSettings}
+                onOpenWorkspaceSettings={handleOpenWorkspaceSettings}
+                onOpenRuntimeTab={openRuntimeTab}
                 onNewConversation={onNewConversation}
+                onSelectConversation={onSelectConversation}
+                onForkConversation={onForkConversation}
+                onRenameConversation={onRenameConversation}
+                onDeleteConversation={onDeleteConversation}
                 onRequestHostClarification={(request) => {
                   void focusCurrentSessionInput(request);
                 }}
@@ -309,19 +332,6 @@ export function MainContent({
                   }
                 }}
                 editorContent={workspaceEditorContent}
-                autoTaskContent={
-                <WorkspaceAutoTaskPanel
-                  workspaceId={currentWorkspace?.workspace_id}
-                  executionPolicy={currentWorkspace?.execution_policy}
-                  availableModels={userModels}
-                  currentSessionId={executorSessionId}
-                  currentSessionTitle={sessionTitle}
-                  conversations={currentWorkspace?.conversations ?? []}
-                  currentConversation={
-                    currentWorkspace?.current_conversation ?? null
-                  }
-                />
-                }
               />
             ) : (
               <div className="flex flex-1 items-center justify-center px-6 text-sm text-muted-foreground">
@@ -409,7 +419,8 @@ export function MainContent({
               selectedModelSupportsThinking={selectedModelSupportsThinking}
               onOpenLLMConfigDialog={onOpenLLMConfigDialog}
               onOpenToolConfig={onOpenToolConfig}
-              onOpenWorkspaceSettings={onOpenWorkspaceSettings}
+              onOpenWorkspaceSettings={handleOpenWorkspaceSettings}
+              onOpenRuntimeTab={openRuntimeTab}
               isCompactingConversation={sessionLifecycle.isCompactingConversation}
               onCompactConversation={sessionLifecycle.handleCompactConversation}
               compactionState={executor.compactionState}
@@ -420,6 +431,28 @@ export function MainContent({
           </Suspense>
         ) : null}
       </div>
+
+      {currentWorkspace ? (
+        <WorkspaceConfigDialog
+          open={isWorkspaceConfigOpen}
+          onOpenChange={setIsWorkspaceConfigOpen}
+          workspaceSummary={currentWorkspace}
+          sessionId={executorSessionId}
+          userId={user?.id}
+          initialSection={workspaceConfigInitialSection}
+          executionPolicy={currentWorkspace.execution_policy}
+          availableModels={userModels}
+          currentSessionId={executorSessionId}
+          currentSessionTitle={sessionTitle}
+          conversations={currentWorkspace.conversations ?? []}
+          currentConversation={currentWorkspace.current_conversation ?? null}
+          onOpenCapabilityDetailTab={(capId, displayName) => {
+            if (currentWorkspace.workspace_id) {
+              openCapabilityDetailTab(capId, currentWorkspace.workspace_id, displayName);
+            }
+          }}
+        />
+      ) : null}
     </>
   );
 }

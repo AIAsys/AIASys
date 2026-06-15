@@ -86,8 +86,6 @@ export interface MainContentProps {
   onForkConversation: (conversationId: string) => void;
   onRenameConversation: (sessionId: string, title: string) => Promise<void>;
   onDeleteConversation?: (sessionId: string) => Promise<void>;
-  onOpenGlobalAutoTask?: () => void;
-  onOpenWorkspaceSettings?: () => void;
   activeTabRequest: {
     tab: WorkspaceSidebarTab;
     key: number;

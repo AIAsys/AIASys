@@ -80,7 +80,7 @@ const NAV_GROUPS: NavGroup[] = [
   },
   {
     id: "templates",
-    label: "模板",
+    label: "模板中心",
     children: [
       { id: "template-market", label: "模板市场", icon: <Store className="h-4 w-4" /> },
       { id: "template-management", label: "模板管理", icon: <LayoutTemplate className="h-4 w-4" /> },
@@ -412,7 +412,7 @@ export function GlobalSettingsDialog({
                               )}
                             >
                               {activeSection === child.id && (
-                                <span className="absolute left-0 top-1.5 bottom-1.5 w-0.5 rounded-full bg-tertiary" />
+                                <span className="absolute left-0 top-1.5 bottom-1.5 w-0.5 rounded-full bg-primary" />
                               )}
                               {child.icon}
                               <span>{child.label}</span>
@@ -423,7 +423,7 @@ export function GlobalSettingsDialog({
                               <TooltipTrigger asChild>
                                 <span className="block">{button}</span>
                               </TooltipTrigger>
-                              <TooltipContent>需要登录</TooltipContent>
+                              <TooltipContent>登录后可配置全局环境变量</TooltipContent>
                             </Tooltip>
                           ) : (
                             button

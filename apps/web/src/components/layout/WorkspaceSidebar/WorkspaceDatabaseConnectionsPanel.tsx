@@ -254,8 +254,18 @@ export function WorkspaceDatabaseConnectionsPanel({
             <Database className="mb-2 h-6 w-6 opacity-40" />
             <p className="text-[12px]">暂无外部数据库连接</p>
             <p className="mt-1 text-[11px] opacity-60">
-              点击 + 添加外部数据库
+              添加后可在此选择连接开始查询
             </p>
+            {handleAdd ? (
+              <button
+                type="button"
+                onClick={handleAdd}
+                className="mt-3 inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                添加数据库连接
+              </button>
+            ) : null}
           </div>
         ) : (
           <div className="space-y-0.5">

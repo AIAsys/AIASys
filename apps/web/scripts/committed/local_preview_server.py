@@ -18,6 +18,11 @@ CHUNK_SIZE = 64 * 1024
 _LONG_LIVED_STREAM_PATHS = {"/api/agent/execute/stream"}
 SSE_READ_SIZE = 4 * 1024
 
+# TODO: 当前 preview server 基于 http.server，没有实现 WebSocket Upgrade 代理。
+# 在桌面版中，终端 WebSocket 已由 Electron 主进程把后端地址注入前端，前端直接连接后端端口，
+# 因此不受此限制影响。若单独运行 preview server（非桌面打包场景），终端面板需要额外配置
+# 支持 WebSocket 的反向代理（如 nginx），或为本脚本增加原生 WebSocket 代理能力。
+
 
 class ThreadingPreviewServer(socketserver.ThreadingTCPServer):
     allow_reuse_address = True

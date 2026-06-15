@@ -3,14 +3,14 @@ import { useLocalStorageState } from "@/hooks/useLocalStorageState";
 import {
   Database,
   GitBranch,
-  Puzzle,
-  Radio,
-  ScrollText,
-  Settings,
-  Terminal,
-  Zap,
+  Globe,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 
 import type {
@@ -33,9 +33,6 @@ import {
   type ViewButton,
 } from "./context/activityBarUtils";
 import { useWorkspaceOverview } from "./hooks/useWorkspaceOverview";
-import { EnvVarsPanel } from "@/components/workspace/EnvVarsPanel";
-import { CapabilityListPanel } from "@/components/CapabilityPanel/CapabilityListPanel";
-import { WorkspaceAgentConfigPanel } from "@/components/workspace/WorkspaceAgentConfigPanel";
 
 const LazyDatabaseQueryWorkbench = lazy(() =>
   import("@/components/database/DatabaseQueryWorkbench").then((module) => ({
@@ -62,10 +59,12 @@ const LazyResourceOverviewPanel = lazy(() =>
   })),
 );
 
-const LazyCapabilityPanel = lazy(() =>
-  import("@/components/CapabilityPanel").then((module) => ({
-    default: module.CapabilityPanel,
-  })),
+const LazyWorkspaceConversationPanel = lazy(() =>
+  import("@/pages/WorkspacePage/components/WorkspaceLayout/WorkspaceConversationPanel").then(
+    (module) => ({
+      default: module.WorkspaceConversationPanel,
+    }),
+  ),
 );
 
 type WorkspacePanelView = ActivityPanelView | "channel";
@@ -101,15 +100,11 @@ interface WorkspaceContextPanelProps {
   onOpenWorkspaceSettings?: () => void;
   artifactsContent: React.ReactNode;
   searchContent?: React.ReactNode;
-  monitorContent: React.ReactNode;
   subagentContent: React.ReactNode;
-  terminalContent?: React.ReactNode;
   resourceContent?: React.ReactNode;
   resourcesContent?: React.ReactNode;
   editorContent?: React.ReactNode;
-  autoTaskContent?: React.ReactNode;
   fileChangesContent?: React.ReactNode;
-  onOpenGlobalAutoTask?: () => void;
 
   subagentCount?: number | null;
   runningSubagentCount?: number | null;
@@ -121,6 +116,10 @@ interface WorkspaceContextPanelProps {
   onOpenKnowledgeGraphDialog?: () => void;
   onOpenWorkspaceResourcesSettings?: () => void;
   onNewConversation?: () => void;
+  onSelectConversation?: (sessionId: string) => void;
+  onForkConversation?: (sessionId: string) => void;
+  onRenameConversation?: (sessionId: string, title: string) => Promise<void>;
+  onDeleteConversation?: (sessionId: string) => Promise<void>;
   onViewExecutionRecords?: () => Promise<void> | void;
   userId?: string;
   onOpenDatabaseQueryTab?: (handle: string) => void;
@@ -147,28 +146,29 @@ export function WorkspaceContextPanel({
   onViewExecutionRecords,
   artifactsContent,
   searchContent,
-  monitorContent,
   subagentContent,
-  terminalContent,
   resourceContent: providedResourceContent,
   resourcesContent,
   editorContent,
-  autoTaskContent,
   fileChangesContent,
-  onOpenGlobalAutoTask: _onOpenGlobalAutoTask,
+  onRequestSubagentDock: _onRequestSubagentDock,
   subagentCount: _subagentCount = null,
   runningSubagentCount: _runningSubagentCount = null,
   onExecutionTreeActivated,
-  onRequestSubagentDock: _onRequestSubagentDock,
   onOpenKnowledgeBaseDialog,
   onOpenKnowledgeGraphDialog,
   onOpenWorkspaceResourcesSettings,
   onNewConversation,
+  onSelectConversation,
+  onForkConversation,
+  onRenameConversation,
+  onDeleteConversation,
   userId,
   onOpenDatabaseQueryTab,
-  onOpenTerminalTab,
-  onOpenCapabilityDetailTab,
+  onOpenTerminalTab: _onOpenTerminalTab,
 }: WorkspaceContextPanelProps) {
+  // onOpenTerminalTab 保留给外部调用链，center 布局下终端 Tab 现在在 ActivitySidebar 内统一显示
+  void _onOpenTerminalTab;
 
   const [activeView, setActiveView] = useState<WorkspacePanelView>(
     activeTab,
@@ -197,12 +197,8 @@ export function WorkspaceContextPanel({
   );
 
   useEffect(() => {
-    let nextView = activeTab;
-    if (layoutMode === "center" && nextView === "terminal") {
-      nextView = "artifacts";
-    }
-    setActiveView(nextView);
-  }, [activeTab, layoutMode]);
+    setActiveView(activeTab);
+  }, [activeTab]);
 
   // 数据库选中后在 PaneRenderer 中以 Tab 形式打开查询工作台
   useEffect(() => {
@@ -286,10 +282,6 @@ export function WorkspaceContextPanel({
       if (nextView === "subagents") {
         onExecutionTreeActivated?.();
       }
-      if (nextView === "terminal" && layoutMode === "center") {
-        onOpenTerminalTab?.();
-        return;
-      }
       setActiveView(nextView);
       // 窄屏下保持折叠，避免挤压主画布
       const narrow = typeof window !== "undefined" && window.innerWidth < 1440;
@@ -297,7 +289,7 @@ export function WorkspaceContextPanel({
         setIsActivitySidebarCollapsed(false);
       }
     },
-    [onExecutionTreeActivated, layoutMode, onOpenTerminalTab, setIsActivitySidebarCollapsed],
+    [onExecutionTreeActivated, setIsActivitySidebarCollapsed],
   );
 
   const handleActivitySidebarResizeStart = useCallback(
@@ -529,48 +521,18 @@ export function WorkspaceContextPanel({
         当前工作区搜索暂时不可用。
       </div>
     );
-    const envNode = workspaceSummary ? (
-      <EnvVarsPanel workspaceSummary={workspaceSummary} />
-    ) : (
-      <div className="flex h-full flex-col items-center justify-center px-6 text-center">
-        <ScrollText className="h-6 w-6 text-muted-foreground/40" />
-        <div className="mt-3 text-sm font-medium text-foreground">环境变量</div>
-        <div className="mt-1 text-xs leading-5 text-muted-foreground">
-          当前工作区的环境变量会显示在这里。
-        </div>
-      </div>
-    );
-    const terminalNode = terminalContent ?? (
-      <div className="flex h-full flex-col items-center justify-center px-6 text-center">
-        <Terminal className="h-6 w-6 text-muted-foreground/40" />
-        <div className="mt-3 text-sm font-medium text-foreground">终端</div>
-        <div className="mt-1 text-xs leading-5 text-muted-foreground">
-          选择一个会话以打开终端。
-        </div>
-      </div>
-    );
-    const autoTasksNode = autoTaskContent ?? (
-      <div className="flex h-full flex-col items-center justify-center px-6 text-center">
-        <Zap className="h-6 w-6 text-muted-foreground/40" />
-        <div className="mt-3 text-sm font-medium text-foreground">自动化任务</div>
-        <div className="mt-1 text-xs leading-5 text-muted-foreground">
-          当前工作区的自动化任务会显示在这里。
-        </div>
-      </div>
-    );
     const fileChangesNode = fileChangesContent ?? (
       <div className="flex h-full flex-col items-center justify-center px-6 text-center">
         <GitBranch className="h-6 w-6 text-muted-foreground/40" />
-        <div className="mt-3 text-sm font-medium text-foreground">文件变更</div>
+        <div className="mt-3 text-sm font-medium text-foreground">暂无文件变更记录</div>
         <div className="mt-1 text-xs leading-5 text-muted-foreground">
-          工作区文件的变更记录会显示在这里。
+          修改工作区文件后，变更记录会自动出现在这里。
         </div>
       </div>
     );
     // sidebar 模式面板（右侧 Tab 切换）
     const tabPanels: { id: string; node: React.ReactNode }[] = [
       { id: "artifacts", node: artifactsContent },
-      { id: "monitor", node: monitorContent },
       { id: "subagents", node: subagentContent },
       { id: "search", node: searchNode },
       { id: "file-changes", node: fileChangesNode },
@@ -589,72 +551,42 @@ export function WorkspaceContextPanel({
             <div className="flex h-full flex-col items-center justify-center px-6 text-center text-muted-foreground">
               <Database className="mb-2 h-8 w-8 opacity-50" />
               <p className="text-sm font-medium text-foreground/80">未选择数据库</p>
-              <p className="mt-1 text-xs leading-5">从左侧列表选择一个连接开始查询。</p>
+              <p className="mt-1 text-xs leading-5">选择一个连接开始查询，或创建新连接。</p>
+              {onCreateDatabaseConnection ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="mt-4 h-8 text-xs"
+                  onClick={onCreateDatabaseConnection}
+                >
+                  创建数据库连接
+                </Button>
+              ) : null}
             </div>
           ),
-      },
-      { id: "env", node: envNode },
-      { id: "terminal", node: terminalNode },
-      {
-        id: "capabilities",
-        node: workspaceId ? (
-          <Suspense fallback={<ContextPanelFallback />}>
-            <LazyCapabilityPanel workspaceId={workspaceId} />
-          </Suspense>
-        ) : (
-          <div className="flex h-full flex-col items-center justify-center px-6 text-center">
-            <Puzzle className="h-6 w-6 text-muted-foreground/40" />
-            <div className="mt-3 text-sm font-medium text-foreground">能力管理</div>
-            <div className="mt-1 text-xs leading-5 text-muted-foreground">
-              请先打开一个工作区。
-            </div>
-          </div>
-        ),
-      },
-      { id: "auto-tasks", node: autoTasksNode },
-      {
-        id: "agent-config",
-        node: workspaceId ? (
-          <WorkspaceAgentConfigPanel workspaceId={workspaceId} />
-        ) : (
-          <div className="flex h-full flex-col items-center justify-center px-6 text-center">
-            <Settings className="h-6 w-6 text-muted-foreground/40" />
-            <div className="mt-3 text-sm font-medium text-foreground">工作区设置</div>
-            <div className="mt-1 text-xs leading-5 text-muted-foreground">
-              请先打开一个工作区。
-            </div>
-          </div>
-        ),
       },
     ];
 
     // activity 模式面板（左侧 ActivitySidebar 内容）
-    const monitorActivityNode = monitorContent ?? (
-      <div className="flex h-full flex-col items-center justify-center px-6 text-center">
-        <Radio className="h-6 w-6 text-muted-foreground/40" />
-        <div className="mt-3 text-sm font-medium text-foreground">监控任务</div>
-        <div className="mt-1 text-xs leading-5 text-muted-foreground">
-          监控任务的输出和状态会显示在这里。
-        </div>
-      </div>
-    );
-    const capabilitiesActivityNode = workspaceId ? (
-      <CapabilityListPanel
-        workspaceId={workspaceId}
-        onSelectCap={(capId, displayName) => onOpenCapabilityDetailTab?.(capId, displayName)}
-      />
-    ) : (
-      <div className="flex h-full flex-col items-center justify-center px-6 text-center">
-        <Puzzle className="h-6 w-6 text-muted-foreground/40" />
-        <div className="mt-3 text-sm font-medium text-foreground">能力管理</div>
-        <div className="mt-1 text-xs leading-5 text-muted-foreground">
-          请先打开一个工作区。
-        </div>
-      </div>
-    );
     const resourcesNode = resourcesContent ?? (
-      <div className="flex h-full items-center justify-center px-6 text-sm text-muted-foreground">
-        全局工作区暂时不可用。
+      <div className="flex h-full flex-col items-center justify-center px-6 text-center">
+        <Globe className="h-6 w-6 text-muted-foreground/40" />
+        <div className="mt-3 text-sm font-medium text-foreground">暂无全局工作区资源</div>
+        <div className="mt-1 text-xs leading-5 text-muted-foreground">
+          知识库、数据库、图谱等资源在所有任务工作区间共享。
+        </div>
+        {onOpenWorkspaceResourcesSettings ? (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="mt-4 h-8 text-xs"
+            onClick={onOpenWorkspaceResourcesSettings}
+          >
+            管理全局资源
+          </Button>
+        ) : null}
       </div>
     );
 
@@ -677,49 +609,26 @@ export function WorkspaceContextPanel({
       },
       { id: "file-changes", node: fileChangesNode },
       { id: "resources", node: resourcesNode },
-      { id: "monitor", node: monitorActivityNode },
-      { id: "auto-tasks", node: autoTasksNode },
       { id: "subagents", node: subagentContent },
-      { id: "env", node: envNode },
-      { id: "terminal", node: terminalNode },
-      { id: "capabilities", node: capabilitiesActivityNode },
-      {
-        id: "agent-config",
-        node: workspaceId ? (
-          <WorkspaceAgentConfigPanel workspaceId={workspaceId} />
-        ) : (
-          <div className="flex h-full flex-col items-center justify-center px-6 text-center">
-            <Settings className="h-6 w-6 text-muted-foreground/40" />
-            <div className="mt-3 text-sm font-medium text-foreground">工作区设置</div>
-            <div className="mt-1 text-xs leading-5 text-muted-foreground">
-              请先打开一个工作区。
-            </div>
-          </div>
-        ),
-      },
     ];
 
     return { tabPanels, activityTabPanels };
   }, [
     artifactsContent,
-    monitorContent,
     subagentContent,
     searchContent,
     selectedDatabaseHandle,
     sessionId,
-    workspaceSummary,
     workspaceId,
-    terminalContent,
-    autoTaskContent,
     fileChangesContent,
     resourcesContent,
     onManageDatabaseConnections,
     onCreateDatabaseConnection,
-    onOpenCapabilityDetailTab,
+    onOpenWorkspaceResourcesSettings,
   ]);
 
   // keep-alive 只保留高频切换的 tab，减少重建开销同时控制内存增长
-  const keepAliveActivityViews = new Set<ActivityPanelView>(["artifacts", "resources", "subagents", "terminal"]);
+  const keepAliveActivityViews = new Set<ActivityPanelView>(["artifacts", "resources", "subagents"]);
   const visibleActivityPanels = activityTabPanels.filter((panel) => {
     const panelId = panel.id as ActivityPanelView;
     return panelId === activityView || (keepAliveActivityViews.has(panelId) && visitedActivityViews.has(panelId));
@@ -743,6 +652,13 @@ export function WorkspaceContextPanel({
   const editorSurface = editorContent ?? workspaceCanvasContent;
 
   const showBranchContextInHeader = layoutMode !== "center";
+  const hasConversationActions =
+    onSelectConversation && onForkConversation && onRenameConversation;
+  const conversationCountChip = (
+    <SummaryChip>
+      {workspaceSummary?.conversation_count ?? 0} 个会话
+    </SummaryChip>
+  );
 
   const headerContent = (
     <div className="flex items-start justify-between gap-3">
@@ -758,9 +674,38 @@ export function WorkspaceContextPanel({
         ) : null}
         <div className="mt-2 flex flex-wrap gap-2">
           <SummaryChip>{currentViewLabel}</SummaryChip>
-          <SummaryChip>
-            {workspaceSummary?.conversation_count ?? 0} 个会话
-          </SummaryChip>
+          {hasConversationActions ? (
+            <Popover>
+              <PopoverTrigger asChild>
+                <button
+                  type="button"
+                  className="rounded-full transition-colors hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
+                  title="查看并切换会话"
+                >
+                  {conversationCountChip}
+                </button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[320px] p-0" align="start" sideOffset={6}>
+                <div className="h-[360px]">
+                  <Suspense fallback={<div className="flex h-full items-center justify-center text-sm text-muted-foreground">加载中...</div>}>
+                    <LazyWorkspaceConversationPanel
+                      embedded
+                      hideHeader
+                      workspace={workspaceSummary}
+                      currentSessionId={sessionId}
+                      onSelectConversation={onSelectConversation}
+                      onNewConversation={onNewConversation ?? (() => {})}
+                      onForkConversation={onForkConversation}
+                      onRenameConversation={onRenameConversation}
+                      onDeleteConversation={onDeleteConversation}
+                    />
+                  </Suspense>
+                </div>
+              </PopoverContent>
+            </Popover>
+          ) : (
+            conversationCountChip
+          )}
           <SummaryChip>{resolvedMessageCount} 条消息</SummaryChip>
           <SummaryChip>{resolvedExecutionRecordCount} 条记录</SummaryChip>
           <SummaryChip>{runtimeLabel}</SummaryChip>

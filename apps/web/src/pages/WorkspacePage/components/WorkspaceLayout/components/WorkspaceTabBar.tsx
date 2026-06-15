@@ -16,6 +16,7 @@ import {
   Bot,
   Terminal,
   Eye,
+  FlaskConical,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { PreviewFile, PreviewFileType } from "@/components/layout/WorkspaceSidebar/preview";
@@ -29,6 +30,7 @@ export interface WorkspaceTab {
   databaseHandle?: string;
   capabilityDetail?: { workspaceId: string; capabilityId: string; displayName: string };
   url?: string;
+  runtime?: boolean;
 }
 
 interface WorkspaceTabBarProps {
@@ -45,6 +47,7 @@ interface WorkspaceTabBarProps {
   onTabReorder?: (fromIndex: number, toIndex: number) => void;
   onTabDirtyCheck?: (tabId: string) => boolean;
   onNewTerminalTab?: () => void;
+  onOpenRuntimeTab?: () => void;
   onNewTab?: () => void;
   onNewBrowserTab?: (url: string) => void;
 }
@@ -150,6 +153,7 @@ export function WorkspaceTabBar({
   onTabReorder,
   onTabDirtyCheck,
   onNewTerminalTab,
+  onOpenRuntimeTab,
   onNewTab,
   onNewBrowserTab,
 }: WorkspaceTabBarProps) {
@@ -235,7 +239,9 @@ export function WorkspaceTabBar({
             ? tab.capabilityDetail.displayName
             : tab.url
               ? tab.url
-              : getFileBaseName(tab.file?.name ?? tab.subagentId?.slice(0, 8) ?? "标签"),
+              : tab.runtime
+                ? "执行环境"
+                : getFileBaseName(tab.file?.name ?? tab.subagentId?.slice(0, 8) ?? "标签"),
     );
     e.dataTransfer.setDragImage(ghost, 10, 10);
     requestAnimationFrame(() => {
@@ -359,6 +365,7 @@ export function WorkspaceTabBar({
           const isDatabase = !!tab.databaseHandle;
           const isCapabilityDetail = !!tab.capabilityDetail;
           const isBrowser = !!tab.url;
+          const isRuntime = !!tab.runtime;
           const TabIcon = isSubagent
             ? Bot
             : isTerminal
@@ -369,7 +376,9 @@ export function WorkspaceTabBar({
                   ? Eye
                   : isBrowser
                     ? Globe
-                    : getTabIcon(tab.file?.type ?? "unknown");
+                    : isRuntime
+                      ? FlaskConical
+                      : getTabIcon(tab.file?.type ?? "unknown");
           const tabTitle = isSubagent
             ? tab.subagentId!.slice(0, 8) + "..."
             : isTerminal
@@ -380,7 +389,9 @@ export function WorkspaceTabBar({
                   ? tab.capabilityDetail!.displayName
                   : isBrowser
                     ? getBrowserTabTitle(tab.url!)
-                    : (tab.file?.name ?? "");
+                    : isRuntime
+                      ? "执行环境"
+                      : (tab.file?.name ?? "");
           return (
             <div key={tab.id} className="flex items-center">
               {showInsertBefore ? (
@@ -407,7 +418,7 @@ export function WorkspaceTabBar({
                 >
                   <TabIcon className="h-3.5 w-3.5 shrink-0" />
                   <span className={cn("truncate", !isBrowser && "font-mono")}>
-                  {isSubagent || isTerminal || isDatabase || isCapabilityDetail || isBrowser
+                  {isSubagent || isTerminal || isDatabase || isCapabilityDetail || isBrowser || isRuntime
                     ? tabTitle
                     : getFileBaseName(tab.file!.name)}
                   </span>
@@ -464,6 +475,19 @@ export function WorkspaceTabBar({
                   >
                     <Globe className="h-3.5 w-3.5 text-muted-foreground" />
                     浏览器视图
+                  </button>
+                ) : null}
+                {onOpenRuntimeTab ? (
+                  <button
+                    type="button"
+                    className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-accent hover:text-accent-foreground"
+                    onClick={() => {
+                      setShowNewTabDropdown(false);
+                      onOpenRuntimeTab();
+                    }}
+                  >
+                    <FlaskConical className="h-3.5 w-3.5 text-muted-foreground" />
+                    执行环境
                   </button>
                 ) : null}
                 {onNewTerminalTab ? (

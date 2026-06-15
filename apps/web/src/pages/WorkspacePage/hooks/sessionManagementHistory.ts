@@ -161,7 +161,13 @@ function mergeAssistantMessages(messages: HistoryMessage[]): HistoryMessage[] {
     if (msg.role === "assistant" && mergedMessages.length > 0) {
       const lastMsg = mergedMessages[mergedMessages.length - 1];
       // 只有同 turn 的 assistant 消息才合并，避免破坏 turn 边界
-      if (lastMsg.role === "assistant" && lastMsg.turn_n === msg.turn_n) {
+      // 没有 turn_n 的旧数据无法判断同 turn，保守不合并
+      if (
+        lastMsg.role === "assistant" &&
+        typeof lastMsg.turn_n === "number" &&
+        typeof msg.turn_n === "number" &&
+        lastMsg.turn_n === msg.turn_n
+      ) {
         const lastContent = Array.isArray(lastMsg.content)
           ? lastMsg.content
           : typeof lastMsg.content === "string" && lastMsg.content.trim()
@@ -234,6 +240,22 @@ export function restoreChatItemsFromHistory(
       if (content.trim().startsWith("<system-reminder>")) {
         return;
       }
+
+      // 压缩摘要消息使用特殊 UI 展示，不作为普通用户消息。
+      if (msg.origin === "compaction_summary") {
+        restoredItems.push({
+          type: "message",
+          id: msg.id || `compaction-${sessionId}-${timeValue}-${index}`,
+          sender: "system",
+          role: "system",
+          content: content,
+          segments: [{ type: "compaction_summary", content }],
+          timestamp: new Date(timeValue),
+          isStreaming: false,
+        });
+        return;
+      }
+
       restoredItems.push({
         type: "message",
         id: msg.id || `msg-${sessionId}-${timeValue}-${index}`,

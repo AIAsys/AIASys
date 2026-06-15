@@ -73,6 +73,7 @@ interface ConversationDockProps {
   onOpenLLMConfigDialog: () => void;
   onOpenToolConfig: () => void;
   onOpenWorkspaceSettings?: () => void;
+  onOpenRuntimeTab?: () => void;
   isCompactingConversation?: boolean;
   onCompactConversation?: (instruction?: string) => Promise<void> | void;
   compactionState?: {
@@ -137,6 +138,7 @@ export function ConversationDock({
   onOpenLLMConfigDialog,
   onOpenToolConfig,
   onOpenWorkspaceSettings,
+  onOpenRuntimeTab,
   isCompactingConversation = false,
   onCompactConversation,
   compactionState,
@@ -247,7 +249,7 @@ export function ConversationDock({
         selectedModelSupportsThinking={selectedModelSupportsThinking}
         onOpenLLMConfigDialog={onOpenLLMConfigDialog}
         onOpenToolConfig={onOpenToolConfig}
-        onOpenRuntimeConfig={onOpenWorkspaceSettings}
+        onOpenRuntimeConfig={onOpenRuntimeTab ?? onOpenWorkspaceSettings}
         isCompactingConversation={isCompactingConversation}
         onCompactConversation={onCompactConversation}
         compactionState={compactionState}

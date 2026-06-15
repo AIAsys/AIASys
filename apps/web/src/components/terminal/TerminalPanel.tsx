@@ -200,9 +200,19 @@ export function TerminalPanel({
     if (state.status === "error") {
       return (
         <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/80">
-          <div className="flex flex-col items-center gap-3 text-sm">
+          <div className="flex max-w-[260px] flex-col items-center gap-3 px-4 text-center text-sm">
             <AlertCircle className="h-5 w-5 text-destructive" />
-            <span className="text-destructive">{state.error || "连接出错"}</span>
+            <div>
+              <div className="font-medium text-foreground">终端连接失败</div>
+              <div className="mt-0.5 text-xs text-muted-foreground">
+                请检查运行环境是否正常，或稍后重试。
+              </div>
+            </div>
+            {state.error && state.error !== "WebSocket 连接失败" && (
+              <div className="w-full rounded-md bg-muted px-2 py-1.5 text-left text-[11px] font-mono text-muted-foreground">
+                {state.error}
+              </div>
+            )}
             <button
               type="button"
               onClick={reconnect}

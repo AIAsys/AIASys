@@ -230,7 +230,7 @@ function ExecutionResourcesOverview({
     : "未设置";
   const activeUpdatedAt = formatDate(activeEnv?.updated_at);
   const isDockerActive = activeSandboxMode === "docker";
-  const executionLabel = isDockerActive ? "Docker 沙盒" : "本地 Python";
+  const executionLabel = isDockerActive ? "Docker 沙盒" : "本地执行";
   const dockerLabel = activeSandboxResourceId || "未选中";
   const pythonStatusVariant = activeEnv
     ? runtimeStatusVariant(activeEnv.status)
@@ -258,7 +258,7 @@ function ExecutionResourcesOverview({
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
             <div className="text-xs font-semibold text-muted-foreground">
-              当前执行入口
+              当前执行模式
             </div>
             <h3 className="mt-1 truncate text-xl font-semibold text-foreground">
               {executionLabel}
@@ -284,7 +284,7 @@ function ExecutionResourcesOverview({
           </div>
         </div>
 
-        <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+        <div className="mt-5 grid gap-3 @md:grid-cols-2 @lg:grid-cols-3 @xl:grid-cols-5">
           <OverviewMetric
             label="Python"
             value={activeEnv ? runtimeStatusLabel(activeEnv.status) : "未设置"}
@@ -352,7 +352,7 @@ function ExecutionResourcesOverview({
         <p className="mt-1 text-sm leading-6 text-muted-foreground">
           概览页只放当前状态。需要修改配置时，从下面进入对应分组。
         </p>
-        <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <div className="mt-4 grid gap-3 @md:grid-cols-2 @lg:grid-cols-3 @xl:grid-cols-4">
           <OverviewAction
             icon={<SquareTerminal className="h-4 w-4 text-tertiary" />}
             title="Python 环境"
@@ -653,7 +653,7 @@ export function ExecutionResourcesPanel({
   ];
 
   return (
-    <div className="h-full overflow-hidden rounded-2xl border border-border bg-background">
+    <div className="@container h-full overflow-hidden rounded-2xl border border-border bg-background">
       <div className="flex h-full min-h-0 flex-col overflow-hidden">
         {/* 顶部分段控制器 */}
         <div className="shrink-0 border-b border-border px-4 py-3">

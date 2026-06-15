@@ -10,7 +10,8 @@ export type ChatSegment = {
     | "tool_output"
     | "think"
     | "monitor"
-    | "turn";
+    | "turn"
+    | "compaction_summary";
   content: string;
   toolName?: string;
   toolCallId?: string;
@@ -95,6 +96,15 @@ export type SessionHistoryContentItem = {
 export type SessionHistoryMessage = {
   id?: string;
   role: "user" | "assistant" | "tool" | "system";
+  origin?:
+    | "user"
+    | "assistant"
+    | "tool"
+    | "system"
+    | "compaction_summary"
+    | "system_notice"
+    | "contextual_user"
+    | "forked";
   content: SessionHistoryContentItem[] | string;
   display_content?: SessionHistoryContentItem[] | string;
   reasoning_content?: string | null;

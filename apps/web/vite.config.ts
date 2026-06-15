@@ -6,7 +6,7 @@ import { defineConfig, loadEnv } from "vite";
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
-  const DEFAULT_API_TARGET = 'http://localhost:13001';
+  const DEFAULT_API_TARGET = 'http://localhost:13006';
   const apiTarget = env.VITE_API_TARGET || DEFAULT_API_TARGET;
 
   return {
@@ -72,6 +72,38 @@ export default defineConfig(({ mode }) => {
           },
         },
         // 所有其他 API 请求代理到后端 (包括 /api/auth)
+        '/api': {
+          target: apiTarget,
+          changeOrigin: true,
+        },
+        '/health': {
+          target: apiTarget,
+          changeOrigin: true,
+        },
+        '/ws': {
+          target: apiTarget,
+          changeOrigin: true,
+          ws: true,
+        },
+      },
+    },
+    preview: {
+      host: true,
+      port: 13000,
+      strictPort: true,
+      proxy: {
+        // SSE 流式端点 —— 必须单独配置以防止代理缓冲
+        '/api/agent/execute/stream': {
+          target: apiTarget,
+          changeOrigin: true,
+          configure: (proxy) => {
+            proxy.on('proxyRes', (proxyRes) => {
+              proxyRes.headers['content-encoding'] = 'identity';
+              proxyRes.headers['x-accel-buffering'] = 'no';
+              proxyRes.headers['cache-control'] = 'no-cache, no-transform';
+            });
+          },
+        },
         '/api': {
           target: apiTarget,
           changeOrigin: true,
