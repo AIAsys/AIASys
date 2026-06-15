@@ -7,16 +7,14 @@ from __future__ import annotations
 import json
 import logging
 import re
-import secrets
 import shutil
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable, Optional
-from uuid import uuid4
-
 logger = logging.getLogger(__name__)
 
 from app.core.config import WORKSPACE_DIR
+from app.utils.ids import generate_conversation_id, generate_workspace_id
 from app.models.task_profile import (
     normalize_execution_policy,
 )
@@ -133,12 +131,7 @@ class WorkspaceRegistryService:
         return self._get_user_dir(user_id) / workspace_id
 
     def _generate_workspace_id(self, user_id: str) -> str:
-        user_dir = self._get_user_dir(user_id)
-        for _ in range(10):
-            candidate = secrets.token_hex(6)
-            if not (user_dir / candidate).exists():
-                return candidate
-        raise ValueError("无法生成可用的工作区 ID")
+        return generate_workspace_id(self._get_user_dir(user_id))
 
     def get_session_dir(self, user_id: str, session_id: str) -> Path:
         _ensure_valid_id(session_id, "session_id")
@@ -1247,7 +1240,9 @@ class WorkspaceRegistryService:
         make_current: bool = True,
     ) -> WorkspaceConversationSummary:
         meta = self._read_workspace_meta(user_id, workspace_id)
-        resolved_conversation_id = conversation_id or str(uuid4())
+        resolved_conversation_id = conversation_id or generate_conversation_id(
+            self._get_user_dir(user_id)
+        )
         _ensure_valid_id(resolved_conversation_id, "conversation_id")
 
         existing = self._read_conversation_payloads(user_id, workspace_id)

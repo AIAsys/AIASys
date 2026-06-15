@@ -8,6 +8,8 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+from app.utils.path_utils import as_system_path
+
 
 # 常见非文本文件扩展名（不区分大小写）。
 # 被此集合命中的文件会被 ReadFile 直接拒绝，并给出具体的替代建议。
@@ -340,7 +342,7 @@ def _detect_file_type_by_magic(path: Path) -> tuple[str, str] | None:
     返回 (类型名, 建议说明)；无法识别返回 None。
     """
     try:
-        with path.open("rb") as f:
+        with open(as_system_path(path), "rb") as f:
             header = f.read(32)
     except Exception:
         return None

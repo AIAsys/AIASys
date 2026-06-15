@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 from pathlib import Path
 from typing import Any
 
@@ -15,6 +16,8 @@ from app.core.agent_tool import AiasysTool
 from app.core.tool_result import ToolResult
 
 from .file_tools import MAX_BYTES, MAX_LINE_LENGTH, MAX_LINES, _is_binary_file, _truncate_line
+from app.utils.path_utils import as_system_path
+
 from .file_tools_base import (
     LineEndingStyle,
     _resolve_file_path,
@@ -31,7 +34,7 @@ from .file_tools_restrictions import (
 
 def _read_text_preserve_newlines(path: Path) -> str:
     """以保留原始换行符的方式读取文本文件。"""
-    with open(path, encoding="utf-8", errors="replace", newline="") as f:
+    with open(as_system_path(path), encoding="utf-8", errors="replace", newline="") as f:
         return f.read()
 
 
@@ -228,9 +231,9 @@ class ReadFile(AiasysTool):
                 is_error=True,
             )
 
-        if not file_path.exists():
+        if not os.path.exists(as_system_path(file_path)):
             return ToolResult(content=f"`{params.path}` 不存在", is_error=True)
-        if not file_path.is_file():
+        if not os.path.isfile(as_system_path(file_path)):
             return ToolResult(content=f"`{params.path}` 不是文件", is_error=True)
 
         # 已知非文本扩展名检查（优先于 NUL 字节检测，可给出更精确的替代建议）

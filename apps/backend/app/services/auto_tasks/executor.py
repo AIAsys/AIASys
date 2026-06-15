@@ -12,6 +12,7 @@ import json
 import logging
 from datetime import datetime
 from pathlib import Path
+
 from app.services.auto_tasks.models import (
     AutoTask,
     TaskCategory,

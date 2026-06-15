@@ -188,6 +188,8 @@ __all__ = [
     "ListMCPServers",
     "SearchMCPMarket",
     "InstallMCPServer",
+    "SearchAvailableConnectors",
+    "InstallConnector",
 ]
 
 
@@ -361,6 +363,8 @@ def __getattr__(name: str) -> Any:
         "ListMCPServers",
         "SearchMCPMarket",
         "InstallMCPServer",
+        "SearchAvailableConnectors",
+        "InstallConnector",
     }:
         module = import_module(".mcp_tools", __name__)
         return getattr(module, name)

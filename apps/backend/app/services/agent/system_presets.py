@@ -236,6 +236,8 @@ _ROLE_TYPE_TOOL_MAP: dict[str, tuple[str, ...]] = {
             "app.agents.tools.mcp_tools:ListMCPServers",
             "app.agents.tools.mcp_tools:SearchMCPMarket",
             "app.agents.tools.mcp_tools:InstallMCPServer",
+            "app.agents.tools.mcp_tools:SearchAvailableConnectors",
+            "app.agents.tools.mcp_tools:InstallConnector",
             # 数据库工具
             "app.agents.tools.database_query_tool:DatabaseQuery",
             "app.agents.tools.database_query_tool:ListDatabaseConnectors",
@@ -448,6 +450,8 @@ DATA_ANALYSIS_BASELINE = SystemAgentBaseline(
             "app.agents.tools.mcp_tools:ListMCPServers",
             "app.agents.tools.mcp_tools:SearchMCPMarket",
             "app.agents.tools.mcp_tools:InstallMCPServer",
+            "app.agents.tools.mcp_tools:SearchAvailableConnectors",
+            "app.agents.tools.mcp_tools:InstallConnector",
             "app.agents.tools.database_query_tool:DatabaseQuery",
             "app.agents.tools.database_query_tool:ListDatabaseConnectors",
             "app.agents.tools.database_query_tool:ListDatabaseTables",
@@ -458,6 +462,7 @@ DATA_ANALYSIS_BASELINE = SystemAgentBaseline(
     skills=(
         "aiasys-markdown-output-guide-skill",
         "aiasys-hosting-guide-skill",
+        "aiasys-connector-installer-skill",
     ),
     subagents={
         "data_analyst": SystemSubagentBinding(
