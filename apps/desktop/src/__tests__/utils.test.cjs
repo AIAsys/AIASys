@@ -1,3 +1,6 @@
+const fs = require("fs");
+const os = require("os");
+const path = require("path");
 const { describe, it } = require("node:test");
 const assert = require("node:assert");
 
@@ -5,6 +8,9 @@ const {
   escapeRegExp,
   commandIncludesPath,
   resolveNpmCommand,
+  validatePythonExecutable,
+  getVenvSitePackages,
+  fixPyvenvHomeIfNeeded,
   canReuseService,
   resolveDesiredPort,
 } = require("../utils.cjs");
@@ -338,5 +344,96 @@ describe("resolveDesiredPort", () => {
       probeUrl: async () => true,
     });
     assert.deepStrictEqual(result, { port: 13015, reuse: false });
+  });
+});
+
+describe("validatePythonExecutable", () => {
+  it("有效 Python 解释器返回 ok=true", () => {
+    const result = validatePythonExecutable("python3");
+    assert.strictEqual(result.ok, true);
+    assert.ok(result.version.startsWith("Python "), `version should start with Python: ${result.version}`);
+  });
+
+  it("不存在路径返回 ok=false", () => {
+    const result = validatePythonExecutable("/definitely/not/existing/python");
+    assert.strictEqual(result.ok, false);
+    assert.ok(result.error.length > 0);
+  });
+});
+
+describe("getVenvSitePackages", () => {
+  it("Windows 风格路径", () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "desktop-test-"));
+    const sitePackages = path.join(tmpDir, ".venv", "Lib", "site-packages");
+    fs.mkdirSync(sitePackages, { recursive: true });
+    try {
+      assert.strictEqual(getVenvSitePackages(tmpDir), sitePackages);
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it("Linux/macOS 风格路径", () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "desktop-test-"));
+    const sitePackages = path.join(tmpDir, ".venv", "lib", "python3.12", "site-packages");
+    fs.mkdirSync(sitePackages, { recursive: true });
+    try {
+      assert.strictEqual(getVenvSitePackages(tmpDir), sitePackages);
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it("无 venv 返回 null", () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "desktop-test-"));
+    try {
+      assert.strictEqual(getVenvSitePackages(tmpDir), null);
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("fixPyvenvHomeIfNeeded", () => {
+  it("无 pyvenv.cfg 不报错", () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "desktop-test-"));
+    try {
+      fixPyvenvHomeIfNeeded(tmpDir);
+      assert.ok(true);
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it("home 不匹配时更新 pyvenv.cfg", () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "desktop-test-"));
+    const venvDir = path.join(tmpDir, ".venv");
+    const embedDir = path.join(venvDir, "python");
+    fs.mkdirSync(embedDir, { recursive: true });
+    const pyvenvPath = path.join(venvDir, "pyvenv.cfg");
+    fs.writeFileSync(pyvenvPath, "home = /old/path\nversion = 3.12.0\n", "utf-8");
+    try {
+      fixPyvenvHomeIfNeeded(tmpDir);
+      const content = fs.readFileSync(pyvenvPath, "utf-8");
+      assert.ok(content.includes(`home = ${embedDir}`), `content should include new home: ${content}`);
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it("home 已正确时不修改", () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "desktop-test-"));
+    const venvDir = path.join(tmpDir, ".venv");
+    const embedDir = path.join(venvDir, "python");
+    fs.mkdirSync(embedDir, { recursive: true });
+    const pyvenvPath = path.join(venvDir, "pyvenv.cfg");
+    fs.writeFileSync(pyvenvPath, `home = ${embedDir}\nversion = 3.12.0\n`, "utf-8");
+    try {
+      fixPyvenvHomeIfNeeded(tmpDir);
+      const content = fs.readFileSync(pyvenvPath, "utf-8");
+      assert.strictEqual(content, `home = ${embedDir}\nversion = 3.12.0\n`);
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
   });
 });

@@ -31,6 +31,23 @@ function log(...args) {
 }
 
 /**
+ * 探测 lsof 是否可用（部分容器/WSL 环境 lsof 会无限挂起）。
+ */
+function isLsofAvailable() {
+  const result = spawnSync("lsof", ["-nP", "-iTCP:19000", "-sTCP:LISTEN", "-Fp"], {
+    encoding: "utf-8",
+    timeout: 1000,
+  });
+  // 即使端口没有监听，正常返回的 exit code 也是 1；timeout 或错误时 result.error 存在
+  return !result.error;
+}
+
+const LSOf_AVAILABLE = isLsofAvailable();
+if (!LSOf_AVAILABLE) {
+  log("lsof 不可用或超时，跳过依赖进程诊断的测试");
+}
+
+/**
  * 启动一个临时 HTTP server，返回 { server, port, close() }
  */
 function startMockServer(port) {
@@ -68,10 +85,10 @@ function readListeningProcess(port) {
   const lsofResult = spawnSync(
     "lsof",
     ["-nP", `-iTCP:${port}`, "-sTCP:LISTEN", "-Fp"],
-    { encoding: "utf-8" },
+    { encoding: "utf-8", timeout: 1000 },
   );
 
-  if (lsofResult.status !== 0) {
+  if (lsofResult.status !== 0 || lsofResult.error) {
     return null;
   }
 
@@ -196,6 +213,10 @@ describe("canReuseService 真实场景", () => {
   });
 
   it("端口被其他进程占且不健康：reusable=false", async () => {
+    if (!LSOf_AVAILABLE) {
+      log("lsof 不可用，跳过 occupied_foreign 场景测试");
+      return;
+    }
     const mockServer = await startMockServer(0);
     try {
       const result = await canReuseService({
@@ -218,11 +239,15 @@ describe("canReuseService 真实场景", () => {
 
 describe("readListeningProcess 诊断", () => {
   it("能正确找到监听进程", async () => {
+    if (!LSOf_AVAILABLE) {
+      log("lsof 不可用，跳过进程诊断测试");
+      return;
+    }
     const mockServer = await startMockServer(0);
     try {
       const info = readListeningProcess(mockServer.port);
       if (info === null) {
-        log("lsof 不可用或返回空，跳过进程诊断测试");
+        log("lsof 返回空，跳过进程诊断测试");
         return;
       }
       assert.ok(info.pid, "应该有 PID");

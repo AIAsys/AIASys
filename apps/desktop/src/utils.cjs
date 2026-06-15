@@ -4,7 +4,10 @@
  * 所有函数不依赖 Electron 模块，可在纯 Node.js 环境中运行和测试。
  */
 
+const fs = require("fs");
 const net = require("net");
+const path = require("path");
+const { spawnSync } = require("child_process");
 
 function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -20,6 +23,131 @@ function commandIncludesPath(command, expectedPath) {
 
 function resolveNpmCommand() {
   return process.platform === "win32" ? "npm.cmd" : "npm";
+}
+
+/**
+ * 验证 Python 可执行文件是否能正常执行。
+ *
+ * @param {string} pythonPath
+ * @returns {{ok: true, version: string} | {ok: false, error: string}}
+ */
+function validatePythonExecutable(pythonPath) {
+  try {
+    const result = spawnSync(pythonPath, ["-V"], {
+      encoding: "utf-8",
+      timeout: 5000,
+    });
+    if (result.status === 0) {
+      return { ok: true, version: result.stdout.trim() };
+    }
+    return { ok: false, error: result.stderr || result.stdout || "未知错误" };
+  } catch (error) {
+    return { ok: false, error: error.message };
+  }
+}
+
+/**
+ * 动态查找 venv 的 site-packages 目录。
+ * Windows: .venv/Lib/site-packages
+ * macOS/Linux: .venv/lib/pythonX.Y/site-packages
+ *
+ * @param {string} backendRoot
+ * @returns {string | null}
+ */
+function getVenvSitePackages(backendRoot) {
+  // Windows
+  const winSitePackages = path.join(backendRoot, ".venv", "Lib", "site-packages");
+  if (fs.existsSync(winSitePackages)) {
+    return winSitePackages;
+  }
+
+  // macOS/Linux: 遍历 .venv/lib/ 找 pythonX.Y/site-packages
+  const libDir = path.join(backendRoot, ".venv", "lib");
+  if (fs.existsSync(libDir)) {
+    try {
+      for (const entry of fs.readdirSync(libDir)) {
+        if (/^python\d+\.\d+$/.test(entry)) {
+          const candidate = path.join(libDir, entry, "site-packages");
+          if (fs.existsSync(candidate)) {
+            return candidate;
+          }
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  return null;
+}
+
+/**
+ * 修复 pyvenv.cfg 的 home 路径为嵌入目录，并修复 venv 符号链接。
+ * 前提是目标目录可写（已在调用侧确认）。
+ *
+ * @param {string} backendRoot
+ */
+function fixPyvenvHomeIfNeeded(backendRoot) {
+  const pyvenvPath = path.join(backendRoot, ".venv", "pyvenv.cfg");
+  if (!fs.existsSync(pyvenvPath)) {
+    return;
+  }
+  const embedPythonDir = path.join(backendRoot, ".venv", "python");
+  if (!fs.existsSync(embedPythonDir)) {
+    return;
+  }
+
+  let content;
+  try {
+    content = fs.readFileSync(pyvenvPath, "utf-8");
+  } catch {
+    return;
+  }
+
+  const homeMatch = content.match(/^home\s*=\s*(.+)$/m);
+  const currentHome = homeMatch ? homeMatch[1].trim() : null;
+  const expectedHome = embedPythonDir;
+
+  // 如果 home 已经正确，无需修改
+  if (currentHome && path.resolve(currentHome) === path.resolve(expectedHome)) {
+    return;
+  }
+
+  const newContent = content.replace(/^home\s*=\s*.+$/m, `home = ${expectedHome}`);
+  try {
+    fs.writeFileSync(pyvenvPath, newContent, "utf-8");
+    console.log(`[aiasys-desktop] 已修复 pyvenv.cfg home 路径: ${expectedHome}`);
+  } catch (error) {
+    console.warn("[aiasys-desktop] 修复 pyvenv.cfg 失败:", error);
+  }
+
+  // 修复 .venv/bin/python 符号链接，使其指向嵌入的 Python
+  const venvBinDir = path.join(backendRoot, ".venv", "bin");
+  const embedBinDir = path.join(embedPythonDir, "bin");
+  if (fs.existsSync(venvBinDir) && fs.existsSync(embedBinDir)) {
+    for (const name of ["python", "python3"]) {
+      const linkPath = path.join(venvBinDir, name);
+      let isSymlink = false;
+      try {
+        isSymlink = fs.lstatSync(linkPath).isSymbolicLink();
+      } catch {
+        continue;
+      }
+      if (!isSymlink) continue;
+
+      const target = fs.readlinkSync(linkPath);
+      const needsFix = path.isAbsolute(target) || !fs.existsSync(linkPath);
+      if (!needsFix) continue;
+
+      const embedPython = path.join(embedBinDir, name);
+      if (!fs.existsSync(embedPython)) continue;
+
+      fs.unlinkSync(linkPath);
+      const relativeTarget = path.relative(venvBinDir, embedPython);
+      fs.symlinkSync(relativeTarget, linkPath);
+      console.log(`[aiasys-desktop] 已修复 venv 符号链接: ${name} -> ${relativeTarget}`);
+    }
+  }
 }
 
 async function probeUrl(url, timeoutMs = 1500) {
@@ -224,6 +352,9 @@ module.exports = {
   escapeRegExp,
   commandIncludesPath,
   resolveNpmCommand,
+  validatePythonExecutable,
+  getVenvSitePackages,
+  fixPyvenvHomeIfNeeded,
   probeUrl,
   canReuseService,
   resolveDesiredPort,

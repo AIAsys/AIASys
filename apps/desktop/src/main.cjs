@@ -98,6 +98,12 @@ function getWindowIconPath() {
 function createMainWindow(rendererBaseUrl) {
   const preloadPath = path.join(__dirname, "preload.cjs");
   const initialUrl = new URL(startPath, rendererBaseUrl).toString();
+  // 把后端地址通过命令行参数注入 renderer，供 preload 暴露给前端。
+  // 这样 WebSocket 等需要直连后端的场景不必依赖页面同源或 preview server 代理。
+  const backendBaseUrl = serviceManager ? serviceManager.backendBaseUrl : "";
+  const additionalArguments = backendBaseUrl
+    ? [`--aiasys-backend-base-url=${backendBaseUrl}`]
+    : [];
 
   mainWindow = new BrowserWindow({
     width: 1440,
@@ -112,6 +118,7 @@ function createMainWindow(rendererBaseUrl) {
       preload: preloadPath,
       contextIsolation: true,
       nodeIntegration: false,
+      additionalArguments,
     },
   });
 

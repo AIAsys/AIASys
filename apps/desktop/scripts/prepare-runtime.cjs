@@ -363,23 +363,6 @@ function fixMacOSDylibPaths(embedPythonRoot) {
 }
 
 function prepareBackendRuntime() {
-  // 确保当前平台的 uv 二进制已下载到 vendor/uv/<slug>/
-  {
-    const downloadScript = path.join(__dirname, "download-uv-binary.cjs");
-    const result = spawnSync("node", [downloadScript], {
-      encoding: "utf-8",
-      stdio: "pipe",
-    });
-    if (result.status !== 0) {
-      const detail = result.stderr || result.error || `exit ${result.status}`;
-      console.error("[aiasys-desktop] 下载 uv 二进制失败:", detail);
-      throw new Error(`下载 uv 二进制失败: ${detail}`);
-    }
-    // 将下载脚本的输出透传到打包日志
-    if (result.stdout) {
-      process.stdout.write(result.stdout);
-    }
-  }
   // 确保当前平台的 fnm 二进制已下载到 vendor/node/<slug>/
   {
     const downloadScript = path.join(__dirname, "download-fnm-binary.cjs");
