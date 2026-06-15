@@ -41,111 +41,20 @@ test.describe("Expert policy settings", () => {
       );
 
       await expect
-        .poll(() => new URL(page.url()).pathname)
-        .toBe("/analysis");
-      await expect
         .poll(() => new URL(page.url()).searchParams.get("workspace_id"))
         .toBe(workspace.workspaceId);
 
+      // 协作专家入口：点击侧边栏齿轮直接打开全局控制面板 -> 能力管理 -> 新建专家
       await page.getByTestId("sidebar-workspace-tools-menu-trigger").click();
-      await page.getByTestId("sidebar-workspace-tools-roles").click();
+      await expect(page.getByTestId("global-settings-dialog")).toBeVisible();
+      await page.getByTestId("global-settings-nav-capabilities").click();
+      await page.getByTestId("capability-panel-new-expert").click();
 
-      await expect
-        .poll(() => new URL(page.url()).pathname)
-        .toBe("/analysis");
       await expect(
         page.getByTestId("collaboration-roles-settings-dialog"),
       ).toBeVisible();
       await expect(
-        page.getByTestId("collaboration-roles-tab-aiasys"),
-      ).toHaveAttribute("data-state", "active");
-      await expect(
-        page.getByTestId("collaboration-roles-tab-my-experts"),
-      ).toBeVisible();
-      await expect(
-        page.getByTestId("collaboration-roles-tab-external"),
-      ).toBeVisible();
-      await expect(
-        page.getByTestId("roles-manager-panel"),
-      ).toHaveAttribute("data-scope", "global");
-
-      await expect(
-        page.getByRole("heading", { name: "AIASys 内置协作专家", exact: true }),
-      ).toBeVisible();
-      await expect(
-        page.getByText("已安装到我的默认").first(),
-      ).toBeVisible();
-      await expect(
-        page.getByRole("button", { name: "安装到当前工作区" }).first(),
-      ).toBeVisible();
-      await expect(page.getByTestId("roles-manager-create")).toHaveCount(0);
-
-      await page.getByTestId("collaboration-roles-tab-my-experts").click();
-      await expect(
-        page.getByTestId("roles-manager-panel"),
-      ).toHaveAttribute("data-scope", "global");
-      await expect(page.getByTestId("role-visibility-trigger-reviewer")).toBeVisible();
-      const reviewerDefaultToggle = page.getByTestId(
-        "role-default-enabled-toggle-reviewer",
-      );
-      await expect(reviewerDefaultToggle).toBeVisible();
-      const reviewerInitiallyEnabled = await reviewerDefaultToggle.isChecked();
-      await reviewerDefaultToggle.locator("xpath=..").click();
-      if (reviewerInitiallyEnabled) {
-        await expect(reviewerDefaultToggle).not.toBeChecked();
-      } else {
-        await expect(reviewerDefaultToggle).toBeChecked();
-      }
-      await expect
-        .poll(async () => {
-          const response = await api.get("/api/experts/global/policy");
-          const payload = (await response.json()) as {
-            available_roles: Array<{
-              role_id: string;
-              default_enabled: boolean;
-            }>;
-          };
-          return payload.available_roles.find(
-            (role) => role.role_id === "reviewer",
-          )?.default_enabled;
-        })
-        .toBe(!reviewerInitiallyEnabled);
-
-      await page.getByTestId("role-remove-reviewer").click();
-      await expect(
-        page.getByText("内置源仍保留在市场里，可以重新安装。"),
-      ).toBeVisible();
-      const deleteRequest = page.waitForResponse((response) => {
-        return (
-          response.url().includes("/api/experts/global/reviewer") &&
-          response.request().method() === "DELETE"
-        );
-      });
-      await page.getByTestId("roles-manager-confirm-delete").click();
-      const deleteResponse = await deleteRequest;
-      expect(deleteResponse.ok()).toBeTruthy();
-      await expect(page.getByTestId("role-remove-reviewer")).toHaveCount(0);
-      await expect
-        .poll(async () => {
-          const response = await api.get("/api/experts/global/policy");
-          const payload = (await response.json()) as {
-            available_roles: Array<{ role_id: string }>;
-          };
-          return payload.available_roles.some((role) => role.role_id === "reviewer");
-        })
-        .toBe(false);
-
-      await page.getByTestId("collaboration-roles-tab-aiasys").click();
-      await expect(
-        page.getByRole("button", { name: "安装到我的默认" }).first(),
-      ).toBeVisible();
-
-      await page.getByTestId("collaboration-roles-tab-external").click();
-      await expect(
-        page.getByTestId("external-collaboration-expert-market"),
-      ).toBeVisible();
-      await expect(
-        page.getByRole("heading", { name: "外部协作专家市场", exact: true }),
+        page.getByRole("heading", { name: "协作专家管理", exact: true }),
       ).toBeVisible();
     } finally {
       if (reviewerWasInstalled) {

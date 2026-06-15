@@ -10,10 +10,17 @@ from app.services.session import config_projection
 
 
 def _get_isolated_mcp_manager(tmp_path: Path):
-    """返回使用临时 WORKSPACE_DIR 的 MCPManager，避免测试间污染。"""
+    """返回使用临时 WORKSPACE_DIR 且系统默认为空的 MCPManager，避免测试间污染。"""
     import app.mcp.manager as mcp_manager_module
+
     mcp_manager_module.WORKSPACE_DIR = tmp_path
+
+    empty_defaults = tmp_path / "system_defaults.json"
+    empty_defaults.write_text('{"version": 1, "servers": {}}', encoding="utf-8")
+    mcp_manager_module.MCPManager.SYSTEM_DEFAULTS_PATH = empty_defaults
+
     from app.mcp import MCPManager
+
     return MCPManager()
 
 
@@ -30,8 +37,8 @@ def test_mcp_session_service_writes_global_mcp_config(tmp_path: Path) -> None:
         enabled=True,
     )
 
-    import app.mcp.manager as mcp_manager_module
-    mcp_manager_module.WORKSPACE_DIR = tmp_path
+    mgr = _get_isolated_mcp_manager(tmp_path)
+    service._mgr = mgr
 
     assert service.add_session_mcp_server("user-1", "session-1", server) is True
 
@@ -94,11 +101,7 @@ def test_mcp_session_service_reads_workspace_mcp_config(
         encoding="utf-8",
     )
 
-    import app.mcp.manager as mcp_manager_module
-    mcp_manager_module.WORKSPACE_DIR = tmp_path
-    from app.mcp import MCPManager
-    mgr = MCPManager()
-    # 替换 service 使用的 MCPManager
+    mgr = _get_isolated_mcp_manager(tmp_path)
     service._mgr = mgr
 
     servers = service.get_session_mcp_servers("user-2", "session-2")
@@ -112,8 +115,8 @@ def test_workspace_database_mounts_round_trip(tmp_path: Path) -> None:
     written_path = config_projection.write_workspace_database_mount_data(
         session_dir,
         {
-          "version": 1,
-          "connector_ids": ["dbc_a", "dbc_b", "dbc_a", " "],
+            "version": 1,
+            "connector_ids": ["dbc_a", "dbc_b", "dbc_a", " "],
         },
     )
     assert written_path == session_dir / ".aiasys" / "database-mounts.json"

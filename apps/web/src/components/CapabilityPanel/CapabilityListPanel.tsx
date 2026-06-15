@@ -63,7 +63,7 @@ const KIND_FILTERS = [
   { id: "all", label: "全部" },
   { id: "skill_pack", label: "技能" },
   { id: "mcp_server", label: "连接器" },
-  { id: "subagent", label: "专家协作节点" },
+  { id: "subagent", label: "专家" },
 ] as const;
 
 const STATUS_FILTERS = [

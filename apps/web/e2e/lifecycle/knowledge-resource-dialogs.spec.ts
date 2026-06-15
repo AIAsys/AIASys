@@ -31,22 +31,9 @@ test.describe("Workspace resource entries", () => {
 
       await expect(page.locator("textarea")).toBeVisible();
 
+      // 点击侧边栏齿轮直接打开全局控制面板，知识资源入口不再出现在齿轮菜单中
       await page.getByTestId("sidebar-workspace-tools-menu-trigger").click();
-      await expect(
-        page.getByTestId("sidebar-workspace-tools-llm-config"),
-      ).toBeVisible();
-      await expect(
-        page.getByTestId("sidebar-workspace-tools-resource-management"),
-      ).toHaveCount(0);
-      await expect(
-        page.getByTestId("sidebar-workspace-tools-database"),
-      ).toHaveCount(0);
-      await expect(
-        page.getByTestId("sidebar-workspace-tools-knowledge-base"),
-      ).toHaveCount(0);
-      await expect(
-        page.getByTestId("sidebar-workspace-tools-knowledge-graph"),
-      ).toHaveCount(0);
+      await expect(page.getByTestId("global-settings-dialog")).toBeVisible();
       await expect(
         page.getByRole("button", { name: "资源管理", exact: true }),
       ).toHaveCount(0);
@@ -54,7 +41,7 @@ test.describe("Workspace resource entries", () => {
 
       await page.getByRole("button", { name: "数据查询", exact: true }).click();
       await expect(page).toHaveURL(
-        new RegExp(`/analysis\\?workspace_id=${workspace.workspaceId}`),
+        new RegExp(`/workspace\\?workspace_id=${workspace.workspaceId}`),
       );
       await expect(
         page.getByText("数据库连接", { exact: true }).first(),

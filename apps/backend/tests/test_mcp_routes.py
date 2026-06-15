@@ -13,6 +13,13 @@ client = TestClient(app)
 TEST_USER_ID = "local_default"
 
 
+def _empty_system_defaults_path(tmp_path: Path) -> Path:
+    """创建空的系统默认 MCP 配置文件，避免测试依赖真实 system_defaults.json。"""
+    path = tmp_path / "system_defaults.json"
+    path.write_text('{"version": 1, "servers": {}}', encoding="utf-8")
+    return path
+
+
 class TestMCPStoreRoutes:
     def test_list_store_servers_empty(self, tmp_path: Path, monkeypatch):
         """空 store 返回空列表"""
@@ -86,6 +93,10 @@ class TestMCPWorkspaceRoutes:
 
         monkeypatch.setattr("app.mcp.manager.WORKSPACE_DIR", tmp_path)
         monkeypatch.setattr("app.api.routes.mcp.WORKSPACE_DIR", tmp_path)
+        monkeypatch.setattr(
+            "app.mcp.manager.MCPManager.SYSTEM_DEFAULTS_PATH",
+            _empty_system_defaults_path(tmp_path),
+        )
 
         mgr = MCPManager()
         mgr.save_store_server(
@@ -116,6 +127,10 @@ class TestMCPWorkspaceRoutes:
 
         monkeypatch.setattr("app.mcp.manager.WORKSPACE_DIR", tmp_path)
         monkeypatch.setattr("app.api.routes.mcp.WORKSPACE_DIR", tmp_path)
+        monkeypatch.setattr(
+            "app.mcp.manager.MCPManager.SYSTEM_DEFAULTS_PATH",
+            _empty_system_defaults_path(tmp_path),
+        )
 
         mgr = MCPManager()
         mgr.save_store_server(
@@ -154,6 +169,10 @@ class TestMCPWorkspaceRoutes:
 
         monkeypatch.setattr("app.mcp.manager.WORKSPACE_DIR", tmp_path)
         monkeypatch.setattr("app.api.routes.mcp.WORKSPACE_DIR", tmp_path)
+        monkeypatch.setattr(
+            "app.mcp.manager.MCPManager.SYSTEM_DEFAULTS_PATH",
+            _empty_system_defaults_path(tmp_path),
+        )
 
         mgr = MCPManager()
         mgr.save_store_server(

@@ -60,7 +60,7 @@ def _write_skill_source(source_dir: Path, skill_name: str) -> None:
     )
 
 
-def test_deactivate_skill_removes_declaration_when_skill_is_uninstalled(
+def test_deactivate_skill_soft_disables_and_keeps_directory(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -77,12 +77,18 @@ def test_deactivate_skill_removes_declaration_when_skill_is_uninstalled(
     assert installed.success is True
     assert (workspace_path / ".aiasys" / "skills" / "demo-skill").exists()
     assert "demo-skill" in manager._read_declarations(workspace_path)
+    assert manager._read_declarations(workspace_path)["demo-skill"].enabled is True
 
     deactivated = manager.deactivate("demo-skill", workspace_path)
 
     assert deactivated.success is True
-    assert not (workspace_path / ".aiasys" / "skills" / "demo-skill").exists()
-    assert "demo-skill" not in manager._read_declarations(workspace_path)
+    assert (workspace_path / ".aiasys" / "skills" / "demo-skill").exists()
+    assert "demo-skill" in manager._read_declarations(workspace_path)
+    assert manager._read_declarations(workspace_path)["demo-skill"].enabled is False
+
+    activated = manager.activate("demo-skill", workspace_path)
+    assert activated.success is True
+    assert manager._read_declarations(workspace_path)["demo-skill"].enabled is True
 
 
 def test_deactivate_stale_subagent_declaration_cleans_without_policy_write(

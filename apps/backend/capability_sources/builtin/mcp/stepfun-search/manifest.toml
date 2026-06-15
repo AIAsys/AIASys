@@ -1,0 +1,38 @@
+capability_id = "stepfun-search"
+kind = "mcp_server"
+server_name = "stepfun-search"
+display_name = "StepFun Search"
+description = "阶跃星辰 StepSearch MCP Server，提供 web_search 全网搜索与 web_fetch 网页内容获取能力。需要配置 Step Plan API Key。"
+version = "1.0.0"
+author = "AIASys"
+dependencies = []
+min_platform_version = "0.1.0"
+tools = [
+    "web_search",
+    "web_fetch",
+]
+
+[config_schema]
+type = "object"
+description = "安装时可选的 MCP 配置覆盖"
+
+[config_schema.properties]
+
+[server_definition]
+name = "stepfun-search"
+display_name = "StepFun Search"
+type = "streamable-http"
+url = "https://api.stepfun.com/step_plan/v1/mcp/web_search/mcp"
+headers = { Authorization = "Bearer ${STEPFUN_API_KEY}" }
+env = {}
+env_schema = { STEPFUN_API_KEY = "StepFun 开放平台 API Key，用于 Step Plan 网络搜索" }
+timeout_ms = 30000
+is_system_default = false
+auto_attach_modes = []
+description = "阶跃星辰 StepSearch MCP Server，提供 web_search 全网搜索与 web_fetch 网页内容获取能力。"
+
+[[server_definition.env_fields]]
+name = "STEPFUN_API_KEY"
+required = true
+description = "StepFun 开放平台 API Key，用于 Step Plan 网络搜索。注意 Step Plan 的 key 与普通 API key 可能不同，详见 https://platform.stepfun.com/docs/zh/step-plan/integrations/search-mcp"
+default_value = ""
