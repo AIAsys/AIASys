@@ -54,7 +54,6 @@ Team Skill（.team-skills/）
 - `aiasys-frontend-architecture` —— AIASys 前端架构约定
 - `api-dev` —— FastAPI 开发规范
 - `sop-workflow` —— 需求到交付的流程
-- `frontend-visual-review` —— 前端视觉验收方法
 - `pr-check` —— PR 前检查清单
 
 ## 什么内容不适合放 `.team-skills/`

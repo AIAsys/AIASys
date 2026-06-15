@@ -10,6 +10,8 @@ description: |
 
 基于 React 19 + Tailwind CSS 4 + shadcn/ui 的专业前端开发指南。
 
+> **视觉设计基线**：涉及颜色、字体、间距、组件外观等视觉决策时，先读根目录 `DESIGN.md`（Google Stitch 标准，项目根目录约定）。本 skill 覆盖通用技术模式，不覆盖项目专属视觉规范。
+
 ---
 
 ## 技术栈

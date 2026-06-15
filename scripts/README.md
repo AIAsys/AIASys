@@ -28,8 +28,8 @@
 | `run_agent_test.py` | 单条 Agent 能力测试辅助脚本 |
 | `rerun_failed_tests.py` | 重测未通过的用例 |
 | `rerun_nb_tests.py` | 重测 Notebook 域用例 |
-| `update_test_records.py` | 批量更新测试用例文件的测试记录 |
-| `update_test_records_rerun.py` | 追加第二轮重测结果到测试记录 |
+| `update_test_records.py` | （已归档至 `design-draft/archive/`）批量更新测试用例文件的测试记录 |
+| `update_test_records_rerun.py` | （已归档至 `design-draft/archive/`）追加第二轮重测结果到测试记录 |
 
 ### dev/
 

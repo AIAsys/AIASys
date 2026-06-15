@@ -35,7 +35,6 @@ AIASys 项目 Team Skill 的管理指南。
 |------|------|
 | 项目架构约定 | `aiasys-frontend-architecture`、`aiasys-system-design` |
 | 开发流程规范 | `api-dev`、`sop-workflow`、`aiasys-git-workflow` |
-| 团队验收方法 | `frontend-visual-review`、`frontend-screenshot` |
 | 团队协作规则 | `team-skill-governance`、`pr-check` |
 
 **共同特征**：

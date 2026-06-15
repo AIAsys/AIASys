@@ -18,8 +18,9 @@ description: |
 
 1. `aiasys-frontend-architecture`（本项目真相）
 2. `aiasys-system-design`（产品语义与信息架构）
-3. `frontend-pattern` / `frontend-design`（通用技术与设计规范）
-4. 当前任务文档 / task session
+3. 根目录 `DESIGN.md`（视觉设计基线，颜色/字体/间距/组件规格，Google Stitch 标准，放根目录是约定）
+4. `frontend-pattern` / `frontend-design`（通用技术与设计规范）
+5. 当前任务文档 / task session
 
 如果通用 best practice 与本文档冲突，**优先服从本文档**。
 

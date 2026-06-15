@@ -28,8 +28,6 @@ AIASys/
 │   ├── aiasys-tool-dev/
 │   ├── api-dev/
 │   ├── frontend-pattern/
-│   ├── frontend-screenshot/
-│   ├── frontend-visual-review/
 │   ├── sop-workflow/
 │   ├── state-flow/
 │   ├── workspace-ops/
@@ -53,8 +51,6 @@ AIASys/
 | Agent 开发、智能体设计、行为定义 | `aiasys-tool-dev` | Agent 工具开发规范 |
 | API 设计、接口规范、数据格式 | `api-dev` | API 开发规范 |
 | 前端模式、组件设计、状态管理 | `frontend-pattern` | 前端模式规范 |
-| 前端截图、UI 测试、视觉回归 | `frontend-screenshot` | 前端截图规范 |
-| 前端视觉验收、UI 问题定位与优化 | `frontend-visual-review` | 前端视觉验收与优化方法论 |
 | SOP 流程、标准操作程序 | `sop-workflow` | SOP 工作流规范 |
 | 状态流、状态机、流程控制 | `state-flow` | 状态流规范 |
 | 团队 Skill 怎么管理、怎么添加新 Skill | `team-skill-governance` | 管理机制 |
@@ -72,7 +68,6 @@ AIASys/
 - 涉及 Git → 读 `aiasys-git-workflow`
 - 涉及代码变更后同步更新 Skill → 读 `aiasys-skill-maintenance`
 - 涉及前端开发 → 读 `aiasys-frontend-architecture`
-- 涉及前端验收、截图后发现 UI 问题 → 读 `frontend-visual-review`
 - 涉及系统架构 → 读 `aiasys-system-design`
 - 涉及 Agent 开发 → 读 `aiasys-tool-dev`
 - 涉及 API 设计 → 读 `api-dev`
