@@ -194,6 +194,59 @@ git diff --name-only origin/dev...HEAD | grep -E 'apps/backend/app/core/|apps/ba
 
 ---
 
+### 11. 临时文件/调试脚本残留检查
+
+开发过程中会产生大量临时脚本和调试产物。如果不清理就提交，会导致仓库膨胀、混淆正式代码。
+
+**检测模式**：
+
+| 模式 | 特征 | 示例 |
+|------|------|------|
+| 数字后缀迭代 | 同一脚本名 + 递增数字 | `sidebar-review.mjs` ~ `sidebar-review12.mjs` |
+| 调试前缀 | `debug-*`、`test-*`（非正式测试） | `debug-cdp.mjs`、`debug-fonts.mjs` |
+| 分析前缀 | `analyze-*` | `analyze-menu-entry.mjs` |
+| 一次性检查 | `check-*`、`*-check` | `check-indicator.mjs`、`homepage-check.mjs` |
+| 功能重复 | `.cjs` 和 `.mjs` 做同一件事 | `screenshot-tabs.cjs` + `screenshot-tabs.mjs` |
+| 大体积产物 | >500KB 的非代码文件 | `subagent-sidebar-review` (1.2MB) |
+| 硬编码过期 ID | 含 `workspace_id=xxx&session_id=xxx` | 过期后无法复用 |
+
+```bash
+# 检查未跟踪文件中的临时脚本/调试产物
+git ls-files --others --exclude-standard | grep -iE '(debug-|analyze-|check-|review[0-9]|screenshot-|verify-|inspect-|homepage-|test-settings|test-simple|diagnose-)' 2>/dev/null
+
+# 检查大体积产物（>500KB）
+find . -path ./node_modules -prune -o -path ./.venv -prune -o -path ./.git -prune -o -type f -size +500k -print 2>/dev/null | while read f; do
+  if ! file "$f" | grep -qE 'image|archive|data|PDF'; then
+    echo "LARGE_ARTIFACT: $f ($(du -h "$f" | cut -f1))"
+  fi
+done
+
+# 检查功能重复的脚本（.cjs 和 .mjs 同名）
+git ls-files --others --exclude-standard | grep -oP '.*(?=\.(cjs|mjs))' | sort | uniq -d | while read base; do
+  echo "DUPLICATE: $base.cjs + $base.mjs"
+done
+```
+
+**判定标准**：
+
+| 判定 | 条件 | 处理 |
+|------|------|------|
+| 可复用 | 功能完整、可配置（环境变量）、无硬编码过期 ID | 移到正式目录 |
+| 一次性 | 硬编码过期 ID、仅验证当前状态 | 删除 |
+| 中间迭代 | 同一功能有多个版本号递增的文件 | 只保留最终版，删除中间版本 |
+
+**文件落位规范**：
+
+| 文件类型 | 落位目录 |
+|----------|----------|
+| 项目级工具脚本 | `scripts/` |
+| 前端开发工具 | `apps/web/scripts/committed/` |
+| 正式 E2E 测试 | `apps/web/e2e/`（`.spec.ts` 格式） |
+| 设计/视觉评审 | `scripts/design/` |
+| 临时证据图 | `design-draft/archive/artifacts/`（已 gitignore） |
+
+---
+
 ## 执行流程
 
 Agent 在创建/审查 PR 时应按以下顺序执行：
@@ -201,6 +254,7 @@ Agent 在创建/审查 PR 时应按以下顺序执行：
 1. **快速阻断检查**（1-4）：gitignore 违规、敏感文件、冲突标记 → 任一命中则阻断
 2. **质量检查**（5-7）：commit message、行尾符、大文件 → 建议修复
 3. **完整性检查**（8-10）：二进制文件、Skill 注册、AGENTS.md 影响 → 按情况判断
+4. **卫生检查**（11）：临时文件/调试脚本残留 → 清理后提交
 
 ## 自动执行脚本
 
@@ -214,4 +268,5 @@ echo "=== sensitive files ===" && git diff --name-only origin/dev...HEAD | grep 
 echo "=== conflict markers ===" && git diff origin/dev...HEAD | grep -nE '^(<<<<<<<|=======|>>>>>>>)' 2>/dev/null
 echo "=== binary files ===" && git diff --name-only --diff-filter=A origin/dev...HEAD | while read f; do [ -f "$f" ] && file "$f" 2>/dev/null | grep -qE 'ELF|Mach-O|PE32' && echo "BINARY: $f"; done
 echo "=== commit messages ===" && git log origin/dev..HEAD --oneline
+echo "=== temp/debug scripts ===" && git ls-files --others --exclude-standard | grep -iE '(debug-|analyze-|check-|review[0-9]|screenshot-|verify-|inspect-|homepage-|test-settings|test-simple|diagnose-)' 2>/dev/null
 ```
