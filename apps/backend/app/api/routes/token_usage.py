@@ -66,39 +66,41 @@ async def get_token_heatmap(
     )
 
     for ws_dir in workspace_dirs:
-        for session_dir in ws_dir.iterdir():
-            if not session_dir.is_dir():
-                continue
+        try:
+            session_dirs = [p for p in ws_dir.iterdir() if p.is_dir()]
+        except OSError:
+            continue
+        for session_dir in session_dirs:
             usage_file = session_dir / ".aiasys" / "session" / "usage.jsonl"
             if not usage_file.exists():
                 continue
             try:
-                for line in usage_file.read_text(encoding="utf-8").splitlines():
-                    line = line.strip()
-                    if not line:
-                        continue
-                    try:
-                        record = json.loads(line)
-                    except json.JSONDecodeError:
-                        continue
+                # 按行流式读取，避免一次性加载大文件
+                with usage_file.open("r", encoding="utf-8") as f:
+                    for line in f:
+                        line = line.strip()
+                        if not line:
+                            continue
+                        try:
+                            record = json.loads(line)
+                        except json.JSONDecodeError:
+                            continue
 
-                    ts_str = record.get("ts", "")
-                    if not ts_str:
-                        continue
-                    # 日期聚合
-                    date = ts_str[:10]  # "2026-06-15"
+                        ts_str = record.get("ts", "")
+                        if not ts_str:
+                            continue
+                        date = ts_str[:10]
 
-                    # 日期范围过滤
-                    if from_date and date < from_date:
-                        continue
-                    if to_date and date > to_date:
-                        continue
+                        if from_date and date < from_date:
+                            continue
+                        if to_date and date > to_date:
+                            continue
 
-                    daily[date]["input"] += int(record.get("input", 0) or 0)
-                    daily[date]["output"] += int(record.get("output", 0) or 0)
-                    daily[date]["cache_read"] += int(record.get("cache_read", 0) or 0)
-                    daily[date]["cache_write"] += int(record.get("cache_write", 0) or 0)
-                    daily[date]["reasoning"] += int(record.get("reasoning", 0) or 0)
+                        daily[date]["input"] += int(record.get("input", 0) or 0)
+                        daily[date]["output"] += int(record.get("output", 0) or 0)
+                        daily[date]["cache_read"] += int(record.get("cache_read", 0) or 0)
+                        daily[date]["cache_write"] += int(record.get("cache_write", 0) or 0)
+                        daily[date]["reasoning"] += int(record.get("reasoning", 0) or 0)
             except Exception:
                 logger.debug("读取 usage.jsonl 失败: %s", usage_file, exc_info=True)
 
