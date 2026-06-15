@@ -19,6 +19,7 @@ from typing import Literal
 import filelock
 
 from app.services.diff_service import FileDiffResult, diff_service
+from app.utils.path_utils import as_system_path
 
 logger = logging.getLogger(__name__)
 
@@ -121,9 +122,11 @@ class FileHistoryService:
     ) -> tuple[FileHistoryEntry, bytes]:
         entry = self.get_entry(workspace_root, entry_id)
         stored_path = self._history_root(workspace_root) / entry.stored_path
-        if not stored_path.exists() or not stored_path.is_file():
+        stored_sys_path = as_system_path(stored_path)
+        if not os.path.exists(stored_sys_path) or not os.path.isfile(stored_sys_path):
             raise FileNotFoundError("历史内容不存在")
-        return entry, stored_path.read_bytes()
+        with open(stored_sys_path, "rb") as f:
+            return entry, f.read()
 
     def read_entry_text(self, workspace_root: Path, entry_id: str) -> tuple[FileHistoryEntry, str]:
         entry, content = self.read_entry_bytes(workspace_root, entry_id)
@@ -141,7 +144,8 @@ class FileHistoryService:
     ) -> tuple[FileHistoryEntry, FileDiffResult]:
         entry = self.get_entry(workspace_root, entry_id)
         stored_path = self._history_root(workspace_root) / entry.stored_path
-        if not stored_path.exists() or not stored_path.is_file():
+        stored_sys_path = as_system_path(stored_path)
+        if not os.path.exists(stored_sys_path) or not os.path.isfile(stored_sys_path):
             raise FileNotFoundError("历史内容不存在")
         current_path = self._resolve_workspace_path(workspace_root, entry.file_path)
         result = diff_service.compare_files(
@@ -168,15 +172,21 @@ class FileHistoryService:
             return None
 
         absolute_path = self._resolve_workspace_path(workspace_root, normalized_path)
-        if not absolute_path.exists() or not absolute_path.is_file() or absolute_path.is_symlink():
+        abs_sys_path = as_system_path(absolute_path)
+        if (
+            not os.path.exists(abs_sys_path)
+            or not os.path.isfile(abs_sys_path)
+            or os.path.islink(abs_sys_path)
+        ):
             return None
 
-        size = absolute_path.stat().st_size
+        size = os.path.getsize(abs_sys_path)
         if size > self.max_file_size:
             logger.info("跳过文件历史记录，文件过大: %s", normalized_path)
             return None
 
-        content = absolute_path.read_bytes()
+        with open(abs_sys_path, "rb") as f:
+            content = f.read()
         digest = hashlib.sha256(content).hexdigest()
 
         with self._get_index_lock(workspace_root):
@@ -190,8 +200,9 @@ class FileHistoryService:
             stored_relative = self._stored_relative_path(entry_id, normalized_path)
             history_root = self._history_root(workspace_root)
             stored_absolute = history_root / stored_relative
-            stored_absolute.parent.mkdir(parents=True, exist_ok=True)
-            stored_absolute.write_bytes(content)
+            os.makedirs(as_system_path(stored_absolute.parent), exist_ok=True)
+            with open(as_system_path(stored_absolute), "wb") as f:
+                f.write(content)
 
             entry = FileHistoryEntry(
                 id=entry_id,
@@ -223,9 +234,10 @@ class FileHistoryService:
         normalized_path = self._normalize_relative_path(file_path)
         workspace_root = workspace_root.resolve()
         absolute_path = self._resolve_workspace_path(workspace_root, normalized_path)
-        if not absolute_path.exists():
+        abs_sys_path = as_system_path(absolute_path)
+        if not os.path.exists(abs_sys_path):
             return []
-        if absolute_path.is_file():
+        if os.path.isfile(abs_sys_path):
             entry = self.record_file_before_change(
                 workspace_root,
                 normalized_path,
@@ -235,32 +247,37 @@ class FileHistoryService:
                 target_path=target_path,
             )
             return [entry] if entry is not None else []
-        if not absolute_path.is_dir() or absolute_path.is_symlink():
+        if not os.path.isdir(abs_sys_path) or os.path.islink(abs_sys_path):
             return []
 
         entries: list[FileHistoryEntry] = []
         target_prefix = (
             self._normalize_relative_path(target_path) if target_path is not None else None
         )
-        for current_dir, dir_names, file_names in os.walk(absolute_path, topdown=True):
+        walk_root = as_system_path(absolute_path)
+        workspace_sys_root = as_system_path(workspace_root)
+        absolute_sys_path = as_system_path(absolute_path)
+        for current_dir, dir_names, file_names in os.walk(walk_root, topdown=True):
             current_path = Path(current_dir)
-            rel_parts = current_path.relative_to(workspace_root).parts
+            rel_parts = current_path.relative_to(workspace_sys_root).parts
             if any(part in EXCLUDED_TOP_LEVEL_NAMES for part in rel_parts):
                 dir_names[:] = []
                 continue
             dir_names[:] = sorted(
                 d
                 for d in dir_names
-                if d not in EXCLUDED_TOP_LEVEL_NAMES and not (current_path / d).is_symlink()
+                if d not in EXCLUDED_TOP_LEVEL_NAMES
+                and not os.path.islink(as_system_path(current_path / d))
             )
             for file_name in sorted(file_names):
                 file_path = current_path / file_name
-                if file_path.is_symlink() or not file_path.is_file():
+                file_sys_path = as_system_path(file_path)
+                if os.path.islink(file_sys_path) or not os.path.isfile(file_sys_path):
                     continue
-                relative_child = file_path.relative_to(workspace_root).as_posix()
+                relative_child = file_path.relative_to(workspace_sys_root).as_posix()
                 child_target = None
                 if target_prefix is not None:
-                    child_suffix = file_path.relative_to(absolute_path).as_posix()
+                    child_suffix = file_path.relative_to(absolute_sys_path).as_posix()
                     child_target = (Path(target_prefix) / child_suffix).as_posix()
                 entry = self.record_file_before_change(
                     workspace_root,
@@ -297,7 +314,7 @@ class FileHistoryService:
         """删除不在 index 中引用的存储文件，返回删除数量。"""
         history_root = self._history_root(workspace_root)
         entries_dir = history_root / HISTORY_ENTRIES_DIR
-        if not entries_dir.exists():
+        if not os.path.exists(as_system_path(entries_dir)):
             return 0
 
         with self._get_index_lock(workspace_root):
@@ -305,11 +322,12 @@ class FileHistoryService:
             referenced = {entry.stored_path for entry in entries}
             removed = 0
             for item in entries_dir.iterdir():
-                if not item.is_file():
+                item_sys_path = as_system_path(item)
+                if not os.path.isfile(item_sys_path):
                     continue
                 relative = item.relative_to(history_root).as_posix()
                 if relative not in referenced:
-                    item.unlink(missing_ok=True)
+                    os.unlink(item_sys_path)
                     removed += 1
             return removed
 
@@ -323,7 +341,8 @@ class FileHistoryService:
     ) -> tuple[FileHistoryEntry, int]:
         entry, content = self.read_entry_bytes(workspace_root, entry_id)
         target_path = self._resolve_workspace_path(workspace_root, entry.file_path)
-        if target_path.exists() and target_path.is_file():
+        target_sys_path = as_system_path(target_path)
+        if os.path.exists(target_sys_path) and os.path.isfile(target_sys_path):
             self.record_file_before_change(
                 workspace_root,
                 entry.file_path,
@@ -331,8 +350,9 @@ class FileHistoryService:
                 source=source,
                 source_detail=source_detail or entry_id,
             )
-        target_path.parent.mkdir(parents=True, exist_ok=True)
-        target_path.write_bytes(content)
+        os.makedirs(as_system_path(target_path.parent), exist_ok=True)
+        with open(target_sys_path, "wb") as f:
+            f.write(content)
         return entry, len(content)
 
     def _history_root(self, workspace_root: Path) -> Path:
@@ -369,10 +389,12 @@ class FileHistoryService:
 
     def _read_entries(self, workspace_root: Path) -> list[FileHistoryEntry]:
         index_path = self._index_path(workspace_root)
-        if not index_path.exists():
+        index_sys_path = as_system_path(index_path)
+        if not os.path.exists(index_sys_path):
             return []
         try:
-            payload = json.loads(index_path.read_text(encoding="utf-8"))
+            with open(index_sys_path, encoding="utf-8") as f:
+                payload = json.loads(f.read())
         except (json.JSONDecodeError, OSError):
             logger.warning("文件历史索引无法读取，按空索引处理: %s", index_path)
             return []
@@ -391,18 +413,17 @@ class FileHistoryService:
 
     def _write_entries(self, workspace_root: Path, entries: list[FileHistoryEntry]) -> None:
         index_path = self._index_path(workspace_root)
-        index_path.parent.mkdir(parents=True, exist_ok=True)
+        os.makedirs(as_system_path(index_path.parent), exist_ok=True)
         temp_path = index_path.with_suffix(".tmp")
+        temp_sys_path = as_system_path(temp_path)
         payload = {
             "version": 1,
             "updated_at": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
             "entries": [asdict(entry) for entry in entries],
         }
-        temp_path.write_text(
-            json.dumps(payload, ensure_ascii=False, indent=2),
-            encoding="utf-8",
-        )
-        temp_path.replace(index_path)
+        with open(temp_sys_path, "w", encoding="utf-8") as f:
+            f.write(json.dumps(payload, ensure_ascii=False, indent=2))
+        os.replace(temp_sys_path, as_system_path(index_path))
 
     def _latest_entry_for_path(
         self,
@@ -430,7 +451,8 @@ class FileHistoryService:
         history_root = self._history_root(workspace_root)
         for entry in entries:
             if entry.file_path == file_path and entry.id not in keep_ids:
-                (history_root / entry.stored_path).unlink(missing_ok=True)
+                stored_path = history_root / entry.stored_path
+                os.unlink(as_system_path(stored_path))
                 continue
             pruned.append(entry)
         return pruned

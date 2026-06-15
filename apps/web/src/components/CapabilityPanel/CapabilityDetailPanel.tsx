@@ -29,6 +29,12 @@ import {
   activateCapability,
   deactivateCapability,
   verifyCapability,
+  listGlobalCapabilities,
+  installGlobalCapability,
+  uninstallGlobalCapability,
+  activateGlobalCapability,
+  deactivateGlobalCapability,
+  verifyGlobalCapability,
   getCapabilitySourceFile,
   listCapabilitySourceTree,
   type WorkspaceCapabilityItem,
@@ -86,9 +92,14 @@ const STATUS_BADGE_CLASS: Record<string, string> = {
 export interface CapabilityDetailPanelProps {
   workspaceId: string;
   capabilityId: string;
+  scope?: "workspace" | "global";
 }
 
-export function CapabilityDetailPanel({ workspaceId, capabilityId }: CapabilityDetailPanelProps) {
+export function CapabilityDetailPanel({
+  workspaceId,
+  capabilityId,
+  scope = "workspace",
+}: CapabilityDetailPanelProps) {
   const [workspaceCaps, setWorkspaceCaps] = useState<WorkspaceCapabilityItem[]>([]);
   const [availableCaps, setAvailableCaps] = useState<CapabilityItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -107,12 +118,14 @@ export function CapabilityDetailPanel({ workspaceId, capabilityId }: CapabilityD
   const [mcpConfigDraft, setMcpConfigDraft] = useState("{}");
   const [mcpConfigError, setMcpConfigError] = useState<string | null>(null);
 
+  const isGlobal = scope === "global";
+
   const load = useCallback(async () => {
     setLoading(true);
     setError(false);
     try {
       const [ws, avail] = await Promise.all([
-        listWorkspaceCapabilities(workspaceId),
+        isGlobal ? listGlobalCapabilities() : listWorkspaceCapabilities(workspaceId),
         listAvailableCapabilities(),
       ]);
       setWorkspaceCaps(ws);
@@ -125,7 +138,7 @@ export function CapabilityDetailPanel({ workspaceId, capabilityId }: CapabilityD
     } finally {
       setLoading(false);
     }
-  }, [workspaceId]);
+  }, [workspaceId, isGlobal]);
 
   useEffect(() => {
     void load();
@@ -189,13 +202,17 @@ export function CapabilityDetailPanel({ workspaceId, capabilityId }: CapabilityD
 
   const isWorkspaceCap = (c: unknown): c is WorkspaceCapabilityItem =>
     typeof c === "object" && c !== null && "enabled" in c;
-  const canToggle = (c: WorkspaceCapabilityItem) => c.kind !== "skill_pack";
+  const canToggle = (_c: WorkspaceCapabilityItem) => true;
 
   const handleInstall = async (config?: Record<string, unknown>) => {
     if (!cap) return;
     setProcessingId(capabilityId);
     try {
-      await installCapability(workspaceId, capabilityId, config);
+      if (isGlobal) {
+        await installGlobalCapability(capabilityId, config);
+      } else {
+        await installCapability(workspaceId, capabilityId, config);
+      }
       await load();
     } finally {
       setProcessingId(null);
@@ -205,7 +222,11 @@ export function CapabilityDetailPanel({ workspaceId, capabilityId }: CapabilityD
   const handleUninstall = async () => {
     setProcessingId(capabilityId);
     try {
-      await uninstallCapability(workspaceId, capabilityId);
+      if (isGlobal) {
+        await uninstallGlobalCapability(capabilityId);
+      } else {
+        await uninstallCapability(workspaceId, capabilityId);
+      }
       await load();
     } finally {
       setProcessingId(null);
@@ -216,9 +237,17 @@ export function CapabilityDetailPanel({ workspaceId, capabilityId }: CapabilityD
     setProcessingId(capabilityId);
     try {
       if (enabled) {
-        await deactivateCapability(workspaceId, capabilityId);
+        if (isGlobal) {
+          await deactivateGlobalCapability(capabilityId);
+        } else {
+          await deactivateCapability(workspaceId, capabilityId);
+        }
       } else {
-        await activateCapability(workspaceId, capabilityId);
+        if (isGlobal) {
+          await activateGlobalCapability(capabilityId);
+        } else {
+          await activateCapability(workspaceId, capabilityId);
+        }
       }
       await load();
     } finally {
@@ -229,7 +258,11 @@ export function CapabilityDetailPanel({ workspaceId, capabilityId }: CapabilityD
   const handleVerify = async () => {
     setProcessingId(capabilityId);
     try {
-      await verifyCapability(workspaceId, capabilityId);
+      if (isGlobal) {
+        await verifyGlobalCapability(capabilityId);
+      } else {
+        await verifyCapability(workspaceId, capabilityId);
+      }
       await load();
     } finally {
       setProcessingId(null);
@@ -293,7 +326,7 @@ export function CapabilityDetailPanel({ workspaceId, capabilityId }: CapabilityD
     );
   }
 
-  const status = isWorkspaceCap(cap) ? cap.status : "available";
+  const status = isWorkspaceCap(cap) ? (cap.enabled ? cap.status : "disabled") : "available";
 
   return (
     <div className="h-full overflow-y-auto">

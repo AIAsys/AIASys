@@ -12,8 +12,6 @@ import json
 import logging
 from datetime import datetime
 from pathlib import Path
-from uuid import uuid4
-
 from app.services.auto_tasks.models import (
     AutoTask,
     TaskCategory,
@@ -23,6 +21,7 @@ from app.services.auto_tasks.policy import (
     ensure_auto_task_allowed_for_workspace,
 )
 from app.services.workspace_registry import get_workspace_registry_service
+from app.utils.ids import generate_session_id
 
 logger = logging.getLogger(__name__)
 
@@ -306,7 +305,7 @@ async def _execute_standalone_mode(
 
 def _create_workspace_session(task: AutoTask, workspace_registry) -> str:
     """在目标工作区里创建自动任务会话，保证工作区索引和共享目录完整。"""
-    session_id = str(uuid4())
+    session_id = generate_session_id(workspace_registry._get_user_dir(task.user_id))
     title = task.title.strip() if task.title else "自动任务会话"
     workspace_registry.create_conversation(
         user_id=task.user_id,

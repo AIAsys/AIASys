@@ -142,9 +142,10 @@ class CapabilityRegistryService:
                 )
             )
 
+        display_name = getattr(server, "display_name", None) or server.name
         return CapabilityDescriptor(
             capability_id=f"mcp.{_sanitize_capability_id(server.name)}",
-            display_name=server.name,
+            display_name=display_name,
             kind=CapabilityKind.MCP_SERVER,
             provider=server.name,
             category_id="mcp",

@@ -503,6 +503,42 @@ class AIASysBuiltinMCPAdapter(ExternalMCPMarketAdapter):
                 "使用前需前往 AI Studio 获取 Access Token。"
             ),
         },
+        {
+            "id": "stepfun-search",
+            "display_name": "StepFun Search",
+            "publisher": "StepFun",
+            "description": "阶跃星辰官方搜索 MCP 服务，提供 web_search 全网搜索与 web_fetch 网页内容获取。",
+            "categories": ["搜索", "AI"],
+            "tags": ["stepfun", "search", "web-search", "mcp"],
+            "template_previews": [
+                {
+                    "server_key": "StepSearch",
+                    "import_name": "stepfun-search",
+                    "transport_type": "streamable-http",
+                    "target": "https://api.stepfun.com/step_plan/v1/mcp/web_search/mcp",
+                    "args": [],
+                    "env_keys": ["STEPFUN_API_KEY"],
+                    "header_keys": ["Authorization"],
+                    "headers": {"Authorization": "Bearer ${STEPFUN_API_KEY}"},
+                }
+            ],
+            "env_fields": [
+                {
+                    "name": "STEPFUN_API_KEY",
+                    "required": True,
+                    "description": "StepFun 开放平台 API Key（Step Plan 套餐 key），前往 https://platform.stepfun.com 获取",
+                    "default_value": None,
+                }
+            ],
+            "readme_excerpt": (
+                "StepSearch MCP Server 基于模型上下文协议，为兼容 MCP 的客户端提供阶跃星辰的专业搜索能力。\n\n"
+                "支持工具：\n"
+                "- web_search：全网信息检索与索引化结果输出\n"
+                "- web_fetch：指定 URL 的网页内容抓取与结构化提取\n\n"
+                "计费：web_search 每次调用 0.04 元，与 Step Plan 其他用量叠加；web_fetch 不单独计费。\n"
+                "使用前需前往阶跃星辰开放平台获取 Step Plan API Key（与普通 API Key 不同）。"
+            ),
+        },
     ]
 
     async def list_items(
@@ -653,6 +689,9 @@ class AIASysBuiltinMCPAdapter(ExternalMCPMarketAdapter):
                 base_kwargs["url"] = t.get("target")
                 if env_map:
                     base_kwargs["env"] = env_map
+                headers = t.get("headers") or {}
+                if headers:
+                    base_kwargs["headers"] = dict(headers)
 
             configs.append(MCPServerConfig(**base_kwargs))
 

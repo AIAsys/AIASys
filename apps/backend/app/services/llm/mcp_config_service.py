@@ -22,6 +22,7 @@ def _definition_to_server_config(definition: MCPServerDefinition) -> MCPServerCo
     """将 MCPServerDefinition 转换为 MCPServerConfig。"""
     return MCPServerConfig(
         name=definition.name,
+        display_name=definition.display_name,
         type=definition.type,
         url=definition.url,
         headers=definition.headers,

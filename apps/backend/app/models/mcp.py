@@ -20,7 +20,11 @@ class MCPServerConfig(BaseModel):
     """
 
     name: str = Field(
-        ..., description="Server 显示名称，如 'my-sqlite'", min_length=1, max_length=64
+        ..., description="Server 唯一标识名，如 'my-sqlite'", min_length=1, max_length=64
+    )
+
+    display_name: Optional[str] = Field(
+        default=None, description="Server 展示名称，如 'My SQLite'"
     )
 
     type: Literal["streamable-http", "stdio", "sse"] = Field(..., description="传输类型")

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  ArrowLeft,
   Braces,
   FlaskConical,
   LayoutTemplate,
@@ -78,7 +79,6 @@ interface WorkspaceConfigDialogProps {
   currentConversation?: WorkspaceConversationSummary | null;
   // callbacks
   onWorkspaceUpdated?: () => void;
-  onOpenCapabilityDetailTab?: (capId: string, displayName: string) => void;
 }
 
 export function WorkspaceConfigDialog({
@@ -95,7 +95,6 @@ export function WorkspaceConfigDialog({
   conversations,
   currentConversation,
   onWorkspaceUpdated,
-  onOpenCapabilityDetailTab,
 }: WorkspaceConfigDialogProps) {
   const [activeSection, setActiveSection] = useState<WorkspaceConfigSection>(initialSection);
   const [envScope, setEnvScope] = useState<"global" | "workspace">("workspace");
@@ -164,26 +163,18 @@ export function WorkspaceConfigDialog({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
       <div
-        className="flex h-[min(720px,calc(100vh-48px))] w-[min(960px,calc(100vw-48px))] overflow-hidden rounded-2xl border border-border bg-background shadow-2xl"
+        className="flex h-[min(720px,calc(100vh-48px))] w-[min(1100px,calc(100vw-48px))] overflow-hidden rounded-2xl border border-border bg-background shadow-2xl"
         role="dialog"
         aria-modal="true"
         aria-label="工作区配置"
       >
         {/* 左侧导航 */}
         <div className="flex w-56 shrink-0 flex-col border-r border-border bg-muted/30">
-          <div className="flex h-14 items-center justify-between border-b border-border px-4">
+          <div className="flex h-14 items-center border-b border-border px-4">
             <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
               <LayoutTemplate className="h-4 w-4" />
               工作区配置
             </div>
-            <button
-              type="button"
-              onClick={handleClose}
-              className="inline-flex h-7 w-7 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-              aria-label="关闭"
-            >
-              <X className="h-4 w-4" />
-            </button>
           </div>
           <div className="flex-1 overflow-y-auto p-2">
             <div className="space-y-1">
@@ -224,18 +215,28 @@ export function WorkspaceConfigDialog({
 
         {/* 右侧内容 */}
         <div className="flex min-w-0 flex-1 flex-col">
-          <div className="flex h-14 shrink-0 items-center gap-3 border-b border-border px-5">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-tertiary-container text-on-tertiary-container">
-              {activeNav.icon}
-            </div>
-            <div className="min-w-0">
-              <div className="text-sm font-semibold text-foreground">
-                {activeNav.label}
+          <div className="flex h-14 shrink-0 items-center justify-between gap-3 border-b border-border px-5">
+            <div className="flex min-w-0 items-center gap-3">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-tertiary-container text-on-tertiary-container">
+                {activeNav.icon}
               </div>
-              <div className="text-xs text-muted-foreground">
-                {activeNav.description}
+              <div className="min-w-0">
+                <div className="text-sm font-semibold text-foreground">
+                  {activeNav.label}
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  {activeNav.description}
+                </div>
               </div>
             </div>
+            <button
+              type="button"
+              onClick={handleClose}
+              className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              aria-label="关闭"
+            >
+              <X className="h-4 w-4" />
+            </button>
           </div>
           {scopeSwitchBar}
           <div className="min-h-0 flex-1 overflow-hidden">
@@ -252,7 +253,6 @@ export function WorkspaceConfigDialog({
               conversations={conversations}
               currentConversation={currentConversation}
               onWorkspaceUpdated={onWorkspaceUpdated}
-              onOpenCapabilityDetailTab={onOpenCapabilityDetailTab}
               envScope={envScope}
               capScope={capScope}
               agentScope={agentScope}
@@ -277,7 +277,6 @@ function WorkspaceConfigContent({
   conversations,
   currentConversation,
   onWorkspaceUpdated,
-  onOpenCapabilityDetailTab,
   envScope,
   capScope,
   agentScope,
@@ -301,7 +300,6 @@ function WorkspaceConfigContent({
       return (
         <CapabilityPanelWrapper
           workspaceId={workspaceId}
-          onOpenCapabilityDetailTab={onOpenCapabilityDetailTab}
           scope={capScope}
         />
       );
@@ -362,18 +360,61 @@ const LazyCapabilityListPanel = lazy(() =>
   })),
 );
 
+const LazyCapabilityDetailPanel = lazy(() =>
+  import("@/components/CapabilityPanel/CapabilityDetailPanel").then((module) => ({
+    default: module.CapabilityDetailPanel,
+  })),
+);
+
 function CapabilityPanelWrapper({
   workspaceId,
-  onOpenCapabilityDetailTab,
   scope,
 }: {
   workspaceId?: string;
-  onOpenCapabilityDetailTab?: (capId: string, displayName: string) => void;
   scope: "global" | "workspace";
 }) {
+  const [selectedCapId, setSelectedCapId] = useState<string | null>(null);
+  const [selectedCapName, setSelectedCapName] = useState<string>("");
+
   if (!workspaceId) {
     return <ConfigPanelEmpty label="请先打开一个工作区" />;
   }
+
+  if (selectedCapId) {
+    return (
+      <Suspense fallback={<ConfigPanelFallback label="正在加载能力详情..." />}>
+        <div className="flex h-full flex-col">
+          <div className="flex h-12 shrink-0 items-center gap-2 border-b border-border bg-muted/20 px-4">
+            <button
+              type="button"
+              onClick={() => setSelectedCapId(null)}
+              className="inline-flex h-7 w-7 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              title="返回列表"
+            >
+              <ArrowLeft className="h-4 w-4" />
+            </button>
+            <span className="text-sm font-medium text-muted-foreground">
+              返回能力列表
+            </span>
+            {selectedCapName && (
+              <>
+                <span className="text-muted-foreground/50">/</span>
+                <span className="truncate text-sm font-medium">{selectedCapName}</span>
+              </>
+            )}
+          </div>
+          <div className="min-h-0 flex-1">
+            <LazyCapabilityDetailPanel
+              workspaceId={workspaceId}
+              capabilityId={selectedCapId}
+              scope={scope}
+            />
+          </div>
+        </div>
+      </Suspense>
+    );
+  }
+
   return (
     <Suspense fallback={<ConfigPanelFallback label="正在加载能力管理..." />}>
       <LazyCapabilityListPanel
@@ -381,7 +422,10 @@ function CapabilityPanelWrapper({
         workspaceId={workspaceId}
         scope={scope}
         mode="workspace-config"
-        onSelectCap={onOpenCapabilityDetailTab ?? (() => {})}
+        onSelectCap={(capId, displayName) => {
+          setSelectedCapId(capId);
+          setSelectedCapName(displayName);
+        }}
       />
     </Suspense>
   );
