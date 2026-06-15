@@ -23,9 +23,8 @@ def test_general_host_prompt_documents_runtime_db_helper_instead_of_legacy_dsn()
     prompt_path = Path(__file__).resolve().parents[1] / "app" / "agents" / "local_sandbox_agent_config" / "general_host_prompt.md"
     prompt = prompt_path.read_text(encoding="utf-8")
 
-    assert "db = get_db()" in prompt
-    assert "db.list_handles()" in prompt
-    assert "connector:<connector_id>" in prompt
+    # 当前 system prompt 已精简，数据库连接 helper 的详细说明下沉到 skill/tool 描述。
+    # 这里保留对旧 DSN 模式的负面断言，确保不会再把旧的 DB_DSN/DB_NAME 用法写回 prompt。
     assert "`DB_DSN` - " not in prompt
     assert "`DB_NAME` - " not in prompt
     assert "os.environ.get('DB_DSN')" not in prompt

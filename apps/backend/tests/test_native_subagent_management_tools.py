@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import tempfile
 from pathlib import Path
 
@@ -35,6 +36,25 @@ def temp_workspace(monkeypatch):
         monkeypatch.setattr(subagent_catalog, "WORKSPACE_DIR", tmp_path)
         yield tmp_path
         monkeypatch.setattr(subagent_catalog, "WORKSPACE_DIR", original)
+
+
+def _create_session_metadata(
+    workspace: Path,
+    user_id: str,
+    session_id: str,
+    enabled_expert_role_ids: list[str] | None,
+) -> None:
+    """在临时工作区下创建会话 metadata.json。"""
+    session_dir = workspace / user_id / session_id
+    session_dir.mkdir(parents=True, exist_ok=True)
+    metadata = {
+        "session_id": session_id,
+        "enabled_expert_role_ids": enabled_expert_role_ids,
+    }
+    (session_dir / "metadata.json").write_text(
+        json.dumps(metadata, ensure_ascii=False),
+        encoding="utf-8",
+    )
 
 
 class TestListSubagentsTool:
@@ -117,6 +137,108 @@ class TestListSubagentsTool:
         result = await tool.invoke(ctx=ctx)
         assert "expert_a" in result.content
         assert "expert_b" not in result.content
+
+    async def test_list_respects_session_enabled_expert_role_ids(
+        self,
+        temp_workspace,
+    ):
+        """会话 metadata 中显式禁用的专家不应出现在 list_subagents 结果中。"""
+        tool = ListSubagentsTool()
+        ctx = {"user_id": "user1", "session_id": "sess1"}
+
+        save_subagent(
+            "user1",
+            "enabled_expert",
+            {
+                "name": "enabled_expert",
+                "description": "已启用专家",
+                "system_prompt": "enabled",
+            },
+            scope="workspace",
+        )
+        save_subagent(
+            "user1",
+            "disabled_expert",
+            {
+                "name": "disabled_expert",
+                "description": "已禁用专家",
+                "system_prompt": "disabled",
+            },
+            scope="workspace",
+        )
+        save_subagent_visibility_policy(
+            user_id="user1",
+            role_id="enabled_expert",
+            scope="workspace",
+            workspace_id="user1",
+            host_selectable=True,
+            default_enabled=True,
+        )
+        save_subagent_visibility_policy(
+            user_id="user1",
+            role_id="disabled_expert",
+            scope="workspace",
+            workspace_id="user1",
+            host_selectable=True,
+            default_enabled=True,
+        )
+
+        # 会话只启用 enabled_expert
+        _create_session_metadata(
+            workspace=temp_workspace,
+            user_id="user1",
+            session_id="sess1",
+            enabled_expert_role_ids=["enabled_expert"],
+        )
+
+        result = await tool.invoke(ctx=ctx)
+        assert "enabled_expert" in result.content
+        assert "disabled_expert" not in result.content
+
+    async def test_list_empty_enabled_expert_role_ids_disables_all(
+        self,
+        temp_workspace,
+    ):
+        """会话 metadata 中 enabled_expert_role_ids=[] 时应禁用全部专家。"""
+        tool = ListSubagentsTool()
+        ctx = {"user_id": "user1", "session_id": "sess1"}
+
+        save_subagent_visibility_policy(
+            user_id="user1",
+            role_id="coder",
+            scope="global",
+            host_selectable=True,
+            default_enabled=True,
+        )
+
+        _create_session_metadata(
+            workspace=temp_workspace,
+            user_id="user1",
+            session_id="sess1",
+            enabled_expert_role_ids=[],
+        )
+
+        result = await tool.invoke(ctx=ctx)
+        assert "coder" not in result.content
+        assert "当前没有可派发的协作专家" in result.content
+
+    async def test_list_null_enabled_expert_role_ids_uses_default(
+        self,
+        temp_workspace,
+    ):
+        """会话 metadata 中 enabled_expert_role_ids=null 时应保持默认行为。"""
+        tool = ListSubagentsTool()
+        ctx = {"user_id": "user1", "session_id": "sess1"}
+
+        _create_session_metadata(
+            workspace=temp_workspace,
+            user_id="user1",
+            session_id="sess1",
+            enabled_expert_role_ids=None,
+        )
+
+        result = await tool.invoke(ctx=ctx)
+        assert "coder" in result.content
 
     async def test_list_filter_by_scope(self, temp_workspace):
         tool = ListSubagentsTool()

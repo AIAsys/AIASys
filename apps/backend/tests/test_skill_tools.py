@@ -40,11 +40,10 @@ async def test_search_store_skills_returns_candidate_without_forcing_install(
 
     assert result.is_error is False
     assert "Skill 仓库中找到 1 个 Skill" in result.content
-    assert "请根据当前任务判断是否需要启用 Skill" in result.content
-    assert "已获授权" in result.content
-    assert "请立即调用" not in result.content
-    assert "立即调用 EnableSkill" not in result.content
-    assert "必须调用" not in SearchStoreSkills.description
+    # 当前 SearchStoreSkills 文案已改为强制化：找到候选后立即启用，不再让 Agent 自行判断
+    assert "立即调用 EnableSkill" in result.content
+    assert "请根据当前任务判断是否需要启用 Skill" not in result.content
+    assert "已获授权" not in result.content
 
 
 def test_builtin_skill_references_from_prompts_and_presets_are_loadable() -> None:

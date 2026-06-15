@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import os
-import pytest
 from pathlib import Path
 
-from app.agents.tools.shell_tool import ShellParams, Shell
+import pytest
+
+from app.agents.tools.shell_tool import Shell, ShellParams
 from app.services.history import current_workspace
 from app.services.runtime.runtime_execution import RuntimeExecutionPlan
 
@@ -97,14 +98,18 @@ async def test_shell_cwd(tmp_workspace: Path) -> None:
 @pytest.mark.asyncio
 async def test_shell_output_truncation(tmp_workspace: Path) -> None:
     tool = Shell()
-    result = await tool.invoke(**ShellParams(command="python3 -c \"print('x' * 50000)\"").model_dump())
+    result = await tool.invoke(
+        **ShellParams(command="python3 -c \"print('x' * 50000)\"").model_dump()
+    )
 
     assert not result.is_error
     assert "truncated" in result.output
 
 
 @pytest.mark.asyncio
-async def test_shell_dangerous_windows_blocked(tmp_workspace: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_shell_dangerous_windows_blocked(
+    tmp_workspace: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """Windows 危险命令检测：mock os.name='nt' 后应拦截 Windows 特有危险命令。"""
     monkeypatch.setattr(os, "name", "nt")
     tool = Shell()
@@ -140,3 +145,67 @@ async def test_shell_dangerous_windows_blocked(tmp_workspace: Path, monkeypatch:
     )
     assert result.is_error
     assert "危险操作" in result.message
+
+
+@pytest.mark.asyncio
+async def test_shell_interpreter_auto(tmp_workspace: Path) -> None:
+    """默认 interpreter='auto' 应正常执行命令。"""
+    tool = Shell()
+    result = await tool.invoke(**ShellParams(command="echo auto").model_dump())
+
+    assert not result.is_error
+    assert "auto" in result.output
+
+
+@pytest.mark.asyncio
+async def test_shell_interpreter_bash(tmp_workspace: Path) -> None:
+    """显式指定 interpreter='bash' 时应使用 bash 执行命令。"""
+    tool = Shell()
+    result = await tool.invoke(
+        **ShellParams(command="echo bash_test", interpreter="bash").model_dump()
+    )
+
+    assert not result.is_error
+    assert "bash_test" in result.output
+
+
+@pytest.mark.asyncio
+async def test_shell_interpreter_cmd_unavailable_on_posix(
+    tmp_workspace: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """非 Windows 系统上 interpreter='cmd' 应返回错误。"""
+    monkeypatch.setattr(os, "name", "posix")
+    tool = Shell()
+    result = await tool.invoke(
+        **ShellParams(command="echo cmd_test", interpreter="cmd").model_dump()
+    )
+
+    assert result.is_error
+    assert "cmd" in result.message
+
+
+@pytest.mark.asyncio
+async def test_shell_interpreter_powershell_unavailable_on_posix(
+    tmp_workspace: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """非 Windows 系统上 interpreter='powershell' 应返回错误。"""
+    monkeypatch.setattr(os, "name", "posix")
+    tool = Shell()
+    result = await tool.invoke(
+        **ShellParams(command="echo ps_test", interpreter="powershell").model_dump()
+    )
+
+    assert result.is_error
+    assert "powershell" in result.message
+
+
+@pytest.mark.asyncio
+async def test_shell_interpreter_invalid(tmp_workspace: Path) -> None:
+    """不支持的 interpreter 值应返回错误。"""
+    tool = Shell()
+    result = await tool.invoke(
+        **ShellParams(command="echo invalid", interpreter="unknown_shell").model_dump()
+    )
+
+    assert result.is_error
+    assert "interpreter" in result.message

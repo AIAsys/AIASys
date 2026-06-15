@@ -125,6 +125,106 @@ async def test_read_file_sensitive_rejected(tmp_workspace: Path) -> None:
     assert "敏感文件" in result.message
 
 
+@pytest.mark.asyncio
+async def test_read_file_sensitive_gitignore_patterns(tmp_workspace: Path) -> None:
+    """验证 .gitignore 风格敏感文件模式覆盖常见变体。"""
+    patterns = [
+        ".env.local",
+        ".env.production",
+        "config/.env",
+        "id_rsa",
+        "id_ed25519.pub",
+        "credentials.json",
+        "client_secret_123.json",
+        ".aws/credentials",
+        ".ssh/config",
+    ]
+    tool = ReadFile()
+    for name in patterns:
+        path = tmp_workspace / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("SECRET=123", encoding="utf-8")
+
+        result = await tool.invoke(**ReadFileParams(path=name).model_dump())
+
+        assert result.is_error, f"{name} 应被识别为敏感文件"
+        assert "敏感文件" in result.message
+
+
+@pytest.mark.asyncio
+async def test_read_file_magic_byte_rejected(tmp_workspace: Path) -> None:
+    """验证扩展名不可信时通过 magic byte 识别二进制文件。"""
+    (tmp_workspace / "fake_text.txt").write_bytes(b"\x89PNG\r\n\x1a\n")
+
+    tool = ReadFile()
+    result = await tool.invoke(**ReadFileParams(path="fake_text.txt").model_dump())
+
+    assert result.is_error
+    assert "PNG" in result.message
+    assert "ReadMediaFile" in result.message
+
+
+@pytest.mark.asyncio
+async def test_read_file_expand_block_function(tmp_workspace: Path) -> None:
+    """验证缩进感知代码块读取能自动扩展完整函数。"""
+    code = (
+        "def outer():\n"
+        "    if True:\n"
+        "        return 1\n"
+        "\n"
+        "def other():\n"
+        "    pass\n"
+    )
+    (tmp_workspace / "code.py").write_text(code, encoding="utf-8")
+
+    tool = ReadFile()
+    result = await tool.invoke(
+        **ReadFileParams(path="code.py", line_offset=2, expand_block=True).model_dump()
+    )
+
+    assert not result.is_error
+    assert "def outer():" in result.output
+    assert "return 1" in result.output
+    assert "def other():" not in result.output
+
+
+@pytest.mark.asyncio
+async def test_read_file_expand_block_class(tmp_workspace: Path) -> None:
+    """验证缩进感知读取以 class 自身为锚点时返回整个类。"""
+    code = (
+        "class Foo:\n"
+        "    def method(self):\n"
+        "        pass\n"
+        "\n"
+        "class Bar:\n"
+        "    pass\n"
+    )
+    (tmp_workspace / "code.py").write_text(code, encoding="utf-8")
+
+    tool = ReadFile()
+    result = await tool.invoke(
+        **ReadFileParams(path="code.py", line_offset=1, expand_block=True).model_dump()
+    )
+
+    assert not result.is_error
+    assert "class Foo:" in result.output
+    assert "class Bar:" not in result.output
+
+
+@pytest.mark.asyncio
+async def test_read_file_crlf_normalized_for_display(tmp_workspace: Path) -> None:
+    """验证 ReadFile 读取 CRLF 文件时成功显示并把换行符规范化为 LF。"""
+    (tmp_workspace / "crlf.txt").write_bytes(b"line1\r\nline2\r\n")
+
+    tool = ReadFile()
+    result = await tool.invoke(**ReadFileParams(path="crlf.txt").model_dump())
+
+    assert not result.is_error
+    assert "line1" in result.output
+    assert "line2" in result.output
+    assert "\r\n" not in result.output
+
+
 # ---------------------------------------------------------------------------
 # WriteFile
 # ---------------------------------------------------------------------------
@@ -263,6 +363,58 @@ async def test_str_replace_file_no_match(tmp_workspace: Path) -> None:
 
     assert result.is_error
     assert "未找到" in result.message
+
+
+@pytest.mark.asyncio
+async def test_str_replace_file_preserves_crlf(tmp_workspace: Path) -> None:
+    """验证 StrReplaceFile 编辑后保持 CRLF 换行符风格。"""
+    (tmp_workspace / "edit.txt").write_bytes(b"hello\r\nworld\r\n")
+
+    tool = StrReplaceFile()
+    result = await tool.invoke(
+        **StrReplaceFileParams(
+            path="edit.txt",
+            edit=FileEdit(old="hello", new="hi"),
+        ).model_dump()
+    )
+
+    assert not result.is_error
+    assert "保持原换行符风格" in result.output
+    assert (tmp_workspace / "edit.txt").read_bytes() == b"hi\r\nworld\r\n"
+
+
+@pytest.mark.asyncio
+async def test_str_replace_file_preserves_lf(tmp_workspace: Path) -> None:
+    """验证 StrReplaceFile 编辑后保持 LF 换行符风格。"""
+    (tmp_workspace / "edit.txt").write_bytes(b"hello\nworld\n")
+
+    tool = StrReplaceFile()
+    result = await tool.invoke(
+        **StrReplaceFileParams(
+            path="edit.txt",
+            edit=FileEdit(old="hello", new="hi"),
+        ).model_dump()
+    )
+
+    assert not result.is_error
+    assert (tmp_workspace / "edit.txt").read_bytes() == b"hi\nworld\n"
+
+
+@pytest.mark.asyncio
+async def test_str_replace_file_magic_byte_rejected(tmp_workspace: Path) -> None:
+    """验证 StrReplaceFile 通过 magic byte 拒绝二进制文件。"""
+    (tmp_workspace / "fake.txt").write_bytes(b"\x89PNG\r\n\x1a\n")
+
+    tool = StrReplaceFile()
+    result = await tool.invoke(
+        **StrReplaceFileParams(
+            path="fake.txt",
+            edit=FileEdit(old="old", new="new"),
+        ).model_dump()
+    )
+
+    assert result.is_error
+    assert "PNG" in result.message
 
 
 # ---------------------------------------------------------------------------

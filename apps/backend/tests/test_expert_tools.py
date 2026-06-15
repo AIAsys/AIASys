@@ -104,6 +104,20 @@ async def test_configure_expert_rejects_not_installed(setup_context: Path) -> No
 
 
 @pytest.mark.asyncio
+async def test_install_expert_by_display_name(setup_context: Path) -> None:
+    result = await InstallExpert().invoke(name="数据分析专家", scope="workspace")
+
+    assert result.is_error is False
+    assert "data_analyst" in result.content
+    assert "workspace" in result.content
+
+    artifacts = result.artifacts or []
+    assert any(
+        isinstance(a, dict) and a.get("name") == "data_analyst" for a in artifacts
+    )
+
+
+@pytest.mark.asyncio
 async def test_install_expert_rejects_unknown(setup_context: Path) -> None:
     result = await InstallExpert().invoke(name="unknown_role", scope="workspace")
 

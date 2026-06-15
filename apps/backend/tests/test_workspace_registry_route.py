@@ -767,3 +767,28 @@ def test_create_workspace_explicit_runtime_binding_overrides_template_env_kind(
     assert memory_path.exists()
     content = memory_path.read_text(encoding="utf-8")
     assert "EDA" in content
+
+
+@pytest.mark.asyncio
+async def test_workspace_route_list_total_is_unbounded_by_limit(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """total 应返回工作区总数，而不是受 limit 限制后的数量。"""
+    service = _build_service(tmp_path)
+    monkeypatch.setattr(workspace_route, "get_workspace_registry_service", lambda: service)
+
+    service.create_workspace(
+        user_id="local_default",
+        workspace_id="task-total-alpha",
+        title="任务 Alpha",
+    )
+    service.create_workspace(
+        user_id="local_default",
+        workspace_id="task-total-beta",
+        title="任务 Beta",
+    )
+
+    response = await workspace_route.list_workspaces(limit=1, current_user=_build_user())
+    assert response.total == 2
+    assert len(response.workspaces) == 1
