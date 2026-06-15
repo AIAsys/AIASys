@@ -287,6 +287,60 @@ open -> snapshot / console -> 必要交互 -> screenshot
 - 提交前留档
 - 设计稿和真实前端对照
 
+## 规则 9：浏览器进程与资源卫生（防止 Playwright 进程爆炸拖垮 WSL）
+
+Playwright 每次启动 Chromium 会拉起一组子进程（GPU、network、renderer 等）。如果操作不当，残留的 `chrome-headless-shell` 会指数级堆积，最终把 WSL 文件系统 I/O 队列打满，导致所有后端进 `D-state`，必须 `wsl --shutdown` 才能恢复。
+
+### 禁止项
+
+1. **禁止用 `timeout` 命令包裹 Playwright 脚本**
+   - 错误：`timeout 240 node e2e/scripts/xxx.mjs`
+   - 原因：`timeout` 超时后发送 SIGTERM，脚本里的 `browser.close()` 可能没执行完就被强制结束，留下大量 Chromium 孤儿进程。
+
+2. **禁止直接 `node e2e/scripts/*.mjs` 跑未经管制的独立脚本**
+   - 独立脚本如果没有 SIGTERM/SIGINT 处理器和文件锁，很容易被并发执行或异常中断后泄漏浏览器。
+
+3. **禁止同时跑多个视觉评审 / 截图任务**
+   - 一次只启动一个浏览器实例；需要多页验证时，用同一个 browser 的多个 context/page，而不是 `Promise.all` 启动多个 browser。
+
+### 推荐做法
+
+1. **优先使用仓库内 Playwright CLI 或 spec**
+   ```bash
+   cd apps/web
+   npm run playwright:cli -- open http://127.0.0.1:13000
+   npm run test:e2e:lifecycle -- <spec>
+   ```
+
+2. **如果必须写独立脚本，必须包含以下四要素**：
+   - `try/finally` 或 `using` 保证 `browser.close()` 一定执行
+   - 注册 `process.on('SIGTERM', ...)` 和 `process.on('SIGINT', ...)` 在收到终止信号时立即关闭 browser
+   - 文件锁防止并发运行（例如 `apps/web/e2e/scripts/.review.lock`）
+   - 启动参数限制进程数，例如：
+     ```js
+     await chromium.launch({
+       headless: true,
+       args: [
+         "--single-process",
+         "--no-sandbox",
+         "--disable-dev-shm-usage",
+         "--disable-gpu",
+       ],
+     });
+     ```
+
+3. **每次视觉验证前后做进程清理检查**
+   - 开始前：若已存在大量 `chrome-headless-shell`，先杀掉残留进程
+   - 结束后：确认 `browser.close()` 已执行，必要时手动清理
+   ```bash
+   ps aux | grep "chrome-headless-shell" | grep -v grep | wc -l
+   # 如果残留很多，清理：
+   pkill -f "chrome-headless-shell"
+   ```
+
+4. **在 WSL 高负载时停止截图验证**
+   - 如果 `load average > 100` 或 `df -h` 已经卡顿，先不要启动新的浏览器，等系统恢复或重启 WSL。
+
 ## 常见问题
 
 ### 问题 1：为什么这个 skill 没被触发

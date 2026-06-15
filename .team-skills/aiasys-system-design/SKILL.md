@@ -399,7 +399,7 @@ AIASys 中记忆/偏好的作用域从长到短应该是：
 - 在 AIASys 中做设计时，先服从系统语义
 
 当前系统架构主稿入口：
-- `pkm-hub/resources/xiaoke-skill-development/skills/aiasys/aiasys-system-design/references/current-system-architecture.md`
+- `references/current-system-architecture.md`
 - 再套用 `frontend-pattern`、`frontend-design`、`api-dev`、`sop-workflow`
 
 调用顺序建议：
@@ -436,16 +436,16 @@ AIASys 中记忆/偏好的作用域从长到短应该是：
 ## 当前文档入口
 
 系统架构主稿：
-- `pkm-hub/resources/xiaoke-skill-development/skills/aiasys/aiasys-system-design/references/current-system-architecture.md`
+- `references/current-system-architecture.md`
 
 产品定位与设计原则（内部决策，不写入用户-facing 文档）：
-- `pkm-hub/resources/xiaoke-skill-development/skills/aiasys/aiasys-system-design/references/product-positioning-and-design-principles.md`
+- `references/product-positioning-and-design-principles.md`
 
 专题文档入口：
-- `pkm-hub/resources/xiaoke-skill-development/skills/aiasys/aiasys-system-design/references/task-workspace-information-architecture.md`
-- `pkm-hub/resources/xiaoke-skill-development/skills/aiasys/aiasys-system-design/references/settings-center-product-design.md`
-- `pkm-hub/resources/xiaoke-skill-development/skills/aiasys/aiasys-system-design/references/frontend-visual-style-and-page-skeleton.md`
-- `pkm-hub/resources/xiaoke-skill-development/skills/aiasys/aiasys-system-design/references/capability-catalog-model.md`
+- `references/task-workspace-information-architecture.md`
+- `references/settings-center-product-design.md`
+- `references/frontend-visual-style-and-page-skeleton.md`
+- `references/capability-catalog-model.md`
 
 ---
 

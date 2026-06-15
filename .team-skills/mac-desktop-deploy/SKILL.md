@@ -14,7 +14,7 @@ description: |
 - Mac 设备 IP 和 SSH 账号密码已知
 - Mac 上有 Xcode Command Line Tools（`xcode-select -p` 验证）
 - Mac 上有 nvm（Node 版本管理）
-- WSL 上有 `sshpass` 和 `scp`
+- 开发机上有 `sshpass` 和 `scp`（用于向 Mac 传输文件）
 
 ## 部署流程
 
@@ -115,14 +115,14 @@ sshpass -p '<密码>' ssh -o StrictHostKeyChecking=no <用户>@<IP> "
 
 如果 `~/.local/bin/uv` 不存在，从 vendored 路径复制：
 ```bash
-# 先从 WSL 传输 vendored uv
+# 先从开发机传输 vendored uv
 scp apps/backend/vendor/uv/darwin-arm64/uv <用户>@<IP>:~/.local/bin/uv
 ```
 
 ### 7. 配置与目录准备
 
 ```bash
-scp apps/backend/config.toml <用户>@<IP>:~/projects/AIASys/apps/backend/config.json
+scp apps/backend/config.toml <用户>@<IP>:~/projects/AIASys/apps/backend/config.toml
 sshpass -p '<密码>' ssh -o StrictHostKeyChecking=no <用户>@<IP> "
   cd ~/projects/AIASys/apps/backend &&
   mkdir -p data workspaces logs

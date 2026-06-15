@@ -16,7 +16,7 @@ description: |
 | Mac SSH 可达 | 已知 Mac 的 IP 地址和 SSH 账号密码 |
 | Xcode CLT | Mac 上已安装 Xcode Command Line Tools（`xcode-select -p` 验证） |
 | nvm | Mac 上有 nvm（Node 版本管理） |
-| WSL 工具 | WSL 上有 `sshpass` 和 `scp` |
+| 开发机工具 | 开发机上有 `sshpass` 和 `scp` |
 | LLM 配置 | `apps/backend/config.toml` 已存在且 key 有效，详见 [aiasys-llm-config](../aiasys-llm-config/SKILL.md) |
 
 ## 快速开始
@@ -61,7 +61,7 @@ sshpass -p '<密码>' ssh -o StrictHostKeyChecking=no <用户>@<IP> "/usr/local/
 
 #### uv（Python 包管理器）
 
-uv 在首次 `pip install` 时会自动安装到 `~/.local/bin/uv`。如果不存在，可从 WSL 复制 vendored 二进制：
+uv 在首次 `pip install` 时会自动安装到 `~/.local/bin/uv`。如果不存在，可从开发机复制 vendored 二进制：
 
 ```bash
 # 查看本地 vendored uv（仅 darwin-arm64 和 darwin-x64）
@@ -137,7 +137,7 @@ sshpass -p '<密码>' ssh -o StrictHostKeyChecking=no <用户>@<IP> "
 
 ```bash
 # 同步配置文件（config.toml 不在仓库中，需单独传输）
-scp apps/backend/config.toml <用户>@<IP>:~/projects/AIASys/apps/backend/config.json
+scp apps/backend/config.toml <用户>@<IP>:~/projects/AIASys/apps/backend/config.toml
 
 # 创建必要目录
 sshpass -p '<密码>' ssh -o StrictHostKeyChecking=no <用户>@<IP> "
@@ -203,7 +203,7 @@ sshpass -p '<密码>' ssh -o StrictHostKeyChecking=no <用户>@<IP> "
 |------|------|------|
 | 后端 (Uvicorn) | 13011 | FastAPI 后端 |
 | 前端 (Vite) | 13010 | 开发服务器 |
-| 前端访问 | `http://<IP>:13010` | 如需从 WSL 访问前端 |
+| 前端访问 | `http://<IP>:13010` | 如需从开发机访问前端 |
 
 ## 故障排查
 

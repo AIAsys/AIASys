@@ -358,10 +358,13 @@ git commit -m "test: 添加 MCP 功能测试
 
 # 3. 安全检查
 git diff --cached --name-only | grep -E '\.(env|key|pem)$'
+# Windows 替代: git diff --cached --name-only | findstr /R "\.(env|key|pem)$"
 # 应无输出
 
 # 4. 代码检查
-./.agents/skills/aiasys-workflow/scripts/check.sh
+# 如果项目提供跨平台检查脚本，运行它；否则手动执行等价检查
+./.agents/skills/aiasys-workflow/scripts/check.sh  # Linux / macOS
+# Windows 上若脚本不可用，直接运行脚本内的等价命令
 
 # 5. Push
 git push origin feature/mcp-config

@@ -44,7 +44,7 @@ config.toml                          llm_config.json (运行时)
 
 ## 新环境部署时的 LLM 配置检查清单
 
-部署到新机器（Mac / 新 WSL / CI）时，按以下步骤检查：
+部署到新机器（Mac / Linux / CI）时，按以下步骤检查：
 
 ### 1. 确认 config.toml 存在
 
@@ -102,20 +102,32 @@ print(resp.status, resp.read().decode()[:200])
 ```bash
 cd apps/backend
 uv venv .venv --python 3.12
-uv pip install -r pyproject.toml --python .venv/bin/python3
 mkdir -p data workspaces logs
+
+# Linux / macOS
+uv pip install -r pyproject.toml --python .venv/bin/python3
 .venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 13001
+
+# Windows
+uv pip install -r pyproject.toml --python .venv\Scripts\python.exe
+.venv\Scripts\uvicorn.exe app.main:app --host 0.0.0.0 --port 13001
 ```
 
 ### 4. 验证 LLM 配置已加载
 
 ```bash
-# 检查启动日志
+# 检查启动日志（Linux / macOS）
 grep "config.toml 同步完成" logs/  # 或看 uvicorn 输出
 # 期望看到: config.toml 同步完成: N providers, M models
 
-# 通过 API 验证
+# 检查启动日志（Windows PowerShell）
+findstr "config.toml 同步完成" logs\*
+
+# 通过 API 验证（Linux / macOS）
 curl -s http://localhost:13001/api/workspaces | python3 -c "import sys,json; print('OK')"
+
+# 通过 API 验证（Windows PowerShell）
+curl -s http://localhost:13001/api/workspaces | python -c "import sys,json; print('OK')"
 ```
 
 ### 5. 如果提示 "LLM 动态配置为空"
