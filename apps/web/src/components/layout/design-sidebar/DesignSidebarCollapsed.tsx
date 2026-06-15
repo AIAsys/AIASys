@@ -1,4 +1,3 @@
-import { useState, useRef } from "react";
 import {
   History,
   PanelLeftOpen,
@@ -9,7 +8,6 @@ import { BrandLogo } from "@/components/branding/BrandLogo";
 import {
   CollapsedIconButton,
 } from "./DesignSidebarPrimitives";
-import { SettingsPanel } from "./SettingsPanel";
 import type { SettingsSection } from "@/components/settings/global-settings";
 
 interface DesignSidebarCollapsedProps {
@@ -31,11 +29,6 @@ export function DesignSidebarCollapsed({
   onOpenGlobalSettings,
   onEditProfile,
 }: DesignSidebarCollapsedProps) {
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const settingsBtnRef = useRef<HTMLButtonElement>(null);
-
-  const toggleSettings = () => setIsSettingsOpen((prev) => !prev);
-
   return (
     <div className="absolute inset-0 flex flex-col items-center py-4 transition-opacity duration-200 delay-200 opacity-100">
       <div className="mb-3 flex-shrink-0">
@@ -71,22 +64,15 @@ export function DesignSidebarCollapsed({
 
       <div className="border-t border-sidebar-border pt-3 flex flex-col items-center gap-1">
         <button
-          ref={settingsBtnRef}
           type="button"
           data-testid="sidebar-workspace-tools-menu-trigger-collapsed"
           onMouseDown={(e) => e.stopPropagation()}
-          onClick={toggleSettings}
+          onClick={() => onOpenGlobalSettings?.("llm")}
           className="w-9 h-9 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-sidebar-accent transition-colors"
-          title="设置"
+          title="全局控制面板"
         >
           <Settings className="w-[18px] h-[18px]" />
         </button>
-        <SettingsPanel
-          open={isSettingsOpen}
-          onClose={() => setIsSettingsOpen(false)}
-          anchorRef={settingsBtnRef}
-          onOpenGlobalSettings={onOpenGlobalSettings}
-        />
         <button
           type="button"
           onClick={onEditProfile}

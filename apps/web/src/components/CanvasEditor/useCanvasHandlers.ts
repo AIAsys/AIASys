@@ -11,7 +11,9 @@ import {
   createGlobalWorkspacePreviewFile,
   createWorkspacePreviewFile,
   resolveWorkspaceFileUrl,
+  workspacePathToFilename,
 } from "@/utils/workspaceFiles";
+import type { WorkspaceFileReferenceDragPayload } from "@/utils/workspaceFileDrag";
 import type { WorkspaceMarkdownLinkScope } from "@/utils/workspaceMarkdownLinks";
 import {
   createCanvasId,
@@ -1049,15 +1051,27 @@ export function useCanvasHandlers(options: UseCanvasHandlersOptions) {
 
   const handleDropWorkspaceFile = useCallback(
     (event: React.DragEvent) => {
-      const draggedWorkspaceFile = event.dataTransfer.getData(
-        WORKSPACE_FILE_DRAG_MIME,
-      );
-      const plainTextFile = event.dataTransfer.getData("text/plain");
-      const fileName =
-        draggedWorkspaceFile ||
-        (workspaceFiles.some((file) => file.name === plainTextFile)
-          ? plainTextFile
-          : "");
+      const rawPayload = event.dataTransfer.getData(WORKSPACE_FILE_DRAG_MIME);
+      let fileName = "";
+      if (rawPayload) {
+        try {
+          const payload = JSON.parse(
+            rawPayload,
+          ) as WorkspaceFileReferenceDragPayload;
+          fileName = workspacePathToFilename(payload.paths[0] ?? "");
+        } catch {
+          // 兼容旧字符串格式（直接作为相对路径）
+          fileName = workspacePathToFilename(rawPayload);
+        }
+      }
+      if (!fileName) {
+        const plainTextFile = event.dataTransfer.getData("text/plain");
+        if (
+          workspaceFiles.some((file) => file.name === plainTextFile)
+        ) {
+          fileName = plainTextFile;
+        }
+      }
       if (!fileName) {
         return;
       }

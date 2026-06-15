@@ -115,7 +115,6 @@ interface WorkspaceSidebarProps {
   executionSummary?: unknown;
   /** 打开工作区配置 */
   onOpenWorkspaceSettings?: () => void;
-  onOpenRuntimeTab?: () => void;
   /** 打开数据库连接管理 */
   onManageDatabaseConnections?: () => void;
   /** 新建数据库连接 */
@@ -166,7 +165,6 @@ interface WorkspaceSidebarContentProps {
   onOpenKnowledgeGraphDialog?: () => void;
   onOpenWorkspaceSettings?: () => void;
   onOpenWorkspaceResourcesSettings?: () => void;
-  onOpenRuntimeTab?: () => void;
   layoutMode?: "sidebar" | "center";
   userModels?: LLMModelConfig[];
   pendingUploadedFiles?: Pick<UploadedFile, "filename" | "file_path">[];
@@ -198,7 +196,6 @@ function WorkspaceSidebarContent({
   onOpenKnowledgeGraphDialog,
   onOpenWorkspaceSettings: providedOpenWorkspaceSettings,
   onOpenWorkspaceResourcesSettings,
-  onOpenRuntimeTab,
   layoutMode = "sidebar",
   userModels: _userModels = [],
   pendingUploadedFiles = [],
@@ -399,7 +396,6 @@ function WorkspaceSidebarContent({
             onOpenInBrowserTab={onOpenInBrowserTab}
             onEditInMainCanvas={onEditInMainCanvas}
             onOpenWorkspaceSettings={onOpenWorkspaceSettings}
-            onOpenRuntimeTab={onOpenRuntimeTab}
             surfaceMode={layoutMode === "center" ? "navigation" : "workbench"}
           />
         </Suspense>
@@ -493,7 +489,6 @@ export function WorkspaceContextSurface({
   workspaceSummary,
   sessionStatus,
   onOpenWorkspaceSettings,
-  onOpenRuntimeTab,
   onManageDatabaseConnections,
   onCreateDatabaseConnection,
   onOpenKnowledgeBaseDialog,
@@ -568,7 +563,6 @@ export function WorkspaceContextSurface({
           onOpenKnowledgeGraphDialog={onOpenKnowledgeGraphDialog}
           onOpenWorkspaceSettings={onOpenWorkspaceSettings}
           onOpenWorkspaceResourcesSettings={onOpenWorkspaceResourcesSettings}
-          onOpenRuntimeTab={onOpenRuntimeTab}
           layoutMode="center"
           userModels={userModels}
           pendingUploadedFiles={pendingUploadedFiles}

@@ -14,7 +14,10 @@ import {
   getLoadMoreParentPath,
 } from "@/utils/fileTreeUtils";
 import { appendAccessToken } from "@/utils/urlUtils";
-import { WORKSPACE_FILE_DRAG_MIME } from "@/utils/workspaceFileDrag";
+import {
+  WORKSPACE_FILE_DRAG_MIME,
+  type WorkspaceFileReferenceDragPayload,
+} from "@/utils/workspaceFileDrag";
 import {
   ChevronRight,
   BookOpen,
@@ -77,6 +80,7 @@ export interface FileTreeRowProps {
   level: number;
   sessionId?: string;
   token?: string;
+  scope?: "current" | "global";
   imageSlides: readonly FileTreeImageSlide[];
   imageIndexMap: ReadonlyMap<string, number>;
   onOpenImagePreview: (slide: FileTreeImageSlide, startIndex: number) => void;
@@ -109,6 +113,7 @@ const FileTreeRowComponent: React.FC<FileTreeRowProps> = ({
   level,
   sessionId,
   token,
+  scope = "current",
   imageSlides: _imageSlides,
   imageIndexMap,
   onOpenImagePreview,
@@ -261,7 +266,7 @@ const FileTreeRowComponent: React.FC<FileTreeRowProps> = ({
   const handleDragStart = (e: React.DragEvent<HTMLElement>) => {
     const dragPath = node.file ? node.file.name : node.path;
     onDragStartNode?.(dragPath);
-    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.effectAllowed = "copyMove";
 
     // 多选拖拽：如果拖拽的项在选中集合中且选中项 > 1，传递所有选中项
     const nodeKey = getTreeNodeSelectionKey(node);
@@ -287,8 +292,26 @@ const FileTreeRowComponent: React.FC<FileTreeRowProps> = ({
       e.dataTransfer.setData("text/plain", dragPath);
     }
 
-    if (node.file) {
-      e.dataTransfer.setData(WORKSPACE_FILE_DRAG_MIME, node.file.name);
+    // 构造统一的工作区文件引用拖拽数据
+    const referencePaths: string[] = [];
+    const prefix = scope === "global" ? "/global/" : "/workspace/";
+    if (shouldDragMultiple) {
+      for (const key of selectedItemKeys) {
+        if (key.startsWith("file:")) {
+          referencePaths.push(prefix + key.slice(5));
+        } else if (key.startsWith("folder:")) {
+          referencePaths.push(prefix + key.slice(7));
+        }
+      }
+    } else {
+      referencePaths.push(prefix + dragPath);
+    }
+    if (referencePaths.length > 0) {
+      const payload: WorkspaceFileReferenceDragPayload = {
+        scope,
+        paths: referencePaths,
+      };
+      e.dataTransfer.setData(WORKSPACE_FILE_DRAG_MIME, JSON.stringify(payload));
     }
 
     const ghost = document.createElement("div");

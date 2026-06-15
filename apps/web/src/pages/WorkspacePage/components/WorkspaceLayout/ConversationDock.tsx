@@ -59,7 +59,6 @@ interface ConversationDockProps {
   fileInputRef: React.RefObject<HTMLInputElement | null>;
   onFileChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
   runtimeControls: RuntimeControlsState;
-  hasMessagesForMcp: boolean;
   hasMCPConfig: boolean;
   userModels: LLMModelConfig[];
   selectedModelId: string;
@@ -72,7 +71,6 @@ interface ConversationDockProps {
   selectedModelSupportsThinking: boolean;
   onOpenLLMConfigDialog: () => void;
   onOpenToolConfig: () => void;
-  onOpenWorkspaceSettings?: () => void;
   onOpenRuntimeTab?: () => void;
   isCompactingConversation?: boolean;
   onCompactConversation?: (instruction?: string) => Promise<void> | void;
@@ -85,7 +83,6 @@ interface ConversationDockProps {
   } | null;
   sessionInputFocusSignal?: number;
   tokenUsageRefreshSignal?: number | string;
-  onUploadToWorkspace?: (files: FileList | File[]) => Promise<void> | void;
 }
 
 export function ConversationDock({
@@ -124,7 +121,6 @@ export function ConversationDock({
   fileInputRef,
   onFileChange,
   runtimeControls,
-  hasMessagesForMcp,
   hasMCPConfig,
   userModels,
   selectedModelId,
@@ -137,14 +133,12 @@ export function ConversationDock({
   selectedModelSupportsThinking,
   onOpenLLMConfigDialog,
   onOpenToolConfig,
-  onOpenWorkspaceSettings,
   onOpenRuntimeTab,
   isCompactingConversation = false,
   onCompactConversation,
   compactionState,
   sessionInputFocusSignal,
   tokenUsageRefreshSignal,
-  onUploadToWorkspace,
 }: ConversationDockProps) {
   const { handleDragStart } = useDockResize(width, onWidthChange);
 
@@ -210,6 +204,14 @@ export function ConversationDock({
         onForkConversation={onForkConversation}
         onRenameConversation={onRenameConversation}
         onDeleteConversation={onDeleteConversation}
+        onCompactConversation={onCompactConversation}
+        isCompactingConversation={isCompactingConversation}
+        isRunning={isRunning}
+        tokenUsageRefreshSignal={tokenUsageRefreshSignal}
+        compactionState={compactionState}
+        onOpenToolConfig={onOpenToolConfig}
+        onOpenLLMConfigDialog={onOpenLLMConfigDialog}
+        onOpenRuntimeTab={onOpenRuntimeTab}
       />
 
       <DockChatView
@@ -236,7 +238,6 @@ export function ConversationDock({
         fileInputRef={fileInputRef}
         onFileChange={onFileChange}
         runtimeControls={runtimeControls}
-        hasMessagesForMcp={hasMessagesForMcp}
         hasMCPConfig={hasMCPConfig}
         userModels={userModels}
         selectedModelId={selectedModelId}
@@ -249,13 +250,7 @@ export function ConversationDock({
         selectedModelSupportsThinking={selectedModelSupportsThinking}
         onOpenLLMConfigDialog={onOpenLLMConfigDialog}
         onOpenToolConfig={onOpenToolConfig}
-        onOpenRuntimeConfig={onOpenRuntimeTab ?? onOpenWorkspaceSettings}
-        isCompactingConversation={isCompactingConversation}
-        onCompactConversation={onCompactConversation}
-        compactionState={compactionState}
         sessionInputFocusSignal={sessionInputFocusSignal}
-        tokenUsageRefreshSignal={tokenUsageRefreshSignal}
-        onUploadToWorkspace={onUploadToWorkspace}
         tasks={sessionStatus?.tasks}
         planState={sessionStatus?.plan_state}
       />

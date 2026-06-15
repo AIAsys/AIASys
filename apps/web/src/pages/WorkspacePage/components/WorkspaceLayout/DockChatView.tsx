@@ -1,5 +1,4 @@
 import { ChatArea } from "@/components/chat/ChatArea";
-import { TokenUsageBar } from "@/components/chat/TokenUsageBar";
 import { SessionTaskPanel } from "@/components/session/SessionTaskPanel";
 import type { ChatItem } from "../../types";
 import type { PreviewFile } from "@/components/layout/WorkspaceSidebar/preview";
@@ -54,7 +53,7 @@ interface DockChatViewProps {
   fileInputRef: React.RefObject<HTMLInputElement | null>;
   onFileChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
   runtimeControls: RuntimeControlsState;
-  hasMessagesForMcp: boolean;
+  isCompactingConversation?: boolean;
   hasMCPConfig: boolean;
   userModels: LLMModelConfig[];
   selectedModelId: string;
@@ -67,19 +66,7 @@ interface DockChatViewProps {
   selectedModelSupportsThinking: boolean;
   onOpenLLMConfigDialog: () => void;
   onOpenToolConfig: () => void;
-  onOpenRuntimeConfig?: () => void;
-  isCompactingConversation?: boolean;
-  onCompactConversation?: (instruction?: string) => Promise<void> | void;
-  compactionState?: {
-    phase: "begin" | "done";
-    tokens_before?: number;
-    tokens_after?: number;
-    saved_tokens?: number;
-    summary_tokens?: number;
-  } | null;
   sessionInputFocusSignal?: number;
-  tokenUsageRefreshSignal?: number | string;
-  onUploadToWorkspace?: (files: FileList | File[]) => Promise<void> | void;
   tasks?: SessionTaskItem[];
   planState?: SessionPlanState | null;
 }
@@ -107,7 +94,7 @@ export function DockChatView({
   fileInputRef,
   onFileChange,
   runtimeControls,
-  hasMessagesForMcp,
+  isCompactingConversation = false,
   hasMCPConfig,
   userModels,
   selectedModelId,
@@ -120,27 +107,12 @@ export function DockChatView({
   selectedModelSupportsThinking,
   onOpenLLMConfigDialog,
   onOpenToolConfig,
-  onOpenRuntimeConfig,
-  isCompactingConversation = false,
-  onCompactConversation,
-  compactionState,
   sessionInputFocusSignal,
-  tokenUsageRefreshSignal,
-  onUploadToWorkspace,
   tasks,
   planState,
 }: DockChatViewProps) {
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-      <TokenUsageBar
-        sessionId={currentSessionId || undefined}
-        refreshSignal={tokenUsageRefreshSignal}
-        onCompactConversation={onCompactConversation}
-        hasMessages={hasMessagesForMcp}
-        isCompactingConversation={isCompactingConversation}
-        isRunning={isRunning}
-        compactionState={compactionState}
-      />
       <SessionTaskPanel tasks={tasks} planState={planState} />
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-muted/15">
         <ChatArea
@@ -185,7 +157,6 @@ export function DockChatView({
         onAddFileClick={onAddFileClick}
         fileInputRef={fileInputRef}
         onFileChange={onFileChange}
-        currentEnv={runtimeControls.activeEnv}
         isInitializingEnvironment={
           runtimeControls.isInitializingEnvironment
         }
@@ -203,9 +174,7 @@ export function DockChatView({
         selectedModelSupportsThinking={selectedModelSupportsThinking}
         onOpenConfig={onOpenLLMConfigDialog}
         onOpenToolConfig={onOpenToolConfig}
-        onOpenRuntimeConfig={onOpenRuntimeConfig}
         focusSignal={sessionInputFocusSignal}
-        onUploadToWorkspace={onUploadToWorkspace}
       />
     </div>
   );

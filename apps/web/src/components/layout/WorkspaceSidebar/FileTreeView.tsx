@@ -181,6 +181,7 @@ interface FileTreeViewProps {
   onCopyFileSystemEntry?: (source: string, target: string) => Promise<boolean>;
   onPasteComplete?: (target: string) => void;
   workspaceId?: string;
+  scope?: "current" | "global";
 }
 
 export const FileTreeView: React.FC<FileTreeViewProps> = ({
@@ -212,6 +213,7 @@ export const FileTreeView: React.FC<FileTreeViewProps> = ({
   onCopyFileSystemEntry,
   onPasteComplete,
   workspaceId,
+  scope = "current",
 }) => {
   const { session } = useAuthContext();
   const token = session?.token;
@@ -1303,6 +1305,7 @@ export const FileTreeView: React.FC<FileTreeViewProps> = ({
                 level={flatNode.level}
                 sessionId={sessionId}
                 token={token}
+                scope={scope}
                 imageSlides={imageSlides}
                 imageIndexMap={imageIndexMap}
                 onOpenImagePreview={openImagePreview}

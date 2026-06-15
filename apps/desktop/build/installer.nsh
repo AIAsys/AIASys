@@ -1,6 +1,13 @@
 ; AIASys Desktop NSIS 自定义脚本
 ; 由 electron-builder 自动包含
 
+; ==================== 安装时 ====================
+
+!macro customInstall
+  ; 开启 Windows 长路径支持（需要重启生效）
+  WriteRegDWORD HKLM "SYSTEM\CurrentControlSet\Control\FileSystem" "LongPathsEnabled" 1
+!macroend
+
 ; ==================== 安装前 ====================
 
 !macro customInit

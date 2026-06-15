@@ -1,5 +1,18 @@
-import { ChevronDown, PanelRightClose } from "lucide-react";
+import {
+  ChevronDown,
+  PanelRightClose,
+  Settings,
+  Wrench,
+  Brain,
+  FlaskConical,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Popover,
   PopoverContent,
@@ -9,6 +22,7 @@ import type { TaskWorkspaceSummary } from "../../types";
 import { GitBranchPlusIcon, MessageSquareIcon } from "../chatShellIcons";
 import { DockStatusChip } from "./DockComponents";
 import { WorkspaceConversationPanel } from "./WorkspaceConversationPanel";
+import { TokenUsageBar } from "@/components/chat/TokenUsageBar";
 
 interface DockHeaderProps {
   currentSessionTitle: string;
@@ -20,6 +34,20 @@ interface DockHeaderProps {
   onForkConversation: (sessionId: string) => void;
   onRenameConversation: (sessionId: string, title: string) => Promise<void>;
   onDeleteConversation?: (sessionId: string) => Promise<void>;
+  onCompactConversation?: () => Promise<void> | void;
+  isCompactingConversation?: boolean;
+  isRunning?: boolean;
+  tokenUsageRefreshSignal?: number | string;
+  compactionState?: {
+    phase: "begin" | "done";
+    tokens_before?: number;
+    tokens_after?: number;
+    saved_tokens?: number;
+    summary_tokens?: number;
+  } | null;
+  onOpenToolConfig?: () => void;
+  onOpenLLMConfigDialog?: () => void;
+  onOpenRuntimeTab?: () => void;
 }
 
 export function DockHeader({
@@ -32,6 +60,14 @@ export function DockHeader({
   onForkConversation,
   onRenameConversation,
   onDeleteConversation,
+  onCompactConversation,
+  isCompactingConversation = false,
+  isRunning = false,
+  tokenUsageRefreshSignal,
+  compactionState,
+  onOpenToolConfig,
+  onOpenLLMConfigDialog,
+  onOpenRuntimeTab,
 }: DockHeaderProps) {
   const conversationCount = workspace?.conversations?.length ?? 0;
   const conversationSummaryLabel =
@@ -57,6 +93,50 @@ export function DockHeader({
 
           {/* Actions */}
           <div className="flex shrink-0 items-center gap-1">
+            <TokenUsageBar
+              sessionId={currentSessionId}
+              refreshSignal={tokenUsageRefreshSignal}
+              onCompactConversation={onCompactConversation}
+              isCompactingConversation={isCompactingConversation}
+              isRunning={isRunning}
+              compactionState={compactionState}
+              variant="dropdown"
+            />
+            {(onOpenToolConfig || onOpenLLMConfigDialog || onOpenRuntimeTab) ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 rounded-lg text-muted-foreground"
+                    title="会话设置"
+                  >
+                    <Settings className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" sideOffset={6}>
+                  {onOpenToolConfig ? (
+                    <DropdownMenuItem onClick={onOpenToolConfig}>
+                      <Wrench className="mr-2 h-4 w-4" />
+                      工具配置
+                    </DropdownMenuItem>
+                  ) : null}
+                  {onOpenLLMConfigDialog ? (
+                    <DropdownMenuItem onClick={onOpenLLMConfigDialog}>
+                      <Brain className="mr-2 h-4 w-4" />
+                      模型配置
+                    </DropdownMenuItem>
+                  ) : null}
+                  {onOpenRuntimeTab ? (
+                    <DropdownMenuItem onClick={onOpenRuntimeTab}>
+                      <FlaskConical className="mr-2 h-4 w-4" />
+                      执行环境
+                    </DropdownMenuItem>
+                  ) : null}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : null}
             <Button
               type="button"
               variant="ghost"

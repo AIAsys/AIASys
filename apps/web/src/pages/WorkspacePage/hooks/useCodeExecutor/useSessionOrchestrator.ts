@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ChatItem } from "../../types";
-import { generateUUID } from "../../../../hooks/useAgentFileUpload";
+import { generateShortId } from "@/utils/id";
 import { useSessionManagement } from "../useSessionManagement";
 import { registerHiddenSession, unregisterHiddenSession } from "../hiddenSessionRegistry";
 import { restoreSessionState } from "./sessionRestore";
@@ -95,7 +95,7 @@ export function useSessionOrchestrator({
   getWorkspaceId,
 }: UseSessionOrchestratorProps) {
   const [sessionId, setSessionId] = useState<string>(
-    () => initialSessionId || generateUUID(),
+    () => initialSessionId || generateShortId(),
   );
   const [isPrewarming, setIsPrewarming] = useState(false);
   const initialSessionIdRef = useRef<string | null>(null);
@@ -242,7 +242,7 @@ export function useSessionOrchestrator({
     if (availableDraftId) {
       newId = availableDraftId;
     } else {
-      newId = generateUUID();
+      newId = generateShortId();
     }
 
     // 初始化新 session
@@ -315,7 +315,7 @@ export function useSessionOrchestrator({
   const activateReplacementDraft = useCallback(async () => {
     // 删除当前正在查看的会话时，总是先切到一个全新的空白草稿，
     // 避免把用户强行切回另一条历史会话，也避免在清理旧 session 前失去前台锚点。
-    const replacementId = generateUUID();
+    const replacementId = generateShortId();
     registerHiddenSession(replacementId);
     initChatSession(replacementId);
     initMultiTaskSession(replacementId);

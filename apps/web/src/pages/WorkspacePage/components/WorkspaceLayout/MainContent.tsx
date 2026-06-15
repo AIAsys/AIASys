@@ -38,7 +38,6 @@ export function MainContent({
   setThinkingEnabled,
   setThinkingEffort,
   selectedModelSupportsThinking,
-  hasMessagesForMcp,
   hasMCPConfig,
   onOpenDatabaseConnectionsDialog,
   onCreateDatabaseConnectionDialog,
@@ -313,7 +312,6 @@ export function MainContent({
                 onEditInMainCanvas={handleEditFileInMainCanvas}
                 onOpenKnowledgeGraphCanvas={onOpenKnowledgeGraphDialog}
                 onOpenWorkspaceSettings={handleOpenWorkspaceSettings}
-                onOpenRuntimeTab={openRuntimeTab}
                 onNewConversation={onNewConversation}
                 onSelectConversation={onSelectConversation}
                 onForkConversation={onForkConversation}
@@ -406,7 +404,6 @@ export function MainContent({
               fileInputRef={executor.fileInputRef}
               onFileChange={executor.handleFileChange}
               runtimeControls={runtimeControls}
-              hasMessagesForMcp={hasMessagesForMcp}
               hasMCPConfig={hasMCPConfig}
               userModels={userModels}
               selectedModelId={selectedModelId}
@@ -419,14 +416,12 @@ export function MainContent({
               selectedModelSupportsThinking={selectedModelSupportsThinking}
               onOpenLLMConfigDialog={onOpenLLMConfigDialog}
               onOpenToolConfig={onOpenToolConfig}
-              onOpenWorkspaceSettings={handleOpenWorkspaceSettings}
               onOpenRuntimeTab={openRuntimeTab}
               isCompactingConversation={sessionLifecycle.isCompactingConversation}
               onCompactConversation={sessionLifecycle.handleCompactConversation}
               compactionState={executor.compactionState}
               sessionInputFocusSignal={sessionInputBridgeRequestKey}
               tokenUsageRefreshSignal={tokenUsageRefreshSignal}
-              onUploadToWorkspace={executor.handleUploadFiles}
             />
           </Suspense>
         ) : null}
@@ -446,11 +441,6 @@ export function MainContent({
           currentSessionTitle={sessionTitle}
           conversations={currentWorkspace.conversations ?? []}
           currentConversation={currentWorkspace.current_conversation ?? null}
-          onOpenCapabilityDetailTab={(capId, displayName) => {
-            if (currentWorkspace.workspace_id) {
-              openCapabilityDetailTab(capId, currentWorkspace.workspace_id, displayName);
-            }
-          }}
         />
       ) : null}
     </>

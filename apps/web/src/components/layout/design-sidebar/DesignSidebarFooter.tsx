@@ -1,7 +1,5 @@
-import { useState, useRef } from "react";
 import { isSingleUserAuthMode } from "@/config/auth";
 import { LogOut, Settings } from "lucide-react";
-import { SettingsPanel } from "./SettingsPanel";
 import type { SettingsSection } from "@/components/settings/global-settings";
 
 interface DesignSidebarFooterProps {
@@ -24,10 +22,6 @@ export function DesignSidebarFooter({
   onLogout,
 }: DesignSidebarFooterProps) {
   const showLogout = isAuthenticated && !isSingleUserAuthMode();
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const settingsRef = useRef<HTMLDivElement>(null);
-
-  const toggleSettings = () => setIsSettingsOpen((prev) => !prev);
 
   return (
     <div className="p-4 border-t border-sidebar-border">
@@ -51,25 +45,16 @@ export function DesignSidebarFooter({
         <div className="flex items-center gap-1 flex-shrink-0">
           {isAuthenticated && (
             <>
-              <div ref={settingsRef} className="relative">
-                <button
-                  type="button"
-                  data-testid="sidebar-workspace-tools-menu-trigger"
-                  onMouseDown={(e) => e.stopPropagation()}
-                  onClick={toggleSettings}
-                  className="p-1.5 rounded text-muted-foreground hover:text-sidebar-primary hover:bg-sidebar-accent transition-colors"
-                  title="设置"
-                >
-                  <Settings className="w-4 h-4" />
-                </button>
-                <div className="absolute bottom-full right-0 mb-1 z-50">
-                  <SettingsPanel
-                    open={isSettingsOpen}
-                    onClose={() => setIsSettingsOpen(false)}
-                    onOpenGlobalSettings={onOpenGlobalSettings}
-                  />
-                </div>
-              </div>
+              <button
+                type="button"
+                data-testid="sidebar-workspace-tools-menu-trigger"
+                onMouseDown={(e) => e.stopPropagation()}
+                onClick={() => onOpenGlobalSettings?.("llm")}
+                className="p-1.5 rounded text-muted-foreground hover:text-sidebar-primary hover:bg-sidebar-accent transition-colors"
+                title="全局控制面板"
+              >
+                <Settings className="w-4 h-4" />
+              </button>
               {showLogout ? (
                 <button
                   type="button"

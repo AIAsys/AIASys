@@ -4,6 +4,7 @@ import {
   createWorkspacePreviewFile,
 } from "@/utils/workspaceFiles";
 import { WORKSPACE_FILE_DRAG_MIME } from "@/components/CanvasEditor/canvasUtils";
+import type { WorkspaceFileReferenceDragPayload } from "@/utils/workspaceFileDrag";
 import type { PreviewFile } from "@/components/layout/WorkspaceSidebar/preview";
 import type { GlobalResourceNode } from "@/components/layout/WorkspaceSidebar/assetPreviewFactory";
 import { type WorkspaceTab } from "./components/WorkspaceTabBar";
@@ -553,7 +554,19 @@ export function usePaneTree(
         return;
       }
 
-      const fileName = e.dataTransfer.getData(WORKSPACE_FILE_DRAG_MIME);
+      const rawPayload = e.dataTransfer.getData(WORKSPACE_FILE_DRAG_MIME);
+      let fileName = "";
+      if (rawPayload) {
+        try {
+          const payload = JSON.parse(
+            rawPayload,
+          ) as WorkspaceFileReferenceDragPayload;
+          fileName = payload.paths[0] ?? "";
+        } catch {
+          // 兼容旧字符串格式
+          fileName = rawPayload;
+        }
+      }
       if (fileName) {
         const previewFile = buildWorkspacePreviewFile(fileName);
         const newTab: WorkspaceTab = {
