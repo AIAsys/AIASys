@@ -11,7 +11,15 @@ from pathlib import Path
 
 
 def find_uv_binary() -> str | None:
-    """在 PATH 和常见安装位置中查找 uv 可执行文件。"""
+    """在 PATH 和常见安装位置中查找 uv 可执行文件。
+
+    桌面版打包时会将 uv 二进制嵌入 resources/backend/vendor/uv/<platform>/
+    并通过 AIASYS_BUNDLED_UV_PATH 环境变量暴露给 backend，优先使用。
+    """
+    bundled = os.environ.get("AIASYS_BUNDLED_UV_PATH")
+    if bundled and Path(bundled).is_file():
+        return bundled
+
     uv = shutil.which("uv")
     if uv:
         return uv

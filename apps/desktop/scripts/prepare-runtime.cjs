@@ -379,6 +379,25 @@ function prepareBackendRuntime() {
       process.stdout.write(result.stdout);
     }
   }
+
+  // 确保当前平台的 uv 二进制已下载到 vendor/uv/<slug>/
+  // 桌面版启动后 backend 需要通过 AIASYS_BUNDLED_UV_PATH 找到 uv
+  {
+    const downloadScript = path.join(__dirname, "download-uv-binary.cjs");
+    const result = spawnSync("node", [downloadScript], {
+      encoding: "utf-8",
+      stdio: "pipe",
+    });
+    if (result.status !== 0) {
+      const detail = result.stderr || result.error || `exit ${result.status}`;
+      console.error("[aiasys-desktop] 下载 uv 二进制失败:", detail);
+      throw new Error(`下载 uv 二进制失败: ${detail}`);
+    }
+    if (result.stdout) {
+      process.stdout.write(result.stdout);
+    }
+  }
+
   const requiredEntries = [
     ".venv",
     "app",
