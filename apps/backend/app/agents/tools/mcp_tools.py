@@ -14,6 +14,158 @@ from app.core.agent_tool import AiasysTool
 from app.core.tool_result import ToolResult
 
 
+class SearchAvailableConnectorsParams(BaseModel):
+    """SearchAvailableConnectors 参数。"""
+
+    query: str = Field(
+        default="",
+        description="搜索关键词，例如 search、weather、ocr。为空时返回全部可用连接器",
+    )
+
+
+class SearchAvailableConnectors(AiasysTool):
+    """搜索当前系统可安装的连接器。"""
+
+    name: str = "SearchAvailableConnectors"
+    risk_level: str = "readonly"
+    effect_scope: str = "session"
+    side_effect: bool = False
+    description: str = """搜索 AIASys 内置源仓库中可安装的连接器（MCP Server）。
+
+参数：
+- query: 搜索关键词，例如 search、weather、ocr。为空时返回全部。
+
+返回内容：
+- capability_id: 连接器唯一 ID
+- display_name: 显示名称
+- publisher: 发布者
+- description: 描述
+- tools: 提供的工具列表
+
+使用场景：
+- 用户想安装某个连接器但不知道 ID
+- Agent 需要发现当前系统有哪些预装连接器可用
+
+注意：这里搜索的是系统内置源仓库（AIASys 精选），不是外部市场。如需外部市场请用 SearchMCPMarket。
+"""
+    params: type[BaseModel] = SearchAvailableConnectorsParams
+
+    async def invoke(
+        self,
+        ctx: dict[str, Any] | None = None,
+        **kwargs: Any,
+    ) -> ToolResult:
+        params = SearchAvailableConnectorsParams.model_validate(kwargs)
+
+        from app.capabilities import get_capability_manager
+
+        mgr = get_capability_manager()
+        try:
+            manifests = mgr.list_available()
+            query = (params.query or "").strip().lower()
+            items = []
+            for m in manifests:
+                if m.kind.value != "mcp_server":
+                    continue
+                text = f"{m.capability_id} {m.display_name} {m.description} {' '.join(m.tool_names)}".lower()
+                if query and query not in text:
+                    continue
+                items.append(
+                    {
+                        "capability_id": m.capability_id,
+                        "display_name": m.display_name,
+                        "publisher": getattr(m, "publisher", "") or "",
+                        "description": m.description,
+                        "tools": list(m.tool_names or []),
+                    }
+                )
+            if not items:
+                return ToolResult(
+                    content=f"未找到匹配 '{query}' 的可用连接器。" if query else "当前系统没有可安装的连接器。",
+                    artifacts=[{"items": []}],
+                )
+            return ToolResult(
+                content=f"找到 {len(items)} 个可用连接器：",
+                artifacts=[{"items": items}],
+            )
+        except Exception as exc:
+            return ToolResult(content=f"搜索可用连接器失败: {exc}", is_error=True)
+
+
+class InstallConnectorParams(BaseModel):
+    """InstallConnector 参数。"""
+
+    capability_id: str = Field(
+        description="连接器能力 ID，例如 stepfun-search、paddleocr-vl"
+    )
+    config: dict[str, Any] = Field(
+        default_factory=dict,
+        description="安装时的配置覆盖，例如 {'env': {'STEPFUN_API_KEY': 'your-key'}}。通常不需要填写。",
+    )
+
+
+class InstallConnector(AiasysTool):
+    """安装连接器到当前工作区。"""
+
+    name: str = "InstallConnector"
+    risk_level: str = "high"
+    effect_scope: str = "workspace"
+    side_effect: bool = True
+    description: str = """将指定连接器（MCP Server）安装到当前工作区。
+
+参数：
+- capability_id: 连接器能力 ID，例如 stepfun-search、paddleocr-vl
+- config: 可选配置覆盖。如需在安装时填入 API Key 等参数可在此提供，格式与 MCP server 配置一致。
+
+使用场景：
+- 用户要求安装某个连接器
+- Agent 判断需要某个 MCP 能力时主动安装
+
+安装后该连接器的工具会出现在当前工作区的可用工具列表中（通常需要重启会话或下一轮才会生效）。
+
+注意：
+- 安装前应先通过 SearchAvailableConnectors 确认 capability_id 存在
+- 对于需要 API Key 的连接器，安装后可能需要用户补充 key，可用 SetEnvVar 设置环境变量或在 MCP 配置中编辑 Headers
+"""
+    params: type[BaseModel] = InstallConnectorParams
+
+    async def invoke(
+        self,
+        ctx: dict[str, Any] | None = None,
+        **kwargs: Any,
+    ) -> ToolResult:
+        params = InstallConnectorParams.model_validate(kwargs)
+
+        workspace_path = ctx.get("workspace") if ctx else None
+        if not workspace_path:
+            return ToolResult(
+                content="安装连接器需要当前工作区上下文",
+                is_error=True,
+            )
+
+        from app.capabilities import get_capability_manager
+
+        mgr = get_capability_manager()
+        try:
+            result = mgr.install(
+                cap_id=params.capability_id,
+                workspace_path=Path(str(workspace_path)),
+                config=params.config or None,
+                scope="workspace",
+            )
+            if result.success:
+                return ToolResult(
+                    content=f"连接器 '{params.capability_id}' 已成功安装到当前工作区。{result.message}",
+                    artifacts=[{"capability_id": params.capability_id}],
+                )
+            return ToolResult(
+                content=f"安装连接器失败: {result.message}",
+                is_error=True,
+            )
+        except Exception as exc:
+            return ToolResult(content=f"安装连接器失败: {exc}", is_error=True)
+
+
 class ListMCPServersParams(BaseModel):
     """ListMCPServers 参数。"""
 

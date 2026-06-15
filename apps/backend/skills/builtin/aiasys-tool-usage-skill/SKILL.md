@@ -136,14 +136,24 @@ QueryDataTable(table_path="/workspace/sales.table.db", sql="SELECT column_name, 
 - `DatabaseQuery`：统一数据库查询接口
 - `ListDatabaseConnectors` / `ListDatabaseTables` / `DescribeDatabaseTable`：浏览数据库结构
 
-### MCP
+### MCP / 连接器
 - `ListMCPServers`：列出本地仓库中的 MCP Server
 - `SearchMCPMarket`：搜索外部 MCP 市场
-- `InstallMCPServer`：安装 MCP Server 到当前工作区
+- `InstallMCPServer`：将外部市场条目导入系统仓库
+- `SearchAvailableConnectors`：搜索 AIASys 内置源仓库中的可用连接器
+- `InstallConnector`：将指定连接器安装到当前工作区
 
-约束：安装 MCP Server 优先用 `InstallMCPServer`，不要手动构造 curl 命令。
+约束：
+- 安装 MCP Server 优先用 `InstallMCPServer` 或 `InstallConnector`，不要手动构造 curl 命令
+- 优先用 `SearchAvailableConnectors` 查找 AIASys 内置连接器，找不到再用 `SearchMCPMarket`
 
 **安装示例**：
+
+从 AIASys 内置仓库安装连接器（推荐）：
+```
+SearchAvailableConnectors(query="search")
+InstallConnector(capability_id="stepfun-search")
+```
 
 从外部市场安装（读取到 `{source_id, item_id}` 的 JSON 后，直接调用）：
 ```

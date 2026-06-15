@@ -10,6 +10,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal
 
+from app.utils.path_utils import as_system_path
+
 DiffStatus = Literal["added", "deleted", "modified", "unchanged", "skipped"]
 
 DEFAULT_MAX_DIFF_FILE_SIZE = 2 * 1024 * 1024
@@ -262,16 +264,17 @@ class DiffService:
         )
 
     def _probe_file(self, path: Path) -> _FileProbe:
-        if not path.exists():
+        sys_path = as_system_path(path)
+        if not os.path.exists(sys_path):
             return _FileProbe(exists=False, is_file=False, is_symlink=False)
-        if path.is_symlink():
+        if os.path.islink(sys_path):
             return _FileProbe(
                 exists=True,
                 is_file=False,
                 is_symlink=True,
                 skip_reason="符号链接不参与内容对比",
             )
-        if not path.is_file():
+        if not os.path.isfile(sys_path):
             return _FileProbe(
                 exists=True,
                 is_file=False,
@@ -279,10 +282,10 @@ class DiffService:
                 skip_reason="路径不是文件",
             )
 
-        size = path.stat().st_size
+        size = os.path.getsize(sys_path)
         digest = self._sha256_file(path)
         is_too_large = size > self.max_file_size
-        with path.open("rb") as file:
+        with open(sys_path, "rb") as file:
             head = file.read(4096)
         is_binary = self._looks_binary(head)
         if is_too_large:
@@ -296,7 +299,8 @@ class DiffService:
                 is_too_large=True,
                 skip_reason=f"文件超过 {self.max_file_size} 字节限制",
             )
-        content = path.read_bytes()
+        with open(sys_path, "rb") as file:
+            content = file.read()
         return _FileProbe(
             exists=True,
             is_file=True,
@@ -309,29 +313,32 @@ class DiffService:
         )
 
     def _scan_directory(self, root: Path, *, max_files: int) -> _DirectorySnapshot:
-        if not root.exists():
+        root_sys_path = as_system_path(root)
+        if not os.path.exists(root_sys_path):
             raise FileNotFoundError("目录不存在")
-        if not root.is_dir():
+        if not os.path.isdir(root_sys_path):
             raise ValueError("路径不是目录")
 
         snapshot = _DirectorySnapshot()
         root_resolved = root.resolve()
-        for current_dir, dir_names, file_names in os.walk(root_resolved, topdown=True):
+        root_sys_resolved = as_system_path(root_resolved)
+        for current_dir, dir_names, file_names in os.walk(root_sys_resolved, topdown=True):
             current_path = Path(current_dir)
             dir_names[:] = sorted(
                 dir_name
                 for dir_name in dir_names
                 if dir_name not in DEFAULT_EXCLUDED_DIR_NAMES
-                and not (current_path / dir_name).is_symlink()
+                and not os.path.islink(as_system_path(current_path / dir_name))
             )
             for file_name in sorted(file_names):
                 file_path = current_path / file_name
-                if file_path.is_symlink() or not file_path.is_file():
+                file_sys_path = as_system_path(file_path)
+                if os.path.islink(file_sys_path) or not os.path.isfile(file_sys_path):
                     continue
                 relative_path = file_path.relative_to(root_resolved).as_posix()
                 if len(snapshot.files) >= max_files:
                     raise DiffTooLargeError(f"目录文件数量超过限制: {max_files}")
-                size = file_path.stat().st_size
+                size = os.path.getsize(file_sys_path)
                 digest = self._sha256_file(file_path)
                 snapshot.files[relative_path] = DirectoryDiffEntry(
                     path=relative_path,
@@ -449,7 +456,7 @@ class DiffService:
 
     def _sha256_file(self, path: Path) -> str:
         digest = hashlib.sha256()
-        with path.open("rb") as file:
+        with open(as_system_path(path), "rb") as file:
             for chunk in iter(lambda: file.read(1024 * 1024), b""):
                 digest.update(chunk)
         return digest.hexdigest()

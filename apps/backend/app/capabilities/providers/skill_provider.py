@@ -30,11 +30,11 @@ logger = logging.getLogger(__name__)
 class SkillProvider(CapabilityProvider):
     """Skill 能力 Provider。
 
-    install   = 从能力源目录 copytree 到 .aiasys/skills/{cap_id}/
-    uninstall = 委托 SkillManager.disable_skill
-    activate  = Skill 安装即激活（无额外步骤）
-    deactivate = 等价于 uninstall（Skill 没有保留安装但禁用的概念）
-    verify    = 检查 SKILL.md 和入口文件是否存在
+    install    = 从能力源目录 copytree 到 .aiasys/skills/{cap_id}/
+    uninstall  = 委托 SkillManager.disable_skill
+    activate   = 标记声明为 enabled（目录已存在即可）
+    deactivate = 仅标记声明为 disabled，保留安装目录（软关闭）
+    verify     = 检查 SKILL.md 和入口文件是否存在
     """
 
     def resolve_manifest(self, source_dir: Path) -> CapabilityManifest | None:
@@ -160,11 +160,7 @@ class SkillProvider(CapabilityProvider):
         workspace_path: Path,
         context: CapabilityProviderContext | None = None,
     ) -> InstallResult:
-        """激活 skill：保留安装目录，标记为可用。
-
-        注意：Skill 类型能力不存在"已安装但未激活"的中间状态。
-        安装即激活（activate 仅做存在性检查），禁用时直接卸载目录。
-        """
+        """激活 skill：保留安装目录，仅将声明标记为 enabled。"""
         dest = workspace_path / ".aiasys" / "skills" / cap_id
         if dest.exists():
             return InstallResult(
@@ -184,22 +180,22 @@ class SkillProvider(CapabilityProvider):
         workspace_path: Path,
         context: CapabilityProviderContext | None = None,
     ) -> InstallResult:
-        """禁用 skill：委托 SkillManager 处理目录清理和配置移除。
+        """禁用 skill：保留安装目录，仅将声明标记为 disabled。
 
-        注意：Skill 的 deactivate 等价于卸载（删除目录）。
-        如需保留安装文件但禁用，需引入 .disabled 标记机制。
+        注意：这里只做软关闭，不调用 SkillManager.disable_skill 删除目录。
+        真正的卸载由 CapabilityManager.uninstall 负责。
         """
-        result = get_skill_manager().disable_skill(cap_id, workspace_path)
-        if not result.success:
+        dest = workspace_path / ".aiasys" / "skills" / cap_id
+        if dest.exists():
             return InstallResult(
-                success=False,
+                success=True,
                 capability_id=cap_id,
-                message=result.message,
+                message=f"Skill '{cap_id}' 已禁用",
             )
         return InstallResult(
-            success=True,
+            success=False,
             capability_id=cap_id,
-            message=result.message,
+            message=f"Skill '{cap_id}' 未安装，无法禁用",
         )
 
     def verify(

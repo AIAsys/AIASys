@@ -28,6 +28,7 @@ from app.models.mcp import (
 )
 from app.models.user import UserInfo
 from app.services.llm import get_mcp_config_service
+from app.services.llm.mcp_session_service import _resolve_env_placeholders
 from app.services.mcp_external_market_service import get_external_mcp_market_service
 
 
@@ -273,6 +274,13 @@ async def _test_mcp_server_connection(
     from mcp.client.stdio import StdioServerParameters, stdio_client
     from mcp.client.streamable_http import streamablehttp_client
 
+    # 解析 headers 中的 ${VAR} 占位符，与运行时保持一致
+    resolved_env = server_config.env or {}
+    resolved_headers = {
+        key: _resolve_env_placeholders(value, resolved_env)
+        for key, value in (server_config.headers or {}).items()
+    } or None
+
     # 测试连接
     try:
         tools_list: List[MCPToolInfoResponse] = []
@@ -281,7 +289,7 @@ async def _test_mcp_server_connection(
             # HTTP 连接测试（Streamable HTTP 返回 3 个值：read, write, get_session_id）
             async with streamablehttp_client(
                 server_config.url,
-                headers=server_config.headers or None,
+                headers=resolved_headers,
                 timeout=max(server_config.timeout_ms / 1000.0, 1.0),
             ) as (read, write, _):
                 async with ClientSession(read, write) as session:
@@ -296,7 +304,7 @@ async def _test_mcp_server_connection(
             # SSE 连接测试
             async with sse_client(
                 server_config.url,
-                headers=server_config.headers or None,
+                headers=resolved_headers,
                 timeout=max(server_config.timeout_ms / 1000.0, 1.0),
             ) as (read, write):
                 async with ClientSession(read, write) as session:

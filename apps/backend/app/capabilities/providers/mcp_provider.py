@@ -78,14 +78,16 @@ class MCPProvider(CapabilityProvider):
                 message=f"MCP '{cap_id}' manifest 缺少 server_name",
             )
 
-        # 从系统级配置复制 server 定义到工作区配置
-        system_config = self._load_system_mcp_config()
-        server_def = system_config.get("servers", {}).get(server_name)
+        # 优先从 manifest 自身读取 server 定义，若 manifest 未提供再从系统默认配置读取
+        server_def = self._load_server_definition_from_manifest(source_dir)
+        if server_def is None:
+            system_config = self._load_system_mcp_config()
+            server_def = system_config.get("servers", {}).get(server_name)
         if not server_def:
             return InstallResult(
                 success=False,
                 capability_id=cap_id,
-                message=f"系统 MCP 配置中不存在 server '{server_name}'",
+                message=f"系统 MCP 配置或 manifest 中不存在 server '{server_name}'",
             )
 
         server_payload = dict(server_def)
@@ -247,6 +249,19 @@ class MCPProvider(CapabilityProvider):
             return str(raw.get("server_name", cap_id)).strip() or cap_id
         except Exception:
             return cap_id
+
+    def _load_server_definition_from_manifest(
+        self, source_dir: Path
+    ) -> dict[str, Any] | None:
+        """从 manifest 的 [server_definition] 段读取 MCP server 配置。"""
+        manifest_path = source_dir / "manifest.toml"
+        if not manifest_path.exists():
+            return None
+        try:
+            raw: dict[str, Any] = tomllib.loads(manifest_path.read_text(encoding="utf-8")) or {}
+            return raw.get("server_definition")
+        except Exception:
+            return None
 
     def _find_server_name_by_cap_id(self, cap_id: str, workspace_path: Path) -> str | None:
         """在工作区 mcp_config.json 中查找 cap_id 对应的 server_name。"""

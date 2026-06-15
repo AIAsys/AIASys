@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import io
 import json
-import secrets
 import shutil
 import zipfile
 from datetime import datetime
@@ -16,6 +15,7 @@ from typing import Any, Dict, Tuple
 
 from app.core.config import WORKSPACE_DIR
 from app.services.workspace_registry import WorkspaceRegistryService
+from app.utils.ids import generate_workspace_id
 
 
 class WorkspaceImportError(ValueError):
@@ -37,12 +37,10 @@ class WorkspaceImportService:
         return self.workspace_root / user_id
 
     def _generate_workspace_id(self, user_id: str) -> str:
-        user_dir = self._get_user_dir(user_id)
-        for _ in range(10):
-            candidate = secrets.token_hex(6)
-            if not (user_dir / candidate).exists():
-                return candidate
-        raise WorkspaceImportError("无法生成可用的工作区 ID")
+        try:
+            return generate_workspace_id(self._get_user_dir(user_id))
+        except RuntimeError as exc:
+            raise WorkspaceImportError("无法生成可用的工作区 ID") from exc
 
     def _ensure_unique_title(
         self,

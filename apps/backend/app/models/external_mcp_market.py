@@ -62,6 +62,7 @@ class ExternalMCPTemplatePreview(BaseModel):
     args: List[str] = Field(default_factory=list, description="命令参数")
     env_keys: List[str] = Field(default_factory=list, description="环境变量键列表")
     header_keys: List[str] = Field(default_factory=list, description="请求头键列表")
+    headers: Dict[str, str] = Field(default_factory=dict, description="请求头模板（可包含 ${VAR} 占位符）")
 
 
 class ExternalMCPEnvField(BaseModel):

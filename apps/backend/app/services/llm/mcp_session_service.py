@@ -11,6 +11,8 @@ MCP 会话配置服务（三层合并模型）
 from __future__ import annotations
 
 import logging
+import os
+import re
 from pathlib import Path
 from typing import List, Optional
 
@@ -22,11 +24,29 @@ from app.services.workspace_registry import get_workspace_registry_service
 
 logger = logging.getLogger(__name__)
 
+# 支持 ${VAR} 形式的环境变量占位符
+_ENV_PLACEHOLDER_RE = re.compile(r"\$\{([^}]+)\}")
+
+
+def _resolve_env_placeholders(value: str, env: dict[str, str]) -> str:
+    """解析字符串中的 ${VAR} 占位符。
+
+    优先使用 server.env 中声明的值，其次回退到进程环境变量。
+    未找到时保留原占位符，便于排查。
+    """
+
+    def _replace(match: re.Match) -> str:
+        var_name = match.group(1)
+        return env.get(var_name) or os.environ.get(var_name) or match.group(0)
+
+    return _ENV_PLACEHOLDER_RE.sub(_replace, value)
+
 
 def _definition_to_server_config(definition: MCPServerDefinition) -> MCPServerConfig:
     """将 MCPServerDefinition 转换为 MCPServerConfig。"""
     return MCPServerConfig(
         name=definition.name,
+        display_name=definition.display_name,
         type=definition.type,
         url=definition.url,
         headers=definition.headers,
@@ -138,7 +158,12 @@ class MCPSessionService:
             if server.env:
                 server_config["env"] = server.env
             if server.headers:
-                server_config["headers"] = server.headers
+                # 解析 headers 中的 ${VAR} 占位符，支持从 server.env 或进程环境变量取值
+                resolved_env = server.env or {}
+                server_config["headers"] = {
+                    key: _resolve_env_placeholders(value, resolved_env)
+                    for key, value in server.headers.items()
+                }
             if server.enabled_tools:
                 server_config["enabled_tools"] = server.enabled_tools
 
