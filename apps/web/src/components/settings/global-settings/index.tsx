@@ -3,6 +3,7 @@ import {
   ChevronDown,
   ChevronRight,
   Server,
+  BarChart3,
   Braces,
   FolderCog,
   Globe,
@@ -38,7 +39,8 @@ export type SettingsSection =
   | "auto-tasks"
   | "monitor-tasks"
   | "template-management"
-  | "template-market";
+  | "template-market"
+  | "token-usage";
 
 interface NavGroup {
   id: string;
@@ -84,6 +86,13 @@ const NAV_GROUPS: NavGroup[] = [
     children: [
       { id: "template-market", label: "模板市场", icon: <Store className="h-4 w-4" /> },
       { id: "template-management", label: "模板管理", icon: <LayoutTemplate className="h-4 w-4" /> },
+    ],
+  },
+  {
+    id: "insights",
+    label: "统计与用量",
+    children: [
+      { id: "token-usage", label: "Token 消耗", icon: <BarChart3 className="h-4 w-4" /> },
     ],
   },
 ];
@@ -147,6 +156,11 @@ const SECTION_META: Record<
     description: "浏览和安装系统内置模板",
     icon: Store,
   },
+  "token-usage": {
+    title: "Token 消耗",
+    description: "查看跨会话的 LLM Token 消耗趋势与热力图",
+    icon: BarChart3,
+  },
 };
 
 const LAST_SECTION_KEY = "aiasys:last-settings-section";
@@ -174,7 +188,7 @@ export function GlobalSettingsDialog({
 }: GlobalSettingsDialogProps) {
   const [activeSection, setActiveSection] = useState<SettingsSection>(initialSection);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(
-    () => new Set(["env", "market", "tasks", "templates"])
+    () => new Set(["env", "market", "tasks", "templates", "insights"])
   );
   const [searchQuery, setSearchQuery] = useState("");
   const navRef = useRef<HTMLElement>(null);
@@ -534,6 +548,11 @@ const LazyUvMirrorSettings = lazy(() =>
     default: m.UvMirrorSettings,
   }))
 );
+const LazyTokenUsagePanel = lazy(() =>
+  import("@/components/settings/token-usage/TokenUsagePanel").then((m) => ({
+    default: m.TokenUsagePanel,
+  }))
+);
 
 function ContentFallback() {
   return (
@@ -664,6 +683,14 @@ function GlobalSettingsContent({ section, workspaceId, workspaceTitle, userId, w
         <div className="h-full">
           <Suspense fallback={<ContentFallback />}>
             <LazyTemplateMarketPanel />
+          </Suspense>
+        </div>
+      );
+    case "token-usage":
+      return (
+        <div className="h-full overflow-y-auto">
+          <Suspense fallback={<ContentFallback />}>
+            <LazyTokenUsagePanel embedded />
           </Suspense>
         </div>
       );
