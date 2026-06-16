@@ -19,6 +19,10 @@ from app.services.session.constants import ACTIVE_SESSION_STATE_DIR_NAME, METADA
 
 logger = logging.getLogger(__name__)
 
+# 按 session_root 缓存 plan_state，减少高频工具调用时的文件 I/O。
+# key: session_root Path, value: (metadata_mtime, SessionPlanState)
+_plan_state_cache: dict[Path, tuple[float, SessionPlanState]] = {}
+
 TaskStatus = Literal["pending", "in_progress", "completed", "cancelled"]
 PlanModeStatus = Literal["active", "inactive"]
 PlanApprovalStatus = Literal["draft", "pending_approval", "approved", "rejected"]
@@ -46,6 +50,9 @@ PLAN_WORKFLOW_GUIDANCE = """\
 4. Review & Approval：退出 plan mode，等待用户批准后再执行。
 """
 
+# Plan 模式下允许的工具列表。
+# 注意：子 Agent 工具（Task / AgentTool / CreateSubagentTool 等）不在白名单内，
+# 因为子 Agent 可以执行写操作，会破坏 Plan 模式的只读语义。
 PLAN_MODE_ALLOWED_TOOL_NAMES: tuple[str, ...] = (
     "tool_search",
     "ReadMediaFile",
@@ -67,7 +74,6 @@ PLAN_MODE_ALLOWED_TOOL_NAMES: tuple[str, ...] = (
     "task_list",
     "enter_plan_mode",
     "exit_plan_mode",
-    "Task",
 )
 
 
@@ -127,6 +133,8 @@ class SessionTaskPlanStore:
             json.dumps(metadata.model_dump(), indent=2, ensure_ascii=False),
             encoding="utf-8",
         )
+        # metadata 已变更，失效 plan_state 缓存
+        _plan_state_cache.pop(self.session_root, None)
 
     def read_tasks(self) -> list[TaskItem]:
         return list(self._load_metadata().tasks)
@@ -182,7 +190,16 @@ class SessionTaskPlanStore:
         return normalized
 
     def read_plan_state(self) -> SessionPlanState:
-        return self._load_metadata().plan_state
+        try:
+            mtime = self.metadata_path.stat().st_mtime
+        except FileNotFoundError:
+            mtime = 0.0
+        cached = _plan_state_cache.get(self.session_root)
+        if cached is not None and cached[0] == mtime:
+            return cached[1]
+        plan_state = self._load_metadata().plan_state
+        _plan_state_cache[self.session_root] = (mtime, plan_state)
+        return plan_state
 
     def write_plan_state(
         self,
@@ -207,8 +224,12 @@ class SessionTaskPlanStore:
         self._save_metadata(metadata)
         return plan_state
 
-    def enter_plan_mode(self) -> SessionPlanState:
-        return self.write_plan_state(mode="active", approval_status="draft")
+    def enter_plan_mode(self, *, pre_plan_permission_mode: str | None = None) -> SessionPlanState:
+        return self.write_plan_state(
+            mode="active",
+            approval_status="draft",
+            pre_plan_permission_mode=pre_plan_permission_mode,
+        )
 
     def build_task_summary_text(self) -> str:
         tasks = self.read_tasks()
@@ -261,13 +282,16 @@ class SessionTaskPlanStore:
         )
         self._write_plan_metadata(record)
         if status == "pending_approval":
+            # 提交审批后 Plan Mode 仍保持 active：
+            # Agent 应等待用户批复，期间不应执行其他写操作。
             self.write_plan_state(
-                mode="inactive",
+                mode="active",
                 approval_status="pending_approval",
                 current_plan_file=record.filename,
             )
         else:
             self.write_plan_state(
+                mode="active" if status == "draft" else "inactive",
                 approval_status=status,
                 current_plan_file=record.filename,
             )
@@ -350,7 +374,7 @@ class SessionTaskPlanStore:
                 content=str(data.get("content") or ""),
                 created_at=str(data.get("created_at") or _now_iso()),
                 updated_at=str(data.get("updated_at") or _now_iso()),
-                status=str(data.get("status") or "draft"),
+                status=str(data.get("status") or "draft"),  # type: ignore[arg-type]
                 submitted_at=data.get("submitted_at"),
                 approved_at=data.get("approved_at"),
                 rejected_at=data.get("rejected_at"),

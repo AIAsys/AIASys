@@ -479,30 +479,8 @@ class SessionStreamMixin:
                         self._append_message(tool_msg)
                         continue
 
-                    if not self._is_tool_allowed_in_current_mode(item["function"]["name"]):
-                        tool_result = ToolResult(
-                            content=(
-                                "当前处于 Plan Mode，只允许只读探索、task_list、AskUser "
-                                "和 exit_plan_mode。请先提交计划并等待用户批准。"
-                            ),
-                            is_error=True,
-                        )
-                        yield AgentRuntimeEvent(
-                            kind="tool_result",
-                            tool_call_id=item["id"],
-                            tool_name=item["function"]["name"],
-                            content=_serialize_tool_content_for_event(tool_result.content),
-                            is_error=tool_result.is_error,
-                        )
-                        tool_msg = {
-                            "role": "tool",
-                            "tool_call_id": item["id"],
-                            "content": tool_result.content,
-                        }
-                        self._append_message(tool_msg)
-                        continue
-
                     # 能力授权决策：所有工具调用都经过 CapabilityAuthorizationService
+                    # Plan Mode 的拦截也已下沉到授权策略链，不再在此处硬编码。
                     resolved_tool_name = self._tool_registry._aliases.get(
                         item["function"]["name"], item["function"]["name"]
                     )
@@ -533,6 +511,11 @@ class SessionStreamMixin:
                         if skill_name:
                             skill_security = self._get_skill_security(skill_name)
 
+                    # Plan Mode 上下文
+                    plan_state = self._get_plan_state()
+                    plan_mode_active = plan_state is not None and plan_state.mode == "active"
+                    plan_file_path = self._get_plan_file_path()
+
                     auth_request = CapabilityAuthorizationRequest(
                         tool_name=resolved_tool_name or item["function"]["name"],
                         arguments=item["arguments"],
@@ -542,6 +525,8 @@ class SessionStreamMixin:
                         authorization_mode=AuthorizationMode(auth_mode_str),
                         is_subagent=self._spec.is_subagent,
                         skill_security=skill_security,
+                        plan_mode_active=plan_mode_active,
+                        plan_file_path=plan_file_path,
                     )
                     auth_result = CapabilityAuthorizationService.decide(auth_request)
 
@@ -665,6 +650,10 @@ class SessionStreamMixin:
                             item["function"]["name"],
                         )
                         tool_result = ToolResult(content=str(exc), is_error=True)
+
+                    # exit_plan_mode 执行成功且用户已批准：恢复进入 Plan Mode 前的权限模式
+                    if item["function"]["name"] == "exit_plan_mode" and not tool_result.is_error:
+                        self._restore_pre_plan_permission_mode()
 
                     # 对用户明确要求专家委派但 Agent 未使用专家工具的场景追加强制提示
                     user_message = self._get_last_user_text()

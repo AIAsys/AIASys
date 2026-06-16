@@ -12,6 +12,7 @@ import logging
 from pathlib import Path
 from typing import Any
 
+from app.models.session import SessionPlanState
 from app.services.history import (
     current_session_id,
     current_session_root,
@@ -64,14 +65,30 @@ class SessionToolsMixin:
             "yolo": self._spec.yolo,
         }
 
-    def _is_plan_mode_active(self) -> bool:
+    def _get_plan_state(self) -> SessionPlanState | None:
+        """读取当前会话的 plan state，失败时返回 None。"""
         session_root = Path(str(current_session_root.get() or self._spec.work_dir))
         try:
-            plan_state = SessionTaskPlanStore(session_root).read_plan_state()
+            return SessionTaskPlanStore(session_root).read_plan_state()
         except Exception:
-            logger.debug("读取 Plan Mode 状态失败，按执行模式处理", exc_info=True)
-            return False
-        return plan_state.mode == "active"
+            logger.debug("读取 Plan Mode 状态失败", exc_info=True)
+            return None
+
+    def _get_plan_file_path(self) -> str | None:
+        """返回当前计划文件的绝对路径（若存在）。"""
+        state = self._get_plan_state()
+        if state is None or not state.current_plan_file:
+            return None
+        session_root = Path(str(current_session_root.get() or self._spec.work_dir))
+        return str(
+            (
+                session_root / ".aiasys" / "session" / "_active" / "plans" / state.current_plan_file
+            ).resolve()
+        )
+
+    def _is_plan_mode_active(self) -> bool:
+        state = self._get_plan_state()
+        return state is not None and state.mode == "active"
 
     def _plan_mode_allowed_tools(self) -> set[str]:
         return set(PLAN_MODE_ALLOWED_TOOL_NAMES)
@@ -85,6 +102,8 @@ class SessionToolsMixin:
         )
 
     def _is_tool_allowed_in_current_mode(self, tool_name: str) -> bool:
+        # Plan Mode 的硬拦截已下沉到 CapabilityAuthorizationService，
+        # 此处保留仅作为快速短路，避免向模型暴露明显不可用的工具。
         if not self._is_plan_mode_active():
             return True
         resolved_tool_name = self._tool_registry._aliases.get(tool_name, tool_name)
@@ -93,6 +112,24 @@ class SessionToolsMixin:
             getattr(tool, "name", resolved_tool_name) if tool is not None else resolved_tool_name
         )
         return str(runtime_name) in self._plan_mode_allowed_tools()
+
+    def _restore_pre_plan_permission_mode(self) -> None:
+        """退出 Plan Mode 后恢复之前的权限模式，并清空 metadata 中保存的值。"""
+        session_root = Path(str(current_session_root.get() or self._spec.work_dir))
+        try:
+            store = SessionTaskPlanStore(session_root)
+            plan_state = store.read_plan_state()
+            pre_mode = plan_state.pre_plan_permission_mode
+            if pre_mode:
+                self._spec.authorization_mode = pre_mode
+                logger.debug(
+                    "已恢复 Plan Mode 前的权限模式: %s",
+                    pre_mode,
+                )
+            # 清空保存值，避免重复恢复或泄漏到后续会话
+            store.write_plan_state(pre_plan_permission_mode=None)
+        except Exception:
+            logger.debug("恢复 Plan Mode 前权限模式失败", exc_info=True)
 
     @staticmethod
     def _deterministic_tool_call_id(tool_name: str, arguments: str, index: int = 0) -> str:

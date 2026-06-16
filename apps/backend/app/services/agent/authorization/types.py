@@ -52,6 +52,9 @@ class CapabilityAuthorizationRequest:
     skill_security: dict[str, Any] = field(default_factory=dict)
     # 特殊标记
     is_subagent: bool = False
+    # Plan Mode 上下文
+    plan_mode_active: bool = False
+    plan_file_path: str | None = None
 
 
 @dataclass(slots=True, kw_only=True)

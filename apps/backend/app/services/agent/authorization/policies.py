@@ -505,9 +505,89 @@ def generic_risk_policy(
 
 
 # ---------------------------------------------------------------------------
+# 策略 0：Plan Mode 硬拦截
+# ---------------------------------------------------------------------------
+# Plan Mode 是高于权限模式的独立状态：无论当前是 manual/smart/auto/full_auto，
+# 只要处于 Plan Mode，就必须先完成计划审批，才能执行有副作用的操作。
+PLAN_MODE_BLOCKED_TOOLS: set[str] = {
+    "Task",
+    "TaskTool",
+    "AgentTool",
+    "CreateSubagentTool",
+    "SpawnSubagentTool",
+    "DeleteSubagentTool",
+    "UpdateSubagentTool",
+    "ListSubagentsTool",
+    "TaskStop",
+    "CronCreate",
+    "CronDelete",
+    "SpawnMonitorTool",
+    "ManageMonitorTool",
+    "RuntimeEnvironment",
+    "SetEnvVar",
+    "DeleteEnvVar",
+    "CreateAutoTask",
+    "ControlAutoTask",
+    "EnableSkill",
+    "DisableSkill",
+    "InstallMCPServer",
+    "UninstallMCPServer",
+    "MemoryTool",
+}
+
+
+def plan_mode_policy(
+    request: CapabilityAuthorizationRequest,
+) -> CapabilityAuthorizationResult | None:
+    """Plan Mode 下只允许只读探索和写入当前计划文件。"""
+    if not request.plan_mode_active:
+        return None
+
+    tool_name = request.tool_name
+
+    # exit_plan_mode 必须能执行，否则无法退出 Plan Mode
+    if tool_name == "exit_plan_mode":
+        return None
+
+    # 只读风险等级工具放行（由后续策略或本策略的只读判断处理）
+    if request.risk_level == RiskLevel.READONLY:
+        return None
+
+    # 文件写入类工具：Plan Mode 下禁止。
+    # 计划文件由 exit_plan_mode 工具自身写入，不经过 WriteFile/StrReplaceFile。
+    if tool_name in ("WriteFile", "StrReplaceFile", "CreateFile"):
+        return _result(
+            AuthorizationDecision.DENY,
+            "Plan Mode 下禁止文件写入",
+            denial=(
+                "当前处于 Plan Mode，文件写入已被禁止。"
+                "请先调用 exit_plan_mode 提交计划并等待用户批准。"
+            ),
+            pattern_key="plan_mode_write_guard",
+        )
+
+    # 显式禁止跨 Plan 边界的副作用工具
+    if tool_name in PLAN_MODE_BLOCKED_TOOLS:
+        return _result(
+            AuthorizationDecision.DENY,
+            f"Plan Mode 下不允许使用 {tool_name}",
+            denial=(
+                f"{tool_name} 在 Plan Mode 下不可用，"
+                "因为它可能产生超出计划范围的副作用。"
+                "请先调用 exit_plan_mode 提交计划并等待用户批准。"
+            ),
+            pattern_key="plan_mode_blocked_tool",
+        )
+
+    # 其他工具交给后续策略处理
+    return None
+
+
+# ---------------------------------------------------------------------------
 # 策略链（按优先级排列）
 # ---------------------------------------------------------------------------
 POLICY_CHAIN: list[PolicyFn] = [
+    plan_mode_policy,
     readonly_allowlist,
     hardline_shell,
     shell_policy,
