@@ -100,14 +100,26 @@ def test_detect_interpreter_auto_on_posix() -> None:
 
 
 @pytest.mark.skipif(os.name != "nt", reason="仅在 Windows 上测试")
-def test_detect_interpreter_cmd_on_windows(executor: ShellExecutor) -> None:
-    path, args, family = executor.detect_interpreter("cmd")
+def test_detect_interpreter_cmd_on_windows() -> None:
+    path, args, family = _executor().detect_interpreter("cmd")
     assert family == "cmd"
     assert path.endswith("cmd.exe")
 
 
 @pytest.mark.skipif(os.name != "nt", reason="仅在 Windows 上测试")
-def test_find_git_bash_on_windows(executor: ShellExecutor) -> None:
-    path = executor._find_git_bash()
+def test_find_git_bash_on_windows() -> None:
+    path = _executor()._find_git_bash()
     if path:
         assert Path(path).exists()
+
+
+def test_rewrite_windows_null_redirect() -> None:
+    rewrite = ShellExecutor.rewrite_windows_null_redirect
+    assert rewrite("echo x >NUL") == "echo x >/dev/null"
+    assert rewrite("echo x >nul") == "echo x >/dev/null"
+    assert rewrite("cmd 2>NUL") == "cmd 2>/dev/null"
+    assert rewrite("cmd >NUL 2>&1") == "cmd >/dev/null 2>&1"
+    assert rewrite("cmd &>NUL") == "cmd &>/dev/null"
+    # 不影响已转换或无关内容
+    assert rewrite("echo NUL") == "echo NUL"
+    assert rewrite("echo /dev/null") == "echo /dev/null"

@@ -24,6 +24,7 @@ logger = logging.getLogger(__name__)
 DEFAULT_TIMEOUT = 60
 MAX_TIMEOUT = 300
 SIGTERM_GRACE_SECONDS = 5
+IO_DRAIN_TIMEOUT_SECONDS = 2
 
 
 @dataclass
@@ -63,7 +64,7 @@ class ShellExecutor:
 
     设计原则：
     1. 上层只传命令字符串，执行器负责解释器选择、路径转换、环境合并。
-    2. POSIX 优先用 bash/sh；Windows 优先用 Git Bash，其次 PowerShell，最后 Cmd。
+    2. POSIX 优先用 bash/sh；Windows 优先用 Git Bash，其次 WSL，再其次 PowerShell/Cmd。
     3. 超时后执行两阶段 kill：SIGTERM -> grace -> SIGKILL；Windows 用 taskkill /T。
     4. 子进程默认关闭 stdin，避免交互式命令挂起。
     """
@@ -71,6 +72,7 @@ class ShellExecutor:
     def __init__(self) -> None:
         self._is_windows = os.name == "nt"
         self._git_bash_path: str | None = None
+        self._wsl_path: str | None = None
 
     # -----------------------------------------------------------------------
     # 解释器探测
@@ -79,49 +81,72 @@ class ShellExecutor:
     def detect_interpreter(self, interpreter: str = "auto") -> tuple[str, list[str], str]:
         """返回 (shell_path, args_prefix, shell_family)。
 
-        shell_family 用于上层判断是 posix/powershell/cmd，以便做命令适配。
+        shell_family 用于上层判断是 posix/powershell/cmd/wsl，以便做命令适配。
         """
+        result: tuple[str, list[str], str] | None = None
+
         if interpreter == "bash":
             path = self._find_bash()
-            if not path:
-                raise RuntimeError("系统未找到 bash，无法使用 interpreter='bash'")
-            return path, ["-c"], "posix"
+            if path:
+                result = (path, ["-c"], "posix")
+            elif self._is_windows:
+                wsl = self._find_wsl_bash()
+                if wsl:
+                    result = (wsl, ["bash", "-c"], "wsl")
+            if result is None:
+                raise RuntimeError("系统未找到 bash 或 WSL，无法使用 interpreter='bash'")
 
-        if interpreter == "powershell":
+        elif interpreter == "powershell":
             if not self._is_windows:
                 raise RuntimeError("interpreter='powershell' 仅在 Windows 上可用")
             path = shutil.which("pwsh") or shutil.which("powershell")
             if not path:
                 raise RuntimeError("系统未找到 PowerShell（powershell 或 pwsh）")
-            return path, ["-NoProfile", "-Command"], "powershell"
+            result = (path, ["-NoProfile", "-Command"], "powershell")
 
-        if interpreter == "cmd":
+        elif interpreter == "cmd":
             if not self._is_windows:
                 raise RuntimeError("interpreter='cmd' 仅在 Windows 上可用")
             path = shutil.which("cmd") or "cmd.exe"
-            return path, ["/c"], "cmd"
+            result = (path, ["/c"], "cmd")
 
-        if interpreter != "auto":
+        elif interpreter != "auto":
             raise ValueError(
                 f"不支持的 interpreter: {interpreter}，可选值: auto、bash、cmd、powershell"
             )
 
-        # auto
-        if self._is_windows:
-            bash = self._find_git_bash()
-            if bash:
-                return bash, ["-c"], "posix"
-            ps = shutil.which("pwsh") or shutil.which("powershell")
-            if ps:
-                return ps, ["-NoProfile", "-Command"], "powershell"
-            return shutil.which("cmd") or "cmd.exe", ["/c"], "cmd"
+        if result is None:
+            # auto
+            if self._is_windows:
+                bash = self._find_git_bash()
+                if bash:
+                    result = (bash, ["-c"], "posix")
+                else:
+                    wsl = self._find_wsl_bash()
+                    if wsl:
+                        result = (wsl, ["bash", "-c"], "wsl")
+                    else:
+                        ps = shutil.which("pwsh") or shutil.which("powershell")
+                        if ps:
+                            result = (ps, ["-NoProfile", "-Command"], "powershell")
+                        else:
+                            result = (shutil.which("cmd") or "cmd.exe", ["/c"], "cmd")
+            else:
+                bash = shutil.which("bash")
+                if bash:
+                    result = (bash, ["-c"], "posix")
+                else:
+                    sh = shutil.which("sh") or "/bin/sh"
+                    result = (sh, ["-c"], "posix")
 
-        # POSIX
-        bash = shutil.which("bash")
-        if bash:
-            return bash, ["-c"], "posix"
-        sh = shutil.which("sh") or "/bin/sh"
-        return sh, ["-c"], "posix"
+        shell_path, shell_args, shell_family = result
+        logger.info(
+            "ShellExecutor 解释器探测: interpreter=%s path=%s family=%s",
+            interpreter,
+            shell_path,
+            shell_family,
+        )
+        return result
 
     def _find_bash(self) -> str | None:
         return shutil.which("bash")
@@ -207,6 +232,34 @@ class ShellExecutor:
 
         return None
 
+    def _find_wsl_bash(self) -> str | None:
+        """在 Windows 上查找可用的 WSL bash。
+
+        返回 wsl.exe 路径，调用时通过 `wsl.exe bash -c <command>` 执行。
+        """
+        if self._wsl_path is not None:
+            return self._wsl_path
+
+        wsl_exe = shutil.which("wsl") or shutil.which("wsl.exe")
+        if not wsl_exe:
+            self._wsl_path = ""
+            return None
+
+        try:
+            # 快速验证 WSL 是否可用（不启动完整发行版）
+            subprocess.run(
+                [wsl_exe, "--list", "--quiet"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                timeout=5,
+                check=True,
+            )
+            self._wsl_path = wsl_exe
+            return wsl_exe
+        except Exception:
+            self._wsl_path = ""
+            return None
+
     # -----------------------------------------------------------------------
     # 路径转换
     # -----------------------------------------------------------------------
@@ -251,6 +304,15 @@ class ShellExecutor:
         except Exception:
             return False
 
+    @staticmethod
+    def rewrite_windows_null_redirect(command: str) -> str:
+        r"""把 Windows 风格的 NUL 重定向改写成 POSIX 的 /dev/null。
+
+        例如 `echo x >NUL 2>&1` -> `echo x > /dev/null 2>&1`。
+        Git Bash 和 WSL bash 都能识别 /dev/null，但不认 Windows 的 NUL。
+        """
+        return re.sub(r"(\d?&?>+\s*)[Nn][Uu][Ll](?=\s|$|[|&;)\n])", r"\1/dev/null", command)
+
     # -----------------------------------------------------------------------
     # 命令执行
     # -----------------------------------------------------------------------
@@ -270,10 +332,17 @@ class ShellExecutor:
             cwd = str(cwd)
             if self._is_windows and shell_family == "posix":
                 cwd = self.win_path_to_posix(cwd)
+            elif shell_family == "wsl":
+                wsl_cwd = self.win_path_to_wsl(cwd)
+                if wsl_cwd:
+                    cwd = wsl_cwd
             elif self.is_wsl():
                 wsl_cwd = self.win_path_to_wsl(cwd)
                 if wsl_cwd:
                     cwd = wsl_cwd
+
+        if self._is_windows and shell_family in ("posix", "wsl"):
+            command = self.rewrite_windows_null_redirect(command)
 
         argv = [shell_path, *shell_args, command]
         env = self._build_env(options.env, shell_family)
@@ -364,11 +433,15 @@ class ShellExecutor:
         else:
             await self._kill_posix_process_tree(pid)
 
-        # 确保 asyncio 的 proc 也被回收
+        # 确保 asyncio 的 proc 也被回收；如果孙进程持有 stdout/stderr fd 导致 wait 挂起，
+        # 加一个 drain timeout 避免无限阻塞。
         try:
             if proc.returncode is None:
                 proc.kill()
-                await proc.wait()
+                try:
+                    await asyncio.wait_for(proc.wait(), timeout=IO_DRAIN_TIMEOUT_SECONDS)
+                except asyncio.TimeoutError:
+                    logger.warning("进程 wait 在 kill 后仍超时，放弃回收")
         except Exception:
             pass
 
