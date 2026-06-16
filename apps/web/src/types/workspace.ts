@@ -72,6 +72,12 @@ export interface WorkspaceRuntimeSummary {
   runtime_summary?: SessionRuntimeSummary | null;
 }
 
+export interface ExecutionResourceGroup {
+  python_env_id?: string | null;
+  node_env_id?: string | null;
+  docker_resource_id?: string | null;
+}
+
 export type WorkspaceRuntimeEnvironmentKind = "uv" | "registered_python" | "fnm";
 
 export type WorkspaceRuntimeEnvironmentStatus =
@@ -281,6 +287,7 @@ export interface WorkspaceOverviewWorkspace {
   runtime_binding?: {
     sandbox_mode?: string | null;
     env_id?: string | null;
+    resources?: ExecutionResourceGroup | null;
   } | null;
   current_conversation_id?: string | null;
   conversation_count: number;

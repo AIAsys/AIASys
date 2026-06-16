@@ -23,7 +23,7 @@ from app.models.runtime_environment import (
     WorkspaceRuntimeEnv,
     WorkspaceRuntimeEnvRegistryResponse,
 )
-from app.models.workspace import WorkspaceRuntimeBinding
+from app.models.workspace import ExecutionResourceGroup, WorkspaceRuntimeBinding
 
 logger = logging.getLogger(__name__)
 
@@ -364,6 +364,12 @@ class RuntimeEnvironmentService:
         registry["updated_at"] = _now_iso()
         self._write_registry(workspace_dir, registry)
 
+        # 保留已有的 Node/Docker 资源，只更新 Python
+        updated_resources = ExecutionResourceGroup(
+            python_env_id=env.env_id,
+            node_env_id=current_binding.resources.node_env_id,
+            docker_resource_id=current_binding.resources.docker_resource_id,
+        )
         self.workspace_registry.update_workspace(
             user_id=user_id,
             workspace_id=workspace_id,
@@ -371,6 +377,7 @@ class RuntimeEnvironmentService:
                 sandbox_mode="local",
                 env_id=env.env_id,
                 env_vars=current_binding.env_vars,
+                resources=updated_resources,
             ),
         )
         env.active = True
@@ -411,13 +418,25 @@ class RuntimeEnvironmentService:
                 include_conversations=False,
             )
             current_binding = workspace.runtime_binding
+            # 解绑 Python 时保留 Node/Docker 资源
+            updated_resources = ExecutionResourceGroup(
+                python_env_id=None,
+                node_env_id=current_binding.resources.node_env_id,
+                docker_resource_id=current_binding.resources.docker_resource_id,
+            )
+            sandbox_mode = (
+                "local"
+                if updated_resources.node_env_id and not updated_resources.docker_resource_id
+                else ("docker" if updated_resources.docker_resource_id else None)
+            )
             self.workspace_registry.update_workspace(
                 user_id=user_id,
                 workspace_id=workspace_id,
                 runtime_binding=WorkspaceRuntimeBinding(
-                    sandbox_mode=None,
+                    sandbox_mode=sandbox_mode,
                     env_id=None,
                     env_vars=current_binding.env_vars,
+                    resources=updated_resources,
                 ),
             )
         elif registry.get("active_env_id") == env_id:

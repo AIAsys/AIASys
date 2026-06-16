@@ -36,10 +36,17 @@ export type WorkerRecord = {
 /** 场景ID - 用户可见的场景标识 */
 export type WorkspaceKind = "task" | "claw";
 
+export interface ExecutionResourceGroupSummary {
+  python_env_id?: string | null;
+  node_env_id?: string | null;
+  docker_resource_id?: string | null;
+}
+
 export interface WorkspaceRuntimeBindingSummary {
   sandbox_mode?: string | null;
   env_id?: string | null;
   env_vars?: Record<string, string> | null;
+  resources?: ExecutionResourceGroupSummary | null;
 }
 
 // 聊天消息类型 - 统一为纯消息流

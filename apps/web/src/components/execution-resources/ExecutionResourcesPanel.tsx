@@ -618,8 +618,13 @@ export function ExecutionResourcesPanel({
         await updateTaskWorkspace(workspaceId, {
           runtimeBinding: {
             sandbox_mode: "docker",
-            env_id: resource.container_id,
+            env_id: null,
             env_vars: workspaceSummary?.runtime_binding?.env_vars ?? undefined,
+            resources: {
+              python_env_id: null,
+              node_env_id: null,
+              docker_resource_id: resource.container_id,
+            },
           },
         });
         setNotice({ type: "success", message: "当前工作区已切换到 Docker 沙盒。" });

@@ -23,6 +23,7 @@ from app.models.runtime_environment import (
     RuntimeEnvCommandResult,
     RuntimeEnvPackage,
 )
+from app.models.workspace import ExecutionResourceGroup, WorkspaceRuntimeBinding
 
 logger = logging.getLogger(__name__)
 
@@ -372,6 +373,99 @@ class NodeRuntimeService:
         self._write_registry(workspace_dir, registry)
 
         return result
+
+    # ------------------------------------------------------------------
+    # Workspace-level binding
+    # ------------------------------------------------------------------
+
+    def ensure_workspace_node_env(
+        self,
+        user_id: str,
+        workspace_id: str,
+        *,
+        env_id: str = DEFAULT_NODE_ENV_ID,
+        node_version: str | None = None,
+        create_if_missing: bool = False,
+    ) -> NodeRuntimeEnv:
+        """确保工作区存在指定 Node.js 环境，不存在时按参数创建。"""
+        workspace_dir = self._workspace_dir(user_id, workspace_id)
+        existing = self._find_env(workspace_dir, env_id)
+        if existing is not None:
+            return existing
+
+        if not create_if_missing:
+            raise FileNotFoundError(f"Node.js 环境不存在: {env_id}")
+
+        if not self.is_fnm_available():
+            self._raise_fnm_not_found()
+
+        target_version = _normalize_node_version(node_version or "lts")
+        inspected, _ = self.install_node_version(
+            user_id,
+            workspace_id,
+            version=target_version,
+            env_id=env_id,
+            display_name=f"Node.js {target_version}",
+        )
+        return inspected
+
+    def bind_workspace_node_env(
+        self,
+        user_id: str,
+        workspace_id: str,
+        env_id: str,
+    ) -> NodeRuntimeEnv:
+        """将指定 Node.js 环境设为工作区当前 Node 环境。"""
+        workspace_dir = self._workspace_dir(user_id, workspace_id)
+        env = self._find_env(workspace_dir, env_id)
+        if env is None:
+            raise FileNotFoundError(f"Node.js 环境不存在: {env_id}")
+
+        registry = self._read_registry(workspace_dir)
+        registry["active_env_id"] = env_id
+        updated_envs = []
+        for item in registry.get("envs", []):
+            if not isinstance(item, dict):
+                continue
+            item = dict(item)
+            item["active"] = item.get("env_id") == env_id
+            updated_envs.append(item)
+        registry["envs"] = updated_envs
+        registry["updated_at"] = _now_iso()
+        self._write_registry(workspace_dir, registry)
+
+        # 同步更新工作区 runtime_binding，保留 Python/Docker 资源
+        workspace = self.workspace_registry.get_workspace(
+            user_id,
+            workspace_id,
+            include_conversations=False,
+        )
+        current_binding = workspace.runtime_binding
+        updated_resources = ExecutionResourceGroup(
+            python_env_id=current_binding.resources.python_env_id,
+            node_env_id=env.env_id,
+            docker_resource_id=current_binding.resources.docker_resource_id,
+        )
+        sandbox_mode = (
+            "docker"
+            if updated_resources.docker_resource_id
+            else "local"
+            if updated_resources.python_env_id or updated_resources.node_env_id
+            else None
+        )
+        self.workspace_registry.update_workspace(
+            user_id=user_id,
+            workspace_id=workspace_id,
+            runtime_binding=WorkspaceRuntimeBinding(
+                sandbox_mode=sandbox_mode,
+                env_id=updated_resources.python_env_id,
+                env_vars=current_binding.env_vars,
+                resources=updated_resources,
+            ),
+        )
+
+        env.active = True
+        return self._inspect_node_env(workspace_dir, env)
 
     def list_remote_versions(
         self,

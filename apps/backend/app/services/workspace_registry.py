@@ -19,6 +19,7 @@ from app.models.task_profile import (
     normalize_execution_policy,
 )
 from app.models.workspace import (
+    ExecutionResourceGroup,
     OrphanConversationCleanupCandidate,
     OrphanConversationCleanupResponse,
     WorkspaceConversationSummary,
@@ -83,17 +84,42 @@ def _normalize_workspace_runtime_binding(value: Any) -> WorkspaceRuntimeBinding:
     env_id = str(env_id_raw).strip() if env_id_raw not in (None, "") else None
     env_vars = raw.get("env_vars")
 
+    resources_raw = raw.get("resources")
+    if not isinstance(resources_raw, dict):
+        resources_raw = {}
+
+    docker_resource_id = resources_raw.get("docker_resource_id") or None
+    # Docker 沙盒与本地运行时互斥：优先 Docker，清空本地资源
+    if docker_resource_id or sandbox_mode == "docker":
+        resources = ExecutionResourceGroup(
+            docker_resource_id=docker_resource_id,
+        )
+        return WorkspaceRuntimeBinding(
+            sandbox_mode="docker",
+            env_id=None,
+            env_vars=env_vars if isinstance(env_vars, dict) else None,
+            resources=resources,
+        )
+
+    resources = ExecutionResourceGroup(
+        python_env_id=resources_raw.get("python_env_id") or env_id or None,
+        node_env_id=resources_raw.get("node_env_id") or None,
+        docker_resource_id=None,
+    )
+
     if sandbox_mode in (None, "", "local"):
         return WorkspaceRuntimeBinding(
-            sandbox_mode="local" if env_id else None,
-            env_id=env_id,
+            sandbox_mode="local" if resources.python_env_id or resources.node_env_id else None,
+            env_id=resources.python_env_id,
             env_vars=env_vars if isinstance(env_vars, dict) else None,
+            resources=resources,
         )
 
     return WorkspaceRuntimeBinding(
         sandbox_mode=sandbox_mode,
         env_id=env_id,
         env_vars=env_vars if isinstance(env_vars, dict) else None,
+        resources=resources,
     )
 
 
@@ -110,6 +136,11 @@ def _merge_workspace_runtime_binding(
     for key in ("sandbox_mode", "env_id", "env_vars"):
         if key in raw_patch:
             base[key] = raw_patch[key]
+    if "resources" in raw_patch and isinstance(raw_patch["resources"], dict):
+        base.setdefault("resources", {})
+        for rkey in ("python_env_id", "node_env_id", "docker_resource_id"):
+            if rkey in raw_patch["resources"]:
+                base["resources"][rkey] = raw_patch["resources"][rkey]
     return _normalize_workspace_runtime_binding(base)
 
 
@@ -878,57 +909,97 @@ class WorkspaceRegistryService:
             self._write_workspace_meta(user_id, resolved_workspace_id, meta)
             self._write_conversation_payloads(user_id, resolved_workspace_id, [])
 
-            if normalized_runtime_binding.sandbox_mode == "docker":
+            # 解析执行资源组，按需初始化并绑定 Python / Node / Docker
+            resolved_resources = ExecutionResourceGroup(
+                python_env_id=normalized_runtime_binding.resources.python_env_id,
+                node_env_id=normalized_runtime_binding.resources.node_env_id,
+                docker_resource_id=normalized_runtime_binding.resources.docker_resource_id,
+            )
+            env_vars = normalized_runtime_binding.env_vars
+
+            if resolved_resources.docker_resource_id:
+                # Docker 沙盒模式：本地运行时资源清空
+                resolved_resources.python_env_id = None
+                resolved_resources.node_env_id = None
                 normalized_runtime_binding = WorkspaceRuntimeBinding(
                     sandbox_mode="docker",
-                    env_id=normalized_runtime_binding.env_id,
-                    env_vars=normalized_runtime_binding.env_vars,
-                )
-            elif normalized_runtime_binding.env_id:
-                from app.services.runtime_environment import RuntimeEnvironmentService
-
-                runtime_env_service = RuntimeEnvironmentService(self.base_dir, self)
-                binding_env_id = normalized_runtime_binding.env_id
-
-                if binding_env_id != "workspace-default":
-                    runtime_env_service.inspect_env(
-                        user_id,
-                        resolved_workspace_id,
-                        binding_env_id,
-                    )
-                    inspected = runtime_env_service.bind_workspace_env(
-                        user_id,
-                        resolved_workspace_id,
-                        binding_env_id,
-                    )
-                    normalized_runtime_binding = WorkspaceRuntimeBinding(
-                        sandbox_mode="local",
-                        env_id=inspected.env_id,
-                        env_vars=normalized_runtime_binding.env_vars,
-                    )
-                else:
-                    inspected, _ = runtime_env_service.ensure_uv_env(
-                        user_id=user_id,
-                        workspace_id=resolved_workspace_id,
-                        env_id="workspace-default",
-                        create_venv=True,
-                        sync=True,
-                    )
-                    inspected = runtime_env_service.bind_workspace_env(
-                        user_id,
-                        resolved_workspace_id,
-                        inspected.env_id,
-                    )
-                    normalized_runtime_binding = WorkspaceRuntimeBinding(
-                        sandbox_mode="local",
-                        env_id=inspected.env_id,
-                        env_vars=normalized_runtime_binding.env_vars,
-                    )
-            else:
-                normalized_runtime_binding = WorkspaceRuntimeBinding(
-                    sandbox_mode=None,
                     env_id=None,
-                    env_vars=normalized_runtime_binding.env_vars,
+                    env_vars=env_vars,
+                    resources=resolved_resources,
+                )
+            else:
+                # Python 环境
+                if resolved_resources.python_env_id:
+                    from app.services.runtime_environment import RuntimeEnvironmentService
+
+                    runtime_env_service = RuntimeEnvironmentService(self.base_dir, self)
+                    py_env_id = resolved_resources.python_env_id
+
+                    if py_env_id != "workspace-default":
+                        runtime_env_service.inspect_env(
+                            user_id,
+                            resolved_workspace_id,
+                            py_env_id,
+                        )
+                        inspected = runtime_env_service.bind_workspace_env(
+                            user_id,
+                            resolved_workspace_id,
+                            py_env_id,
+                        )
+                        resolved_resources.python_env_id = inspected.env_id
+                    else:
+                        inspected, _ = runtime_env_service.ensure_uv_env(
+                            user_id=user_id,
+                            workspace_id=resolved_workspace_id,
+                            env_id="workspace-default",
+                            create_venv=True,
+                            sync=True,
+                        )
+                        inspected = runtime_env_service.bind_workspace_env(
+                            user_id,
+                            resolved_workspace_id,
+                            inspected.env_id,
+                        )
+                        resolved_resources.python_env_id = inspected.env_id
+
+                # Node.js 环境
+                if resolved_resources.node_env_id:
+                    from app.services.node_runtime import NodeRuntimeService
+
+                    node_service = NodeRuntimeService(self.base_dir, self)
+                    node_env_id = resolved_resources.node_env_id
+
+                    if node_env_id != "workspace-default":
+                        inspected = node_service.bind_workspace_node_env(
+                            user_id,
+                            resolved_workspace_id,
+                            node_env_id,
+                        )
+                        resolved_resources.node_env_id = inspected.env_id
+                    else:
+                        inspected = node_service.ensure_workspace_node_env(
+                            user_id=user_id,
+                            workspace_id=resolved_workspace_id,
+                            env_id="workspace-default",
+                            create_if_missing=True,
+                        )
+                        inspected = node_service.bind_workspace_node_env(
+                            user_id,
+                            resolved_workspace_id,
+                            inspected.env_id,
+                        )
+                        resolved_resources.node_env_id = inspected.env_id
+
+                sandbox_mode = (
+                    "local"
+                    if resolved_resources.python_env_id or resolved_resources.node_env_id
+                    else None
+                )
+                normalized_runtime_binding = WorkspaceRuntimeBinding(
+                    sandbox_mode=sandbox_mode,
+                    env_id=resolved_resources.python_env_id,
+                    env_vars=env_vars,
+                    resources=resolved_resources,
                 )
 
             meta["runtime_binding"] = normalized_runtime_binding.model_dump(mode="json")

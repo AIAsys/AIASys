@@ -9,7 +9,7 @@ import {
   getWorkspaceRuntimeEnvironments,
   registerWorkspacePythonEnvironment,
 } from "@/lib/api/workspaces";
-import type { EnvChoice } from "@/components/NewWorkspaceDialog";
+import type { ExecutionResourceSelection } from "@/components/NewWorkspaceDialog";
 import type { NewTaskStage, WorkspaceRuntimeEnvironment } from "@/types/workspace";
 import { buildNewTaskLifecycleState } from "@/utils/newTaskLifecycleState";
 
@@ -174,7 +174,7 @@ export function useWorkspaceRuntimeControls({
     async (
       title: string,
       description: string | undefined,
-      envChoice: EnvChoice,
+      resources: ExecutionResourceSelection,
       options: {
         templateId?: string;
         initialConversationTitle?: string;
@@ -206,16 +206,26 @@ export function useWorkspaceRuntimeControls({
         setNewWorkspaceStage("preparing_session");
         const preparedSessionId = await prepareNewSession();
 
-        const runtimeBinding =
-          envChoice.kind === "uv"
-            ? {
-                sandbox_mode: "local",
-                env_id: "workspace-default",
-              }
-            : {
-                sandbox_mode: null,
-                env_id: null,
-              };
+        const runtimeBinding = resources.dockerEnabled
+          ? {
+              sandbox_mode: "docker",
+              env_id: null,
+              resources: {
+                python_env_id: null,
+                node_env_id: null,
+                docker_resource_id: "docker-default",
+              },
+            }
+          : {
+              sandbox_mode:
+                resources.pythonEnabled || resources.nodeEnabled ? "local" : null,
+              env_id: resources.pythonEnabled ? "workspace-default" : null,
+              resources: {
+                python_env_id: resources.pythonEnabled ? "workspace-default" : null,
+                node_env_id: resources.nodeEnabled ? "node-default" : null,
+                docker_resource_id: null,
+              },
+            };
 
         if (sourceFolderPath || tempUploadId) {
           // 文件夹导入：通过 SSE 流式创建
@@ -250,13 +260,16 @@ export function useWorkspaceRuntimeControls({
               },
               onComplete: async (workspaceId, warnings) => {
                 try {
-                  if (envChoice.kind === "registered") {
+                  if (
+                    resources.pythonEnabled &&
+                    resources.pythonSource.kind === "registered"
+                  ) {
                     setNewWorkspaceStage("binding_environment");
                     await registerWorkspacePythonEnvironment(workspaceId, {
-                      envId: `python-${envChoice.kernelName}`,
-                      displayName: `Python (${envChoice.kernelName})`,
-                      pythonExecutable: envChoice.pythonExecutable,
-                      sourceKernelName: envChoice.kernelName,
+                      envId: `python-${resources.pythonSource.kernelName}`,
+                      displayName: `Python (${resources.pythonSource.kernelName})`,
+                      pythonExecutable: resources.pythonSource.pythonExecutable,
+                      sourceKernelName: resources.pythonSource.kernelName,
                       activate: true,
                     });
                   }
@@ -268,11 +281,15 @@ export function useWorkspaceRuntimeControls({
                   setNewWorkspaceStage("idle");
                   setImportProgress(0);
                   showSuccess(
-                    envChoice.kind === "uv"
-                      ? "已创建新工作区并启用 Python"
-                      : envChoice.kind === "registered"
-                        ? "已创建新工作区并绑定已登记 Python"
-                      : "已创建新工作区",
+                    resources.dockerEnabled
+                      ? "已创建新工作区并启用 Docker 沙盒"
+                      : resources.pythonEnabled && resources.nodeEnabled
+                        ? "已创建新工作区并启用 Python + Node.js"
+                        : resources.pythonEnabled
+                          ? "已创建新工作区并启用 Python"
+                          : resources.nodeEnabled
+                            ? "已创建新工作区并启用 Node.js"
+                            : "已创建新工作区",
                   );
                   if (warnings && warnings.length > 0) {
                     for (const warning of warnings) {
@@ -310,13 +327,16 @@ export function useWorkspaceRuntimeControls({
           installCapabilities,
           templateFiles,
         });
-        if (envChoice.kind === "registered") {
+        if (
+          resources.pythonEnabled &&
+          resources.pythonSource.kind === "registered"
+        ) {
           setNewWorkspaceStage("binding_environment");
           await registerWorkspacePythonEnvironment(createdWorkspace.workspace_id, {
-            envId: `python-${envChoice.kernelName}`,
-            displayName: `Python (${envChoice.kernelName})`,
-            pythonExecutable: envChoice.pythonExecutable,
-            sourceKernelName: envChoice.kernelName,
+            envId: `python-${resources.pythonSource.kernelName}`,
+            displayName: `Python (${resources.pythonSource.kernelName})`,
+            pythonExecutable: resources.pythonSource.pythonExecutable,
+            sourceKernelName: resources.pythonSource.kernelName,
             activate: true,
           });
         }
@@ -329,11 +349,15 @@ export function useWorkspaceRuntimeControls({
         setNewWorkspaceStage("idle");
         setImportProgress(0);
         showSuccess(
-          envChoice.kind === "uv"
-            ? "已创建新工作区并启用 Python"
-            : envChoice.kind === "registered"
-              ? "已创建新工作区并绑定已登记 Python"
-            : "已创建新工作区",
+          resources.dockerEnabled
+            ? "已创建新工作区并启用 Docker 沙盒"
+            : resources.pythonEnabled && resources.nodeEnabled
+              ? "已创建新工作区并启用 Python + Node.js"
+              : resources.pythonEnabled
+                ? "已创建新工作区并启用 Python"
+                : resources.nodeEnabled
+                  ? "已创建新工作区并启用 Node.js"
+                  : "已创建新工作区",
         );
         // 提示模板能力安装失败
         if (createdWorkspace.warnings && createdWorkspace.warnings.length > 0) {
