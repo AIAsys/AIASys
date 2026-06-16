@@ -11,6 +11,7 @@ import logging
 import os
 import re
 import shlex
+import shutil
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
@@ -234,11 +235,19 @@ def wrap_shell_command_for_runtime(
         project_dir = plan.uv_project_dir
         if project_dir is None:
             return command, plan.workspace
-        wrapped = (
-            f"uv run --project {_shell_quote(str(project_dir))} "
-            f"--directory {_shell_quote(str(plan.workspace or project_dir))} "
-            f"sh -lc {_shell_quote(command)}"
-        )
+        # Windows 没有 sh，uv run 会因此失败；改用 cmd /c。
+        if os.name == "nt":
+            wrapped = (
+                f"uv run --project {_shell_quote(str(project_dir))} "
+                f"--directory {_shell_quote(str(plan.workspace or project_dir))} "
+                f"cmd /c {_shell_quote(command)}"
+            )
+        else:
+            wrapped = (
+                f"uv run --project {_shell_quote(str(project_dir))} "
+                f"--directory {_shell_quote(str(plan.workspace or project_dir))} "
+                f"sh -lc {_shell_quote(command)}"
+            )
         return wrapped, plan.workspace
 
     return command, plan.workspace
@@ -273,6 +282,14 @@ def build_runtime_shell_env(
             env["AIASYS_RUNTIME_DOCKER_CONTAINER_ID"] = container.docker_container_id
         if container.container_name:
             env["AIASYS_RUNTIME_CONTAINER_NAME"] = container.container_name
+
+    # 确保 uv 在 PATH 中：Windows 桌面版 bash/cmd 子进程默认可能看不到 uv
+    uv_bin = shutil.which("uv")
+    if uv_bin:
+        uv_dir = str(Path(uv_bin).parent)
+        current_path = env.get("PATH", "")
+        if uv_dir not in current_path.split(os.pathsep):
+            env["PATH"] = f"{current_path}{os.pathsep}{uv_dir}"
 
     # Windows 中文编码兜底
     if os.name == "nt":

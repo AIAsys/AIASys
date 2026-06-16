@@ -7,7 +7,6 @@ import pytest
 
 from app.models.runtime_environment import WorkspaceRuntimeEnv
 from app.services.history import (
-    current_runtime_env_vars,
     current_runtime_execution_plan,
     current_workspace,
 )
@@ -82,8 +81,12 @@ def test_resolve_runtime_plan_accepts_string_workspace_context(
             material_path=str(tmp_path / "env"),
         )
     )
-    monkeypatch.setattr("app.services.workspace_registry.get_workspace_registry_service", lambda: registry)
-    monkeypatch.setattr("app.services.runtime_environment.get_runtime_environment_service", lambda: env_service)
+    monkeypatch.setattr(
+        "app.services.workspace_registry.get_workspace_registry_service", lambda: registry
+    )
+    monkeypatch.setattr(
+        "app.services.runtime_environment.get_runtime_environment_service", lambda: env_service
+    )
     token = current_workspace.set(str(tmp_path))
 
     try:
@@ -103,8 +106,12 @@ def test_resolve_runtime_plan_without_python_binding_uses_plain_shell(
 ) -> None:
     registry = _FakeRegistry(_FakeWorkspace(env_id=None, sandbox_mode=None))
     env_service = _FakeRuntimeEnvService(None)
-    monkeypatch.setattr("app.services.workspace_registry.get_workspace_registry_service", lambda: registry)
-    monkeypatch.setattr("app.services.runtime_environment.get_runtime_environment_service", lambda: env_service)
+    monkeypatch.setattr(
+        "app.services.workspace_registry.get_workspace_registry_service", lambda: registry
+    )
+    monkeypatch.setattr(
+        "app.services.runtime_environment.get_runtime_environment_service", lambda: env_service
+    )
 
     plan = resolve_runtime_execution_plan(workspace=tmp_path)
     command, cwd = wrap_shell_command_for_runtime("python -V", plan=plan)
@@ -177,6 +184,42 @@ def test_wrap_uv_shell_command_uses_uv_project_and_workspace_directory(
     assert f"--directory {workspace}" in command
     assert "sh -lc" in command
     assert "python -c" in command
+
+
+def test_wrap_uv_shell_command_uses_cmd_on_windows(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Windows 上没有 sh，uv 包装应改用 cmd /c。"""
+    monkeypatch.setattr(runtime_execution.os, "name", "nt")
+    workspace = tmp_path / "workspace"
+    project_dir = tmp_path / "workspace" / "env"
+    plan = RuntimeExecutionPlan(
+        sandbox_mode="local",
+        env_id="uv-env",
+        display_name="Workspace UV",
+        workspace=workspace,
+        env=WorkspaceRuntimeEnv(
+            env_id="uv-env",
+            kind="uv",
+            display_name="Workspace UV",
+            material_path=str(project_dir),
+        ),
+    )
+
+    command, cwd = wrap_shell_command_for_runtime(
+        "python -V",
+        plan=plan,
+    )
+
+    assert cwd == workspace
+    assert "uv run --project" in command
+    assert "workspace/env" in command.replace("\\", "/")
+    assert "--directory" in command
+    assert "workspace" in command.replace("\\", "/")
+    assert "cmd /c" in command
+    assert "sh -lc" not in command
+    assert "python -V" in command
 
 
 def test_uv_kernel_spec_is_created_in_dynamic_kernel_dir(
@@ -273,6 +316,36 @@ def test_wrap_registered_python_shell_command_uses_bound_interpreter(
     assert shell_env["PATH"].startswith(str(tmp_path))
 
 
+def test_build_runtime_shell_env_injects_uv_to_path(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """build_runtime_shell_env 应把 uv 可执行文件所在目录追加到 PATH，避免子进程找不到 uv。"""
+    fake_uv = tmp_path / "bin" / "uv"
+    fake_uv.parent.mkdir(parents=True)
+    fake_uv.write_text("#!/bin/sh\necho fake uv", encoding="utf-8")
+    fake_uv.chmod(0o755)
+    monkeypatch.setattr(runtime_execution.shutil, "which", lambda _name: str(fake_uv))
+
+    workspace = tmp_path / "workspace"
+    project_dir = tmp_path / "workspace" / "env"
+    plan = RuntimeExecutionPlan(
+        sandbox_mode="local",
+        env_id="uv-env",
+        display_name="Workspace UV",
+        workspace=workspace,
+        env=WorkspaceRuntimeEnv(
+            env_id="uv-env",
+            kind="uv",
+            display_name="Workspace UV",
+            material_path=str(project_dir),
+        ),
+    )
+
+    shell_env = build_runtime_shell_env({"PATH": "/usr/bin"}, plan=plan)
+    assert str(fake_uv.parent) in shell_env["PATH"]
+
+
 def test_resolve_runtime_plan_prefers_frozen_execution_plan(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -295,8 +368,12 @@ def test_resolve_runtime_plan_prefers_frozen_execution_plan(
         env_vars={"TOKEN": "frozen"},
         frozen=True,
     )
-    monkeypatch.setattr("app.services.workspace_registry.get_workspace_registry_service", lambda: registry)
-    monkeypatch.setattr("app.services.runtime_environment.get_runtime_environment_service", lambda: env_service)
+    monkeypatch.setattr(
+        "app.services.workspace_registry.get_workspace_registry_service", lambda: registry
+    )
+    monkeypatch.setattr(
+        "app.services.runtime_environment.get_runtime_environment_service", lambda: env_service
+    )
     workspace_token = current_workspace.set(tmp_path / "workspaces" / "alice" / "task-alpha")
     plan_token = current_runtime_execution_plan.set(frozen_plan)
 
