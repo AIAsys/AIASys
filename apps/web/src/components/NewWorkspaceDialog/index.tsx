@@ -2,10 +2,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ChevronDown,
   ChevronUp,
+  Container,
   FileText,
   Folder,
   FolderOpen,
   FolderPlus,
+  Hexagon,
   Loader2,
   SquareTerminal,
   Lightbulb,
@@ -60,6 +62,18 @@ import { TemplateSortableGrid } from "@/components/TemplateSortableGrid";
 import { NewWorkspaceProgressBanner } from "./NewWorkspaceProgressBanner";
 import { TemplatePreviewFileTree } from "./TemplatePreviewFileTree";
 
+export type PythonEnvSource =
+  | { kind: "uv" }
+  | { kind: "registered"; kernelName: string; pythonExecutable: string };
+
+export interface ExecutionResourceSelection {
+  pythonEnabled: boolean;
+  pythonSource: PythonEnvSource;
+  nodeEnabled: boolean;
+  dockerEnabled: boolean;
+}
+
+/** @deprecated 使用 ExecutionResourceSelection */
 export type EnvChoice =
   | { kind: "none" }
   | { kind: "uv" }
@@ -71,7 +85,7 @@ interface NewWorkspaceDialogProps {
   onConfirm: (
     title: string,
     description: string | undefined,
-    envChoice: EnvChoice,
+    resources: ExecutionResourceSelection,
     options: {
       templateId?: string;
       initialConversationTitle?: string;
@@ -93,7 +107,7 @@ interface NewWorkspaceDialogProps {
 
 
 const ENV_LABEL_MAP: Record<string, string> = {
-  none: "不启用 Python",
+  none: "不启用环境",
   uv: "Python 环境",
   registered: "已登记 Python",
   docker: "Docker",
@@ -117,7 +131,12 @@ export function NewWorkspaceDialog({
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [envKind, setEnvKind] = useState<EnvChoice["kind"]>("none");
+  const [resources, setResources] = useState<ExecutionResourceSelection>({
+    pythonEnabled: false,
+    pythonSource: { kind: "uv" },
+    nodeEnabled: false,
+    dockerEnabled: false,
+  });
   const [selectedKernelName, setSelectedKernelName] = useState("");
 
   const [previewExpanded, setPreviewExpanded] = useState(false);
@@ -154,7 +173,7 @@ export function NewWorkspaceDialog({
 
   const isDesktop = typeof window !== "undefined" && window.__AIASYS_DESKTOP__?.selectFolder !== undefined;
 
-  // 切换模板时重置预览收起，并重置推荐能力勾选和文件勾选
+  // 切换模板时重置预览收起，并重置推荐能力勾选、文件勾选和执行资源组
   useEffect(() => {
     setPreviewExpanded(false);
     setCapabilitiesExpanded(false);
@@ -163,9 +182,21 @@ export function NewWorkspaceDialog({
       const capIds = (template.recommended_capabilities ?? []).map((c) => c.capability_id);
       setSelectedCapabilities(new Set(capIds));
       setSelectedTemplateFiles(new Set(template.files.map((f) => f.relative_path)));
+      setResources((prev) => ({
+        ...prev,
+        pythonEnabled: Boolean(template.runtime_resources?.python_env_id),
+        nodeEnabled: Boolean(template.runtime_resources?.node_env_id),
+        dockerEnabled: Boolean(template.runtime_resources?.docker_resource_id),
+      }));
     } else {
       setSelectedCapabilities(new Set());
       setSelectedTemplateFiles(new Set());
+      setResources({
+        pythonEnabled: false,
+        pythonSource: { kind: "uv" },
+        nodeEnabled: false,
+        dockerEnabled: false,
+      });
     }
   }, [selectedTemplateId, templates]);
 
@@ -243,7 +274,12 @@ export function NewWorkspaceDialog({
     if (isOpen && !isSubmitting) {
       setTitle("");
       setDescription("");
-      setEnvKind("none");
+      setResources({
+        pythonEnabled: false,
+        pythonSource: { kind: "uv" },
+        nodeEnabled: false,
+        dockerEnabled: false,
+      });
       setSelectedKernelName("");
       setSelectedTemplateId("blank-workspace");
       setCreationMode("blank");
@@ -262,15 +298,15 @@ export function NewWorkspaceDialog({
     }
   }, [isOpen, isSubmitting]);
 
-  // 环境类型切换时清理已登记环境选择
+  // Python 未启用或非已登记来源时清理已登记环境选择
   useEffect(() => {
-    if (envKind !== "registered") {
+    if (!resources.pythonEnabled || resources.pythonSource.kind !== "registered") {
       setSelectedKernelName("");
     }
-  }, [envKind]);
+  }, [resources.pythonEnabled, resources.pythonSource.kind]);
 
   useEffect(() => {
-    if (envKind !== "registered") {
+    if (!resources.pythonEnabled || resources.pythonSource.kind !== "registered") {
       return;
     }
     if (
@@ -280,7 +316,12 @@ export function NewWorkspaceDialog({
       return;
     }
     setSelectedKernelName(selectableRegisteredEnvs[0]?.name ?? "");
-  }, [envKind, selectableRegisteredEnvs, selectedKernelName]);
+  }, [
+    resources.pythonEnabled,
+    resources.pythonSource.kind,
+    selectableRegisteredEnvs,
+    selectedKernelName,
+  ]);
 
   const effectiveLifecycleState = useMemo(
     () =>
@@ -301,9 +342,13 @@ export function NewWorkspaceDialog({
 
   const selectedRegisteredEnv =
     selectableRegisteredEnvs.find((env) => env.name === selectedKernelName) ?? null;
+  const pythonRegisteredValid =
+    !resources.pythonEnabled ||
+    resources.pythonSource.kind !== "registered" ||
+    Boolean(selectedRegisteredEnv?.executable);
   const canSubmit =
     trimmedTitle.length > 0 &&
-    (envKind !== "registered" || Boolean(selectedRegisteredEnv?.executable)) &&
+    pythonRegisteredValid &&
     (creationMode !== "folder" ||
       (!isUploadingFiles &&
         ((isDesktop && Boolean(selectedFolderPath && selectedImportFiles.size > 0)) ||
@@ -585,14 +630,21 @@ export function NewWorkspaceDialog({
     (selectedTemplate.recommended_capabilities?.length ?? 0) > 0;
 
   const handleConfirm = async () => {
-    const choice: EnvChoice =
-      envKind === "registered" && selectedRegisteredEnv?.executable
-        ? {
-            kind: "registered",
-            kernelName: selectedRegisteredEnv.name,
-            pythonExecutable: selectedRegisteredEnv.executable,
-          }
-        : { kind: envKind === "uv" ? "uv" : "none" };
+    const resourceSelection: ExecutionResourceSelection = {
+      pythonEnabled: resources.pythonEnabled,
+      pythonSource:
+        resources.pythonEnabled &&
+        resources.pythonSource.kind === "registered" &&
+        selectedRegisteredEnv?.executable
+          ? {
+              kind: "registered",
+              kernelName: selectedRegisteredEnv.name,
+              pythonExecutable: selectedRegisteredEnv.executable,
+            }
+          : { kind: "uv" },
+      nodeEnabled: resources.nodeEnabled,
+      dockerEnabled: resources.dockerEnabled,
+    };
 
     if (creationMode === "folder") {
       if (!isDesktop) {
@@ -611,7 +663,7 @@ export function NewWorkspaceDialog({
           const result = await uploadImportFolder(filesToUpload, (percent) => {
             setUploadProgress(percent);
           });
-          await onConfirm(trimmedTitle, trimmedDescription || undefined, choice, {
+          await onConfirm(trimmedTitle, trimmedDescription || undefined, resourceSelection, {
             tempUploadId: result.upload_id,
             importFiles: Array.from(selectedImportFiles),
           });
@@ -623,14 +675,14 @@ export function NewWorkspaceDialog({
         return;
       }
 
-      void onConfirm(trimmedTitle, trimmedDescription || undefined, choice, {
+      void onConfirm(trimmedTitle, trimmedDescription || undefined, resourceSelection, {
         sourceFolderPath: selectedFolderPath ?? undefined,
         importFiles: Array.from(selectedImportFiles),
       });
       return;
     }
 
-    void onConfirm(trimmedTitle, trimmedDescription || undefined, choice, {
+    void onConfirm(trimmedTitle, trimmedDescription || undefined, resourceSelection, {
       templateId: selectedTemplateId === "blank-workspace" ? undefined : selectedTemplateId,
       initialConversationTitle: selectedTemplate?.initial_conversation_title,
       installCapabilities: Array.from(selectedCapabilities),
@@ -896,131 +948,203 @@ export function NewWorkspaceDialog({
 
           <div className="min-w-0 space-y-3 overflow-hidden">
             <div className="flex items-center justify-between">
-              <Label>Python 运行环境</Label>
+              <Label>执行资源组</Label>
               {selectedTemplate &&
                 selectedTemplate.template_id !== "blank-workspace" &&
-                selectedTemplate.env_kind &&
-                selectedTemplate.env_kind !== "none" && (
+                selectedTemplate.runtime_resources &&
+                (selectedTemplate.runtime_resources.python_env_id ||
+                  selectedTemplate.runtime_resources.node_env_id) && (
                   <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
                     <Lightbulb className="h-3 w-3" />
-                    推荐环境：{ENV_LABEL_MAP[selectedTemplate.env_kind] ?? selectedTemplate.env_kind}
+                    推荐：
+                    {[
+                      selectedTemplate.runtime_resources.python_env_id && "Python",
+                      selectedTemplate.runtime_resources.node_env_id && "Node.js",
+                    ]
+                      .filter(Boolean)
+                      .join("、")}
                   </span>
                 )}
             </div>
-            <RadioGroup
-              value={envKind}
-              onValueChange={(value) => setEnvKind(value as EnvChoice["kind"])}
-              className="gap-2"
-              disabled={effectiveLifecycleState.isBusy}
-            >
-              <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-border bg-background px-3 py-2">
-                <RadioGroupItem value="none" className="mt-0.5" />
-                <span className="min-w-0">
-                  <span className="flex items-center gap-2 text-sm font-medium">
-                    <SquareTerminal className="h-4 w-4 text-muted-foreground" />
-                    不启用 Python
-                  </span>
-                  <span className="mt-0.5 block text-xs leading-5 text-muted-foreground">
-                    不创建也不绑定 Python，普通文件、资料整理和对话任务可以直接开始。
-                  </span>
-                </span>
-              </label>
-              <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-border bg-background px-3 py-2">
-                <RadioGroupItem value="uv" className="mt-0.5" />
-                <span className="min-w-0">
-                  <span className="flex items-center gap-2 text-sm font-medium">
-                    <SquareTerminal className="h-4 w-4 text-muted-foreground" />
-                    创建新的 Python 环境
-                  </span>
-                  <span className="mt-0.5 block text-xs leading-5 text-muted-foreground">
-                    在当前工作区创建隔离环境，适合需要 notebook、依赖安装或可复现实验的任务。
-                  </span>
 
-                </span>
-              </label>
+            <div className="space-y-2">
+              {/* Python */}
               <label
                 className={cn(
                   "flex cursor-pointer items-start gap-3 rounded-lg border border-border bg-background px-3 py-2",
-                  selectableRegisteredEnvs.length === 0 && "cursor-not-allowed opacity-60",
+                  resources.dockerEnabled && "cursor-not-allowed opacity-60",
                 )}
               >
-                <RadioGroupItem
-                  value="registered"
+                <Checkbox
+                  checked={resources.pythonEnabled}
+                  onCheckedChange={(checked) =>
+                    setResources((prev) => ({
+                      ...prev,
+                      pythonEnabled: checked === true,
+                    }))
+                  }
+                  disabled={resources.dockerEnabled || effectiveLifecycleState.isBusy}
                   className="mt-0.5"
-                  disabled={selectableRegisteredEnvs.length === 0}
                 />
                 <span className="min-w-0 flex-1">
                   <span className="flex items-center gap-2 text-sm font-medium">
                     <SquareTerminal className="h-4 w-4 text-muted-foreground" />
-                    使用已登记 Python
+                    Python 环境
                   </span>
                   <span className="mt-0.5 block text-xs leading-5 text-muted-foreground">
-                    {selectableRegisteredEnvs.length === 0
-                      ? "当前没有可用的已登记 Python，请先在执行资源中登记本机解释器。"
-                      : "绑定本机已登记解释器。依赖安装会影响该解释器对应环境。"}
+                    在当前工作区创建隔离 Python 环境，适合 notebook、依赖安装和可复现实验。
+                  </span>
+
+                  {resources.pythonEnabled ? (
+                    <div className="mt-2 space-y-2">
+                      <RadioGroup
+                        value={resources.pythonSource.kind}
+                        onValueChange={(value) =>
+                          setResources((prev) => ({
+                            ...prev,
+                            pythonSource:
+                              value === "registered"
+                                ? { kind: "registered", kernelName: "", pythonExecutable: "" }
+                                : { kind: "uv" },
+                          }))
+                        }
+                        className="gap-2"
+                        disabled={effectiveLifecycleState.isBusy}
+                      >
+                        <label className="flex cursor-pointer items-center gap-2 text-xs">
+                          <RadioGroupItem value="uv" />
+                          新建 UV 环境
+                        </label>
+                        <label
+                          className={cn(
+                            "flex cursor-pointer items-center gap-2 text-xs",
+                            selectableRegisteredEnvs.length === 0 &&
+                              "cursor-not-allowed opacity-60",
+                          )}
+                        >
+                          <RadioGroupItem
+                            value="registered"
+                            disabled={selectableRegisteredEnvs.length === 0}
+                          />
+                          使用已登记 Python
+                        </label>
+                      </RadioGroup>
+
+                      {resources.pythonSource.kind === "registered" ? (
+                        <div className="space-y-1">
+                          <Select
+                            value={selectedKernelName}
+                            onValueChange={setSelectedKernelName}
+                            disabled={
+                              effectiveLifecycleState.isBusy ||
+                              selectableRegisteredEnvs.length === 0
+                            }
+                          >
+                            <SelectTrigger
+                              id="registered-python-choice"
+                              className="h-8 w-full min-w-0 max-w-full text-xs"
+                            >
+                              <SelectValue placeholder="选择已登记 Python">
+                                {selectedRegisteredEnv?.display_name ||
+                                  selectedRegisteredEnv?.name}
+                              </SelectValue>
+                            </SelectTrigger>
+                            <SelectContent className="w-[var(--radix-select-trigger-width)] max-w-[var(--radix-select-trigger-width)]">
+                              {selectableRegisteredEnvs.map((env) => (
+                                <SelectItem
+                                  key={env.name}
+                                  value={env.name}
+                                  className="max-w-[var(--radix-select-trigger-width)]"
+                                  title={env.executable}
+                                >
+                                  <span className="flex min-w-0 max-w-full flex-col overflow-hidden">
+                                    <span
+                                      className="truncate"
+                                      title={env.display_name || env.name}
+                                    >
+                                      {env.display_name || env.name}
+                                    </span>
+                                    <span
+                                      className="truncate font-mono text-[11px] text-muted-foreground"
+                                      title={env.executable}
+                                    >
+                                      {env.executable}
+                                    </span>
+                                  </span>
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          {selectedRegisteredEnv?.executable ? (
+                            <div
+                              className="min-w-0 truncate font-mono text-[11px] text-muted-foreground"
+                              title={selectedRegisteredEnv.executable}
+                            >
+                              {selectedRegisteredEnv.executable}
+                            </div>
+                          ) : null}
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </span>
+              </label>
+
+              {/* Node.js */}
+              <label
+                className={cn(
+                  "flex cursor-pointer items-start gap-3 rounded-lg border border-border bg-background px-3 py-2",
+                  resources.dockerEnabled && "cursor-not-allowed opacity-60",
+                )}
+              >
+                <Checkbox
+                  checked={resources.nodeEnabled}
+                  onCheckedChange={(checked) =>
+                    setResources((prev) => ({
+                      ...prev,
+                      nodeEnabled: checked === true,
+                    }))
+                  }
+                  disabled={resources.dockerEnabled || effectiveLifecycleState.isBusy}
+                  className="mt-0.5"
+                />
+                <span className="min-w-0">
+                  <span className="flex items-center gap-2 text-sm font-medium">
+                    <Hexagon className="h-4 w-4 text-muted-foreground" />
+                    Node.js 环境
+                  </span>
+                  <span className="mt-0.5 block text-xs leading-5 text-muted-foreground">
+                    创建 Node.js 环境，适合前端构建、npm 脚本和 JavaScript/TypeScript 任务。
                   </span>
                 </span>
               </label>
-            </RadioGroup>
 
-            {envKind === "registered" ? (
-              <div className="min-w-0 max-w-full space-y-2 overflow-hidden pl-7">
-                <Select
-                  value={selectedKernelName}
-                  onValueChange={setSelectedKernelName}
-                  disabled={
-                    effectiveLifecycleState.isBusy ||
-                    selectableRegisteredEnvs.length === 0
+              {/* Docker */}
+              <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-border bg-background px-3 py-2">
+                <Checkbox
+                  checked={resources.dockerEnabled}
+                  onCheckedChange={(checked) =>
+                    setResources((prev) => ({
+                      ...prev,
+                      dockerEnabled: checked === true,
+                      pythonEnabled: checked === true ? false : prev.pythonEnabled,
+                      nodeEnabled: checked === true ? false : prev.nodeEnabled,
+                    }))
                   }
-                >
-                  <SelectTrigger
-                    id="registered-python-choice"
-                    className="w-full min-w-0 max-w-full"
-                  >
-                    <SelectValue placeholder="选择已登记 Python">
-                      {selectedRegisteredEnv?.display_name || selectedRegisteredEnv?.name}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent className="w-[var(--radix-select-trigger-width)] max-w-[var(--radix-select-trigger-width)]">
-                    {selectableRegisteredEnvs.map((env) => (
-                      <SelectItem
-                        key={env.name}
-                        value={env.name}
-                        className="max-w-[var(--radix-select-trigger-width)]"
-                        title={env.executable}
-                      >
-                        <span className="flex min-w-0 max-w-full flex-col overflow-hidden">
-                          <span className="truncate" title={env.display_name || env.name}>
-                            {env.display_name || env.name}
-                          </span>
-                          <span
-                            className="truncate font-mono text-[11px] text-muted-foreground"
-                            title={env.executable}
-                          >
-                            {env.executable}
-                          </span>
-                        </span>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {selectedRegisteredEnv?.executable ? (
-                  <div
-                    className="min-w-0 truncate font-mono text-[11px] text-muted-foreground"
-                    title={selectedRegisteredEnv.executable}
-                  >
-                    {selectedRegisteredEnv.executable}
-                  </div>
-                ) : null}
-                <p className="text-xs text-muted-foreground">
-                  {isLoadingRegisteredPythonEnvs
-                    ? "正在加载已登记 Python..."
-                    : selectableRegisteredEnvs.length > 0
-                      ? "创建工作区后会把所选解释器登记到该工作区并设为当前 Python。"
-                      : "当前没有可用的已登记 Python。"}
-                </p>
-              </div>
-            ) : null}
+                  disabled={effectiveLifecycleState.isBusy}
+                  className="mt-0.5"
+                />
+                <span className="min-w-0">
+                  <span className="flex items-center gap-2 text-sm font-medium">
+                    <Container className="h-4 w-4 text-muted-foreground" />
+                    Docker 沙盒
+                  </span>
+                  <span className="mt-0.5 block text-xs leading-5 text-muted-foreground">
+                    使用容器执行，与本地 Python/Node 环境互斥。
+                  </span>
+                </span>
+              </label>
+            </div>
           </div>
 
           {creationMode === "template" && (

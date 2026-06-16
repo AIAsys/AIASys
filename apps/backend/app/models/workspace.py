@@ -6,25 +6,78 @@ from __future__ import annotations
 
 from typing import Any, Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from app.models.session import ExecutionRecord, RecoveryPolicy
 from app.models.task_profile import TaskExecutionPolicy
 
 
+class ExecutionResourceGroup(BaseModel):
+    """工作区执行资源组：把 Python、Node.js、Docker 等运行时统一成可勾选组合。"""
+
+    python_env_id: Optional[str] = Field(
+        default=None,
+        description="绑定的 Python 环境 ID（WorkspaceRuntimeEnv.env_id）",
+    )
+    node_env_id: Optional[str] = Field(
+        default=None,
+        description="绑定的 Node.js 环境 ID（NodeRuntimeEnv.env_id）",
+    )
+    docker_resource_id: Optional[str] = Field(
+        default=None,
+        description="绑定的 Docker 容器资源 ID",
+    )
+
+    @model_validator(mode="after")
+    def _validate_docker_not_with_local(self) -> "ExecutionResourceGroup":
+        """Docker 沙盒与本地 Python/Node 环境不叠加。"""
+        if self.docker_resource_id and (self.python_env_id or self.node_env_id):
+            raise ValueError("Docker 沙盒模式下不能同时绑定本地 Python/Node 环境")
+        return self
+
+
 class WorkspaceRuntimeBinding(BaseModel):
     sandbox_mode: Optional[str] = Field(
         default=None,
-        description="工作区默认执行方式；为空表示当前任务未绑定 Python/沙盒环境",
+        description="工作区默认执行方式；为空表示当前任务未绑定 Python/沙盒环境（兼容字段，优先读 resources）",
     )
     env_id: Optional[str] = Field(
         default=None,
-        description="工作区默认执行环境 ID；为空表示当前任务不带 Python 环境",
+        description="工作区默认执行环境 ID；为空表示当前任务不带 Python 环境（兼容字段，映射到 resources.python_env_id）",
     )
     env_vars: Optional[dict[str, str]] = Field(
         default=None,
-        description="注入到执行环境的环境变量（Shell / Python Kernel / Notebook）",
+        description="注入到执行环境的环境变量（Shell / Python Kernel / Notebook / Node）",
     )
+    resources: ExecutionResourceGroup = Field(
+        default_factory=ExecutionResourceGroup,
+        description="执行资源组：工作区可勾选组合的 Python/Node/Docker 资源",
+    )
+
+    @model_validator(mode="after")
+    def _sync_legacy_fields(self) -> "WorkspaceRuntimeBinding":
+        """保持旧 env_id/sandbox_mode 与新 resources 的双向同步。"""
+        if self.env_id and not self.resources.python_env_id:
+            self.resources.python_env_id = self.env_id
+        if self.resources.python_env_id and not self.env_id:
+            self.env_id = self.resources.python_env_id
+        if self.resources.docker_resource_id and self.sandbox_mode != "docker":
+            self.sandbox_mode = "docker"
+        if self.sandbox_mode == "docker" and not self.resources.docker_resource_id:
+            # 旧数据只有 sandbox_mode=docker 时，保持兼容，不自动清理
+            pass
+        return self
+
+    def to_execution_summary(self) -> dict[str, Any]:
+        """返回执行层需要的资源视图。"""
+        return {
+            "sandbox_mode": self.sandbox_mode,
+            "env_id": self.env_id,
+            "python_env_id": self.resources.python_env_id,
+            "node_env_id": self.resources.node_env_id,
+            "docker_resource_id": self.resources.docker_resource_id,
+            "env_vars": self.env_vars,
+        }
 
 
 class CreateWorkspaceRequest(BaseModel):

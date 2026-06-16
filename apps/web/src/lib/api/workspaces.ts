@@ -201,6 +201,11 @@ export interface WorkspaceTemplateItem {
   env_kind: string;
   is_builtin?: boolean;
   env_vars?: Record<string, string>;
+  runtime_resources?: {
+    python_env_id?: string | null;
+    node_env_id?: string | null;
+    docker_resource_id?: string | null;
+  } | null;
   recommended_skills: string[];
   recommended_mcps: string[];
   recommended_capabilities: CapabilityDeclaration[];

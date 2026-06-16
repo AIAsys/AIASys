@@ -25,6 +25,7 @@ except ImportError:  # pragma: no cover
 
 from app.capabilities.models import CapabilityDeclaration, CapabilityKind
 from app.core.config import get_user_global_workspace_dir
+from app.models.workspace import ExecutionResourceGroup
 
 logger = logging.getLogger(__name__)
 
@@ -49,13 +50,14 @@ class WorkspaceTemplate:
     default_title: str
     default_description: str
     initial_conversation_title: str
-    env_kind: str  # "none" | "uv" | "registered"
+    env_kind: str  # "none" | "uv" | "registered"（兼容字段，优先使用 runtime_resources）
     files: list[TemplateFileSpec]
     source_dir: Path  # 模板源目录，用于复制 workspace_memory.md 等额外文件
     recommended_skills: list[str]  # 兼容旧格式
     recommended_mcps: list[str]  # 兼容旧格式
     recommended_capabilities: list[CapabilityDeclaration]
     env_vars: dict[str, str] = field(default_factory=dict)
+    runtime_resources: ExecutionResourceGroup = field(default_factory=ExecutionResourceGroup)
 
 
 def _list_template_dirs() -> list[Path]:
@@ -130,6 +132,14 @@ def _load_template(template_dir: Path) -> WorkspaceTemplate | None:
                     TemplateFileSpec(relative_path=rel_path, content=content, source_path=src_path)
                 )
 
+    env_kind = str(raw.get("env_kind", "none")).strip().lower()
+    runtime_resources = _parse_runtime_resources(
+        raw.get("runtime_contract") or raw.get("runtime_resources")
+    )
+    # 兼容旧 env_kind：如果 runtime_resources 为空但 env_kind 是 uv/registered，则映射为 Python 资源
+    if not runtime_resources.python_env_id and env_kind in ("uv", "registered"):
+        runtime_resources = ExecutionResourceGroup(python_env_id="workspace-default")
+
     return WorkspaceTemplate(
         template_id=template_id,
         name=str(raw.get("name", template_id)).strip(),
@@ -139,7 +149,7 @@ def _load_template(template_dir: Path) -> WorkspaceTemplate | None:
         default_title=str(raw.get("default_title", "新任务")).strip(),
         default_description=str(raw.get("default_description", "")).strip(),
         initial_conversation_title=str(raw.get("initial_conversation_title", "新对话")).strip(),
-        env_kind=str(raw.get("env_kind", "none")).strip().lower(),
+        env_kind=env_kind,
         files=files,
         source_dir=template_dir,
         recommended_skills=[
@@ -152,6 +162,7 @@ def _load_template(template_dir: Path) -> WorkspaceTemplate | None:
             raw.get("recommended_capabilities")
         ),
         env_vars=_parse_env_vars(raw.get("env_vars")),
+        runtime_resources=runtime_resources,
     )
 
 
@@ -160,6 +171,27 @@ def _parse_env_vars(raw: Any) -> dict[str, str]:
     if not isinstance(raw, dict):
         return {}
     return {str(k): str(v) for k, v in raw.items() if isinstance(k, (str, int, float))}
+
+
+def _parse_runtime_resources(raw: Any) -> ExecutionResourceGroup:
+    """解析模板中的 runtime_contract / runtime_resources 字段。"""
+    if not isinstance(raw, dict):
+        return ExecutionResourceGroup()
+    resources_raw = raw.get("resources") or {}
+    if not isinstance(resources_raw, dict):
+        resources_raw = {}
+    # 兼容旧字段：env_id / python_env_id 都映射到 python_env_id
+    python_env_id = (
+        resources_raw.get("python_env_id")
+        or resources_raw.get("env_id")
+        or raw.get("env_id")
+        or None
+    )
+    return ExecutionResourceGroup(
+        python_env_id=python_env_id,
+        node_env_id=resources_raw.get("node_env_id") or None,
+        docker_resource_id=resources_raw.get("docker_resource_id") or None,
+    )
 
 
 def _parse_recommended_capabilities(raw: Any) -> list[CapabilityDeclaration]:
@@ -235,6 +267,10 @@ def _dump_template_toml(data: dict[str, Any]) -> str:
     env_vars = data.get("env_vars") or {}
     if env_vars:
         payload["env_vars"] = env_vars
+
+    runtime_resources = data.get("runtime_resources") or {}
+    if runtime_resources:
+        payload["runtime_resources"] = {k: v for k, v in runtime_resources.items() if v is not None}
 
     caps = data.get("recommended_capabilities") or []
     if caps:
@@ -582,6 +618,7 @@ def build_template_payload(template: WorkspaceTemplate) -> dict[str, Any]:
             for f in template.files
         ],
         "env_vars": template.env_vars,
+        "runtime_resources": template.runtime_resources.model_dump(mode="json"),
     }
 
 
@@ -649,10 +686,18 @@ def export_workspace_as_template(
         except (json.JSONDecodeError, OSError):
             pass
 
-    # 推断 env_kind
+    # 推断 env_kind 和 runtime_resources
     runtime_binding = meta.get("runtime_binding") or {}
     env_id = runtime_binding.get("env_id")
     sandbox_mode = runtime_binding.get("sandbox_mode")
+    resources_raw = runtime_binding.get("resources") or {}
+    if not isinstance(resources_raw, dict):
+        resources_raw = {}
+    runtime_resources = ExecutionResourceGroup(
+        python_env_id=resources_raw.get("python_env_id") or env_id or None,
+        node_env_id=resources_raw.get("node_env_id") or None,
+        docker_resource_id=resources_raw.get("docker_resource_id") or None,
+    )
     if sandbox_mode == "docker":
         env_kind = "docker"
     elif env_id == "workspace-default":
@@ -757,6 +802,7 @@ def export_workspace_as_template(
             for f in template_files
         ],
         "env_vars": env_vars,
+        "runtime_resources": runtime_resources.model_dump(mode="json"),
         "recommended_skills": recommended_skills,
         "recommended_mcps": recommended_mcps,
         "recommended_capabilities": [
@@ -805,4 +851,5 @@ def export_workspace_as_template(
         recommended_mcps=recommended_mcps,
         recommended_capabilities=recommended_capabilities,
         env_vars=env_vars,
+        runtime_resources=runtime_resources,
     )
