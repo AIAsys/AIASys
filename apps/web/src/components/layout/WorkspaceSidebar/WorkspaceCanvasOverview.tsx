@@ -198,13 +198,13 @@ export function WorkspaceCanvasOverview({
               {(isPlanModeActive || isPlanPendingApproval) && (
                 <SummaryChip
                   className={
-                    isPlanModeActive
-                      ? "border-primary/25 bg-primary-container text-on-primary-container"
-                      : "border-warning/25 bg-warning-container text-on-warning-container"
+                    isPlanPendingApproval
+                      ? "border-warning/25 bg-warning-container text-on-warning-container"
+                      : "border-primary/25 bg-primary-container text-on-primary-container"
                   }
                 >
                   <Map className="mr-1 h-3 w-3" />
-                  {isPlanModeActive ? "规划模式" : "计划待批"}
+                  {isPlanPendingApproval ? "计划待批" : "规划模式"}
                 </SummaryChip>
               )}
             </div>

@@ -185,7 +185,9 @@ export function SessionTaskPanel({ tasks = [], planState }: SessionTaskPanelProp
   if (!isExpanded) {
     let summaryText: string;
     if (isPlanModeActive) {
-      summaryText = `规划模式: ${planState?.current_plan_file || "未命名计划"}`;
+      summaryText = isPlanPendingApproval
+        ? `计划待批: ${planState?.current_plan_file || "未命名计划"}`
+        : `规划模式: ${planState?.current_plan_file || "未命名计划"}`;
     } else if (inProgressTask) {
       summaryText = inProgressTask.content;
     } else if (activeCount > 0) {
