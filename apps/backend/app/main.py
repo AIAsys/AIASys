@@ -43,6 +43,7 @@ from app.core.config import (
 )
 from app.core.database import init_db
 from app.core.logging import setup_logging
+from app.core.vendor_binaries import ensure_vendor_binaries
 from app.services.runtime_storage_settings import is_runtime_storage_migration_in_progress
 
 # 设置日志
@@ -63,6 +64,9 @@ async def lifespan(app: FastAPI):
     # 启动
     logger.info(f" {APP_NAME} v{APP_VERSION} 启动")
     logger.info(f" 认证模式: {AUTH_CONFIG.mode}")
+
+    # 本地开发时自动补齐 vendor 二进制（uv/fnm/sqlite-vec）
+    ensure_vendor_binaries()
 
     # 检查数据格式版本
     try:
