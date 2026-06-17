@@ -5,7 +5,10 @@ import {
   Wrench,
   Brain,
   FlaskConical,
+  Terminal,
+  AlertTriangle,
 } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -18,11 +21,18 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import type { TaskWorkspaceSummary } from "../../types";
 import { GitBranchPlusIcon, MessageSquareIcon } from "../chatShellIcons";
 import { DockStatusChip } from "./DockComponents";
 import { WorkspaceConversationPanel } from "./WorkspaceConversationPanel";
 import { TokenUsageBar } from "@/components/chat/TokenUsageBar";
+import { useShellEnvStatus, shellFamilyLabel } from "./useShellEnvStatus";
+import { getGlobalAutoTasks } from "@/lib/api/workspaces";
 
 interface DockHeaderProps {
   currentSessionTitle: string;
@@ -72,6 +82,28 @@ export function DockHeader({
   const conversationCount = workspace?.conversations?.length ?? 0;
   const conversationSummaryLabel =
     conversationCount > 0 ? `${conversationCount} 个对话` : "暂无对话";
+  const { status: shellStatus } = useShellEnvStatus();
+
+  // 轮询全局 AutoTask 状态，检测被自动禁用的任务
+  const [disabledTaskCount, setDisabledTaskCount] = useState(0);
+
+  const refreshDisabledTaskCount = useCallback(async () => {
+    try {
+      const response = await getGlobalAutoTasks();
+      const count = (response.tasks ?? []).filter(
+        (task) => task.status === "disabled" && (task.consecutive_errors ?? 0) > 0,
+      ).length;
+      setDisabledTaskCount(count);
+    } catch {
+      // 静默失败，不打扰用户
+    }
+  }, []);
+
+  useEffect(() => {
+    void refreshDisabledTaskCount();
+    const timer = window.setInterval(refreshDisabledTaskCount, 30_000);
+    return () => window.clearInterval(timer);
+  }, [refreshDisabledTaskCount]);
 
   return (
     <Popover>
@@ -180,6 +212,66 @@ export function DockHeader({
               </DockStatusChip>
             </button>
           </PopoverTrigger>
+          {/* Shell 环境状态指示器 */}
+          {shellStatus ? (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  onClick={() =>
+                    window.dispatchEvent(
+                      new CustomEvent("aiasys:open-global-settings", {
+                        detail: "shell-environment",
+                      }),
+                    )
+                  }
+                  className="rounded-full transition-colors hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
+                >
+                  <DockStatusChip
+                    className={
+                      shellStatus.needsAttention
+                        ? "border-warning/30 bg-warning-container/40 text-warning"
+                        : "border-border"
+                    }
+                  >
+                    <Terminal className="mr-1 h-3 w-3" />
+                    {shellFamilyLabel(shellStatus.family)}
+                  </DockStatusChip>
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>
+                {shellStatus.needsAttention
+                  ? "当前 Shell 体验受限，建议安装 Git Bash 或 busybox 获得更好体验"
+                  : `当前 Shell: ${shellFamilyLabel(shellStatus.family)}`}
+              </TooltipContent>
+            </Tooltip>
+          ) : null}
+          {/* 被自动禁用的 AutoTask 警告 */}
+          {disabledTaskCount > 0 ? (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  onClick={() =>
+                    window.dispatchEvent(
+                      new CustomEvent("aiasys:open-global-settings", {
+                        detail: "auto-tasks",
+                      }),
+                    )
+                  }
+                  className="rounded-full transition-colors hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
+                >
+                  <DockStatusChip className="border-error/30 bg-error-container/40 text-error">
+                    <AlertTriangle className="mr-1 h-3 w-3" />
+                    {disabledTaskCount} 个任务已禁用
+                  </DockStatusChip>
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>
+                有 {disabledTaskCount} 个自动化任务因连续异常被自动禁用，点击查看
+              </TooltipContent>
+            </Tooltip>
+          ) : null}
         </div>
       </div>
 

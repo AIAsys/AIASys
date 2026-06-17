@@ -285,8 +285,7 @@ export interface WorkspaceOverviewWorkspace {
   workspace_kind: "task" | "claw";
   execution_policy: TaskExecutionPolicySummary;
   runtime_binding?: {
-    sandbox_mode?: string | null;
-    env_id?: string | null;
+    env_vars?: Record<string, string> | null;
     resources?: ExecutionResourceGroup | null;
   } | null;
   current_conversation_id?: string | null;

@@ -12,6 +12,7 @@ from app.models.task_profile import build_task_profile_summary
 from app.services.agent_config import AgentMode, get_agent_config_service
 from app.services.memory import resolve_session_memory_preview
 from app.skills import get_skill_manager
+from app.utils.path_utils import atomic_write_text
 
 CONFIG_DIR_RELATIVE_PATH = Path(".aiasys")
 DATABASE_MOUNT_RELATIVE_PATH = CONFIG_DIR_RELATIVE_PATH / "database-mounts.json"
@@ -280,9 +281,9 @@ def write_runtime_config_state(
     state["updated_at"] = datetime.now().isoformat()
 
     path = get_runtime_config_state_path(session_dir)
-    path.write_text(
+    atomic_write_text(
+        path,
         json.dumps(state, indent=2, ensure_ascii=False),
-        encoding="utf-8",
     )
     return state
 

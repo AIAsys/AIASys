@@ -18,6 +18,10 @@ declare global {
       mode: "dev" | "preview";
       /** 注册托盘菜单动作回调 */
       onTrayAction?(callback: (action: TrayAction) => void): void;
+      /** 注册后端崩溃回调（桌面版自动重启时触发） */
+      onBackendCrashed?(callback: () => void): void;
+      /** 注册后端重启就绪回调 */
+      onBackendReady?(callback: () => void): void;
       /** 选择本地文件夹（桌面版） */
       selectFolder?(options?: {
         title?: string;

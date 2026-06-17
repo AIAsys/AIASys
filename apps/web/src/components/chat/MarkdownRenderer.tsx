@@ -1,7 +1,7 @@
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkBreaks from "remark-breaks";
 import remarkGfm from "remark-gfm";
-import { withMermaidSupport } from "./MermaidBlock";
+import { useMermaidComponents } from "./MermaidBlock";
 
 interface MarkdownRendererProps {
   content: string;
@@ -12,10 +12,11 @@ export function MarkdownRenderer({
   content,
   components,
 }: MarkdownRendererProps) {
+  const mermaidComponents = useMermaidComponents(components);
   return (
     <ReactMarkdown
       remarkPlugins={[remarkGfm, remarkBreaks]}
-      components={withMermaidSupport(components)}
+      components={mermaidComponents}
     >
       {content}
     </ReactMarkdown>

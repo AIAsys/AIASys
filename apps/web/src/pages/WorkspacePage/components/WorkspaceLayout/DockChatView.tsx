@@ -1,5 +1,10 @@
 import { ChatArea } from "@/components/chat/ChatArea";
+import { EmptyConversationState } from "@/components/chat/EmptyConversationState";
 import { SessionTaskPanel } from "@/components/session/SessionTaskPanel";
+import { ErrorBoundary } from "@/components/error/ErrorBoundary";
+import { SectionErrorFallback } from "@/components/error/SectionErrorFallback";
+import { AlertCircle, Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import type { ChatItem } from "../../types";
 import type { PreviewFile } from "@/components/layout/WorkspaceSidebar/preview";
 import type { LLMModelConfig } from "@/lib/api/llm";
@@ -20,6 +25,7 @@ interface DockChatViewProps {
   onWorkerClick?: (workerName: string) => void;
   onOpenWorkspaceArtifact?: (file: PreviewFile) => void;
   onOpenInBrowserTab?: (path: string) => void;
+  onOpenRuntimeTab?: () => void;
   onViewToolDetails?: (
     toolCallId: string,
     taskId: string | undefined,
@@ -38,7 +44,14 @@ interface DockChatViewProps {
       content: string,
       originalContent?: string,
     ) => Promise<void> | void;
+    onRetryLastSubmit?: () => Promise<void> | void;
   };
+  /** 重试上一次失败的提交 */
+  onRetryLastSubmit?: () => Promise<void> | void;
+  /** 加载更多历史消息 */
+  onLoadMoreHistory?: () => Promise<void>;
+  /** 是否还有更多历史消息 */
+  hasMoreHistory?: boolean;
   inputValue: string;
   onInputChange: (value: string) => void;
   onSubmit: () => void;
@@ -46,6 +59,8 @@ interface DockChatViewProps {
   isRunning: boolean;
   isPrewarming: boolean;
   isUploading: boolean;
+  /** 当前上传进度 0-100，null 表示不在上传中 */
+  uploadProgress?: number | null;
   onStop: () => void;
   uploadedFiles: UploadedFile[];
   onRemoveFile: (index: number) => void;
@@ -54,6 +69,8 @@ interface DockChatViewProps {
   onFileChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
   runtimeControls: RuntimeControlsState;
   isCompactingConversation?: boolean;
+  isRestoringSession?: boolean;
+  historyLoadError?: string | null;
   hasMCPConfig: boolean;
   userModels: LLMModelConfig[];
   selectedModelId: string;
@@ -78,8 +95,11 @@ export function DockChatView({
   onWorkerClick,
   onOpenWorkspaceArtifact,
   onOpenInBrowserTab,
+  onOpenRuntimeTab,
   onViewToolDetails,
   chatAreaActions,
+  onLoadMoreHistory,
+  hasMoreHistory,
   inputValue,
   onInputChange,
   onSubmit,
@@ -87,6 +107,7 @@ export function DockChatView({
   isRunning,
   isPrewarming,
   isUploading,
+  uploadProgress,
   onStop,
   uploadedFiles,
   onRemoveFile,
@@ -95,6 +116,8 @@ export function DockChatView({
   onFileChange,
   runtimeControls,
   isCompactingConversation = false,
+  isRestoringSession = false,
+  historyLoadError = null,
   hasMCPConfig,
   userModels,
   selectedModelId,
@@ -115,6 +138,12 @@ export function DockChatView({
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       <SessionTaskPanel tasks={tasks} planState={planState} />
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-muted/15">
+        <ErrorBoundary
+          key={currentSessionId ?? "no-session"}
+          fallback={(error, reset) => (
+            <SectionErrorFallback error={error} reset={reset} />
+          )}
+        >
         <ChatArea
           items={chatItems}
           messagesEndRef={messagesEndRef}
@@ -124,7 +153,11 @@ export function DockChatView({
           layout="rail"
           onOpenWorkspaceArtifact={onOpenWorkspaceArtifact}
           onOpenInBrowserTab={onOpenInBrowserTab}
+          onOpenRuntimeTab={onOpenRuntimeTab}
           onRewriteUserMessage={chatAreaActions.onRewriteUserMessage}
+          onRetryLastSubmit={chatAreaActions.onRetryLastSubmit}
+          onLoadMoreHistory={onLoadMoreHistory}
+          hasMoreHistory={hasMoreHistory}
           isRunning={isRunning}
         >
           {chatItems.length > 0 ? (
@@ -135,12 +168,36 @@ export function DockChatView({
               layout="rail"
               isRunning={isRunning}
             />
-          ) : (
-            <div className="rounded-2xl border border-dashed border-border bg-background px-4 py-4 text-sm text-muted-foreground">
-              当前对话还没有聊天记录。
+          ) : isRestoringSession ? (
+            <div className="flex h-full items-center justify-center">
+              <div role="status" className="flex flex-col items-center gap-3 text-muted-foreground">
+                <Loader2 className="h-6 w-6 animate-spin" />
+                <span className="text-sm">正在加载会话历史...</span>
+              </div>
             </div>
+          ) : historyLoadError ? (
+            <div className="flex h-full items-center justify-center">
+              <div role="alert" className="flex flex-col items-center gap-3 text-center max-w-sm">
+                <AlertCircle className="h-8 w-8 text-error" />
+                <div className="text-sm font-medium text-foreground">加载会话历史失败</div>
+                <div className="text-xs text-muted-foreground">{historyLoadError}</div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => currentSessionId && window.location.reload()}
+                >
+                  重试
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <EmptyConversationState
+              onExampleClick={(text) => onInputChange(text)}
+              onAddFileClick={onAddFileClick}
+            />
           )}
         </ChatArea>
+        </ErrorBoundary>
       </div>
 
       <InputArea
@@ -151,6 +208,7 @@ export function DockChatView({
         isRunning={isRunning}
         isPrewarming={isPrewarming}
         isUploading={isUploading}
+        uploadProgress={uploadProgress}
         onStop={onStop}
         uploadedFiles={uploadedFiles}
         onRemoveFile={onRemoveFile}
@@ -174,6 +232,8 @@ export function DockChatView({
         selectedModelSupportsThinking={selectedModelSupportsThinking}
         onOpenConfig={onOpenLLMConfigDialog}
         onOpenToolConfig={onOpenToolConfig}
+        onOpenRuntimeTab={onOpenRuntimeTab}
+        activeEnv={runtimeControls.activeEnv}
         focusSignal={sessionInputFocusSignal}
       />
     </div>

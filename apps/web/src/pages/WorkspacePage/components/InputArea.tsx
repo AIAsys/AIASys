@@ -1,7 +1,9 @@
 import {
   ArrowUp,
   Brain,
+  Container,
   FileText,
+  FlaskConical,
   SlidersHorizontal,
   StopCircle,
   Upload,
@@ -49,6 +51,8 @@ interface InputAreaProps {
   fileInputRef: RefObject<HTMLInputElement | null>;
   onFileChange: (e: ChangeEvent<HTMLInputElement>) => void;
   isUploading?: boolean;
+  /** 当前上传进度 0-100，null 表示不在上传中 */
+  uploadProgress?: number | null;
   isPrewarming?: boolean;
   /** 是否正在准备 Python 环境 */
   isInitializingEnvironment?: boolean;
@@ -75,6 +79,15 @@ interface InputAreaProps {
   onOpenConfig?: () => void;
   /** 打开当前会话工具配置 */
   onOpenToolConfig?: () => void;
+  /** 打开执行资源面板 */
+  onOpenRuntimeTab?: () => void;
+  /** 当前运行环境信息 */
+  activeEnv?: {
+    id: string;
+    name: string;
+    image: string;
+    sandbox_mode?: string;
+  } | null;
   /** 需要把焦点重新带回输入框时递增 */
   focusSignal?: number;
 }
@@ -92,6 +105,7 @@ export function InputArea({
   fileInputRef,
   onFileChange,
   isUploading = false,
+  uploadProgress = null,
   isPrewarming = false,
   isInitializingEnvironment = false,
   sessionId,
@@ -107,6 +121,8 @@ export function InputArea({
   selectedModelSupportsThinking = false,
   onOpenConfig,
   onOpenToolConfig,
+  onOpenRuntimeTab,
+  activeEnv,
   focusSignal,
 }: InputAreaProps) {
   const isImageFile = (filename: string) =>
@@ -378,6 +394,7 @@ export function InputArea({
                     className="ml-1 p-0.5 rounded-full text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
                     onClick={() => onRemoveFile(idx)}
                     title="移除附件"
+                    aria-label="移除附件"
                   >
                     <X size={12} />
                   </button>
@@ -387,9 +404,25 @@ export function InputArea({
           </div>
         )}
 
+        {/* 上传进度条 */}
+        {isUploading && uploadProgress !== null && (
+          <div className="mb-2 flex items-center gap-2">
+            <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden">
+              <div
+                className="h-full bg-primary transition-all duration-150 ease-out rounded-full"
+                style={{ width: `${uploadProgress}%` }}
+              />
+            </div>
+            <span className="text-xs text-muted-foreground font-mono tabular-nums w-9 text-right">
+              {uploadProgress}%
+            </span>
+          </div>
+        )}
+
         <textarea
           ref={textareaRef}
           value={inputValue}
+          aria-label="消息输入框"
           onChange={(e) => onInputChange(e.target.value)}
           onKeyDown={(e) => {
             // 如果正在初始化环境，阻止键盘事件
@@ -403,11 +436,13 @@ export function InputArea({
           placeholder={
             isInitializingEnvironment || isPrewarming
               ? "工作区准备中，请稍候..."
-              : isUploading
-                ? "文件正在上传中..."
-                : "可以拖拽、上传文件，并询问任何问题"
+              : isCompactingConversation
+                ? "正在压缩上下文，请稍候..."
+                : isUploading
+                  ? "文件正在上传中..."
+                  : "可以拖拽、上传文件，并询问任何问题"
           }
-          disabled={isUploading || isPrewarming || isInitializingEnvironment}
+          disabled={isUploading || isPrewarming || isInitializingEnvironment || isCompactingConversation}
           rows={1}
           className="w-full flex-1 resize-none outline-none text-base text-foreground placeholder:text-muted-foreground bg-transparent disabled:opacity-50 disabled:cursor-not-allowed min-h-[60px] max-h-[240px] overflow-y-auto"
         />
@@ -441,6 +476,7 @@ export function InputArea({
                   : "text-muted-foreground hover:text-foreground hover:bg-accent"
               }`}
               title="添加附件"
+              aria-label="添加附件"
               disabled={isUploading || isPrewarming || isInitializingEnvironment}
             >
               <Upload size={18} />
@@ -518,6 +554,44 @@ export function InputArea({
               </Tooltip>
             ) : null}
 
+            {/* 运行环境状态徽标 */}
+            {activeEnv && onOpenRuntimeTab ? (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    onClick={onOpenRuntimeTab}
+                    disabled={isInitializingEnvironment}
+                    className={cn(
+                      "flex-shrink-0 inline-flex items-center gap-1 rounded-md px-2 py-1.5 text-[11px] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50",
+                      activeEnv.image === "none"
+                        ? "bg-warning/10 text-warning hover:bg-warning/20"
+                        : activeEnv.image === "docker"
+                          ? "bg-info/10 text-info hover:bg-info/20"
+                          : "bg-success/10 text-success hover:bg-success/20",
+                    )}
+                    aria-label={`运行环境：${activeEnv.name}`}
+                  >
+                    {activeEnv.image === "docker" ? (
+                      <Container className="h-3.5 w-3.5" />
+                    ) : activeEnv.image === "none" ? (
+                      <FlaskConical className="h-3.5 w-3.5" />
+                    ) : (
+                      <FlaskConical className="h-3.5 w-3.5" />
+                    )}
+                    <span className="max-w-[120px] truncate">
+                      {activeEnv.image === "none" ? "未配置环境" : activeEnv.name}
+                    </span>
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="top" sideOffset={6}>
+                  {activeEnv.image === "none"
+                    ? "未配置运行环境，点击配置"
+                    : `运行环境：${activeEnv.name}，点击管理`}
+                </TooltipContent>
+              </Tooltip>
+            ) : null}
+
             <input
               ref={fileInputRef}
               type="file"
@@ -537,6 +611,7 @@ export function InputArea({
                 onClick={onStop}
                 className="p-2 rounded-md bg-destructive/10 hover:bg-destructive/20 text-destructive transition-colors"
                 title="停止"
+                aria-label="停止"
               >
                 <StopCircle size={18} />
               </button>
@@ -553,19 +628,30 @@ export function InputArea({
                 onSubmit();
               }}
               disabled={
-                !inputValue.trim() || isRunning || isUploading || isPrewarming || isInitializingEnvironment
+                !inputValue.trim() || isRunning || isUploading || isPrewarming || isInitializingEnvironment || isCompactingConversation
               }
               className={`p-2 rounded-md transition-all font-mono ${
-                inputValue.trim() && !isRunning && !isUploading && !isPrewarming && !isInitializingEnvironment
+                inputValue.trim() && !isRunning && !isUploading && !isPrewarming && !isInitializingEnvironment && !isCompactingConversation
                   ? "bg-foreground text-background hover:bg-foreground/90"
                   : "bg-muted text-muted-foreground cursor-not-allowed"
               }`}
               title={
-                isInitializingEnvironment || isPrewarming
-                  ? "工作区准备中"
-                  : isUploading
-                    ? "文件上传中"
-                    : "发送"
+                isCompactingConversation
+                  ? "正在压缩上下文"
+                  : isInitializingEnvironment || isPrewarming
+                    ? "工作区准备中"
+                    : isUploading
+                      ? "文件上传中"
+                      : "发送"
+              }
+              aria-label={
+                isCompactingConversation
+                  ? "正在压缩上下文"
+                  : isInitializingEnvironment || isPrewarming
+                    ? "工作区准备中"
+                    : isUploading
+                      ? "文件上传中"
+                      : "发送"
               }
             >
               <ArrowUp size={18} />

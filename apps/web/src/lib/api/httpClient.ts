@@ -100,6 +100,10 @@ export async function apiRequest<T>(
   path: string,
   options: ApiRequestOptions = {},
 ): Promise<T> {
+  if (typeof navigator !== "undefined" && navigator.onLine === false) {
+    throw new Error("网络连接已断开");
+  }
+
   const {
     query,
     body,
@@ -154,6 +158,10 @@ export async function apiRequest<T>(
 
     const payload = await parseResponseBody(response);
     if (!response.ok) {
+      // Global 401 handler: dispatch event for AuthContext to handle
+      if (response.status === 401) {
+        window.dispatchEvent(new CustomEvent("aiasys:auth-expired"));
+      }
       throw new ApiRequestError(response.status, payload);
     }
     return payload as T;

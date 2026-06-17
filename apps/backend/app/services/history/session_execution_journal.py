@@ -133,10 +133,6 @@ class SessionExecutionJournal:
                 encoding="utf-8",
             )
 
-            file_snapshot_path = self.session_dir / "file_snapshots.json"
-            if file_snapshot_path.exists():
-                file_snapshot_path.unlink()
-
             legacy_history_path = self.session_dir / "history.json"
             if legacy_history_path.exists():
                 legacy_history_path.unlink()

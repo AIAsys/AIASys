@@ -328,6 +328,46 @@ git branch -d feature/mcp-config
 
 ---
 
+## WSL 下 git HTTPS 失败 fallback
+
+在 WSL 里操作 GitHub HTTPS 时，若遇到 TLS 握手/连接重置（如 `OpenSSL SSL_connect` 错误），可切到 Windows PowerShell 使用同一仓库路径完成推送/PR。
+
+```powershell
+# 进入 WSL 文件系统的 Windows 路径
+cd "\\wsl$\Ubuntu-22.04\home\ke\projects\AIASys"
+
+# 使用 gh（通过 GH_TOKEN 认证）创建 PR、合并、打标签
+$env:GH_TOKEN = "<your-token>"
+gh pr create --title "..." --body "..." --base dev
+gh pr merge --squash
+gh release create v0.0.0-beta.1 --prerelease --title "Beta v0.0.0-beta.1"
+```
+
+注意：
+
+- 用 Windows git 向 WSL 仓库提交时，设置 `core.autocrlf=false` 与 `core.filemode=false`，避免跨环境换行和权限噪音。
+- 从 WSL bash 通过 `powershell.exe -Command "..."` 传 PowerShell 命令时，bash 会展开 `$env`，应写成 `\$env:GH_TOKEN=...`，否则会变成 `:GH_TOKEN=...`。
+
+## Beta 版本发布检查清单
+
+适合从 `dev` 合并到 `main` 后发布 beta 预发布版本：
+
+1. **合并主线**：feature → dev → main（均通过 PR，不要直接 push）。
+2. **同步版本号**：修改以下三处为同一版本：
+   - `apps/web/package.json`
+   - `apps/desktop/package.json`
+   - `apps/backend/pyproject.toml`
+3. **更新 changelog**：在 `docs/changelog/` 新建 `v{version}_{YYYY-MM-DD}.md`，记录主要变更。
+4. **打 tag 并推送**：
+   ```bash
+   git tag vX.Y.Z-beta.N
+   git push upstream vX.Y.Z-beta.N
+   ```
+5. **等待 CI 构建**：`v*` tag 会触发 `.github/workflows/ci-desktop.yml`，在 Linux / Windows / macOS 三端构建桌面安装包并上传到 release。
+6. **验证产物**：通过 `gh release view vX.Y.Z-beta.N --json assets` 确认 AppImage / exe / dmg / zip 已上传。
+
+---
+
 ## 完整提交示例
 
 ```bash

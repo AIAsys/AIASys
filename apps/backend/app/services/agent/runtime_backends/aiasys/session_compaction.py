@@ -299,7 +299,7 @@ class SessionCompactionMixin:
                 "summary_tokens": summary_tokens,
                 "elapsed_ms": elapsed_ms,
             }
-            summary_path = self._persist_compaction_summary(
+            self._persist_compaction_summary(
                 summary=result.summary,
                 compacted_count=result.compacted_count,
                 preserved_count=result.preserved_count,
@@ -311,19 +311,6 @@ class SessionCompactionMixin:
             # 在测试用例的 mock session 中可能不存在这些方法，做防御性判断。
             if hasattr(self, "_write_history_snapshot"):
                 self._write_history_snapshot(self.messages)
-            if summary_path is not None and hasattr(self, "_append_compaction_record"):
-                try:
-                    work_dir = Path(str(self._spec.work_dir))
-                    relative_summary_path = str(summary_path.relative_to(work_dir))
-                except Exception:
-                    relative_summary_path = str(summary_path)
-                self._append_compaction_record(
-                    summary_path=relative_summary_path,
-                    compacted_count=result.compacted_count,
-                    preserved_count=result.preserved_count,
-                    summary_turn_n=result.summary_turn_n,
-                    compacted_turn_range=result.compacted_turn_range,
-                )
 
             self._invalidate_system_prompt_snapshot()
 

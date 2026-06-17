@@ -466,27 +466,6 @@ def _get_model_context_window(
     return None
 
 
-def _iter_jsonl_messages(path: Path) -> list[dict[str, Any]]:
-    if not path.exists() or not path.is_file():
-        return []
-    messages: list[dict[str, Any]] = []
-    try:
-        with open(path, "r", encoding="utf-8") as f:
-            for line in f:
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    item = json.loads(line)
-                except json.JSONDecodeError:
-                    continue
-                if isinstance(item, dict):
-                    messages.append(item)
-    except Exception:
-        logger.debug("读取 context.jsonl 失败: %s", path, exc_info=True)
-    return messages
-
-
 def _iter_snapshot_messages(path: Path) -> list[dict[str, Any]]:
     if not path.exists() or not path.is_file():
         return []
@@ -530,10 +509,6 @@ def _resolve_session_context_tokens(
         return budget_context
 
     session_dir = session_manager._get_session_dir(session_id, user_id)
-    context_path = session_dir / ".aiasys/session" / session_id / "context.jsonl"
-    messages = _iter_jsonl_messages(context_path)
-    if messages:
-        return estimate_text_tokens(messages)
 
     from app.services.session.constants import (
         ACTIVE_SESSION_STATE_DIR_NAME,

@@ -208,6 +208,10 @@ class MCPConnectionStatus(BaseModel):
     error_message: Optional[str] = Field(None, description="错误信息")
     latency_ms: Optional[int] = Field(None, description="连接延迟（毫秒）")
     is_system_default: bool = Field(default=False, description="是否为系统默认配置")
+    runtime_connected: Optional[bool] = Field(
+        None,
+        description="运行时实际连接状态：True=已连接，False=已断开，None=无活跃会话无法探测",
+    )
     last_checked: str = Field(
         default_factory=lambda: datetime.now().isoformat(), description="最后检查时间"
     )

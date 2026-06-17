@@ -3,7 +3,7 @@ import remarkBreaks from "remark-breaks";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
-import { withMermaidSupport } from "./MermaidBlock";
+import { useMermaidComponents } from "./MermaidBlock";
 
 import "katex/dist/katex.min.css";
 
@@ -16,11 +16,12 @@ export function MathMarkdownRenderer({
   content,
   components,
 }: MathMarkdownRendererProps) {
+  const mermaidComponents = useMermaidComponents(components);
   return (
     <ReactMarkdown
       remarkPlugins={[remarkGfm, remarkMath, remarkBreaks]}
       rehypePlugins={[rehypeKatex]}
-      components={withMermaidSupport(components)}
+      components={mermaidComponents}
     >
       {content}
     </ReactMarkdown>

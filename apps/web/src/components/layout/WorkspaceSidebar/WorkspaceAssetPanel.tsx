@@ -514,7 +514,6 @@ interface WorkspaceAssetPanelProps {
   onOpenInBrowserTab?: (file: WorkspaceFile) => void;
   onOpenGlobalResourceInMainCanvas?: (node: GlobalResourceNode) => void;
   onOpenWorkspaceSettings?: () => void;
-  onOpenWorkspaceResourcesSettings?: () => void;
   surfaceMode?: "workbench" | "navigation";
 }
 
@@ -684,7 +683,6 @@ const WorkspaceAssetPanelComponent: React.FC<WorkspaceAssetPanelProps> = ({
   onOpenInBrowserTab,
   onOpenGlobalResourceInMainCanvas,
   onOpenWorkspaceSettings,
-  onOpenWorkspaceResourcesSettings,
   surfaceMode = "workbench",
 }) => {
   const { session } = useAuthContext();
@@ -739,18 +737,21 @@ const WorkspaceAssetPanelComponent: React.FC<WorkspaceAssetPanelProps> = ({
     void loadRuntimeRegistry();
   }, [
     loadRuntimeRegistry,
-    workspaceSummary?.runtime_binding?.env_id,
-    workspaceSummary?.runtime_binding?.sandbox_mode,
+    workspaceSummary?.runtime_binding?.resources?.python_env_id,
+    workspaceSummary?.runtime_binding?.resources?.docker_resource_id,
   ]);
 
   const runtimeBinding = workspaceSummary?.runtime_binding;
+  const runtimeResources = runtimeBinding?.resources ?? null;
   const selectedRuntimeEnv = useMemo(
     () =>
       selectRuntimeEnv(
         runtimeRegistry,
-        runtimeBinding?.sandbox_mode === "local" ? runtimeBinding?.env_id : null,
+        runtimeResources && !runtimeResources.docker_resource_id
+          ? runtimeResources.python_env_id ?? null
+          : null,
       ),
-    [runtimeBinding?.env_id, runtimeBinding?.sandbox_mode, runtimeRegistry],
+    [runtimeResources?.python_env_id, runtimeResources?.docker_resource_id, runtimeRegistry],
   );
 
   const handleCopyRuntimePath = useCallback(async (value: string, label: string) => {
@@ -2032,13 +2033,13 @@ const WorkspaceAssetPanelComponent: React.FC<WorkspaceAssetPanelProps> = ({
                   <p className="text-sm font-medium text-foreground/80">{emptyTitle}</p>
                   <p className="text-xs leading-5 text-muted-foreground">{emptyDescription}</p>
                 </div>
-                {isGlobal && (onOpenWorkspaceResourcesSettings || onOpenWorkspaceSettings) ? (
+                {isGlobal && onOpenWorkspaceSettings ? (
                   <Button
                     type="button"
                     variant="outline"
                     size="sm"
                     className="mt-4 h-8 text-xs"
-                    onClick={onOpenWorkspaceResourcesSettings ?? onOpenWorkspaceSettings}
+                    onClick={onOpenWorkspaceSettings}
                   >
                     管理全局资源
                   </Button>

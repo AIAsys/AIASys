@@ -191,14 +191,17 @@ class TestFilterMessagesForCompaction:
             }
         ]
         filtered = filter_messages_for_compaction(messages)
-        assert filtered[0]["content"] == "Describe this"
+        # 图片降级为路径引用文本，不再完全丢弃
+        assert "Describe this" in filtered[0]["content"]
+        assert "[历史图片:" in filtered[0]["content"]
 
     def test_all_non_text_becomes_placeholder(self):
         messages = [
             {"role": "user", "content": [{"type": "image_url", "image_url": {"url": "x"}}]},
         ]
         filtered = filter_messages_for_compaction(messages)
-        assert "non-text content" in filtered[0]["content"]
+        # 图片有 url 字段，降级为引用文本
+        assert "[历史图片:" in filtered[0]["content"]
 
     def test_drops_reasoning_content(self):
         """Think blocks / reasoning_content are dropped from compaction input."""
@@ -380,10 +383,14 @@ class TestCompactAsync:
         client = FakeLlmClient(response_text="Summary.")
         result = await compactor.compact(messages, client)
 
-        # Preserved user message should have image stripped, text kept
+        # Preserved user message should have image downgraded to text reference, text kept
         preserved_user = result.messages[1]
         assert preserved_user["role"] == "user"
-        assert preserved_user["content"] == [{"type": "text", "text": "Look at this:"}]
+        content = preserved_user["content"]
+        assert any(p.get("text") == "Look at this:" for p in content)
+        assert any("[历史图片:" in p.get("text", "") for p in content)
+        # No raw image_url parts remain
+        assert not any(p.get("type") == "image_url" for p in content)
         # Preserved assistant remains intact
         assert result.messages[2]["content"] == "Nice pic!"
 
@@ -542,7 +549,6 @@ class _TestSession(SessionCompactionMixin):
         self._context_messages: list[dict[str, Any]] = []
         self.session_id = "test-session"
         self._history_snapshot: list[dict[str, Any]] | None = None
-        self._compaction_records: list[dict[str, Any]] = []
 
     def _invalidate_system_prompt_snapshot(self) -> None:
         pass
@@ -551,25 +557,6 @@ class _TestSession(SessionCompactionMixin):
         self._history_snapshot = [
             msg for msg in messages if msg.get("role") in {"user", "assistant", "tool"}
         ]
-
-    def _append_compaction_record(
-        self,
-        *,
-        summary_path: str,
-        compacted_count: int,
-        preserved_count: int,
-        summary_turn_n: int | None,
-        compacted_turn_range: tuple[int, int] | None,
-    ) -> None:
-        self._compaction_records.append(
-            {
-                "summary_path": summary_path,
-                "compacted_count": compacted_count,
-                "preserved_count": preserved_count,
-                "summary_turn_n": summary_turn_n,
-                "compacted_turn_range": compacted_turn_range,
-            }
-        )
 
 
 class TestCompactOriginAndMetadata:
@@ -705,7 +692,7 @@ class TestSessionCompactionMixin:
 
     @pytest.mark.asyncio
     async def test_compaction_persists_state(self):
-        """压缩后应写 history snapshot 和 context.jsonl 压缩记录。"""
+        """压缩后应写 history snapshot 和 history.json 压缩记录。"""
         chat_msgs = [
             {"role": "user", "content": "u1"},
             {"role": "assistant", "content": "a1", "turn_n": 1},
@@ -728,13 +715,6 @@ class TestSessionCompactionMixin:
             msg.get("role") == "assistant" and msg.get("turn_n") == 2
             for msg in snapshot
         )
-
-        # 应写入一条压缩记录
-        assert len(session._compaction_records) == 1
-        record = session._compaction_records[0]
-        assert record["compacted_count"] > 0
-        assert record["summary_path"]
-        assert record["summary_turn_n"] == 1  # 被压缩段最后一个 assistant turn
 
 
 # ---------------------------------------------------------------------------

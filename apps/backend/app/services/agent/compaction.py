@@ -344,22 +344,34 @@ def _snip_tool_message(msg: dict[str, Any], max_chars: int) -> dict[str, Any]:
 
 
 def _strip_multimodal_content(msg: dict[str, Any]) -> dict[str, Any]:
-    """清理消息中的多模态内容，仅保留文本部分。
+    """清理消息中的多模态内容，保留文本部分 + 图片引用。
 
     用于保留消息的轻量清理：不改变消息角色和结构，只去掉图片/音频/视频等
     非文本 payload，避免 base64 数据长期占用上下文体积。
+    图片 part 降级为文本引用（保留 source_path），让模型知道之前有图片。
     """
     sanitized = dict(msg)
     content = sanitized.get("content")
 
     if isinstance(content, list):
-        # 多模态 content list——只保留 text 类型
         text_parts: list[dict[str, Any]] = []
         for part in content:
-            if isinstance(part, dict) and part.get("type") == "text":
+            if not isinstance(part, dict):
+                continue
+            part_type = part.get("type")
+            if part_type == "text":
                 text = part.get("text")
                 if isinstance(text, str):
                     text_parts.append(part)
+            elif part_type in ("image_url", "image_reference"):
+                # 保留图片路径引用，去掉 base64 payload
+                source = part.get("source_path")
+                if not source and part_type == "image_url":
+                    img_url = part.get("image_url")
+                    if isinstance(img_url, dict):
+                        source = img_url.get("url", "")
+                if source:
+                    text_parts.append({"type": "text", "text": f"[历史图片: {source}]"})
         if text_parts:
             sanitized["content"] = text_parts
         else:
@@ -371,9 +383,8 @@ def _strip_multimodal_content(msg: dict[str, Any]) -> dict[str, Any]:
 def filter_messages_for_compaction(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """过滤消息列表，仅保留适合送入 LLM 做总结的文本内容（白名单策略）。
 
-    - 图片、音频、视频等非文本内容仅保留 type="text" 部分
+    - 图片、音频、视频等非文本内容降级为路径引用文本
     - 过滤掉 reasoning_content / think blocks（不进入总结输入）
-    - 非文本部分替换为占位说明
     - tool 消息保留其 snip 后的文本内容（与 assistant tool_calls 成对进入总结）
     """
     filtered: list[dict[str, Any]] = []
@@ -386,13 +397,23 @@ def filter_messages_for_compaction(messages: list[dict[str, Any]]) -> list[dict[
         if isinstance(content, str):
             new_msg["content"] = content
         elif isinstance(content, list):
-            # 多模态内容列表——白名单：仅保留 text
             text_parts: list[str] = []
             for part in content:
-                if isinstance(part, dict) and part.get("type") == "text":
+                if not isinstance(part, dict):
+                    continue
+                part_type = part.get("type")
+                if part_type == "text":
                     text = part.get("text")
                     if isinstance(text, str):
                         text_parts.append(text)
+                elif part_type in ("image_url", "image_reference"):
+                    source = part.get("source_path")
+                    if not source and part_type == "image_url":
+                        img_url = part.get("image_url")
+                        if isinstance(img_url, dict):
+                            source = img_url.get("url", "")
+                    if source:
+                        text_parts.append(f"[历史图片: {source}]")
             if text_parts:
                 new_msg["content"] = "\n".join(text_parts)
             else:

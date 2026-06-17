@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import logging
+import threading
 from pathlib import Path
 from typing import Any, Optional
 
@@ -29,6 +30,20 @@ class MCPManager:
 
     # 系统默认配置路径（代码仓库内）
     SYSTEM_DEFAULTS_PATH = Path(__file__).resolve().parent / "system_defaults.json"
+
+    # 按 user_id 串行化全局仓库 read-modify-write，防止并发写覆盖
+    _store_locks: dict[str, threading.Lock] = {}
+    _store_locks_guard = threading.Lock()
+
+    @classmethod
+    def _get_store_lock(cls, user_id: str) -> threading.Lock:
+        """获取（或创建）user_id 对应的全局仓库写锁。"""
+        with cls._store_locks_guard:
+            lock = cls._store_locks.get(user_id)
+            if lock is None:
+                lock = threading.Lock()
+                cls._store_locks[user_id] = lock
+            return lock
 
     # ---- 路径工具 ----
 
@@ -166,26 +181,28 @@ class MCPManager:
             return MCPOperationResult(
                 success=False, server_name=definition.name, message="名称包含非法字符"
             )
-        config = self._load_user_global_config(user_id)
-        if definition.name in config.servers and not force:
-            return MCPOperationResult(
-                success=False,
-                server_name=definition.name,
-                message=f"server '{definition.name}' 已存在，使用 force=True 覆盖",
-            )
-        config.servers[definition.name] = definition
-        self._save_config_file(self._get_user_mcp_config_path(user_id), config)
+        with self._get_store_lock(user_id):
+            config = self._load_user_global_config(user_id)
+            if definition.name in config.servers and not force:
+                return MCPOperationResult(
+                    success=False,
+                    server_name=definition.name,
+                    message=f"server '{definition.name}' 已存在，使用 force=True 覆盖",
+                )
+            config.servers[definition.name] = definition
+            self._save_config_file(self._get_user_mcp_config_path(user_id), config)
         return MCPOperationResult(success=True, server_name=definition.name, message="已保存")
 
     def remove_store_server(self, name: str, user_id: str) -> MCPOperationResult:
         """从用户全局配置删除 server 定义。"""
         if not self._is_safe_name(name):
             return MCPOperationResult(success=False, server_name=name, message="名称包含非法字符")
-        config = self._load_user_global_config(user_id)
-        if name not in config.servers:
-            return MCPOperationResult(success=False, server_name=name, message="server 不存在")
-        del config.servers[name]
-        self._save_config_file(self._get_user_mcp_config_path(user_id), config)
+        with self._get_store_lock(user_id):
+            config = self._load_user_global_config(user_id)
+            if name not in config.servers:
+                return MCPOperationResult(success=False, server_name=name, message="server 不存在")
+            del config.servers[name]
+            self._save_config_file(self._get_user_mcp_config_path(user_id), config)
         return MCPOperationResult(success=True, server_name=name, message="已删除")
 
     # ---- 工作区配置操作 ----
@@ -271,13 +288,14 @@ class MCPManager:
         """设置 server 在全局仓库的环境变量。"""
         if not self._is_safe_name(name):
             return MCPOperationResult(success=False, server_name=name, message="名称包含非法字符")
-        config = self._load_user_global_config(user_id)
-        if name not in config.servers:
-            return MCPOperationResult(
-                success=False, server_name=name, message="server 不存在于全局仓库"
-            )
-        config.servers[name].env = env
-        self._save_config_file(self._get_user_mcp_config_path(user_id), config)
+        with self._get_store_lock(user_id):
+            config = self._load_user_global_config(user_id)
+            if name not in config.servers:
+                return MCPOperationResult(
+                    success=False, server_name=name, message="server 不存在于全局仓库"
+                )
+            config.servers[name].env = env
+            self._save_config_file(self._get_user_mcp_config_path(user_id), config)
         return MCPOperationResult(success=True, server_name=name, message="环境变量已更新")
 
     def set_workspace_server_env(

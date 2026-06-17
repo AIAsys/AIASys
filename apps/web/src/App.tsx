@@ -1,6 +1,8 @@
 import { Suspense, lazy, useCallback, useEffect, useState } from "react";
 
 import { PublicRoute, ProtectedRoute } from "./components/auth/RouteGuard";
+import { BackendCrashOverlay } from "./components/error/BackendCrashOverlay";
+import NetworkStatusOverlay from "./components/error/NetworkStatusOverlay";
 
 const HomePage = lazy(() => import("./pages/HomePage"));
 const WorkspacePage = lazy(() => import("./pages/WorkspacePage"));
@@ -105,9 +107,41 @@ function App() {
     isDashboard: normalizedPathname === "/dashboard",
   };
 
-  // 首页 - 公开访问
+  let page: React.ReactNode;
   if (routeConfig.isHome) {
-    return (
+    page = (
+      <PublicRoute>
+        <Suspense fallback={<RouteLoading />}>
+          <HomePage />
+        </Suspense>
+      </PublicRoute>
+    );
+  } else if (routeConfig.isWorkspace) {
+    page = (
+      <ProtectedRoute fallbackUrl="/workspace">
+        <Suspense fallback={<RouteLoading />}>
+          <WorkspacePage initialSessionId={initialWorkspaceSessionId} />
+        </Suspense>
+      </ProtectedRoute>
+    );
+  } else if (routeConfig.isProfile) {
+    page = (
+      <ProtectedRoute fallbackUrl="/profile">
+        <Suspense fallback={<RouteLoading />}>
+          <UserProfilePage />
+        </Suspense>
+      </ProtectedRoute>
+    );
+  } else if (routeConfig.isDashboard) {
+    page = (
+      <ProtectedRoute fallbackUrl="/dashboard">
+        <Suspense fallback={<RouteLoading />}>
+          <TokenDashboard />
+        </Suspense>
+      </ProtectedRoute>
+    );
+  } else {
+    page = (
       <PublicRoute>
         <Suspense fallback={<RouteLoading />}>
           <HomePage />
@@ -116,46 +150,12 @@ function App() {
     );
   }
 
-  // 工作区页面 - 需要登录
-  if (routeConfig.isWorkspace) {
-    return (
-      <ProtectedRoute fallbackUrl="/workspace">
-        <Suspense fallback={<RouteLoading />}>
-          <WorkspacePage initialSessionId={initialWorkspaceSessionId} />
-        </Suspense>
-      </ProtectedRoute>
-    );
-  }
-
-  // 用户资料 - 需要登录
-  if (routeConfig.isProfile) {
-    return (
-      <ProtectedRoute fallbackUrl="/profile">
-        <Suspense fallback={<RouteLoading />}>
-          <UserProfilePage />
-        </Suspense>
-      </ProtectedRoute>
-    );
-  }
-
-  // Token 消耗面板 - 需要登录
-  if (routeConfig.isDashboard) {
-    return (
-      <ProtectedRoute fallbackUrl="/dashboard">
-        <Suspense fallback={<RouteLoading />}>
-          <TokenDashboard />
-        </Suspense>
-      </ProtectedRoute>
-    );
-  }
-
-  // 默认首页
   return (
-    <PublicRoute>
-      <Suspense fallback={<RouteLoading />}>
-        <HomePage />
-      </Suspense>
-    </PublicRoute>
+    <>
+      <NetworkStatusOverlay />
+      <BackendCrashOverlay />
+      {page}
+    </>
   );
 }
 

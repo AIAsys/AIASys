@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import json
 import logging
+import time
+from collections import OrderedDict
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -20,8 +22,33 @@ from app.services.session.constants import ACTIVE_SESSION_STATE_DIR_NAME, METADA
 logger = logging.getLogger(__name__)
 
 # 按 session_root 缓存 plan_state，减少高频工具调用时的文件 I/O。
-# key: session_root Path, value: (metadata_mtime, SessionPlanState)
-_plan_state_cache: dict[Path, tuple[float, SessionPlanState]] = {}
+# key: session_root Path, value: (cached_at, metadata_mtime, SessionPlanState)
+# 使用 OrderedDict 实现 LRU + TTL：maxlen=200，TTL=300 秒。
+_PLAN_STATE_CACHE_MAX_SIZE = 200
+_PLAN_STATE_CACHE_TTL = 300.0  # seconds
+_plan_state_cache: "OrderedDict[Path, tuple[float, float, SessionPlanState]]" = OrderedDict()
+
+
+def _cache_put(key: Path, mtime: float, plan_state: SessionPlanState) -> None:
+    """写入缓存，超过容量时淘汰最旧条目（LRU）。"""
+    _plan_state_cache[key] = (time.monotonic(), mtime, plan_state)
+    _plan_state_cache.move_to_end(key)
+    while len(_plan_state_cache) > _PLAN_STATE_CACHE_MAX_SIZE:
+        _plan_state_cache.popitem(last=False)
+
+
+def _cache_get(key: Path) -> tuple[float, SessionPlanState] | None:
+    """读取缓存，TTL 过期返回 None 并删除条目；命中时更新 LRU 顺序。"""
+    entry = _plan_state_cache.get(key)
+    if entry is None:
+        return None
+    cached_at, mtime, plan_state = entry
+    if time.monotonic() - cached_at > _PLAN_STATE_CACHE_TTL:
+        _plan_state_cache.pop(key, None)
+        return None
+    _plan_state_cache.move_to_end(key)
+    return mtime, plan_state
+
 
 TaskStatus = Literal["pending", "in_progress", "completed", "cancelled"]
 PlanModeStatus = Literal["active", "inactive"]
@@ -194,11 +221,11 @@ class SessionTaskPlanStore:
             mtime = self.metadata_path.stat().st_mtime
         except FileNotFoundError:
             mtime = 0.0
-        cached = _plan_state_cache.get(self.session_root)
+        cached = _cache_get(self.session_root)
         if cached is not None and cached[0] == mtime:
             return cached[1]
         plan_state = self._load_metadata().plan_state
-        _plan_state_cache[self.session_root] = (mtime, plan_state)
+        _cache_put(self.session_root, mtime, plan_state)
         return plan_state
 
     def write_plan_state(

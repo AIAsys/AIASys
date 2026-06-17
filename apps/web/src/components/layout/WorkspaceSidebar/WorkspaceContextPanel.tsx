@@ -114,7 +114,6 @@ interface WorkspaceContextPanelProps {
   onCreateDatabaseConnection?: () => void;
   onOpenKnowledgeBaseDialog?: () => void;
   onOpenKnowledgeGraphDialog?: () => void;
-  onOpenWorkspaceResourcesSettings?: () => void;
   onNewConversation?: () => void;
   onSelectConversation?: (sessionId: string) => void;
   onForkConversation?: (sessionId: string) => void;
@@ -157,7 +156,6 @@ export function WorkspaceContextPanel({
   onExecutionTreeActivated,
   onOpenKnowledgeBaseDialog,
   onOpenKnowledgeGraphDialog,
-  onOpenWorkspaceResourcesSettings,
   onNewConversation,
   onSelectConversation,
   onForkConversation,
@@ -481,7 +479,7 @@ export function WorkspaceContextPanel({
         databaseItem={databaseItem}
         onOpenKnowledgeBase={onOpenKnowledgeBaseDialog}
         onOpenKnowledgeGraph={onOpenKnowledgeGraphDialog}
-        onManageResources={onOpenWorkspaceResourcesSettings}
+        onManageResources={onOpenWorkspaceSettings}
         onManageDatabases={onManageDatabaseConnections}
       />
     </Suspense>
@@ -576,13 +574,13 @@ export function WorkspaceContextPanel({
         <div className="mt-1 text-xs leading-5 text-muted-foreground">
           知识库、数据库、图谱等资源在所有任务工作区间共享。
         </div>
-        {onOpenWorkspaceResourcesSettings ? (
+        {onOpenWorkspaceSettings ? (
           <Button
             type="button"
             variant="outline"
             size="sm"
             className="mt-4 h-8 text-xs"
-            onClick={onOpenWorkspaceResourcesSettings}
+            onClick={onOpenWorkspaceSettings}
           >
             管理全局资源
           </Button>
@@ -624,7 +622,6 @@ export function WorkspaceContextPanel({
     resourcesContent,
     onManageDatabaseConnections,
     onCreateDatabaseConnection,
-    onOpenWorkspaceResourcesSettings,
   ]);
 
   // keep-alive 只保留高频切换的 tab，减少重建开销同时控制内存增长

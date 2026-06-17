@@ -352,12 +352,9 @@ async def test_reset_session_history_clears_messages_and_execution_records(
     )
 
     session_dir = isolated_session_manager._get_session_dir(session_id, user_id)
-    legacy_sdk_dir = session_dir / ".aiasys" / "session" / session_id
-    legacy_sdk_dir.mkdir(parents=True, exist_ok=True)
-    (legacy_sdk_dir / "context.jsonl").write_text(
-        json.dumps({"role": "user", "content": "legacy transport"}, ensure_ascii=False)
-        + "\n",
-        encoding="utf-8",
+    isolated_session_manager._write_history_snapshot(
+        session_dir,
+        [{"role": "user", "content": "legacy transport"}],
     )
     journal = SessionExecutionJournal(session_dir, session_id)
     journal.append_record(
@@ -382,8 +379,16 @@ async def test_reset_session_history_clears_messages_and_execution_records(
 
     history = isolated_session_manager.get_history(session_id, user_id)
     assert history == []
-    assert legacy_sdk_dir.exists()
-    assert (legacy_sdk_dir / "context.jsonl").read_text(encoding="utf-8") == ""
+    # context.jsonl 不再被清空（已废弃写入），history.json 应为空
+    from app.services.session.constants import (
+        ACTIVE_SESSION_STATE_DIR_NAME,
+        HISTORY_SNAPSHOT_FILE_NAME,
+    )
+    snapshot_path = (
+        session_dir / ".aiasys" / "session" / ACTIVE_SESSION_STATE_DIR_NAME / HISTORY_SNAPSHOT_FILE_NAME
+    )
+    snapshot = json.loads(snapshot_path.read_text(encoding="utf-8"))
+    assert snapshot.get("messages") == []
 
     records_path = session_dir / ".aiasys" / "session" / "execution" / "records.jsonl"
     assert not records_path.exists() or records_path.read_text(encoding="utf-8") == ""
@@ -409,13 +414,12 @@ async def test_get_session_history_preserves_archived_context_and_execution_mark
     )
 
     session_dir = isolated_session_manager._get_session_dir(session_id, user_id)
+    isolated_session_manager._write_history_snapshot(
+        session_dir,
+        [{"role": "user", "content": "legacy transport"}],
+    )
     legacy_sdk_dir = session_dir / ".aiasys" / "session" / session_id
     legacy_sdk_dir.mkdir(parents=True, exist_ok=True)
-    (legacy_sdk_dir / "context.jsonl").write_text(
-        json.dumps({"role": "user", "content": "legacy transport"}, ensure_ascii=False)
-        + "\n",
-        encoding="utf-8",
-    )
     (legacy_sdk_dir / "display_history.jsonl").write_text(
         json.dumps({"role": "user", "content": "legacy ui"}, ensure_ascii=False)
         + "\n",
@@ -511,13 +515,6 @@ async def test_rewrite_session_from_message_truncates_tail_and_archives(
         {"role": "user", "content": "bad prompt", "timestamp": "2026-05-10T01:00:02"},
         {"role": "assistant", "content": "bad answer", "timestamp": "2026-05-10T01:00:03"},
     ]
-    (legacy_sdk_dir / "context.jsonl").write_text(
-        "".join(
-            json.dumps(message, ensure_ascii=False) + "\n"
-            for message in context_messages
-        ),
-        encoding="utf-8",
-    )
     (legacy_sdk_dir / "display_history.jsonl").write_text(
         "".join(
             json.dumps(entry, ensure_ascii=False) + "\n"
@@ -552,17 +549,13 @@ async def test_rewrite_session_from_message_truncates_tail_and_archives(
     assert payload["messages"][-1]["content"] == "fixed prompt"
     assert payload["messages"][-1]["rewritten_from"] == target_message_id
 
-    persisted_context = [
-        json.loads(line)
-        for line in (legacy_sdk_dir / "context.jsonl").read_text(encoding="utf-8").splitlines()
-        if line.strip()
-    ]
+    persisted_context = isolated_session_manager.get_history(session_id, user_id)
     assert [message["content"] for message in persisted_context] == [
         "first prompt",
         "first answer",
         "fixed prompt",
     ]
-    assert "bad answer" not in (legacy_sdk_dir / "context.jsonl").read_text(encoding="utf-8")
+    assert not any("bad answer" in str(m) for m in persisted_context)
 
     archives = list((session_dir / ".aiasys" / "session" / "ui-history-archives").glob("*-message-rewritten.json"))
     assert len(archives) == 1
@@ -595,16 +588,11 @@ async def test_rewrite_session_from_message_requires_tail_confirmation(
         sandbox_mode="local",
     )
     session_dir = isolated_session_manager._get_session_dir(session_id, user_id)
-    legacy_sdk_dir = session_dir / ".aiasys" / "session" / session_id
-    legacy_sdk_dir.mkdir(parents=True, exist_ok=True)
     context_messages = [
         {"role": "user", "content": "old prompt"},
         {"role": "assistant", "content": "old answer"},
     ]
-    (legacy_sdk_dir / "context.jsonl").write_text(
-        "".join(json.dumps(message, ensure_ascii=False) + "\n" for message in context_messages),
-        encoding="utf-8",
-    )
+    isolated_session_manager._write_history_snapshot(session_dir, context_messages)
     target_message_id = isolated_session_manager.assign_history_message_ids(
         session_id,
         context_messages,
@@ -640,8 +628,6 @@ async def test_rewrite_session_from_message_uses_visible_history_message_ids(
         sandbox_mode="local",
     )
     session_dir = isolated_session_manager._get_session_dir(session_id, user_id)
-    legacy_sdk_dir = session_dir / ".aiasys" / "session" / session_id
-    legacy_sdk_dir.mkdir(parents=True, exist_ok=True)
     context_messages = [
         {
             "role": "user",
@@ -650,10 +636,6 @@ async def test_rewrite_session_from_message_uses_visible_history_message_ids(
         {"role": "user", "content": "你好"},
         {"role": "assistant", "content": "你好！"},
     ]
-    (legacy_sdk_dir / "context.jsonl").write_text(
-        "".join(json.dumps(message, ensure_ascii=False) + "\n" for message in context_messages),
-        encoding="utf-8",
-    )
     isolated_session_manager._write_history_snapshot(session_dir, context_messages)
     isolated_session_manager._update_message_count(session_id, user_id, len(context_messages))
 
@@ -683,11 +665,7 @@ async def test_rewrite_session_from_message_uses_visible_history_message_ids(
 
     assert payload["success"] is True
     assert payload["messages"][-1]["content"] == "你好，改写后"
-    persisted_context = [
-        json.loads(line)
-        for line in (legacy_sdk_dir / "context.jsonl").read_text(encoding="utf-8").splitlines()
-        if line.strip()
-    ]
+    persisted_context = isolated_session_manager.get_history(session_id, user_id)
     assert persisted_context[0]["content"].startswith("<system-reminder>")
     assert persisted_context[1]["content"] == "你好，改写后"
 

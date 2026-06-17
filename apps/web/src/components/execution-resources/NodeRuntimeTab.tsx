@@ -27,6 +27,7 @@ type TabNotice = { type: "success" | "error" | "info"; message: string } | null;
 
 interface NodeRuntimeTabProps {
   workspaceId?: string | null;
+  onNavigateShellEnvironment?: () => void;
 }
 
 const statusLabels: Record<string, string> = {
@@ -172,7 +173,7 @@ function EnvCard({
   );
 }
 
-export function NodeRuntimeTab({ workspaceId }: NodeRuntimeTabProps) {
+export function NodeRuntimeTab({ workspaceId, onNavigateShellEnvironment }: NodeRuntimeTabProps) {
   const [registry, setRegistry] = useState<NodeRuntimeEnvRegistry | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -375,7 +376,20 @@ export function NodeRuntimeTab({ workspaceId }: NodeRuntimeTabProps) {
             <div className="mt-2 text-xs leading-5 text-muted-foreground">
               {registry?.fnm_available
                 ? "fnm 已就绪，可直接安装或切换 Node.js 版本。"
-                : "未检测到 fnm。桌面版会自动携带，Web 版需要本机已安装 fnm 并位于 PATH 中。"}
+                : (
+                  <>
+                    未检测到 fnm。桌面版会自动携带，Web 版需要本机已安装 fnm 并位于 PATH 中。
+                    {onNavigateShellEnvironment ? (
+                      <button
+                        type="button"
+                        onClick={onNavigateShellEnvironment}
+                        className="ml-1 text-primary hover:underline"
+                      >
+                        去环境增强查看 →
+                      </button>
+                    ) : null}
+                  </>
+                )}
             </div>
           </div>
         </div>

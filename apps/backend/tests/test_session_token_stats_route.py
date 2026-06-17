@@ -53,15 +53,6 @@ def _build_user() -> UserInfo:
     return UserInfo(user_id="local_default", role="admin", auth_provider="local")
 
 
-def _write_context_jsonl(session_dir: Path, session_id: str, messages: list[dict]) -> None:
-    path = session_dir / ".aiasys" / "session" / session_id / "context.jsonl"
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(
-        "".join(json.dumps(message, ensure_ascii=False) + "\n" for message in messages),
-        encoding="utf-8",
-    )
-
-
 def _write_history_snapshot(session_dir: Path, messages: list[dict]) -> None:
     path = session_dir / ".aiasys" / "session" / "_active" / "history.json"
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -103,9 +94,8 @@ async def test_token_stats_reads_context_tokens_without_budget(
         title="Token 统计",
     )
     session_dir = manager._get_session_dir(session_id, "local_default")
-    _write_context_jsonl(
+    _write_history_snapshot(
         session_dir,
-        session_id,
         [
             {"role": "user", "content": "abcd" * 100},
             {"role": "assistant", "content": "efgh" * 80},

@@ -415,19 +415,68 @@ async def test_mcp_store_connection(
 async def get_mcp_status(
     current_user: UserInfo = Depends(get_current_user),
 ) -> List[MCPConnectionStatus]:
-    """获取所有 MCP Server 的连接状态"""
+    """获取所有 MCP Server 的连接状态。
+
+    如果存在活跃会话且该 server 的 MCPClient 已连接，返回 status='connected'；
+    如果存在活跃会话但 client 未连接，返回 status='disconnected'；
+    如果没有活跃会话（无法探测运行时状态），保持 status='configured' 并设置
+    runtime_connected=None。
+    """
     mgr = get_mcp_manager()
     definitions = mgr.list_store_servers(current_user.user_id)
 
+    # 从活跃会话中收集运行时 MCP client 连接状态
+    runtime_status: dict[str, bool] = {}
+    has_active_sessions = False
+    try:
+        from app.services.agent import agent_service
+
+        active_sessions = getattr(agent_service, "_active_sessions", None)
+        if active_sessions:
+            for session in active_sessions.values():
+                mcp_clients = getattr(session, "_mcp_clients", None) or []
+                if mcp_clients:
+                    has_active_sessions = True
+                for client in mcp_clients:
+                    server_name = getattr(client, "server_name", None)
+                    if server_name is None:
+                        continue
+                    is_conn = getattr(client, "is_connected", None)
+                    connected = is_conn() if callable(is_conn) else False
+                    # 多个会话可能挂载同一 server，只要有一个连接即为 connected
+                    if connected:
+                        runtime_status[server_name] = True
+                    elif server_name not in runtime_status:
+                        runtime_status[server_name] = False
+    except Exception:
+        logger.debug("收集运行时 MCP 连接状态失败", exc_info=True)
+
     statuses = []
     for definition in definitions:
-        status = MCPConnectionStatus(
+        if definition.name in runtime_status:
+            connected = runtime_status[definition.name]
+            status = "connected" if connected else "disconnected"
+        else:
+            # 没有活跃会话或该 server 未被任何活跃会话加载
+            status = "configured"
+
+        # runtime_connected: 有活跃会话时反映实际连接布尔值，无活跃会话时为 None
+        if has_active_sessions and definition.name in runtime_status:
+            runtime_connected: Optional[bool] = runtime_status[definition.name]
+        elif has_active_sessions:
+            # 有活跃会话但该 server 未被加载（配置了但未挂载）
+            runtime_connected = False
+        else:
+            runtime_connected = None
+
+        status_entry = MCPConnectionStatus(
             name=definition.name,
-            status="configured",
+            status=status,
             tools_count=0,
             is_system_default=definition.is_system_default,
+            runtime_connected=runtime_connected,
         )
-        statuses.append(status)
+        statuses.append(status_entry)
 
     return statuses
 

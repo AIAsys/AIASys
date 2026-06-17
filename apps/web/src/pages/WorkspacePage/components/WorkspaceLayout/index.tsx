@@ -126,6 +126,17 @@ export function WorkspaceLayout({
     });
   }, []);
 
+  // 监听来自其他组件（如 NewWorkspaceDialog PreflightCheck）的全局设置打开请求
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail as string | undefined;
+      setGlobalSettingsSection((detail ?? "llm") as import("@/components/settings/global-settings").SettingsSection);
+      setIsGlobalSettingsOpen(true);
+    };
+    window.addEventListener("aiasys:open-global-settings", handler);
+    return () => window.removeEventListener("aiasys:open-global-settings", handler);
+  }, []);
+
 
   const { user } = useAuthContext();
 

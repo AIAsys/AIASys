@@ -9,6 +9,7 @@ import {
   CollapsedIconButton,
 } from "./DesignSidebarPrimitives";
 import type { SettingsSection } from "@/components/settings/global-settings";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 interface DesignSidebarCollapsedProps {
   avatarChar: string;
@@ -73,6 +74,7 @@ export function DesignSidebarCollapsed({
         >
           <Settings className="w-[18px] h-[18px]" />
         </button>
+        <ThemeToggle collapsed />
         <button
           type="button"
           onClick={onEditProfile}

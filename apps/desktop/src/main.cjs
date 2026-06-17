@@ -308,6 +308,21 @@ async function bootstrap() {
     resourcesPath: process.resourcesPath,
     runtimeStateRoot,
   });
+
+  // 后端崩溃时通知渲染进程显示遮罩
+  serviceManager.onBackendCrash = () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send("backend:crashed");
+    }
+  };
+
+  // 后端重启就绪后通知渲染进程隐藏遮罩
+  serviceManager.onBackendReady = () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send("backend:ready");
+    }
+  };
+
   console.log("[aiasys-desktop] starting backend...");
   const rendererBaseUrl = await serviceManager.start();
   console.log("[aiasys-desktop] backend started, creating window...");

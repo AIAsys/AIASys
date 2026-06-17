@@ -12,6 +12,7 @@
  * 3. 支持流式更新和历史恢复
  */
 import { memo, useMemo } from "react";
+import { RotateCcw } from "lucide-react";
 
 import type { ChatSegment, WorkerRecord } from "@/pages/WorkspacePage/types";
 import type { PreviewFile } from "@/components/layout/WorkspaceSidebar/preview";
@@ -82,6 +83,10 @@ export interface AiMessageContentProps {
    */
   onOpenWorkspaceArtifact?: (file: PreviewFile) => void;
   onOpenInBrowserTab?: (path: string) => void;
+  /** 打开执行资源面板 */
+  onOpenRuntimeTab?: () => void;
+  /** 重试上一次失败的提交 */
+  onRetryLastSubmit?: () => Promise<void> | void;
   /**
    * 是否在消息流中内联显示工具执行结果（默认 false，结果通过弹窗查看）
    */
@@ -154,6 +159,8 @@ export const AiMessageContent = memo(function AiMessageContent({
   taskId,
   onOpenWorkspaceArtifact,
   onOpenInBrowserTab,
+  onOpenRuntimeTab,
+  onRetryLastSubmit,
   showToolOutputs = false,
 }: AiMessageContentProps) {
   const {
@@ -217,6 +224,8 @@ export const AiMessageContent = memo(function AiMessageContent({
     sessionId,
     onOpenWorkspaceArtifact,
     onOpenInBrowserTab,
+    onOpenRuntimeTab,
+    onRetryLastSubmit,
   };
 
   // 按顺序渲染 segments，保持 segments 原始到达/恢复顺序
@@ -281,6 +290,16 @@ export const AiMessageContent = memo(function AiMessageContent({
               onOpenInMainCanvas={onOpenWorkspaceArtifact}
               onOpenInBrowserTab={onOpenInBrowserTab}
             />
+            {seg.isError && onRetryLastSubmit ? (
+              <button
+                type="button"
+                onClick={() => void onRetryLastSubmit()}
+                className="mt-2 flex items-center gap-1.5 rounded-md border border-border bg-background px-2.5 py-1.5 text-[11px] font-medium text-foreground transition-colors hover:bg-muted"
+              >
+                <RotateCcw className="h-3 w-3" />
+                重试
+              </button>
+            ) : null}
           </div>
         );
       }
@@ -338,6 +357,7 @@ export const AiMessageContent = memo(function AiMessageContent({
             title={`${seg.toolName || "工具"} ${seg.isError ? "错误" : "执行结果"}`}
             content={hasContent ? seg.content : "（无输出）"}
             defaultOpen={seg.isError || false}
+            isError={seg.isError}
           />
         );
       }

@@ -132,6 +132,7 @@ export function useExecutionSubmit(props: UseExecutionSubmitProps) {
   } = props;
 
   const isSubmittingRef = useRef(false);
+  const lastSubmitRef = useRef<{ content: string; attachmentPaths: string[] } | null>(null);
 
   const { handleStreamEvent } = useStreamEventHandler({
     getSessionSlot,
@@ -159,6 +160,8 @@ export function useExecutionSubmit(props: UseExecutionSubmitProps) {
     const attachmentPaths =
       options.attachmentPaths ??
       uploadedFiles.map((file) => file.file_path || file.filename);
+    // 记录本次提交内容，用于错误后重试
+    lastSubmitRef.current = { content: userContent, attachmentPaths };
     if (!overridePrompt) {
       setInputValue("");
       clearFiles();
@@ -352,14 +355,14 @@ export function useExecutionSubmit(props: UseExecutionSubmitProps) {
               : [];
             const errorSegment: ChatSegment = {
               type: "text",
-              content: `\n\n**Error**: ${err}`,
+              content: `\n\n**错误**: ${err}`,
               isError: true,
             };
             if (target.type === "message") {
               newItems[aiMsgIdx] = {
                 ...target,
                 segments: [...existingSegments, errorSegment],
-                content: `${existingContent}\n\n**Error**: ${err}`,
+                content: `${existingContent}\n\n**错误**: ${err}`,
                 isStreaming: false,
               };
             }
@@ -465,6 +468,34 @@ export function useExecutionSubmit(props: UseExecutionSubmitProps) {
     onTokenUsageShouldRefresh,
   ]);
 
+  const handleRetryLastSubmit = useCallback(async () => {
+    const last = lastSubmitRef.current;
+    if (!last || isSubmittingRef.current) return;
+    const latestSessionId = activeSessionIdRef.current || sessionId;
+    if (isSessionRunning(latestSessionId)) return;
+
+    // 移除上一条 AI 消息中的错误 segment
+    updateChatItems(latestSessionId, (prev: ChatItem[]) => {
+      return prev.map((item) => {
+        if (item.type === "message" && item.sender === "ai" && Array.isArray(item.segments)) {
+          const hasError = item.segments.some((s) => s.isError);
+          if (!hasError) return item;
+          return {
+            ...item,
+            segments: item.segments.filter((s) => !s.isError),
+          };
+        }
+        return item;
+      });
+    });
+
+    // 以 skipUserEcho 重试
+    await handleSubmit(last.content, {
+      skipUserEcho: true,
+      attachmentPaths: last.attachmentPaths,
+    });
+  }, [handleSubmit, isSessionRunning, sessionId, updateChatItems]);
+
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
       if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
@@ -475,5 +506,5 @@ export function useExecutionSubmit(props: UseExecutionSubmitProps) {
     [handleSubmit],
   );
 
-  return { handleSubmit, handleStop, handleKeyDown };
+  return { handleSubmit, handleStop, handleKeyDown, handleRetryLastSubmit };
 }

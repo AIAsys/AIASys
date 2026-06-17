@@ -18,6 +18,7 @@ export interface AgentStreamState {
   isComplete: boolean;
   error?: string;
   taskId?: string;
+  isReconnecting?: boolean;
 }
 
 export interface StreamCallbacks {
@@ -33,6 +34,9 @@ interface SessionStreamEntry {
   abortController: AbortController | null;
   taskId: string | undefined;
   requestId: number;
+  userAborted: boolean;
+  reconnectCount: number;
+  heartbeatTimedOut: boolean;
 }
 
 function createEmptyStreamEntry(): SessionStreamEntry {
@@ -45,6 +49,9 @@ function createEmptyStreamEntry(): SessionStreamEntry {
     abortController: null,
     taskId: undefined,
     requestId: 0,
+    userAborted: false,
+    reconnectCount: 0,
+    heartbeatTimedOut: false,
   };
 }
 
@@ -121,6 +128,7 @@ export function useAgentStream(): UseAgentStreamResult {
       if (!entry) return;
 
       entry.requestId += 1;
+      entry.userAborted = true;
       if (entry.abortController) {
         entry.abortController.abort();
         entry.abortController = null;
@@ -232,12 +240,14 @@ export function useAgentStream(): UseAgentStreamResult {
       const entry = getEntry(sessionId);
       const requestId = entry.requestId + 1;
       entry.requestId = requestId;
+      entry.reconnectCount = 0;
       entry.state = {
         isConnected: false,
         isRunning: true,
         isComplete: false,
         error: undefined,
         taskId: undefined,
+        isReconnecting: false,
       };
       entry.taskId = undefined;
 
@@ -248,10 +258,6 @@ export function useAgentStream(): UseAgentStreamResult {
         next.add(sessionId);
         return next;
       });
-
-      const controller = new AbortController();
-      entry.abortController = controller;
-      const signal = controller.signal;
 
       const body: AgentExecuteRequest = {
         prompt: input,
@@ -264,40 +270,266 @@ export function useAgentStream(): UseAgentStreamResult {
         // user_id 不传，后端会从当前本地用户上下文解析真实身份
       };
 
-      try {
-        const response = await apiFetch(API_ENDPOINTS.AGENT_STREAM, {
-          method: "POST",
-          headers: { "X-Session-Id": sessionId },
-          body,
-          signal,
-          timeoutMs: 300_000, // 5 分钟超时
-        });
+      const MAX_RECONNECT = 2;
 
-        if (!response.ok) {
-          throw new Error(`API Error: ${response.status}`);
-        }
+      for (let attempt = 0; attempt <= MAX_RECONNECT; attempt++) {
+        const controller = new AbortController();
+        entry.abortController = controller;
+        entry.userAborted = false;
+        entry.heartbeatTimedOut = false;
+        const signal = controller.signal;
 
-        if (entry.requestId !== requestId) {
-          return;
-        }
+        let heartbeatChecker: ReturnType<typeof setInterval> | null = null;
 
-        entry.state = { ...entry.state, isConnected: true };
-        syncIfActive(sessionId, entry.state);
+        try {
+          const response = await apiFetch(API_ENDPOINTS.AGENT_STREAM, {
+            method: "POST",
+            headers: { "X-Session-Id": sessionId },
+            body,
+            signal,
+            timeoutMs: 300_000, // 5 分钟超时
+          });
 
-        const reader = response.body?.getReader();
-        const decoder = new TextDecoder();
-        let pendingLine = "";
+          if (!response.ok) {
+            throw new Error(`API Error: ${response.status}`);
+          }
 
-        if (!reader) {
-          throw new Error("No response body");
-        }
+          if (entry.requestId !== requestId) {
+            return;
+          }
 
-        const finishStream = () => {
+          entry.state = { ...entry.state, isConnected: true, isReconnecting: false };
+          syncIfActive(sessionId, entry.state);
+
+          const reader = response.body?.getReader();
+          const decoder = new TextDecoder();
+          let pendingLine = "";
+
+          if (!reader) {
+            throw new Error("No response body");
+          }
+
+          // 心跳检测：超过 45 秒（3 个心跳周期）未收到 heartbeat 则主动中断并触发重连
+          let lastHeartbeatTime = Date.now();
+          heartbeatChecker = setInterval(() => {
+            if (
+              Date.now() - lastHeartbeatTime > 45000 &&
+              entry.requestId === requestId &&
+              !entry.userAborted
+            ) {
+              entry.heartbeatTimedOut = true;
+              controller.abort();
+            }
+          }, 5000);
+
+          const finishStream = () => {
+            if (heartbeatChecker) {
+              clearInterval(heartbeatChecker);
+              heartbeatChecker = null;
+            }
+            entry.reconnectCount = 0;
+            entry.state = {
+              ...entry.state,
+              isConnected: false,
+              isRunning: false,
+              isComplete: true,
+              isReconnecting: false,
+            };
+            syncIfActive(sessionId, entry.state);
+            setRunningSessionIds((prev) => {
+              if (!prev.has(sessionId)) return prev;
+              const next = new Set(prev);
+              next.delete(sessionId);
+              return next;
+            });
+            // 保留 entry 不删除，切回 session 时仍能读取最终状态
+          };
+
+          while (true) {
+            const { done, value } = await reader.read();
+
+            if (entry.requestId !== requestId) {
+              if (heartbeatChecker) {
+                clearInterval(heartbeatChecker);
+                heartbeatChecker = null;
+              }
+              return;
+            }
+
+            if (done) {
+              finishStream();
+              callbacks?.onFinish?.();
+              break;
+            }
+
+            pendingLine += decoder.decode(value, { stream: true });
+            const lines = pendingLine.split(/\r?\n/);
+            pendingLine = lines.pop() ?? "";
+
+            for (const line of lines) {
+              if (!line.startsWith("data:")) continue;
+
+              const data = line.slice(5).trimStart();
+              if (data === "[DONE]") {
+                finishStream();
+                callbacks?.onFinish?.();
+                return;
+              }
+
+              try {
+                const event: AgentEvent = JSON.parse(data);
+
+                callbacks?.onEvent?.(event);
+
+                switch (event.type) {
+                  case "heartbeat":
+                    lastHeartbeatTime = Date.now();
+                    break;
+
+                  case "content":
+                    if (event.content_type === "text" && event.text) {
+                      callbacks?.onContent?.(event.text, "text");
+                    } else if (event.content_type === "think" && event.think) {
+                      callbacks?.onContent?.(event.think, "think");
+                    }
+                    break;
+
+                  case "tool_call":
+                    break;
+
+                  case "tool_result":
+                    break;
+
+                  case "subagent_content":
+                  case "subagent_tool_call":
+                  case "subagent_tool_result":
+                  case "subagent_step_begin":
+                    if (
+                      "task_tool_call_id" in event &&
+                      event.task_tool_call_id &&
+                      !entry.taskId
+                    ) {
+                      entry.taskId = event.task_tool_call_id;
+                      entry.state = {
+                        ...entry.state,
+                        taskId: event.task_tool_call_id,
+                      };
+                      syncIfActive(sessionId, entry.state);
+                    }
+                    break;
+
+                  case "file_changes":
+                    break;
+
+                  case "error":
+                    if ("message" in event && event.message) {
+                      if (entry.requestId === requestId) {
+                        callbacks?.onError?.(event.message);
+                      }
+                    }
+                    break;
+                }
+              } catch (parseError) {
+                console.warn("SSE 事件解析失败", line, parseError);
+              }
+            }
+          }
+          // 流正常完成，退出重试循环
+          break;
+        } catch (error: unknown) {
+          if (heartbeatChecker) {
+            clearInterval(heartbeatChecker);
+            heartbeatChecker = null;
+          }
+
+          if (isError(error) && error.name === "AbortError") {
+            // User-initiated abort: silent
+            if (entry.userAborted) {
+              entry.userAborted = false;
+              return;
+            }
+            // 心跳超时触发的 abort — 尝试重连
+            if (entry.heartbeatTimedOut && attempt < MAX_RECONNECT) {
+              entry.reconnectCount = attempt + 1;
+              entry.state = {
+                ...entry.state,
+                isReconnecting: true,
+                isConnected: false,
+                error: undefined,
+              };
+              syncIfActive(sessionId, entry.state);
+              await new Promise((resolve) => setTimeout(resolve, 3000));
+              if (entry.requestId !== requestId || entry.userAborted) return;
+              entry.state = {
+                ...entry.state,
+                isReconnecting: false,
+                isRunning: true,
+                isConnected: false,
+              };
+              syncIfActive(sessionId, entry.state);
+              continue;
+            }
+            // Timeout-triggered abort: notify user
+            if (entry.requestId === requestId) {
+              const timeoutMsg = "请求超时（5分钟），请检查网络或重试";
+              entry.state = {
+                ...entry.state,
+                isConnected: false,
+                isRunning: false,
+                isComplete: true,
+                error: timeoutMsg,
+                isReconnecting: false,
+              };
+              syncIfActive(sessionId, entry.state);
+              setRunningSessionIds((prev) => {
+                if (!prev.has(sessionId)) return prev;
+                const next = new Set(prev);
+                next.delete(sessionId);
+                return next;
+              });
+              callbacks?.onError?.(timeoutMsg);
+            }
+            return;
+          }
+
+          if (entry.requestId !== requestId) {
+            return;
+          }
+
+          const errMsg = getErrorMessage(error);
+          const isNetworkError =
+            /fetch|network|failed to fetch/i.test(errMsg);
+
+          // 网络错误 — 尝试重连
+          if (isNetworkError && !entry.userAborted && attempt < MAX_RECONNECT) {
+            entry.reconnectCount = attempt + 1;
+            entry.state = {
+              ...entry.state,
+              isReconnecting: true,
+              isConnected: false,
+              error: undefined,
+            };
+            syncIfActive(sessionId, entry.state);
+            await new Promise((resolve) => setTimeout(resolve, 3000));
+            if (entry.requestId !== requestId || entry.userAborted) return;
+            entry.state = {
+              ...entry.state,
+              isReconnecting: false,
+              isRunning: true,
+              isConnected: false,
+            };
+            syncIfActive(sessionId, entry.state);
+            continue;
+          }
+
+          // 最终错误
           entry.state = {
             ...entry.state,
             isConnected: false,
             isRunning: false,
             isComplete: true,
+            error: errMsg,
+            isReconnecting: false,
           };
           syncIfActive(sessionId, entry.state);
           setRunningSessionIds((prev) => {
@@ -306,123 +538,21 @@ export function useAgentStream(): UseAgentStreamResult {
             next.delete(sessionId);
             return next;
           });
-          // 保留 entry 不删除，切回 session 时仍能读取最终状态
-        };
-
-        while (true) {
-          const { done, value } = await reader.read();
-
-          if (entry.requestId !== requestId) {
-            return;
+          callbacks?.onError?.(errMsg);
+          break;
+        } finally {
+          if (heartbeatChecker) {
+            clearInterval(heartbeatChecker);
+            heartbeatChecker = null;
           }
-
-          if (done) {
-            finishStream();
-            callbacks?.onFinish?.();
-            break;
+          if (
+            entry.requestId === requestId &&
+            entry.abortController === controller
+          ) {
+            entry.abortController = null;
           }
-
-          pendingLine += decoder.decode(value, { stream: true });
-          const lines = pendingLine.split(/\r?\n/);
-          pendingLine = lines.pop() ?? "";
-
-          for (const line of lines) {
-            if (!line.startsWith("data:")) continue;
-
-            const data = line.slice(5).trimStart();
-            if (data === "[DONE]") {
-              finishStream();
-              callbacks?.onFinish?.();
-              return;
-            }
-
-            try {
-              const event: AgentEvent = JSON.parse(data);
-
-              callbacks?.onEvent?.(event);
-
-              switch (event.type) {
-                case "content":
-                  if (event.content_type === "text" && event.text) {
-                    callbacks?.onContent?.(event.text, "text");
-                  } else if (event.content_type === "think" && event.think) {
-                    callbacks?.onContent?.(event.think, "think");
-                  }
-                  break;
-
-                case "tool_call":
-                  break;
-
-                case "tool_result":
-                  break;
-
-                case "subagent_content":
-                case "subagent_tool_call":
-                case "subagent_tool_result":
-                case "subagent_step_begin":
-                  if (
-                    "task_tool_call_id" in event &&
-                    event.task_tool_call_id &&
-                    !entry.taskId
-                  ) {
-                    entry.taskId = event.task_tool_call_id;
-                    entry.state = {
-                      ...entry.state,
-                      taskId: event.task_tool_call_id,
-                    };
-                    syncIfActive(sessionId, entry.state);
-                  }
-                  break;
-
-                case "file_changes":
-                  break;
-
-                case "error":
-                  if ("message" in event && event.message) {
-                    if (entry.requestId === requestId) {
-                      callbacks?.onError?.(event.message);
-                    }
-                  }
-                  break;
-              }
-            } catch (parseError) {
-              console.warn("SSE 事件解析失败", line, parseError);
-            }
-          }
+          // 保留 entry 不删除，只有明确的 removeSession 才清理
         }
-      } catch (error: unknown) {
-        if (isError(error) && error.name === "AbortError") {
-          return;
-        }
-
-        if (entry.requestId !== requestId) {
-          return;
-        }
-
-        const errMsg = getErrorMessage(error);
-        entry.state = {
-          ...entry.state,
-          isConnected: false,
-          isRunning: false,
-          isComplete: true,
-          error: errMsg,
-        };
-        syncIfActive(sessionId, entry.state);
-        setRunningSessionIds((prev) => {
-          if (!prev.has(sessionId)) return prev;
-          const next = new Set(prev);
-          next.delete(sessionId);
-          return next;
-        });
-        callbacks?.onError?.(errMsg);
-      } finally {
-        if (
-          entry.requestId === requestId &&
-          entry.abortController === controller
-        ) {
-          entry.abortController = null;
-        }
-        // 保留 entry 不删除，只有明确的 removeSession 才清理
       }
     },
     [stopSession],

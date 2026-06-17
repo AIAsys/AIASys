@@ -8,7 +8,7 @@ import pytest
 
 from app.agents.tools.runtime_environment_tool import RuntimeEnvironment
 from app.models.runtime_environment import RuntimeEnvCommandResult, RuntimeEnvPackage
-from app.models.workspace import WorkspaceRuntimeBinding
+from app.models.workspace import ExecutionResourceGroup, WorkspaceRuntimeBinding
 from app.services import runtime_environment as runtime_environment_module
 from app.agents.tools import runtime_environment_tool as runtime_environment_tool_module
 from app.services.history import current_session_id, current_user_id, current_workspace
@@ -177,8 +177,7 @@ async def test_runtime_environment_tool_unregisters_active_uv_and_preserves_env_
         user_id="local_default",
         workspace_id="task-env",
         runtime_binding=WorkspaceRuntimeBinding(
-            sandbox_mode="local",
-            env_id="workspace-default",
+            resources=ExecutionResourceGroup(python_env_id="workspace-default"),
             env_vars={"TOKEN": "kept"},
         ),
     )

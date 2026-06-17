@@ -113,9 +113,7 @@ class ShellExecutor:
             return "cmd"
         return None
 
-    def _resolve_custom_interpreter(
-        self, interpreter: str
-    ) -> tuple[str, list[str], str] | None:
+    def _resolve_custom_interpreter(self, interpreter: str) -> tuple[str, list[str], str] | None:
         """如果传入的是可执行文件路径，则直接解析使用。"""
         candidate = Path(interpreter).expanduser()
         if not candidate.exists():
@@ -252,8 +250,14 @@ class ShellExecutor:
             keys = [
                 (winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\GitForWindows"),
                 (winreg.HKEY_CURRENT_USER, r"SOFTWARE\GitForWindows"),
-                (winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Git_is1"),
-                (winreg.HKEY_CURRENT_USER, r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Git_is1"),
+                (
+                    winreg.HKEY_LOCAL_MACHINE,
+                    r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Git_is1",
+                ),
+                (
+                    winreg.HKEY_CURRENT_USER,
+                    r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Git_is1",
+                ),
             ]
             for hive, key in keys:
                 try:

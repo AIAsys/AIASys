@@ -464,6 +464,7 @@ export const API_ENDPOINTS = {
   UV_MIRROR_CONFIG: "/api/system/uv/mirror-config",
   SHELL_ENVIRONMENT: "/api/system/shell-environment",
   SHELL_ENVIRONMENT_INSTALL_BUSYBOX: "/api/system/shell-environment/install-busybox",
+  SHELL_ENVIRONMENT_INSTALL_BUSYBOX_STREAM: "/api/system/shell-environment/install-busybox/stream",
 
   // Knowledge Base 知识库
   KNOWLEDGE_BASES: "/api/knowledge/bases",

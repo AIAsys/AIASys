@@ -76,12 +76,14 @@ def _normalize_workspace_runtime_binding(value: Any) -> WorkspaceRuntimeBinding:
     else:
         raw = {}
 
+    # 兼容旧数据：从 sandbox_mode/env_id 提取信息到 resources
     sandbox_mode_raw = raw.get("sandbox_mode")
     sandbox_mode = (
         str(sandbox_mode_raw).strip().lower() if sandbox_mode_raw not in (None, "") else None
     )
-    env_id_raw = raw.get("env_id")
-    env_id = str(env_id_raw).strip() if env_id_raw not in (None, "") else None
+    legacy_env_id = raw.get("env_id")
+    legacy_env_id = str(legacy_env_id).strip() if legacy_env_id not in (None, "") else None
+
     env_vars = raw.get("env_vars")
 
     resources_raw = raw.get("resources")
@@ -95,29 +97,17 @@ def _normalize_workspace_runtime_binding(value: Any) -> WorkspaceRuntimeBinding:
             docker_resource_id=docker_resource_id,
         )
         return WorkspaceRuntimeBinding(
-            sandbox_mode="docker",
-            env_id=None,
             env_vars=env_vars if isinstance(env_vars, dict) else None,
             resources=resources,
         )
 
     resources = ExecutionResourceGroup(
-        python_env_id=resources_raw.get("python_env_id") or env_id or None,
+        python_env_id=resources_raw.get("python_env_id") or legacy_env_id or None,
         node_env_id=resources_raw.get("node_env_id") or None,
         docker_resource_id=None,
     )
 
-    if sandbox_mode in (None, "", "local"):
-        return WorkspaceRuntimeBinding(
-            sandbox_mode="local" if resources.python_env_id or resources.node_env_id else None,
-            env_id=resources.python_env_id,
-            env_vars=env_vars if isinstance(env_vars, dict) else None,
-            resources=resources,
-        )
-
     return WorkspaceRuntimeBinding(
-        sandbox_mode=sandbox_mode,
-        env_id=env_id,
         env_vars=env_vars if isinstance(env_vars, dict) else None,
         resources=resources,
     )
@@ -133,14 +123,25 @@ def _merge_workspace_runtime_binding(
         if isinstance(patch, WorkspaceRuntimeBinding)
         else dict(patch)
     )
-    for key in ("sandbox_mode", "env_id", "env_vars"):
-        if key in raw_patch:
-            base[key] = raw_patch[key]
+    # 只合并 env_vars 和 resources，sandbox_mode/env_id 由 resources 派生
+    if "env_vars" in raw_patch:
+        base["env_vars"] = raw_patch["env_vars"]
     if "resources" in raw_patch and isinstance(raw_patch["resources"], dict):
         base.setdefault("resources", {})
         for rkey in ("python_env_id", "node_env_id", "docker_resource_id"):
             if rkey in raw_patch["resources"]:
                 base["resources"][rkey] = raw_patch["resources"][rkey]
+    # 兼容旧 patch 直接传 sandbox_mode/env_id 的情况
+    if "sandbox_mode" in raw_patch or "env_id" in raw_patch:
+        base.setdefault("resources", {})
+        if raw_patch.get("sandbox_mode") == "docker":
+            base["resources"]["docker_resource_id"] = (
+                base["resources"].get("docker_resource_id") or "docker-default"
+            )
+            base["resources"]["python_env_id"] = None
+            base["resources"]["node_env_id"] = None
+        if raw_patch.get("env_id"):
+            base["resources"]["python_env_id"] = raw_patch["env_id"]
     return _normalize_workspace_runtime_binding(base)
 
 
@@ -701,9 +702,8 @@ class WorkspaceRegistryService:
             user_id=user_id,
             workspace_id=workspace_id,
             runtime_binding=WorkspaceRuntimeBinding(
-                sandbox_mode=workspace.runtime_binding.sandbox_mode,
-                env_id=workspace.runtime_binding.env_id,
                 env_vars=normalized,
+                resources=workspace.runtime_binding.resources,
             ),
         )
 
@@ -922,8 +922,6 @@ class WorkspaceRegistryService:
                 resolved_resources.python_env_id = None
                 resolved_resources.node_env_id = None
                 normalized_runtime_binding = WorkspaceRuntimeBinding(
-                    sandbox_mode="docker",
-                    env_id=None,
                     env_vars=env_vars,
                     resources=resolved_resources,
                 )
@@ -990,14 +988,7 @@ class WorkspaceRegistryService:
                         )
                         resolved_resources.node_env_id = inspected.env_id
 
-                sandbox_mode = (
-                    "local"
-                    if resolved_resources.python_env_id or resolved_resources.node_env_id
-                    else None
-                )
                 normalized_runtime_binding = WorkspaceRuntimeBinding(
-                    sandbox_mode=sandbox_mode,
-                    env_id=resolved_resources.python_env_id,
                     env_vars=env_vars,
                     resources=resolved_resources,
                 )
@@ -1260,8 +1251,83 @@ class WorkspaceRegistryService:
                 "删除工作区 %s 时 SubAgentConfigORM 记录清理失败", workspace_id, exc_info=True
             )
 
+        # 清理工作区注册的 Docker 容器，避免删除目录后容器仍运行且挂载路径失效
+        self._cleanup_workspace_containers(user_id, workspace_id)
+
+        # 清理 GraphRAG 服务缓存中指向本工作区的条目
+        self._cleanup_workspace_graphrag_cache(workspace_dir)
+
         if workspace_dir.exists():
             shutil.rmtree(workspace_dir)
+
+    def _cleanup_workspace_containers(
+        self,
+        user_id: str,
+        workspace_id: str,
+    ) -> None:
+        """删除工作区目录前，停止并移除已注册的 Docker 容器。
+
+        容器清理失败不应阻断工作区删除，只记录 warning。
+        """
+        try:
+            from app.services.container_resource import ContainerResourceService
+
+            service = ContainerResourceService(self.workspace_root, workspace_registry=self)
+            registry = service.list_workspace_containers(user_id, workspace_id)
+            for container in registry.containers:
+                try:
+                    service.unregister_container(user_id, workspace_id, container.container_id)
+                except Exception:
+                    logger.warning(
+                        "删除工作区 %s 时清理容器 %s 失败",
+                        workspace_id,
+                        container.container_id,
+                        exc_info=True,
+                    )
+        except Exception:
+            logger.warning("删除工作区 %s 时容器资源清理失败", workspace_id, exc_info=True)
+
+    def _cleanup_workspace_graphrag_cache(self, workspace_dir: Path) -> None:
+        """清理 GraphRAG 服务缓存中指向本工作区的条目。
+
+        GraphRAG 服务实例按 (user_id, db_path) 缓存，删除工作区后这些
+        缓存指向的 .db 文件已不存在，需移除避免脏读。
+        """
+        try:
+            ws_prefix = str(workspace_dir.resolve())
+
+            # routes 层缓存：key 为 (user_id, db_path_str)
+            from app.graphrag.api import routes as graphrag_routes
+
+            stale_keys = [
+                key
+                for key, _svc in getattr(
+                    graphrag_routes, "_workspace_graphrag_services", {}
+                ).items()
+                if isinstance(key, tuple) and len(key) == 2 and str(key[1]).startswith(ws_prefix)
+            ]
+            for key in stale_keys:
+                graphrag_routes._workspace_graphrag_services.pop(key, None)
+
+            # agent 工具层缓存：key 为 (user_id, graph_id)，通过 graph_store.db_path 判定归属
+            from app.agents.tools import graphrag_tool
+
+            stale_tool_keys = []
+            for key, svc in getattr(graphrag_tool, "_graphrag_services", {}).items():
+                try:
+                    db_path = str(getattr(getattr(svc, "graph_store", None), "_db_path", ""))
+                    if db_path and db_path.startswith(ws_prefix):
+                        stale_tool_keys.append(key)
+                except Exception:
+                    continue
+            for key in stale_tool_keys:
+                graphrag_tool._graphrag_services.pop(key, None)
+        except Exception:
+            logger.warning(
+                "清理工作区 %s 的 GraphRAG 服务缓存失败",
+                str(workspace_dir.name),
+                exc_info=True,
+            )
 
     def list_conversations(
         self,
@@ -1369,11 +1435,17 @@ class WorkspaceRegistryService:
             source_session_id = str(
                 source_payload.get("session_id") or branched_from_conversation_id
             )
-            self.session_manager.fork_session_history(
+            fork_ok = self.session_manager.fork_session_history(
                 source_session_id=source_session_id,
                 target_session_id=session_id,
                 user_id=user_id,
             )
+            if not fork_ok:
+                logger.warning(
+                    "Fork 会话历史失败，创建空会话: source=%s target=%s",
+                    source_session_id,
+                    session_id,
+                )
             # 数据库连接器已改为全局资源，fork 时不再克隆 session_attachments
         else:
             # 数据库连接器已改为全局资源，新建会话时不再按工作区挂载配置 attach

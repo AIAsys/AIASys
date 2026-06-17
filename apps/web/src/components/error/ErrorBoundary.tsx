@@ -2,21 +2,23 @@ import React from "react";
 
 interface ErrorBoundaryProps {
   children: React.ReactNode;
+  /** 自定义错误 UI。提供时用其返回值替代默认全屏错误页 */
+  fallback?: (error: Error, reset: () => void) => React.ReactNode;
 }
 
 interface ErrorBoundaryState {
   hasError: boolean;
-  message?: string;
+  error: Error | null;
 }
 
 export class ErrorBoundary extends React.Component<
   ErrorBoundaryProps,
   ErrorBoundaryState
 > {
-  state: ErrorBoundaryState = { hasError: false };
+  state: ErrorBoundaryState = { hasError: false, error: null };
 
   static getDerivedStateFromError(error: Error): ErrorBoundaryState {
-    return { hasError: true, message: error.message };
+    return { hasError: true, error };
   }
 
   componentDidCatch(error: Error, info: React.ErrorInfo) {
@@ -27,14 +29,24 @@ export class ErrorBoundary extends React.Component<
     window.location.reload();
   };
 
+  resetError = () => {
+    this.setState({ hasError: false, error: null });
+  };
+
   render() {
     if (this.state.hasError) {
+      const error = this.state.error ?? new Error("发生未知错误");
+
+      if (this.props.fallback) {
+        return <>{this.props.fallback(error, this.resetError)}</>;
+      }
+
       return (
         <div className="min-h-screen flex items-center justify-center bg-background text-foreground">
           <div className="max-w-md text-center space-y-3">
             <div className="text-base font-semibold">页面出错</div>
             <div className="text-sm text-muted-foreground break-words">
-              {this.state.message || "发生未知错误"}
+              {error.message}
             </div>
             <button
               type="button"

@@ -132,8 +132,6 @@ interface WorkspaceSidebarProps {
   onOpenGlobalResourceInMainCanvas?: (node: GlobalResourceNode) => void;
   /** 在主画布编辑区打开文件 */
   onEditInMainCanvas?: (file: PreviewFile) => void;
-  /** 打开工作区资源设置 */
-  onOpenWorkspaceResourcesSettings?: () => void;
   /** 在中间主画布打开当前工作区图谱 */
   onOpenKnowledgeGraphCanvas?: (payload: {
     workspaceId: string;
@@ -164,7 +162,6 @@ interface WorkspaceSidebarContentProps {
   onOpenKnowledgeBaseDialog?: () => void;
   onOpenKnowledgeGraphDialog?: () => void;
   onOpenWorkspaceSettings?: () => void;
-  onOpenWorkspaceResourcesSettings?: () => void;
   layoutMode?: "sidebar" | "center";
   userModels?: LLMModelConfig[];
   pendingUploadedFiles?: Pick<UploadedFile, "filename" | "file_path">[];
@@ -195,7 +192,6 @@ function WorkspaceSidebarContent({
   onOpenKnowledgeBaseDialog,
   onOpenKnowledgeGraphDialog,
   onOpenWorkspaceSettings: providedOpenWorkspaceSettings,
-  onOpenWorkspaceResourcesSettings,
   layoutMode = "sidebar",
   userModels: _userModels = [],
   pendingUploadedFiles = [],
@@ -338,7 +334,6 @@ function WorkspaceSidebarContent({
       onRequestSubagentDock={onRequestSubagentDock}
       onOpenKnowledgeBaseDialog={onOpenKnowledgeBaseDialog}
       onOpenKnowledgeGraphDialog={onOpenKnowledgeGraphDialog}
-      onOpenWorkspaceResourcesSettings={onOpenWorkspaceResourcesSettings}
       onNewConversation={onNewConversation}
       onSelectConversation={onSelectConversation}
       onForkConversation={onForkConversation}
@@ -410,7 +405,6 @@ function WorkspaceSidebarContent({
             onOpenInMainCanvas={onOpenCanvasPreview}
             onOpenInBrowserTab={onOpenInBrowserTab}
             onEditInMainCanvas={onEditInMainCanvas}
-            onOpenWorkspaceResourcesSettings={onOpenWorkspaceResourcesSettings}
             surfaceMode={layoutMode === "center" ? "navigation" : "workbench"}
           />
         </Suspense>
@@ -497,7 +491,6 @@ export function WorkspaceContextSurface({
   onOpenInBrowserTab,
   onOpenGlobalResourceInMainCanvas,
   onEditInMainCanvas,
-  onOpenWorkspaceResourcesSettings,
   onRequestHostClarification,
   onRequestSubagentDock,
   onOpenSubagentInMainCanvas,
@@ -562,7 +555,6 @@ export function WorkspaceContextSurface({
           onOpenKnowledgeBaseDialog={onOpenKnowledgeBaseDialog}
           onOpenKnowledgeGraphDialog={onOpenKnowledgeGraphDialog}
           onOpenWorkspaceSettings={onOpenWorkspaceSettings}
-          onOpenWorkspaceResourcesSettings={onOpenWorkspaceResourcesSettings}
           layoutMode="center"
           userModels={userModels}
           pendingUploadedFiles={pendingUploadedFiles}
@@ -632,7 +624,6 @@ function WorkspaceSidebarRoot({
   onOpenInBrowserTab,
   onOpenGlobalResourceInMainCanvas,
   onEditInMainCanvas,
-  onOpenWorkspaceResourcesSettings,
   onOpenKnowledgeGraphCanvas: _onOpenKnowledgeGraphCanvas,
   onRequestHostClarification,
   onRequestSubagentDock,
@@ -693,7 +684,6 @@ function WorkspaceSidebarRoot({
           onOpenKnowledgeBaseDialog={onOpenKnowledgeBaseDialog}
           onOpenKnowledgeGraphDialog={onOpenKnowledgeGraphDialog}
           onOpenWorkspaceSettings={onOpenWorkspaceSettings}
-          onOpenWorkspaceResourcesSettings={onOpenWorkspaceResourcesSettings}
           userModels={userModels}
           pendingUploadedFiles={pendingUploadedFiles}
           initialArtifactFile={initialArtifactFile}

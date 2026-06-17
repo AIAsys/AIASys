@@ -47,6 +47,10 @@ interface AiMessageMeta {
   onOpenWorkspaceArtifact?: (file: PreviewFile) => void;
   /** 在浏览器标签页打开工作区文件 */
   onOpenInBrowserTab?: (path: string) => void;
+  /** 打开执行资源面板（用于代码执行失败时引导用户配置环境） */
+  onOpenRuntimeTab?: () => void;
+  /** 重试上一次失败的提交 */
+  onRetryLastSubmit?: () => Promise<void> | void;
 }
 
 // 完整的 Context Value 接口

@@ -25,6 +25,8 @@ interface ChatAreaActions {
   onOpenWorkspaceArtifact?: (file: PreviewFile) => void;
   /** 在浏览器标签页打开工作区文件 */
   onOpenInBrowserTab?: (path: string) => void;
+  /** 打开执行资源面板 */
+  onOpenRuntimeTab?: () => void;
   /** 查看工具调用详情 - 包含触发元素位置用于悬浮窗定位 */
   onViewToolDetails?: (
     toolCallId: string,
@@ -37,6 +39,8 @@ interface ChatAreaActions {
     content: string,
     originalContent?: string,
   ) => Promise<void> | void;
+  /** 重试上一次失败的提交 */
+  onRetryLastSubmit?: () => Promise<void> | void;
 }
 
 type ChatAreaLayout = "default" | "compact" | "rail";

@@ -15,6 +15,11 @@ BACKEND_ROOT = Path(__file__).resolve().parent.parent
 if str(BACKEND_ROOT) not in sys.path:
     sys.path.insert(0, str(BACKEND_ROOT))
 
+# 测试不应走外部代理。清除代理环境变量，避免 httpx 因缺少 socksio 而崩溃。
+for _key in ("HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY",
+             "http_proxy", "https_proxy", "all_proxy"):
+    os.environ.pop(_key, None)
+
 
 def _is_safe_test_database_url(database_url: str) -> bool:
     """只允许 pytest 使用内存库或 /tmp 下的临时 SQLite。"""

@@ -43,3 +43,24 @@ def normalize_windows_long_path(path: Path | str) -> str:
 def as_system_path(path: Path | str) -> str:
     """即将交给系统 IO 时使用的路径字符串。"""
     return normalize_windows_long_path(path)
+
+
+def atomic_write_text(path: Path, content: str) -> None:
+    """原子写入文本文件。
+
+    先写入临时文件，再通过 os.replace 原子替换目标文件。
+    如果写入过程中发生异常，清理临时文件，不在目标路径留下截断内容。
+    路径会经过 as_system_path 处理以兼容 Windows 长路径。
+    """
+    path = Path(path)
+    tmp_path = path.with_suffix(path.suffix + ".tmp")
+    try:
+        tmp_path.write_text(content, encoding="utf-8")
+        os.replace(as_system_path(tmp_path), as_system_path(path))
+    except BaseException:
+        # 写入或替换失败时清理临时文件，避免残留
+        try:
+            tmp_path.unlink(missing_ok=True)
+        except Exception:
+            pass
+        raise

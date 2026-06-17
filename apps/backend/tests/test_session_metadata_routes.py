@@ -5,6 +5,15 @@ import pytest
 from unittest.mock import MagicMock, patch
 
 
+def _iter_leaf_routes(routes):
+    """递归展开嵌套路由，返回所有带 path 属性的叶子路由。"""
+    for route in routes:
+        if hasattr(route, "routes") and not hasattr(route, "path"):
+            yield from _iter_leaf_routes(route.routes)
+        else:
+            yield route
+
+
 class TestSessionMetadataRoute:
     """测试 Session Metadata API"""
 
@@ -33,16 +42,18 @@ class TestSessionMetadataRoute:
 
     def test_metadata_endpoint_exists(self):
         """测试 metadata 端点已正确定义"""
-        # 检查路由是否已添加到 sessions 路由中
-        from app.api.routes.sessions import router
-        
-        # 查找 metadata 端点
+        from app.api.routes.sessions_branches import router
+
+        expected_path = "/sessions/{user_id}/{session_id}/metadata"
         metadata_route = None
-        for route in router.routes:
-            if route.path == "/sessions/{user_id}/{session_id}/metadata" and "GET" in route.methods:
+        for route in _iter_leaf_routes(router.routes):
+            if (
+                getattr(route, "path", None) == expected_path
+                and "GET" in getattr(route, "methods", set())
+            ):
                 metadata_route = route
                 break
-        
+
         assert metadata_route is not None, "Metadata 端点未找到"
         assert "GET" in metadata_route.methods, "Metadata 端点必须是 GET 方法"
 
@@ -78,12 +89,14 @@ class TestSessionMetadataIntegration:
 
     def test_endpoint_path_format(self):
         """测试端点路径格式正确"""
-        from app.api.routes.sessions import router
-        
-        # 确认端点路径格式符合 RESTful 规范
+        from app.api.routes.sessions_branches import router
+
         expected_path = "/sessions/{user_id}/{session_id}/metadata"
-        
-        paths = [route.path for route in router.routes]
+
+        paths = [
+            getattr(route, "path", None)
+            for route in _iter_leaf_routes(router.routes)
+        ]
         assert expected_path in paths, f"期望的路径 {expected_path} 不在路由中"
 
     def test_session_metadata_model_compatibility(self):

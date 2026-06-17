@@ -9,6 +9,7 @@ import json
 import logging
 import shutil
 import tomllib
+import uuid
 from pathlib import Path
 from typing import Any
 
@@ -96,7 +97,7 @@ class SkillProvider(CapabilityProvider):
                 message=f"工作区中已启用 Skill '{cap_id}'",
             )
 
-        tmp_path = dest.parent / (dest.name + ".new")
+        tmp_path = dest.parent / f".{dest.name}.install.{uuid.uuid4().hex[:8]}"
         if tmp_path.exists():
             shutil.rmtree(tmp_path, ignore_errors=True)
 

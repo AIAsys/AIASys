@@ -27,6 +27,8 @@ export interface WorkspaceTab {
   mode?: 'preview' | 'edit';
   subagentId?: string;
   terminalId?: string;
+  /** 终端 Tab 恢复标记：true 表示从 sessionStorage 或 closedTerminals 恢复，应优先 attach */
+  needsAttach?: boolean;
   databaseHandle?: string;
   capabilityDetail?: { workspaceId: string; capabilityId: string; displayName: string };
   url?: string;
@@ -50,6 +52,10 @@ interface WorkspaceTabBarProps {
   onOpenRuntimeTab?: () => void;
   onNewTab?: () => void;
   onNewBrowserTab?: (url: string) => void;
+  /** 已关闭但 PTY 仍存活的终端 ID 列表，可用于恢复 */
+  closedTerminals?: string[];
+  /** 恢复已关闭的终端 */
+  onReopenTerminal?: (terminalId: string) => void;
 }
 
 function getFileBaseName(path: string): string {
@@ -156,6 +162,8 @@ export function WorkspaceTabBar({
   onOpenRuntimeTab,
   onNewTab,
   onNewBrowserTab,
+  closedTerminals,
+  onReopenTerminal,
 }: WorkspaceTabBarProps) {
   const showActionButtons = activeTabId !== null;
   const activeTab = tabs.find((tab) => tab.id === activeTabId);
@@ -502,6 +510,31 @@ export function WorkspaceTabBar({
                     <Terminal className="h-3.5 w-3.5 text-muted-foreground" />
                     终端
                   </button>
+                ) : null}
+                {closedTerminals && closedTerminals.length > 0 && onReopenTerminal ? (
+                  <>
+                    <div className="my-1 h-px bg-border" />
+                    <div className="px-2 py-1 text-[10px] font-medium text-muted-foreground">
+                      恢复终端
+                    </div>
+                    {closedTerminals.map((terminalId) => (
+                      <button
+                        key={terminalId}
+                        type="button"
+                        className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-accent hover:text-accent-foreground"
+                        title={terminalId}
+                        onClick={() => {
+                          setShowNewTabDropdown(false);
+                          onReopenTerminal(terminalId);
+                        }}
+                      >
+                        <Terminal className="h-3.5 w-3.5 text-muted-foreground" />
+                        <span className="font-mono text-[11px]">
+                          {terminalId.length > 16 ? terminalId.slice(-12) : terminalId}
+                        </span>
+                      </button>
+                    ))}
+                  </>
                 ) : null}
               </div>
             ) : null}

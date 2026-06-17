@@ -33,6 +33,15 @@ def _is_sdk_cancel_scope_error(exc: BaseException) -> bool:
     return False
 
 
+def _contains_connection_error(exc: BaseException) -> bool:
+    """判断异常（或 ExceptionGroup 内的子异常）是否为连接类错误。"""
+    if isinstance(exc, (AttributeError, ConnectionError, RuntimeError)):
+        return True
+    if isinstance(exc, BaseExceptionGroup):
+        return any(_contains_connection_error(sub_exc) for sub_exc in exc.exceptions)
+    return False
+
+
 def _import_streamablehttp_client() -> Any:
     """延迟导入 streamable-http client，避免启动时硬依赖。"""
     try:
@@ -167,6 +176,30 @@ class MCPClient:
             ClientSession(read_stream, write_stream)
         )
 
+    def is_connected(self) -> bool:
+        """返回当前是否持有活跃的 MCP session。"""
+        return self._session is not None
+
+    async def reconnect(self) -> bool:
+        """关闭旧连接（如果有）并重新建立连接。
+
+        重连成功返回 True，失败返回 False（异常已记录，不再向上抛出）。
+        """
+        try:
+            await self.close()
+        except Exception as exc:
+            logger.warning(
+                "MCP server '%s' 重连前关闭旧连接出错（继续重连）: %s",
+                self._server_name,
+                exc,
+            )
+        try:
+            await self.connect()
+            return True
+        except Exception as exc:
+            logger.warning("MCP server '%s' 重连失败: %s", self._server_name, exc)
+            return False
+
     async def list_tools(self) -> list[Tool]:
         """获取 MCP 服务器提供的工具列表。"""
         if self._session is None:
@@ -180,13 +213,68 @@ class MCPClient:
         arguments: dict[str, Any] | None = None,
         timeout: float | None = None,
     ) -> CallToolResult:
-        """调用指定 MCP 工具。"""
+        """调用指定 MCP 工具。
+
+        如果调用因连接异常失败（server 崩溃、session 失效等），
+        会自动尝试一次 reconnect，重连成功后重试调用。
+        """
         if self._session is None:
             raise RuntimeError("MCP client 未连接，请先调用 connect()")
-        return await asyncio.wait_for(
-            self._session.call_tool(name, arguments or {}),
-            timeout=timeout if timeout is not None else 60.0,
-        )
+
+        effective_timeout = timeout if timeout is not None else 60.0
+        try:
+            return await asyncio.wait_for(
+                self._session.call_tool(name, arguments or {}),
+                timeout=effective_timeout,
+            )
+        except asyncio.CancelledError:
+            raise
+        except (AttributeError, ConnectionError, RuntimeError) as exc:
+            logger.warning(
+                "MCP server '%s' 调用工具 '%s' 时连接异常，尝试重连: %s",
+                self._server_name,
+                name,
+                exc,
+            )
+            # 判断是否为 SDK cancel-scope 包装的异常（这类异常不应触发重连）
+            if _is_sdk_cancel_scope_error(exc):
+                raise
+            reconnected = await self.reconnect()
+            if not reconnected:
+                raise
+            logger.info(
+                "MCP server '%s' 重连成功，重试调用工具 '%s'",
+                self._server_name,
+                name,
+            )
+            return await asyncio.wait_for(
+                self._session.call_tool(name, arguments or {}),
+                timeout=effective_timeout,
+            )
+        except BaseExceptionGroup as exc:
+            # MCP SDK 可能将连接异常包装在 ExceptionGroup 中
+            if not _contains_connection_error(exc):
+                raise
+            logger.warning(
+                "MCP server '%s' 调用工具 '%s' 时连接异常（ExceptionGroup），尝试重连: %s",
+                self._server_name,
+                name,
+                _summarize_base_exception(exc),
+            )
+            if _is_sdk_cancel_scope_error(exc):
+                raise
+            reconnected = await self.reconnect()
+            if not reconnected:
+                raise
+            logger.info(
+                "MCP server '%s' 重连成功，重试调用工具 '%s'",
+                self._server_name,
+                name,
+            )
+            return await asyncio.wait_for(
+                self._session.call_tool(name, arguments or {}),
+                timeout=effective_timeout,
+            )
 
     async def close(self) -> None:
         """关闭连接，清理资源。"""

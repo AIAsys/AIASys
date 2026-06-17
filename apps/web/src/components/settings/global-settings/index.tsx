@@ -27,6 +27,8 @@ import type { TaskWorkspaceSummary } from "@/pages/WorkspacePage/types";
 import type { LLMModelConfig } from "@/lib/api/llm";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ErrorBoundary } from "@/components/error/ErrorBoundary";
+import { SectionErrorFallback } from "@/components/error/SectionErrorFallback";
 
 export type SettingsSection =
   | "llm"
@@ -485,14 +487,22 @@ export function GlobalSettingsDialog({
               })()}
             </div>
             <div className="flex-1 overflow-y-auto min-h-0">
-              <GlobalSettingsContent
-                section={activeSection}
-                workspaceId={workspaceId}
-                workspaceTitle={workspaceTitle}
-                userId={userId}
-                workspaces={workspaces}
-                availableModels={availableModels}
-              />
+              <ErrorBoundary
+                key={activeSection}
+                fallback={(error, reset) => (
+                  <SectionErrorFallback error={error} reset={reset} />
+                )}
+              >
+                <GlobalSettingsContent
+                  section={activeSection}
+                  workspaceId={workspaceId}
+                  workspaceTitle={workspaceTitle}
+                  userId={userId}
+                  workspaces={workspaces}
+                  availableModels={availableModels}
+                  onNavigate={setActiveSection}
+                />
+              </ErrorBoundary>
             </div>
           </main>
         </div>
@@ -594,9 +604,10 @@ interface GlobalSettingsContentProps {
   userId?: string;
   workspaces?: TaskWorkspaceSummary[];
   availableModels?: LLMModelConfig[];
+  onNavigate?: (section: SettingsSection) => void;
 }
 
-function GlobalSettingsContent({ section, workspaceId, workspaceTitle, userId, workspaces, availableModels }: GlobalSettingsContentProps) {
+function GlobalSettingsContent({ section, workspaceId, workspaceTitle, userId, workspaces, availableModels, onNavigate }: GlobalSettingsContentProps) {
   switch (section) {
     case "capabilities":
       return (
@@ -632,6 +643,7 @@ function GlobalSettingsContent({ section, workspaceId, workspaceTitle, userId, w
               workspaceSummary={
                 workspaces?.find((w) => w.workspace_id === workspaceId) ?? null
               }
+              onNavigate={onNavigate}
             />
           </Suspense>
         </div>
@@ -696,7 +708,7 @@ function GlobalSettingsContent({ section, workspaceId, workspaceTitle, userId, w
       return (
         <div className="h-full">
           <Suspense fallback={<ContentFallback />}>
-            <LazyTemplateManagementPanel />
+            <LazyTemplateManagementPanel onNavigate={onNavigate} />
           </Suspense>
         </div>
       );

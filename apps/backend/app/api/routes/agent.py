@@ -5,6 +5,7 @@ Agent API 路由
 支持历史会话恢复、文件上传、多用户隔离和认证
 """
 
+import asyncio
 import json
 import logging
 from datetime import datetime
@@ -139,32 +140,83 @@ async def execute_stream(request: AgentExecuteRequest, user: UserInfo = Depends(
     )
 
     async def event_stream():
-        done_sent = False
-        try:
-            async for event in agent_service.execute_stream(
-                prompt=request.prompt,
-                user_id=user_id,
-                session_id=request.session_id,
-                model=request.model,
-                model_id=request.model_id,
-                attachments=request.attachments,
-                references=request.references,
-                thinking_enabled=request.thinking_enabled,
-                thinking_effort=request.thinking_effort,
-            ):
-                yield f"data: {json.dumps(event)}\n\n"
-                if event.get("type") == "status" and event.get("message") == "清理资源...":
-                    yield "data: [DONE]\n\n"
-                    done_sent = True
+        """SSE 流式响应，内置 15 秒心跳保活。
 
+        使用 asyncio.Queue 将事件生产和心跳发送解耦：
+        - producer task 消费 agent_service.execute_stream() 的事件
+        - heartbeat task 每 15 秒注入一个 heartbeat 事件
+        - 主循环从队列取出事件并 yield
+        """
+        done_sent = False
+        queue: asyncio.Queue = asyncio.Queue()
+
+        async def producer():
+            try:
+                async for event in agent_service.execute_stream(
+                    prompt=request.prompt,
+                    user_id=user_id,
+                    session_id=request.session_id,
+                    model=request.model,
+                    model_id=request.model_id,
+                    attachments=request.attachments,
+                    references=request.references,
+                    thinking_enabled=request.thinking_enabled,
+                    thinking_effort=request.thinking_effort,
+                ):
+                    await queue.put(("event", event))
+            except Exception as e:
+                await queue.put(("error", e))
+            finally:
+                await queue.put(("done", None))
+
+        async def heartbeat_sender():
+            while True:
+                await asyncio.sleep(15)
+                await queue.put(("heartbeat", None))
+
+        producer_task = asyncio.create_task(producer())
+        heartbeat_task = asyncio.create_task(heartbeat_sender())
+
+        try:
+            while True:
+                item_type, item = await queue.get()
+                if item_type == "done":
+                    break
+                elif item_type == "heartbeat":
+                    yield f"data: {json.dumps({'type': 'heartbeat'})}\n\n"
+                elif item_type == "error":
+                    logger.error(f"流式执行失败: {item}")
+                    if not done_sent:
+                        yield f"data: {json.dumps({'type': 'error', 'message': str(item)})}\n\n"
+                elif item_type == "event":
+                    event = item
+                    yield f"data: {json.dumps(event)}\n\n"
+                    if event.get("type") == "status" and event.get("message") == "清理资源...":
+                        yield "data: [DONE]\n\n"
+                        done_sent = True
         except Exception as e:
             logger.error(f"流式执行失败: {e}")
             if not done_sent:
                 yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
         finally:
+            # 清理后台任务
+            heartbeat_task.cancel()
+            try:
+                await heartbeat_task
+            except (asyncio.CancelledError, Exception):
+                pass
+            if not producer_task.done():
+                producer_task.cancel()
+                try:
+                    await producer_task
+                except (asyncio.CancelledError, Exception):
+                    pass
             # SSE 结束标记。放在 finally，避免普通异常分支或生成器收尾路径漏发。
             if not done_sent:
-                yield "data: [DONE]\n\n"
+                try:
+                    yield "data: [DONE]\n\n"
+                except Exception:
+                    pass
 
     return StreamingResponse(
         event_stream(),

@@ -43,8 +43,6 @@ export interface ExecutionResourceGroupSummary {
 }
 
 export interface WorkspaceRuntimeBindingSummary {
-  sandbox_mode?: string | null;
-  env_id?: string | null;
   env_vars?: Record<string, string> | null;
   resources?: ExecutionResourceGroupSummary | null;
 }

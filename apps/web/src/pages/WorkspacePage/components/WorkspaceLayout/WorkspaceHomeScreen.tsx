@@ -3,6 +3,7 @@ import { BrandLogo } from "@/components/branding/BrandLogo";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { TaskWorkspaceSummary } from "../../types";
+import { SetupChecklist } from "./SetupChecklist";
 
 interface WorkspaceHomeScreenProps {
   workspaces: TaskWorkspaceSummary[];
@@ -117,20 +118,23 @@ export function WorkspaceHomeScreen({
               })}
             </div>
           ) : (
-            <div className="rounded-2xl border border-dashed border-border bg-muted px-6 py-10 text-center">
-              <div className="text-lg font-semibold text-foreground">还没有工作区</div>
-              <div className="mt-2 text-sm leading-6 text-muted-foreground">
-                先创建一个长期任务工作区，后续再在里面展开多个会话、资源范围和执行记录。
+            <div className="space-y-4">
+              <SetupChecklist onCreateWorkspace={onCreateWorkspace} />
+              <div className="rounded-2xl border border-dashed border-border bg-muted px-6 py-10 text-center">
+                <div className="text-lg font-semibold text-foreground">还没有工作区</div>
+                <div className="mt-2 text-sm leading-6 text-muted-foreground">
+                  先创建一个长期任务工作区，后续再在里面展开多个会话、资源范围和执行记录。
+                </div>
+                <Button
+                  type="button"
+                  size="lg"
+                  className="mt-5 rounded-2xl"
+                  onClick={onCreateWorkspace}
+                >
+                  <Plus className="mr-2 h-4 w-4" />
+                  新建第一个任务
+                </Button>
               </div>
-              <Button
-                type="button"
-                size="lg"
-                className="mt-5 rounded-2xl"
-                onClick={onCreateWorkspace}
-              >
-                <Plus className="mr-2 h-4 w-4" />
-                新建第一个任务
-              </Button>
             </div>
           )}
         </section>

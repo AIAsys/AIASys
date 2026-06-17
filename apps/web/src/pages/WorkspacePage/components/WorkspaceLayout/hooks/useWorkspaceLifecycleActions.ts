@@ -6,6 +6,7 @@ import {
   getTaskWorkspace,
 } from "@/lib/api/workspaces";
 import { createAndActivateWorkspaceConversation } from "../../../hooks/workspaceConversationTransition";
+import { useFileUploadToast } from "@/components/file/FileUploadToast";
 import type { TaskWorkspaceSummary } from "../../../types";
 import type {
   WorkspaceLayoutProps,
@@ -106,6 +107,7 @@ export function useWorkspaceLifecycleActions({
   runtimeControls,
   workspaces,
 }: UseWorkspaceLifecycleActionsParams): UseWorkspaceLifecycleActionsReturn {
+  const { showError } = useFileUploadToast();
   const [workspacePendingDeletion, setWorkspacePendingDeletion] =
     useState<WorkspacePendingDeletion | null>(null);
   const [deleteWorkspaceError, setDeleteWorkspaceError] = useState<
@@ -385,6 +387,7 @@ export function useWorkspaceLifecycleActions({
           });
         } catch (error) {
           console.error("Failed to fork workspace conversation:", error);
+          showError("Fork 会话失败，请重试");
         }
       })();
     },

@@ -217,6 +217,34 @@ function summarizeText(value: string, limit = 120): string {
   return `${normalized.slice(0, limit).trimEnd()}...`;
 }
 
+function TaskLastError({ error }: { error: string }) {
+  const [expanded, setExpanded] = useState(false);
+  const isLong = error.length > 80 || error.includes("\n");
+
+  return (
+    <div className="mt-1 text-[11px] text-error">
+      <div
+        className={
+          expanded
+            ? "whitespace-pre-wrap break-words"
+            : "line-clamp-2 break-words"
+        }
+      >
+        最近错误：{error}
+      </div>
+      {isLong ? (
+        <button
+          type="button"
+          className="mt-0.5 text-[11px] underline hover:text-error/80"
+          onClick={() => setExpanded((v) => !v)}
+        >
+          {expanded ? "收起" : "展开"}
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
 export function GlobalAutoTaskDialog({
   currentWorkspaceId,
   currentSessionId,
@@ -596,9 +624,32 @@ export function GlobalAutoTaskDialog({
     completed: 0,
   };
 
+  // 被自动禁用的任务（连续异常达到阈值）
+  const autoDisabledTasks = useMemo(
+    () =>
+      tasks.filter(
+        (task) => task.status === "disabled" && (task.consecutive_errors ?? 0) > 0,
+      ),
+    [tasks],
+  );
+
   const content = (
     <div className="min-h-0 flex-1 overflow-hidden px-6 py-5">
             <div className="flex h-full min-h-0 flex-col gap-4">
+              {autoDisabledTasks.length > 0 ? (
+                <div className="rounded-2xl border border-error/30 bg-error-container/60 px-4 py-3 text-sm text-error">
+                  <div className="font-semibold">自动禁用提醒</div>
+                  <div className="mt-1 space-y-0.5">
+                    {autoDisabledTasks.map((task) => (
+                      <div key={task.task_id}>
+                        任务「{getTaskTitle(task)}」因连续 {task.consecutive_errors}{" "}
+                        次异常已被自动禁用
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+
               {feedback ? (
                 <div
                   className={cn(
@@ -931,9 +982,7 @@ export function GlobalAutoTaskDialog({
                                 </div>
 
                                 {task.last_error ? (
-                                  <div className="mt-1 truncate text-[11px] text-error">
-                                    最近错误：{task.last_error}
-                                  </div>
+                                  <TaskLastError error={task.last_error} />
                                 ) : null}
                               </div>
 

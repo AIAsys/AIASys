@@ -11,7 +11,7 @@ from app.models.database_connector import DatabaseConnectorDraft
 from app.models.session import StructuredMessage
 from app.models.task_profile import ExecutionPolicyMode, TaskExecutionPolicy
 from app.models.user import UserInfo
-from app.models.workspace import WorkspaceRuntimeBinding
+from app.models.workspace import ExecutionResourceGroup, WorkspaceRuntimeBinding
 from app.services.connector import DatabaseConnectorService
 from app.services.session import SessionManager
 from app.services.workspace_registry import WorkspaceRegistryService
@@ -451,8 +451,7 @@ async def test_workspace_route_updates_workspace_policy_without_rewriting_existi
                 mode=ExecutionPolicyMode.AUTO_EXPLORE,
             ),
             runtime_binding=WorkspaceRuntimeBinding(
-                sandbox_mode="local",
-                env_id="python-research",
+                resources=ExecutionResourceGroup(python_env_id="python-research"),
             ),
         ),
         current_user=_build_user(),
@@ -511,8 +510,7 @@ async def test_workspace_route_merges_runtime_binding_partial_update(
         workspace_id="task-runtime-binding-merge",
         title="运行配置合并",
         runtime_binding=WorkspaceRuntimeBinding(
-            sandbox_mode="local",
-            env_id="workspace-default",
+            resources=ExecutionResourceGroup(python_env_id="workspace-default"),
             env_vars={"OLD": "kept"},
         ),
     )
@@ -581,8 +579,7 @@ async def test_workspace_route_creates_workspace_with_explicit_execution_policy_
                 mode=ExecutionPolicyMode.AUTO_EXPLORE,
             ),
             runtime_binding=WorkspaceRuntimeBinding(
-                sandbox_mode="local",
-                env_id="workspace-default",
+                resources=ExecutionResourceGroup(python_env_id="workspace-default"),
             ),
             initial_conversation_id="auto-explore-branch-001",
             initial_conversation_title="自动探索会话",
@@ -746,8 +743,7 @@ def test_create_workspace_explicit_runtime_binding_overrides_template_env_kind(
         title="数据分析但不绑定环境",
         template_id="data-analysis",
         runtime_binding=WorkspaceRuntimeBinding(
-            sandbox_mode=None,
-            env_id=None,
+            resources=ExecutionResourceGroup(),
         ),
     )
 

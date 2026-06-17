@@ -11,11 +11,11 @@ from app.services.session import SessionManager
 
 
 @pytest.mark.asyncio
-async def test_get_session_history_reads_context_jsonl_only(
+async def test_get_session_history_reads_history_json(
     tmp_path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """get_session_history 只读 context.jsonl，不 fallback 到 session manager。"""
+    """get_session_history 统一从 history.json 读取消息。"""
     user_id = "history-fallback-user"
     session_id = "history-fallback-session"
 
@@ -25,6 +25,7 @@ async def test_get_session_history_reads_context_jsonl_only(
         user_id=user_id,
         title="历史回退测试",
     )
+    # add_message 写入 history.json
     session_manager.add_message(
         session_id=session_id,
         user_id=user_id,
@@ -36,8 +37,10 @@ async def test_get_session_history_reads_context_jsonl_only(
 
     history = await agent_service.get_session_history(user_id, session_id)
 
-    # 无 context.jsonl 时返回空列表，不 fallback 到 session manager
-    assert len(history) == 0
+    # history.json 中有消息，应返回
+    assert len(history) == 1
+    assert history[0]["role"] == "user"
+    assert history[0]["content"] == "legacy hello"
 
 
 @pytest.mark.asyncio
@@ -59,13 +62,23 @@ async def test_get_session_history_backfills_reasoning_content_from_host_wire(
     wire_dir = session_dir / ".aiasys" / "session" / session_id
     wire_dir.mkdir(parents=True, exist_ok=True)
 
-    # context.jsonl 用于 get_session_history 读取
-    (wire_dir / "context.jsonl").write_text(
-        "\n".join(
-            [
-                json.dumps({"role": "user", "content": "hello"}),
-                json.dumps({"role": "assistant", "content": "最终答案。"}),
-            ]
+    # history.json 用于 get_session_history 读取
+    from app.services.session.constants import (
+        ACTIVE_SESSION_STATE_DIR_NAME,
+        HISTORY_SNAPSHOT_FILE_NAME,
+    )
+    snapshot_dir = session_dir / ".aiasys" / "session" / ACTIVE_SESSION_STATE_DIR_NAME
+    snapshot_dir.mkdir(parents=True, exist_ok=True)
+    (snapshot_dir / HISTORY_SNAPSHOT_FILE_NAME).write_text(
+        json.dumps(
+            {
+                "_schema_version": 1,
+                "messages": [
+                    {"role": "user", "content": "hello"},
+                    {"role": "assistant", "content": "最终答案。"},
+                ],
+            },
+            ensure_ascii=False,
         ),
         encoding="utf-8",
     )

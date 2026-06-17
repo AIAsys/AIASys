@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from app.models.workspace import WorkspaceRuntimeBinding
+from app.models.workspace import ExecutionResourceGroup, WorkspaceRuntimeBinding
 from app.services.container_resource import ContainerResourceService
 from app.services.session import SessionManager
 from app.services.workspace_registry import WorkspaceRegistryService
@@ -161,8 +161,7 @@ def test_register_docker_container_from_image_uses_workspace_env_vars(
         user_id="local_default",
         workspace_id="task-env",
         runtime_binding=WorkspaceRuntimeBinding(
-            sandbox_mode="local",
-            env_id="workspace-default",
+            resources=ExecutionResourceGroup(python_env_id="workspace-default"),
             env_vars={"TOKEN": "workspace-secret"},
         ),
     )

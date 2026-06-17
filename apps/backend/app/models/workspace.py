@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from typing import Any, Literal, Optional
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.models.session import ExecutionRecord, RecoveryPolicy
 from app.models.task_profile import TaskExecutionPolicy
@@ -37,14 +37,10 @@ class ExecutionResourceGroup(BaseModel):
 
 
 class WorkspaceRuntimeBinding(BaseModel):
-    sandbox_mode: Optional[str] = Field(
-        default=None,
-        description="工作区默认执行方式；为空表示当前任务未绑定 Python/沙盒环境（兼容字段，优先读 resources）",
-    )
-    env_id: Optional[str] = Field(
-        default=None,
-        description="工作区默认执行环境 ID；为空表示当前任务不带 Python 环境（兼容字段，映射到 resources.python_env_id）",
-    )
+    """工作区运行时绑定：resources 是唯一真相源，sandbox_mode/env_id 为派生属性。"""
+
+    model_config = ConfigDict(extra="ignore")
+
     env_vars: Optional[dict[str, str]] = Field(
         default=None,
         description="注入到执行环境的环境变量（Shell / Python Kernel / Notebook / Node）",
@@ -54,19 +50,19 @@ class WorkspaceRuntimeBinding(BaseModel):
         description="执行资源组：工作区可勾选组合的 Python/Node/Docker 资源",
     )
 
-    @model_validator(mode="after")
-    def _sync_legacy_fields(self) -> "WorkspaceRuntimeBinding":
-        """保持旧 env_id/sandbox_mode 与新 resources 的双向同步。"""
-        if self.env_id and not self.resources.python_env_id:
-            self.resources.python_env_id = self.env_id
-        if self.resources.python_env_id and not self.env_id:
-            self.env_id = self.resources.python_env_id
-        if self.resources.docker_resource_id and self.sandbox_mode != "docker":
-            self.sandbox_mode = "docker"
-        if self.sandbox_mode == "docker" and not self.resources.docker_resource_id:
-            # 旧数据只有 sandbox_mode=docker 时，保持兼容，不自动清理
-            pass
-        return self
+    @property
+    def sandbox_mode(self) -> Optional[str]:
+        """从 resources 派生执行模式：docker / local / None。"""
+        if self.resources.docker_resource_id:
+            return "docker"
+        if self.resources.python_env_id or self.resources.node_env_id:
+            return "local"
+        return None
+
+    @property
+    def env_id(self) -> Optional[str]:
+        """从 resources 派生 Python 环境 ID（兼容旧消费方）。"""
+        return self.resources.python_env_id
 
     def to_execution_summary(self) -> dict[str, Any]:
         """返回执行层需要的资源视图。"""

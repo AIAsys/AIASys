@@ -1,4 +1,6 @@
 import { WorkspaceContextSurface } from "@/components/layout/WorkspaceSidebar";
+import { ErrorBoundary } from "@/components/error/ErrorBoundary";
+import { SectionErrorFallback } from "@/components/error/SectionErrorFallback";
 import { useAuthContext } from "@/contexts/AuthContext";
 import { TopBar } from "../TopBar";
 import type { MainContentProps } from "./types";
@@ -87,6 +89,9 @@ export function MainContent({
     workspaceInitialArtifactFile,
     tabDirtyMap,
     setTabDirtyMap,
+    closedTerminals,
+    reopenTerminal,
+    restoreTerminalTabs,
     resetPaneTree,
     openWorkspaceFileTarget,
     openSubagentDetailTab,
@@ -146,7 +151,9 @@ export function MainContent({
 
   useEffect(() => {
     resetPaneTree();
-  }, [executorSessionId, resetPaneTree]);
+    // 页面刷新后从 sessionStorage 恢复终端 Tab
+    restoreTerminalTabs();
+  }, [executorSessionId, resetPaneTree, restoreTerminalTabs]);
 
   // Ctrl+` 切换到侧边栏终端 Tab
   useEffect(() => {
@@ -226,6 +233,8 @@ export function MainContent({
       onDragOver={handleDragOver}
       onDrop={handleDrop}
       onDragLeave={handleDragLeave}
+      closedTerminals={closedTerminals}
+      onReopenTerminal={reopenTerminal}
     />
   );
 
@@ -255,6 +264,12 @@ export function MainContent({
                 />
               </Suspense>
             ) : currentWorkspace ? (
+              <ErrorBoundary
+                key={currentWorkspace.workspace_id}
+                fallback={(error, reset) => (
+                  <SectionErrorFallback error={error} reset={reset} />
+                )}
+              >
               <WorkspaceContextSurface
                 key={currentWorkspace.workspace_id}
                 defaultActiveTab={workspaceDefaultActiveTab}
@@ -331,6 +346,7 @@ export function MainContent({
                 }}
                 editorContent={workspaceEditorContent}
               />
+              </ErrorBoundary>
             ) : (
               <div className="flex flex-1 items-center justify-center px-6 text-sm text-muted-foreground">
                 正在同步当前工作区与会话上下文...
@@ -380,11 +396,24 @@ export function MainContent({
               }
               onViewToolDetails={onViewToolDetails}
               onRewriteUserMessage={executor.rewriteUserMessage}
+              onRetryLastSubmit={executor.handleRetryLastSubmit}
+              onLoadMoreHistory={async () => {
+                if (!executor.sessionId) return;
+                const older = await executor.loadMoreHistory(executor.sessionId);
+                if (older && older.length > 0) {
+                  executor.updateChatItemsForSession(executor.sessionId, (prev) => [...older, ...prev]);
+                }
+              }}
+              hasMoreHistory={executor.sessionId ? executor.hasMoreHistory(executor.sessionId) : false}
               inputValue={executor.inputValue}
               onInputChange={executor.setInputValue}
               onSubmit={() => void executor.handleSubmit()}
               onKeyDown={(event) => {
-                if (event.key === "Enter" && !event.shiftKey) {
+                if (
+                  event.key === "Enter" &&
+                  !event.shiftKey &&
+                  !event.nativeEvent.isComposing
+                ) {
                   event.preventDefault();
                   void executor.handleSubmit();
                 }
@@ -392,6 +421,7 @@ export function MainContent({
               isRunning={executor.isRunning}
               isPrewarming={executor.isPrewarming}
               isUploading={executor.isUploading}
+              uploadProgress={executor.uploadProgress}
               onStop={executor.handleStop}
               uploadedFiles={executor.uploadedFiles}
               onRemoveFile={async (idx) => {

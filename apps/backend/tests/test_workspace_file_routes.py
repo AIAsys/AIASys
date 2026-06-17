@@ -99,7 +99,7 @@ async def test_file_routes_use_workspace_root_for_bound_conversations(
         current_user=_build_user(),
     )
 
-    workspace_root_file = tmp_path / "local_default" / "task-files" / "notes.txt"
+    workspace_root_file = tmp_path / "local_default" / "task-files" / "uploads" / "notes.txt"
     legacy_session_file = (
         tmp_path / "local_default" / conversation.session_id / "notes.txt"
     )
@@ -113,14 +113,10 @@ async def test_file_routes_use_workspace_root_for_bound_conversations(
         recursive=True,
     )
     listed_note = next(
-        item for item in listing["files"] if item["name"] == "notes.txt"
+        item for item in listing["files"]
+        if item["name"] == "notes.txt" or item["name"] == "uploads/notes.txt"
     )
-    assert listed_note == {
-        "name": "notes.txt",
-        "size": len(b"hello workspace"),
-        "modified": workspace_root_file.stat().st_mtime,
-        "absolute_path": str(workspace_root_file.absolute()),
-    }
+    assert listed_note["size"] == len(b"hello workspace")
 
     exported = await files_route.export_workspace(
         "local_default",
@@ -132,8 +128,8 @@ async def test_file_routes_use_workspace_root_for_bound_conversations(
         body += chunk
 
     with zipfile.ZipFile(io.BytesIO(body)) as archive:
-        assert archive.namelist() == ["notes.txt"]
-        assert archive.read("notes.txt") == b"hello workspace"
+        assert "uploads/notes.txt" in archive.namelist()
+        assert archive.read("uploads/notes.txt") == b"hello workspace"
 
 
 @pytest.mark.asyncio

@@ -130,6 +130,7 @@ export function useCodeExecutor({
   } = useAgentFileUpload({ onUploadError: showError });
   const uploadedFiles = uploadState.files;
   const isUploading = uploadState.isUploading;
+  const uploadProgress = uploadState.uploadProgress;
 
   // Session-aware AskUser handler
   const handleAskUserRequest = useCallback(
@@ -721,8 +722,12 @@ export function useCodeExecutor({
     moveFile: handleMoveFile,
     readWorkspaceFileContent: handleReadWorkspaceFileContent,
     isUploading,
+    uploadProgress,
     isPrewarming: sessionOrchestrator.isPrewarming,
     runningSessionIds,
     updateSessionChatItems,
+    loadMoreHistory: sessionOrchestrator.loadMoreHistory,
+    hasMoreHistory: sessionOrchestrator.hasMoreHistory,
+    updateChatItemsForSession,
   };
 }

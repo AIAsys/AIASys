@@ -121,6 +121,35 @@ def _persist_message_to_session_history(
     )
 
 
+def _sync_session_messages_to_history(
+    agent_service: "AgentService",
+    *,
+    user_id: str,
+    session_id: str,
+    session: Any,
+) -> None:
+    """将 runtime session 的完整消息列表同步到 history.json。
+
+    替代仅持久化最终 assistant 文本的做法，确保中间轮次的 tool_calls
+    和 tool 消息不丢失，避免 session 重建后 LLM 上下文断裂。
+
+    只同步 user/assistant/tool 消息，过滤 system prompt、auto-nudge 等。
+    """
+    all_messages = getattr(session, "messages", None)
+    if not isinstance(all_messages, list):
+        return
+    snapshot = [
+        msg
+        for msg in all_messages
+        if isinstance(msg, dict) and msg.get("role") in {"user", "assistant", "tool"}
+    ]
+    agent_service._session_manager.sync_messages_to_history(
+        session_id=session_id,
+        user_id=user_id,
+        messages=snapshot,
+    )
+
+
 def _persist_user_turn_artifacts(
     agent_service: "AgentService",
     *,
@@ -325,11 +354,72 @@ def _extract_model_config_value(
     return getattr(model_config, field_name, None)
 
 
+def _classify_runtime_error(message_lower: str) -> str | None:
+    """根据错误消息文本返回友好化分类 key，无法识别返回 None。"""
+    if "context_length_exceeded" in message_lower or "maximum context length" in message_lower:
+        return "context_length_exceeded"
+    if (
+        "401" in message_lower
+        or "unauthorized" in message_lower
+        or "invalid api key" in message_lower
+    ):
+        return "auth"
+    if "403" in message_lower or "forbidden" in message_lower:
+        return "forbidden"
+    if (
+        "402" in message_lower
+        or "billing" in message_lower
+        or "insufficient" in message_lower
+        or "quota" in message_lower
+    ):
+        return "billing"
+    if "404" in message_lower or "model_not_found" in message_lower:
+        return "model_not_found"
+    if "429" in message_lower or "rate_limit" in message_lower:
+        return "rate_limit"
+    if (
+        "500" in message_lower
+        or "502" in message_lower
+        or "503" in message_lower
+        or "server_error" in message_lower
+        or "overloaded" in message_lower
+    ):
+        return "server"
+    if "timeout" in message_lower or "timed out" in message_lower:
+        return "timeout"
+    return None
+
+
 def _build_user_facing_runtime_error(exc: Exception, *, config: Any) -> str:
     raw_message = str(exc).strip() or "执行失败"
-    if not _is_context_length_exceeded_error(exc):
-        return raw_message
+    message_lower = raw_message.lower()
+    error_kind = _classify_runtime_error(message_lower)
 
+    if error_kind == "context_length_exceeded":
+        return _build_context_length_error_message(exc, raw_message, config)
+
+    friendly_map = {
+        "auth": "AI 模型认证失败，请检查 API Key 配置是否正确。",
+        "forbidden": "AI 模型访问被拒绝，请检查账号权限或额度。",
+        "billing": "AI 模型额度已用尽，请充值或更换模型提供商。",
+        "model_not_found": "请求的 AI 模型不存在，请检查模型配置。",
+        "rate_limit": "AI 模型请求过于频繁，请稍后重试。",
+        "server": "AI 模型服务暂时不可用，请稍后重试。",
+        "timeout": "AI 模型请求超时，请检查网络或稍后重试。",
+    }
+
+    friendly = friendly_map.get(error_kind)
+    if friendly is not None:
+        return f"{friendly}（原始错误: {raw_message}）"
+
+    return raw_message
+
+
+def _build_context_length_error_message(
+    exc: Exception,
+    raw_message: str,
+    config: Any,
+) -> str:
     default_model = getattr(config, "default_model", None)
     model_label = str(default_model) if default_model else "当前模型"
     max_context_size = None
@@ -878,7 +968,6 @@ class ExecutionMixin:
                             )
 
                         result = "".join(outputs)
-                        reasoning_result = "".join(reasoning_outputs)
                         try:
                             _persist_message_to_session_db(
                                 user_id=user_id,
@@ -886,14 +975,13 @@ class ExecutionMixin:
                                 role="assistant",
                                 content=result,
                             )
-                            _persist_message_to_session_history(
+                            # 用 runtime session 的完整消息列表覆写 history.json，
+                            # 确保中间轮次的 tool_calls 和 tool 消息不丢失。
+                            _sync_session_messages_to_history(
                                 self,
                                 user_id=user_id,
                                 session_id=session_id,
-                                role="assistant",
-                                content=result,
-                                reasoning_content=reasoning_result or None,
-                                turn_n=getattr(session, "session_turn_count", None),
+                                session=session,
                             )
                             if not suppress_claw_outbound_sync:
                                 _schedule_claw_outbound_sync(
@@ -1378,14 +1466,11 @@ class ExecutionMixin:
                                             role="assistant",
                                             content="".join(_bg_outputs),
                                         )
-                                        _persist_message_to_session_history(
+                                        _sync_session_messages_to_history(
                                             self,
                                             user_id=user_id,
                                             session_id=session_id,
-                                            role="assistant",
-                                            content="".join(_bg_outputs),
-                                            reasoning_content="".join(_bg_reasoning) or None,
-                                            turn_n=getattr(session, "session_turn_count", None),
+                                            session=session,
                                         )
                                         if not suppress_claw_outbound_sync:
                                             _schedule_claw_outbound_sync(
@@ -1651,14 +1736,11 @@ class ExecutionMixin:
                                 role="assistant",
                                 content="".join(stream_outputs),
                             )
-                            _persist_message_to_session_history(
+                            _sync_session_messages_to_history(
                                 self,
                                 user_id=user_id,
                                 session_id=session_id,
-                                role="assistant",
-                                content="".join(stream_outputs),
-                                reasoning_content="".join(stream_reasoning_outputs) or None,
-                                turn_n=getattr(session, "session_turn_count", None),
+                                session=session,
                             )
                             if not suppress_claw_outbound_sync:
                                 _schedule_claw_outbound_sync(

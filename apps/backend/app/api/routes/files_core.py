@@ -81,26 +81,39 @@ async def upload_file(
         ):
             raise HTTPException(status_code=400, detail="Invalid filename")
 
-        # notebook 默认按当前会话私有，其他文件继续写入逻辑工作区根。
-        work_dir = (
-            _get_work_dir(user_id, session_id)
-            if _is_notebook_file_name(safe_filename)
-            else _get_logical_workspace_root(user_id, session_id)
-        )
+        # notebook 默认按当前会话私有，其他文件写入工作区 uploads/ 目录，
+        # 避免上传文件污染工作区根目录。
+        if _is_notebook_file_name(safe_filename):
+            work_dir = _get_work_dir(user_id, session_id)
+            relative_dir = ""
+        else:
+            work_dir = _get_logical_workspace_root(user_id, session_id)
+            relative_dir = "uploads"
 
-        # 统一保存到会话根目录，对应容器内 /workspace/{filename}
-        file_path = work_dir / safe_filename
+        # 统一保存到对应目录，对应容器内 /workspace/uploads/{filename}
+        if relative_dir:
+            file_path = work_dir / relative_dir / safe_filename
+            file_path.parent.mkdir(parents=True, exist_ok=True)
+        else:
+            file_path = work_dir / safe_filename
         with open(file_path, "wb") as f:
             from .files_utils import _copyfileobj_with_limit
 
             _copyfileobj_with_limit(file.file, f)
 
-        logger.info(f"文件上传: {user_id}/{session_id}/{safe_filename} by {current_user.user_id}")
+        workspace_path = (
+            f"/workspace/{relative_dir}/{safe_filename}"
+            if relative_dir
+            else f"/workspace/{safe_filename}"
+        )
+        logger.info(
+            f"文件上传: {user_id}/{session_id}/{relative_dir}/{safe_filename} by {current_user.user_id}"
+        )
 
         return {
             "success": True,
             "filename": safe_filename,
-            "path": f"/workspace/{safe_filename}",
+            "path": workspace_path,
             "size": file_path.stat().st_size,
             "uploaded_by": current_user.user_id,
         }

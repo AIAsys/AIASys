@@ -119,6 +119,10 @@ export interface PaneRendererProps {
   onDragOver: (e: React.DragEvent, leafId: string) => void;
   onDrop: (e: React.DragEvent, leafId: string) => void;
   onDragLeave: (e: React.DragEvent, leafId: string) => void;
+  /** 已关闭但 PTY 仍存活的终端 ID 列表 */
+  closedTerminals?: string[];
+  /** 恢复已关闭的终端 */
+  onReopenTerminal?: (terminalId: string) => void;
 }
 
 export function PaneRenderer({
@@ -148,6 +152,8 @@ export function PaneRenderer({
   onDragOver,
   onDrop,
   onDragLeave,
+  closedTerminals,
+  onReopenTerminal,
 }: PaneRendererProps) {
   function renderFilePreview(
     tab: WorkspaceTab,
@@ -177,6 +183,7 @@ export function PaneRenderer({
             userId={userId ?? ""}
             sessionId={executor.sessionId ?? ""}
             terminalId={tab.terminalId}
+            initialMode={tab.needsAttach ? "attach" : "spawn"}
           />
         </Suspense>
       );
@@ -383,6 +390,8 @@ export function PaneRenderer({
           onNewTerminalTab={onNewTerminalTab}
           onOpenRuntimeTab={onOpenRuntimeTab}
           onNewBrowserTab={onNewBrowserTab}
+          closedTerminals={closedTerminals}
+          onReopenTerminal={onReopenTerminal}
         />
         <div className="min-h-0 flex-1 flex flex-col overflow-hidden">
           {leaf.tabs.map((tab) => {

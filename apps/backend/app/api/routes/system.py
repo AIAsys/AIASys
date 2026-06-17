@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from app.core.auth import require_auth
@@ -105,7 +106,11 @@ def get_runtime_storage_settings_service() -> RuntimeStorageSettingsService:
 
 
 from app.core.uv_utils import find_uv_binary, get_uv_version, install_uv
-from app.services.shell_environment import detect_shell_environment, install_busybox_w32
+from app.services.shell_environment import (
+    detect_shell_environment,
+    install_busybox_w32,
+    install_busybox_w32_streamed,
+)
 
 
 @router.get("/capability-registry", response_model=CapabilityRegistryResponse)
@@ -378,4 +383,27 @@ async def install_busybox_endpoint(
         installed=True,
         path=path,
         message=f"busybox-w32 已下载到 {path}",
+    )
+
+
+@router.get("/shell-environment/install-busybox/stream")
+async def install_busybox_stream_endpoint(
+    current_user: UserInfo = Depends(require_auth()),
+):
+    """流式下载 busybox-w32，通过 SSE 返回下载进度。"""
+    _ = current_user
+    import json
+
+    async def event_stream():
+        async for event in install_busybox_w32_streamed():
+            yield f"data: {json.dumps(event)}\n\n"
+
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
     )

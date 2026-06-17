@@ -273,40 +273,27 @@ def _backfill_reasoning_content_from_wire(
     return hydrated
 
 
-def _should_skip_context_message(msg: dict) -> bool:
-    """过滤不应对 UI 暴露的内部 SDK 消息。"""
-    if msg.get("role") in ("_checkpoint", "_usage", "_system_prompt", "_compaction"):
-        return True
-    if msg.get("role") == "user":
-        content = msg.get("content")
-        if isinstance(content, str) and content.strip().startswith("<system-reminder>"):
-            return True
-    return False
-
-
-def _load_compaction_snapshot(
+def _load_history_snapshot_messages(
     snapshot_path: Path,
-) -> tuple[list[dict[str, Any]], bool]:
-    """读取压缩快照。
+) -> list[dict[str, Any]]:
+    """从 history.json 读取消息列表（无论是否压缩快照）。
 
-    Returns:
-        (messages, is_compaction_snapshot)
+    history.json 是唯一的消息持久化源。格式为
+    {"_schema_version": 1, "_compaction_snapshot"?: true, "messages": [...]}
     """
     if not snapshot_path.exists():
-        return [], False
+        return []
     try:
         payload = json.loads(snapshot_path.read_text(encoding="utf-8"))
     except Exception as exc:
         logger.warning("读取 history snapshot 失败: %s", exc)
-        return [], False
+        return []
     if not isinstance(payload, dict):
-        return [], False
-    if not payload.get("_compaction_snapshot"):
-        return [], False
+        return []
     raw_messages = payload.get("messages") or []
     if not isinstance(raw_messages, list):
-        return [], False
-    return [msg for msg in raw_messages if isinstance(msg, dict)], True
+        return []
+    return [msg for msg in raw_messages if isinstance(msg, dict)]
 
 
 class HistoryMixin:
@@ -318,28 +305,18 @@ class HistoryMixin:
         """
         获取会话历史记录
 
-        存储位置:
-        - SDK 原始历史: workspaces/{user_id}/{session_id}/.aiasys/session/{session_id}/context.jsonl
-        - UI 展示历史: workspaces/{user_id}/{session_id}/.aiasys/session/{session_id}/display_history.jsonl
-        - 压缩快照: workspaces/{user_id}/{session_id}/.aiasys/session/_active/history.json
-
-        当 history.json 带有 `_compaction_snapshot` 标记时，说明会话经历过压缩，
-        此时直接返回快照中的消息（SessionManager 会持续维护该文件，包含压缩后的摘要
-        和后续新消息）。否则继续读取 context.jsonl，保持非压缩会话的原有行为。
+        统一从 history.json 读取消息（含压缩快照和普通会话历史）。
+        history.json 由 SessionManager 和 _sync_session_messages_to_history 维护，
+        包含完整的 user/assistant/tool 消息（含 tool_calls）。
 
         Args:
             limit: 限制返回最近 N 条消息，0 表示不限制。
-                   实现方式为从文件尾部读取，避免全量加载大文件。
         """
         try:
             work_dir = _get_workspace_dir_for_session(user_id, session_id)
-            # 使用标准 Path 而不是 WorkspacePath，避免异步 exists() 问题
             from pathlib import Path as StdPath
 
-            session_file = (
-                StdPath(str(work_dir)) / ".aiasys" / "session" / session_id / "context.jsonl"
-            )
-            session_dir = session_file.parent
+            session_dir = StdPath(str(work_dir)) / ".aiasys" / "session" / session_id
             snapshot_file = (
                 StdPath(str(work_dir))
                 / ".aiasys"
@@ -348,32 +325,9 @@ class HistoryMixin:
                 / HISTORY_SNAPSHOT_FILE_NAME
             )
 
-            history: list[dict[str, Any]] = []
-
-            # 优先判断是否为压缩快照；非压缩的 history.json 由 SessionManager 维护，
-            # 不应覆盖 context.jsonl 的读取逻辑，避免把普通会话历史误当压缩状态。
-            snapshot_messages, is_compaction = _load_compaction_snapshot(snapshot_file)
-            if is_compaction:
-                history = snapshot_messages
-                if limit > 0 and len(history) > limit:
-                    history = history[-limit:]
-            elif session_file.exists():
-                if limit > 0:
-                    # 从文件尾部读取最近 N 条有效消息，避免全量解析
-                    history = self._read_history_tail(session_file, limit)
-                else:
-                    with open(session_file, "r", encoding="utf-8") as f:
-                        for line in f:
-                            line = line.strip()
-                            if not line:
-                                continue
-                            try:
-                                msg = json.loads(line)
-                                if _should_skip_context_message(msg):
-                                    continue
-                                history.append(msg)
-                            except json.JSONDecodeError:
-                                continue
+            history = _load_history_snapshot_messages(snapshot_file)
+            if limit > 0 and len(history) > limit:
+                history = history[-limit:]
 
             display_entries = load_display_history_entries(StdPath(str(work_dir)), session_id)
             if history:
@@ -393,98 +347,6 @@ class HistoryMixin:
         except Exception as e:
             logger.error(f"读取会话历史失败: {e}")
             return []
-
-    def _read_history_tail(
-        self: "AgentService", session_file: Path, limit: int
-    ) -> List[Dict[str, Any]]:
-        """从 context.jsonl 尾部读取最近 limit 条有效消息。"""
-        import mmap
-
-        def _should_skip(msg: dict) -> bool:
-            """过滤内部 SDK 消息和 system-reminder 消息。"""
-            if msg.get("role") in ("_checkpoint", "_usage", "_system_prompt", "_compaction"):
-                return True
-            if msg.get("role") == "user":
-                content = msg.get("content")
-                if isinstance(content, str) and content.strip().startswith("<system-reminder>"):
-                    return True
-            return False
-
-        history: List[Dict[str, Any]] = []
-        try:
-            with open(session_file, "r+b") as f:
-                try:
-                    mm = mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ)
-                except (ValueError, OSError):
-                    # 空文件或无法 mmap，回退到普通读取
-                    f.seek(0)
-                    lines = f.readlines()
-                    for line in reversed(lines):
-                        line = line.strip()
-                        if not line:
-                            continue
-                        try:
-                            msg = json.loads(line)
-                            if _should_skip(msg):
-                                continue
-                            history.insert(0, msg)
-                            if len(history) >= limit:
-                                break
-                        except json.JSONDecodeError:
-                            continue
-                    return history
-
-                # 从文件末尾向前扫描，找到最近的 limit 条有效消息
-                file_size = mm.size()
-                pos = file_size
-                line_buffer = bytearray()
-
-                while pos > 0 and len(history) < limit:
-                    pos -= 1
-                    byte = mm[pos]
-                    if byte == ord(b"\n"):
-                        if line_buffer:
-                            line = line_buffer[::-1].decode("utf-8", errors="replace").strip()
-                            if line:
-                                try:
-                                    msg = json.loads(line)
-                                    if not _should_skip(msg):
-                                        history.insert(0, msg)
-                                except json.JSONDecodeError:
-                                    pass
-                            line_buffer = bytearray()
-                    else:
-                        line_buffer.append(byte)
-
-                # 处理最后一行（文件开头没有换行符的情况）
-                if line_buffer and len(history) < limit:
-                    line = line_buffer[::-1].decode("utf-8", errors="replace").strip()
-                    if line:
-                        try:
-                            msg = json.loads(line)
-                            if not _should_skip(msg):
-                                history.insert(0, msg)
-                        except json.JSONDecodeError:
-                            pass
-
-                mm.close()
-        except Exception as e:
-            logger.warning(f"尾部读取历史失败，回退到全量读取: {e}")
-            # 回退到普通读取
-            with open(session_file, "r", encoding="utf-8") as f:
-                for line in f:
-                    line = line.strip()
-                    if line:
-                        try:
-                            msg = json.loads(line)
-                            if _should_skip(msg):
-                                continue
-                            history.append(msg)
-                        except json.JSONDecodeError:
-                            continue
-                if len(history) > limit:
-                    history = history[-limit:]
-        return history
 
     async def get_session_execution_events(
         self: "AgentService", user_id: str, session_id: str

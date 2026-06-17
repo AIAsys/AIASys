@@ -43,19 +43,19 @@ class TestWorkspaceExportConversations:
         ws_dir.mkdir(parents=True)
         (ws_dir / "hello.txt").write_text("world", encoding="utf-8")
 
-        # 创建 session 目录和 context.jsonl
+        # 创建 session 目录和 history.json
         session_dir = ws_dir / ".." / "session-001"
         session_dir.mkdir(parents=True)
-        context_file = (
-            session_dir / ".aiasys" / "session" / "session-001" / "context.jsonl"
+        history_file = (
+            session_dir / ".aiasys" / "session" / "_active" / "history.json"
         )
-        context_file.parent.mkdir(parents=True)
+        history_file.parent.mkdir(parents=True)
         messages = [
             {"role": "user", "content": "你好", "timestamp": "2024-01-01T00:00:00Z"},
             {"role": "assistant", "content": "你好！", "timestamp": "2024-01-01T00:00:01Z"},
         ]
-        context_file.write_text(
-            "\n".join(json.dumps(m, ensure_ascii=False) for m in messages),
+        history_file.write_text(
+            json.dumps({"_schema_version": 1, "messages": messages}, ensure_ascii=False),
             encoding="utf-8",
         )
 
@@ -94,10 +94,10 @@ class TestWorkspaceExportConversations:
 
         session_dir = ws_dir / ".." / "session-002"
         session_dir.mkdir(parents=True)
-        context_file = (
-            session_dir / ".aiasys" / "session" / "session-002" / "context.jsonl"
+        history_file = (
+            session_dir / ".aiasys" / "session" / "_active" / "history.json"
         )
-        context_file.parent.mkdir(parents=True)
+        history_file.parent.mkdir(parents=True)
         messages = [
             {"role": "user", "content": "你好", "timestamp": "2024-01-01T00:00:00Z"},
             {"role": "_checkpoint", "content": "internal", "timestamp": "2024-01-01T00:00:00Z"},
@@ -105,8 +105,8 @@ class TestWorkspaceExportConversations:
             {"role": "user", "content": "<system-reminder>提醒</system-reminder>", "timestamp": "2024-01-01T00:00:00Z"},
             {"role": "assistant", "content": "收到", "timestamp": "2024-01-01T00:00:01Z"},
         ]
-        context_file.write_text(
-            "\n".join(json.dumps(m, ensure_ascii=False) for m in messages),
+        history_file.write_text(
+            json.dumps({"_schema_version": 1, "messages": messages}, ensure_ascii=False),
             encoding="utf-8",
         )
 
@@ -135,12 +135,15 @@ class TestWorkspaceExportConversations:
 
         session_dir = ws_dir / ".." / "session-003"
         session_dir.mkdir(parents=True)
-        context_file = (
-            session_dir / ".aiasys" / "session" / "session-003" / "context.jsonl"
+        history_file = (
+            session_dir / ".aiasys" / "session" / "_active" / "history.json"
         )
-        context_file.parent.mkdir(parents=True)
-        context_file.write_text(
-            json.dumps({"role": "user", "content": "hi"}, ensure_ascii=False),
+        history_file.parent.mkdir(parents=True)
+        history_file.write_text(
+            json.dumps(
+                {"_schema_version": 1, "messages": [{"role": "user", "content": "hi"}]},
+                ensure_ascii=False,
+            ),
             encoding="utf-8",
         )
 

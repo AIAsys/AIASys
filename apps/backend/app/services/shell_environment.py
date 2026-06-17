@@ -231,11 +231,7 @@ def _detect_git() -> ShellComponentInfo:
 
 def _detect_fnm() -> ShellComponentInfo:
     # 桌面端打包时会通过环境变量注入内置 fnm 路径；探测不到时扫描 vendor 目录
-    path = (
-        os.environ.get("AIASYS_BUNDLED_FNM_PATH")
-        or shutil.which("fnm")
-        or _find_bundled_fnm()
-    )
+    path = os.environ.get("AIASYS_BUNDLED_FNM_PATH") or shutil.which("fnm") or _find_bundled_fnm()
     version = _get_version([path, "--version"]) if path else None
     return ShellComponentInfo(
         id="fnm",
@@ -253,11 +249,7 @@ def _detect_fnm() -> ShellComponentInfo:
 
 def _detect_uv() -> ShellComponentInfo:
     # 桌面端打包时会通过环境变量注入内置 uv 路径；探测不到时扫描 vendor 目录
-    path = (
-        os.environ.get("AIASYS_BUNDLED_UV_PATH")
-        or find_uv_binary()
-        or _find_bundled_uv()
-    )
+    path = os.environ.get("AIASYS_BUNDLED_UV_PATH") or find_uv_binary() or _find_bundled_uv()
     version = get_uv_version(path) if path else None
     return ShellComponentInfo(
         id="uv",
@@ -300,7 +292,6 @@ def detect_shell_environment(force: bool = False) -> ShellEnvironmentReport:
     else:
         # POSIX 下只需要关心基础 shell 和 uv/fnm
         bash_path = shutil.which("bash")
-        sh_path = shutil.which("sh")
         components.append(
             ShellComponentInfo(
                 id="bash",
@@ -396,3 +387,39 @@ async def install_busybox_w32() -> tuple[bool, str]:
     # 安装成功后立即刷新缓存，让面板下次读取时能看到 busybox 已安装
     _report_cache.clear()
     return True, str(target)
+
+
+async def install_busybox_w32_streamed():
+    """流式下载 busybox-w32，yield 进度字典。
+
+    yields dicts: {"type": "progress", "downloaded": N, "total": M}
+                  {"type": "done", "path": "..."}
+                  {"type": "error", "message": "..."}
+    """
+    url = DOWNLOAD_URLS["busybox_w32"]
+    target = _busybox_default_path()
+    target.parent.mkdir(parents=True, exist_ok=True)
+
+    try:
+        async with httpx.AsyncClient(timeout=120, follow_redirects=True) as client:
+            async with client.stream("GET", url) as response:
+                response.raise_for_status()
+                total = int(response.headers.get("content-length", 0))
+                downloaded = 0
+                with open(target, "wb") as f:
+                    async for chunk in response.aiter_bytes(chunk_size=8192):
+                        f.write(chunk)
+                        downloaded += len(chunk)
+                        yield {
+                            "type": "progress",
+                            "downloaded": downloaded,
+                            "total": total,
+                        }
+
+        if os.name != "nt":
+            target.chmod(0o755)
+
+        _report_cache.clear()
+        yield {"type": "done", "path": str(target)}
+    except Exception as exc:
+        yield {"type": "error", "message": str(exc)}

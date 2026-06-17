@@ -48,6 +48,8 @@ export function AiMessageContent() {
           onWorkerClick={actions.onWorkerClick}
           onOpenWorkspaceArtifact={actions.onOpenWorkspaceArtifact}
           onOpenInBrowserTab={actions.onOpenInBrowserTab}
+          onOpenRuntimeTab={actions.onOpenRuntimeTab}
+          onRetryLastSubmit={actions.onRetryLastSubmit}
           onViewToolDetails={actions.onViewToolDetails}
           sessionId={meta.sessionId}
           taskId={msgItem.taskId}

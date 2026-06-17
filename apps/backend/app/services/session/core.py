@@ -631,11 +631,7 @@ class SessionManager(StatusMixin, HistoryMixin, FileSnapshotMixin):
         journal = SessionExecutionJournal(session_dir, session_id)
         journal.reset_for_rebuild(clear_conversation=True)
 
-        # 显式清空 Host Agent 的 context.jsonl（reset_for_rebuild 已保留它）
-        context_path = session_dir / ".aiasys/session" / session_id / "context.jsonl"
-        if context_path.exists():
-            context_path.write_text("", encoding="utf-8")
-
+        # history.json 由 reset_for_rebuild 清空，不需要额外操作 context.jsonl
         metadata = self.get_session(session_id, user_id)
         if metadata:
             journal.update_recovery_config(recovery_policy=metadata.recovery_policy)
@@ -681,14 +677,6 @@ class SessionManager(StatusMixin, HistoryMixin, FileSnapshotMixin):
         )
 
         if normalized_reason == "clear_context":
-            raw_context_path = sidecar_session_dir / "context.jsonl"
-            if raw_context_path.exists():
-                shutil.copy2(
-                    raw_context_path,
-                    archive_dir / f"{archive_token}-context.jsonl",
-                )
-
-        if normalized_reason == "clear_context":
             display_history_path = sidecar_session_dir / DISPLAY_HISTORY_FILE_NAME
             if display_history_path.exists():
                 shutil.copy2(
@@ -729,34 +717,6 @@ class SessionManager(StatusMixin, HistoryMixin, FileSnapshotMixin):
             f"{session_id}:{index}:{role}:{signature}".encode("utf-8")
         ).hexdigest()[:12]
         return f"{role}-{index}-{digest}"
-
-    def _read_context_messages(self, sidecar_session_dir: Path) -> list[dict]:
-        context_path = sidecar_session_dir / "context.jsonl"
-        if not context_path.exists():
-            return []
-
-        messages: list[dict] = []
-        for line in context_path.read_text(encoding="utf-8").splitlines():
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                payload = json.loads(line)
-            except json.JSONDecodeError:
-                continue
-            if isinstance(payload, dict):
-                messages.append(payload)
-        return messages
-
-    def _write_context_messages(
-        self,
-        sidecar_session_dir: Path,
-        messages: list[dict],
-    ) -> None:
-        sidecar_session_dir.mkdir(parents=True, exist_ok=True)
-        context_path = sidecar_session_dir / "context.jsonl"
-        content = "".join(json.dumps(message, ensure_ascii=False) + "\n" for message in messages)
-        context_path.write_text(content, encoding="utf-8")
 
     def _read_display_history_entries(self, sidecar_session_dir: Path) -> list[dict]:
         display_history_path = sidecar_session_dir / DISPLAY_HISTORY_FILE_NAME
@@ -821,7 +781,7 @@ class SessionManager(StatusMixin, HistoryMixin, FileSnapshotMixin):
 
         session_dir = self._get_session_dir(session_id, user_id)
         sidecar_session_dir = session_dir / ".aiasys/session" / session_id
-        context_messages = self._read_context_messages(sidecar_session_dir)
+        context_messages = self._read_history_snapshot(session_dir)
         if not context_messages:
             raise LookupError("当前会话没有可重写的聊天历史")
 
@@ -970,7 +930,7 @@ class SessionManager(StatusMixin, HistoryMixin, FileSnapshotMixin):
                 reason="message_rewritten",
             )
 
-        self._write_context_messages(sidecar_session_dir, next_context_messages)
+        self._write_history_snapshot(session_dir, next_context_messages)
         self._write_display_history_entries(sidecar_session_dir, next_display_entries)
         self._write_history_snapshot(session_dir, next_history_snapshot)
 
@@ -1418,7 +1378,7 @@ class SessionManager(StatusMixin, HistoryMixin, FileSnapshotMixin):
             target_sidecar_dir = target_dir / ".aiasys/session" / target_session_id
             target_sidecar_dir.mkdir(parents=True, exist_ok=True)
 
-            for filename in ("context.jsonl", DISPLAY_HISTORY_FILE_NAME, "state.json"):
+            for filename in (DISPLAY_HISTORY_FILE_NAME,):
                 source_path = source_sidecar_dir / filename
                 target_path = target_sidecar_dir / filename
                 if source_path.exists():

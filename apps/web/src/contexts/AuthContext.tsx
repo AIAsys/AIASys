@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { clearCurrentUserId, setCurrentUserId } from "@/config/api";
 import { getAuthMode } from "@/config/auth";
@@ -237,6 +237,57 @@ export function AuthProvider({ children }: AuthProviderProps) {
     void refreshSession();
   }, [refreshSession]);
 
+  // Listen for global auth-expired events (401 responses)
+  useEffect(() => {
+    let redirected = false;
+    const handler = () => {
+      if (redirected) return;
+      redirected = true;
+      // Clear stale state
+      clearCurrentUserId();
+      setIsAuthenticated(false);
+      setUser(null);
+      setSession(null);
+      // Redirect based on auth mode
+      if (getAuthMode() === "local") {
+        // Local mode: just reload to re-establish session
+        window.location.reload();
+      } else {
+        window.location.href = "/home";
+      }
+    };
+    window.addEventListener("aiasys:auth-expired", handler);
+    return () => window.removeEventListener("aiasys:auth-expired", handler);
+  }, []);
+
+  // Cross-tab auth state synchronization via storage events.
+  // The 'storage' event only fires in *other* tabs (not the one that made
+  // the change), so there is no risk of a feedback loop.
+  useEffect(() => {
+    const handler = (event: StorageEvent) => {
+      // Only react to auth-related keys
+      if (event.key !== "user_id") return;
+
+      // Another tab cleared user_id → user logged out
+      if (event.newValue === null) {
+        clearCurrentUserId();
+        setIsAuthenticated(false);
+        setUser(null);
+        setSession(null);
+        return;
+      }
+
+      // Another tab set a different user_id → re-fetch session to sync.
+      // Compare against the in-memory window global to avoid unnecessary
+      // refresh when the value is unchanged.
+      if (event.newValue && event.newValue !== window.__AIASYS_CURRENT_USER_ID__) {
+        void refreshSession();
+      }
+    };
+    window.addEventListener("storage", handler);
+    return () => window.removeEventListener("storage", handler);
+  }, [refreshSession]);
+
   const updateProfile = useCallback(
     async (data: { name?: string; avatarColor?: string; avatarChar?: string }): Promise<boolean> => {
       try {
@@ -282,33 +333,38 @@ export function AuthProvider({ children }: AuthProviderProps) {
     [],
   );
 
-  const value: AuthContextValue = {
-    user,
-    session,
-    isAuthenticated,
-    isLoading,
-    error,
-    isAdmin: user?.role === "admin",
-    refreshSession,
-    handleLogout: async () => {
-      clearCurrentUserId();
-      // 调用后端登出 API
-      try {
-        await apiFetch("/api/auth/logout", {
-          method: "POST",
-        });
-      } catch (e) {
-        console.error("Logout failed:", e);
-      }
-      if (getAuthMode() === "local") {
-        await refreshSession();
-        window.location.href = "/workspace";
-        return;
-      }
-      window.location.href = "/home";
-    },
-    updateProfile,
-  };
+  const handleLogout = useCallback(async () => {
+    clearCurrentUserId();
+    // 调用后端登出 API
+    try {
+      await apiFetch("/api/auth/logout", {
+        method: "POST",
+      });
+    } catch (e) {
+      console.error("Logout failed:", e);
+    }
+    if (getAuthMode() === "local") {
+      await refreshSession();
+      window.location.href = "/workspace";
+      return;
+    }
+    window.location.href = "/home";
+  }, [refreshSession]);
+
+  const value = useMemo<AuthContextValue>(
+    () => ({
+      user,
+      session,
+      isAuthenticated,
+      isLoading,
+      error,
+      isAdmin: user?.role === "admin",
+      refreshSession,
+      handleLogout,
+      updateProfile,
+    }),
+    [user, session, isAuthenticated, isLoading, error, refreshSession, handleLogout, updateProfile],
+  );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

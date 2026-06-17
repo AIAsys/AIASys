@@ -582,6 +582,21 @@ export function useStreamEventHandler({
         },
       ]);
     }
+
+    // Type: System Warning (Auto-Nudge, Loop Guard, etc.)
+    if (eventType === "system_warning" && "message" in event) {
+      updateChatItems(sessionId, (prev: ChatItem[]) => [
+        ...prev,
+        {
+          type: "message" as const,
+          id: `sys-warn-${Date.now()}`,
+          sender: "system" as const,
+          role: "system" as const,
+          content: event.message || "系统警告",
+          timestamp: new Date(),
+        },
+      ]);
+    }
   }, [getSessionSlot, updateChatItems, addStreamEventsForSession, scheduleFlush, syncSegmentsToUI]);
 
   // Cleanup effect — clean up any flush timers

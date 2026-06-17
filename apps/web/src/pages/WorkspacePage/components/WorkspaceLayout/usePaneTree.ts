@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   createGlobalWorkspacePreviewFile,
   createWorkspacePreviewFile,
@@ -27,6 +27,29 @@ import {
   type PaneTreeNode,
 } from "./paneTree";
 
+const PANE_TREE_STORAGE_KEY_PREFIX = "aiasys:pane-tree:terminals";
+
+/** 生成按 session 隔离的 sessionStorage key */
+function paneTreeStorageKey(sessionId: string | undefined): string {
+  return `${PANE_TREE_STORAGE_KEY_PREFIX}:${sessionId ?? "none"}`;
+}
+
+/** 从 pane tree 中收集所有终端 Tab 的 terminalId */
+function collectTerminalIds(node: PaneTreeNode): string[] {
+  const ids: string[] = [];
+  function walk(n: PaneTreeNode) {
+    if (n.kind === "leaf") {
+      for (const tab of n.tabs) {
+        if (tab.terminalId) ids.push(tab.terminalId);
+      }
+    } else {
+      for (const child of n.children) walk(child);
+    }
+  }
+  walk(node);
+  return ids;
+}
+
 export function usePaneTree(
   executorSessionId: string | undefined,
   token: string | undefined,
@@ -39,6 +62,8 @@ export function usePaneTree(
   const [workspaceInitialArtifactFile, setWorkspaceInitialArtifactFile] =
     useState<PreviewFile | null>(null);
   const [tabDirtyMap, setTabDirtyMap] = useState<Record<string, boolean>>({});
+  // 已关闭但 PTY 仍存活的终端 ID 列表，可从 Tab 栏 + 菜单恢复
+  const [closedTerminals, setClosedTerminals] = useState<string[]>([]);
 
   const openWorkspaceFileTarget = useCallback(
     (file: PreviewFile, options?: { mode?: "preview" | "edit" }) => {
@@ -316,6 +341,12 @@ export function usePaneTree(
         if (tab && !_confirmCloseDirtyTab(tab)) {
           return current;
         }
+        // 终端 Tab 关闭时不 kill PTY，记录 terminalId 以便恢复
+        if (tab?.terminalId) {
+          setClosedTerminals((prev) =>
+            prev.includes(tab.terminalId!) ? prev : [...prev, tab.terminalId!],
+          );
+        }
         let next = removeTab(current, leafId, tabId);
         next = pruneEmptyLeaves(next);
         if (next.kind === "leaf" && next.tabs.length === 0) {
@@ -348,6 +379,17 @@ export function usePaneTree(
               return current;
             }
           }
+        }
+        // 记录被关闭的终端 ID
+        const closedTermIds = tabsToClose
+          .filter((t) => t.terminalId)
+          .map((t) => t.terminalId!);
+        if (closedTermIds.length > 0) {
+          setClosedTerminals((prev) => {
+            const set = new Set(prev);
+            for (const id of closedTermIds) set.add(id);
+            return Array.from(set);
+          });
         }
         let next = updateLeaf(current, leafId, (l) => ({
           ...l,
@@ -393,6 +435,17 @@ export function usePaneTree(
             }
           }
         }
+        // 记录被关闭的终端 ID
+        const closedTermIds = tabsToClose
+          .filter((t) => t.terminalId)
+          .map((t) => t.terminalId!);
+        if (closedTermIds.length > 0) {
+          setClosedTerminals((prev) => {
+            const set = new Set(prev);
+            for (const id of closedTermIds) set.add(id);
+            return Array.from(set);
+          });
+        }
         const remainingTabs = leaf.tabs.slice(0, anchorIndex + 1);
         let next = updateLeaf(current, leafId, (l) => ({
           ...l,
@@ -437,6 +490,17 @@ export function usePaneTree(
               return current;
             }
           }
+        }
+        // 记录被关闭的终端 ID
+        const closedTermIds = leaf.tabs
+          .filter((t) => t.terminalId)
+          .map((t) => t.terminalId!);
+        if (closedTermIds.length > 0) {
+          setClosedTerminals((prev) => {
+            const set = new Set(prev);
+            for (const id of closedTermIds) set.add(id);
+            return Array.from(set);
+          });
         }
         let next = updateLeaf(current, leafId, (l) => ({
           ...l,
@@ -608,6 +672,97 @@ export function usePaneTree(
     [openWorkspaceFileTarget],
   );
 
+  const reopenTerminal = useCallback((terminalId: string) => {
+    // 从已关闭列表移除
+    setClosedTerminals((prev) => prev.filter((id) => id !== terminalId));
+    setPaneTree((current) => {
+      const targetLeafId = findLeaf(current, activeLeafId)
+        ? activeLeafId
+        : (getAllLeafIds(current)[0] ?? "main");
+      const leaf = findLeaf(current, targetLeafId);
+      if (!leaf) return current;
+      // 如果已存在同 terminalId 的 Tab，直接激活
+      const existingTab = leaf.tabs.find((t) => t.terminalId === terminalId);
+      if (existingTab) {
+        setActiveLeafId(targetLeafId);
+        return updateLeaf(current, targetLeafId, (l) => ({
+          ...l,
+          activeTabId: existingTab.id,
+        }));
+      }
+      // 恢复的终端标记 needsAttach，TerminalPanel 会优先尝试 attach 已有 PTY
+      const newTab: WorkspaceTab = {
+        id: `terminal:${terminalId}`,
+        terminalId,
+        needsAttach: true,
+      };
+      setActiveLeafId(targetLeafId);
+      return updateLeaf(current, targetLeafId, (l) => ({
+        ...l,
+        tabs: [...l.tabs, newTab],
+        activeTabId: newTab.id,
+      }));
+    });
+  }, [activeLeafId]);
+
+  /** 从 sessionStorage 恢复终端 Tab（页面刷新后调用） */
+  const restoreTerminalTabs = useCallback(() => {
+    const key = paneTreeStorageKey(executorSessionId);
+    try {
+      const stored = sessionStorage.getItem(key);
+      if (!stored) return;
+      const terminalIds = JSON.parse(stored) as string[];
+      if (!Array.isArray(terminalIds) || terminalIds.length === 0) return;
+      setPaneTree((current) => {
+        const rootLeaf = findLeaf(current, "main");
+        if (!rootLeaf) return current;
+        // 过滤掉已存在的 terminalId
+        const existingIds = new Set(
+          rootLeaf.tabs.filter((t) => t.terminalId).map((t) => t.terminalId),
+        );
+        const toRestore = terminalIds.filter((id) => !existingIds.has(id));
+        if (toRestore.length === 0) return current;
+        const newTabs: WorkspaceTab[] = toRestore.map((terminalId) => ({
+          id: `terminal:${terminalId}`,
+          terminalId,
+          needsAttach: true,
+        }));
+        return updateLeaf(current, "main", (l) => ({
+          ...l,
+          tabs: [...l.tabs, ...newTabs],
+          activeTabId: l.activeTabId ?? newTabs[0]?.id ?? null,
+        }));
+      });
+    } catch {
+      // ignore parse errors
+    }
+  }, [executorSessionId]);
+
+  // paneTree 变化时持久化终端 Tab 到 sessionStorage（用于页面刷新恢复）
+  // 按 session 隔离，避免跨会话恢复错误的终端。
+  // 使用 ref 读取 sessionId 而非依赖项，防止 session 切换时把旧 tree 数据写入新 session 的 key
+  const sessionIdRef = useRef(executorSessionId);
+  sessionIdRef.current = executorSessionId;
+  // 首次渲染跳过持久化：避免在 restoreTerminalTabs 读取 sessionStorage 之前将其清空
+  const skipPersistRef = useRef(true);
+  useEffect(() => {
+    if (skipPersistRef.current) {
+      skipPersistRef.current = false;
+      return;
+    }
+    const key = paneTreeStorageKey(sessionIdRef.current);
+    const terminalIds = collectTerminalIds(paneTree);
+    try {
+      if (terminalIds.length > 0) {
+        sessionStorage.setItem(key, JSON.stringify(terminalIds));
+      } else {
+        sessionStorage.removeItem(key);
+      }
+    } catch {
+      // ignore storage errors
+    }
+  }, [paneTree]);
+
   const resetPaneTree = useCallback(() => {
     setPaneTree(createRootLeaf());
     setActiveLeafId("main");
@@ -615,6 +770,9 @@ export function usePaneTree(
     setWorkspaceDefaultActiveTab("artifacts");
     setWorkspaceInitialArtifactFile(null);
     setTabDirtyMap({});
+    setClosedTerminals([]);
+    // 注意：不在此处清除 sessionStorage，由 paneTree 持久化 effect 自动管理。
+    // restoreTerminalTabs 需要在 reset 之后读取 sessionStorage 恢复终端 Tab。
   }, []);
 
   return {
@@ -628,6 +786,9 @@ export function usePaneTree(
     workspaceInitialArtifactFile,
     tabDirtyMap,
     setTabDirtyMap,
+    closedTerminals,
+    reopenTerminal,
+    restoreTerminalTabs,
     resetPaneTree,
     openWorkspaceFileTarget,
     openSubagentDetailTab,

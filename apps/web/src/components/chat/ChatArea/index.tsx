@@ -21,7 +21,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { ArrowDown } from "lucide-react";
+import { ArrowDown, Loader2 } from "lucide-react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import type { ChatItem } from "@/pages/WorkspacePage/types";
 import type { PreviewFile } from "@/components/layout/WorkspaceSidebar/preview";
@@ -60,6 +60,8 @@ interface ChatAreaProps {
   onOpenWorkspaceArtifact?: (file: PreviewFile) => void;
   /** 在浏览器标签页打开工作区文件 */
   onOpenInBrowserTab?: (path: string) => void;
+  /** 打开执行资源面板 */
+  onOpenRuntimeTab?: () => void;
   /** 查看工具调用详情 - 包含触发元素位置用于悬浮窗定位 */
   onViewToolDetails?: (
     toolCallId: string,
@@ -72,6 +74,12 @@ interface ChatAreaProps {
     content: string,
     originalContent?: string,
   ) => Promise<void> | void;
+  /** 重试上一次失败的提交 */
+  onRetryLastSubmit?: () => Promise<void> | void;
+  /** 加载更多历史消息 */
+  onLoadMoreHistory?: () => Promise<void>;
+  /** 是否还有更多历史消息 */
+  hasMoreHistory?: boolean;
   /** 当前会话是否正在运行 */
   isRunning?: boolean;
   /** 当前会话 ID */
@@ -92,8 +100,12 @@ function ChatAreaRoot({
   onWorkerClick,
   onOpenWorkspaceArtifact,
   onOpenInBrowserTab,
+  onOpenRuntimeTab,
   onViewToolDetails,
   onRewriteUserMessage,
+  onRetryLastSubmit,
+  onLoadMoreHistory,
+  hasMoreHistory,
   isRunning = false,
   sessionId,
   layout = "default",
@@ -103,9 +115,12 @@ function ChatAreaRoot({
   const [containerWidth, setContainerWidth] = useState<number | null>(null);
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
   const [hasNewContent, setHasNewContent] = useState(false);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
   const isFollowingBottomRef = useRef(true);
   const isProgrammaticScrollRef = useRef(false);
   const programmaticScrollTimerRef = useRef<number | null>(null);
+  const isLoadingMoreRef = useRef(false);
+  const previousScrollHeightRef = useRef(0);
   const previousItemsRef = useRef<{
     length: number;
     lastId?: string;
@@ -121,16 +136,20 @@ function ChatAreaRoot({
       onWorkerClick,
       onOpenWorkspaceArtifact,
       onOpenInBrowserTab,
+      onOpenRuntimeTab,
       onViewToolDetails,
       onRewriteUserMessage,
+      onRetryLastSubmit,
     }),
     [
       onViewExecutionSpace,
       onWorkerClick,
       onOpenWorkspaceArtifact,
       onOpenInBrowserTab,
+      onOpenRuntimeTab,
       onViewToolDetails,
       onRewriteUserMessage,
+      onRetryLastSubmit,
     ],
   );
   useEffect(() => {
@@ -198,6 +217,22 @@ function ChatAreaRoot({
       return;
     }
 
+    // 顶部检测：加载更多历史
+    if (
+      container.scrollTop < 60 &&
+      hasMoreHistory &&
+      onLoadMoreHistory &&
+      !isLoadingMoreRef.current
+    ) {
+      isLoadingMoreRef.current = true;
+      setIsLoadingMore(true);
+      previousScrollHeightRef.current = container.scrollHeight;
+      onLoadMoreHistory().finally(() => {
+        isLoadingMoreRef.current = false;
+        setIsLoadingMore(false);
+      });
+    }
+
     const atBottom = isNearBottom(container);
     if (isProgrammaticScrollRef.current) {
       if (atBottom) {
@@ -212,7 +247,7 @@ function ChatAreaRoot({
     if (atBottom) {
       setHasNewContent(false);
     }
-  }, [isNearBottom]);
+  }, [hasMoreHistory, isNearBottom, onLoadMoreHistory]);
 
   useEffect(() => {
     isFollowingBottomRef.current = true;
@@ -220,6 +255,19 @@ function ChatAreaRoot({
     setHasNewContent(false);
     requestAnimationFrame(() => scrollToBottom("auto"));
   }, [scrollToBottom, sessionId]);
+
+  // 加载更多后保持滚动位置（补偿新增高度）
+  useEffect(() => {
+    if (!isLoadingMore && previousScrollHeightRef.current > 0 && containerRef.current) {
+      const container = containerRef.current;
+      const newScrollHeight = container.scrollHeight;
+      const diff = newScrollHeight - previousScrollHeightRef.current;
+      if (diff > 0) {
+        container.scrollTop += diff;
+      }
+      previousScrollHeightRef.current = 0;
+    }
+  }, [isLoadingMore, items.length]);
 
   useEffect(() => {
     const previous = previousItemsRef.current;
@@ -317,6 +365,8 @@ function ChatAreaRoot({
         )}
       >
         <div
+          aria-live="polite"
+          aria-relevant="additions"
           className={cn(
             "mx-auto min-w-0",
             isCompactSurface
@@ -324,6 +374,15 @@ function ChatAreaRoot({
               : "max-w-4xl pb-32",
           )}
         >
+          {isLoadingMore ? (
+            <div
+              role="status"
+              className="flex items-center justify-center py-3"
+            >
+              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+              <span className="ml-2 text-xs text-muted-foreground">加载更多消息...</span>
+            </div>
+          ) : null}
           {children || (
             <ChatAreaList
               items={items}

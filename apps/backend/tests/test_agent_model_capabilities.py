@@ -40,7 +40,7 @@ def test_isolated_fixture_default_model_is_multimodal(isolated_llm_config):
 
 
 def test_multimodal_message_path_hydrates_image_reference():
-    """多模态处理路径：image_reference 应被 hydrate 为 image_url data URL。
+    """多模态处理路径：image_url 在文件不存在时降级为文字占位符。
 
     该函数直接模拟 `SessionStreamMixin._prepare_messages_for_current_model`
     中模型具备 `image_in` 能力时的处理分支。
@@ -61,9 +61,9 @@ def test_multimodal_message_path_hydrates_image_reference():
 
     hydrated = hydrate_message_images(messages, workspace_dir=None)
 
-    # 由于文件不存在，hydrate 会保留原样；但结构上分枝正确进入 hydrate 逻辑。
-    # 这里主要验证函数不会把 image_url 降级为 image_reference。
-    assert hydrated[0]["content"][1]["type"] == "image_url"
+    # 文件不存在时降级为文字占位符（不发无效 URI 给 LLM）
+    assert hydrated[0]["content"][1]["type"] == "text"
+    assert "[图片文件无法解析:" in hydrated[0]["content"][1]["text"]
 
 
 def test_non_multimodal_message_path_downgrades_image_url():

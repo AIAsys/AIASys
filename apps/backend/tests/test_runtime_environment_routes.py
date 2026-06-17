@@ -13,7 +13,7 @@ from app.models.runtime_environment import (
     RegisterWorkspacePythonEnvRequest,
     RuntimeEnvCommandResult,
 )
-from app.models.workspace import WorkspaceRuntimeBinding
+from app.models.workspace import ExecutionResourceGroup, WorkspaceRuntimeBinding
 from app.models.user import UserInfo
 from app.services.runtime_environment import RuntimeEnvironmentService
 from app.services.session import SessionManager
@@ -177,8 +177,7 @@ async def test_runtime_env_route_binds_uv_env_as_default_runtime(
         user_id="local_default",
         workspace_id="task-env",
         runtime_binding=WorkspaceRuntimeBinding(
-            sandbox_mode="local",
-            env_id="python-data-analysis",
+            resources=ExecutionResourceGroup(python_env_id="python-data-analysis"),
             env_vars={"TOKEN": "kept"},
         ),
     )
@@ -289,8 +288,7 @@ async def test_runtime_env_route_unregisters_active_uv_and_preserves_env_vars(
         user_id="local_default",
         workspace_id="task-env",
         runtime_binding=WorkspaceRuntimeBinding(
-            sandbox_mode="local",
-            env_id="workspace-default",
+            resources=ExecutionResourceGroup(python_env_id="workspace-default"),
             env_vars={"TOKEN": "kept"},
         ),
     )

@@ -109,7 +109,7 @@ def test_hydrate_message_images_resolves_workspace_file_uri(tmp_path: Path) -> N
 
 
 def test_hydrate_message_images_keeps_workspace_file_uri_without_workspace_dir() -> None:
-    """缺少工作区上下文时，不把 /workspace/... 当成本机根目录读取。"""
+    """缺少工作区上下文时，文件无法解析，降级为文字占位符。"""
     messages = [
         {
             "role": "user",
@@ -124,8 +124,9 @@ def test_hydrate_message_images_keeps_workspace_file_uri_without_workspace_dir()
     ]
 
     hydrated = hydrate_message_images(messages)
-
-    assert hydrated[0]["content"][0]["image_url"]["url"] == "file:///workspace/test.png"
+    # 无 workspace_dir 时无法解析路径，降级为文字占位符
+    assert hydrated[0]["content"][0]["type"] == "text"
+    assert "[图片文件无法解析:" in hydrated[0]["content"][0]["text"]
 
 
 def test_hydrate_message_images_uses_source_path_fallback(tmp_path: Path) -> None:
@@ -163,7 +164,7 @@ def test_hydrate_preserves_non_image_messages() -> None:
 
 
 def test_hydrate_skips_missing_files(tmp_path: Path) -> None:
-    """file:// 指向不存在的文件时，保留原始 URI（不抛异常）。"""
+    """file:// 指向不存在的文件时，降级为文字占位符。"""
     missing_path = tmp_path / "not_exist.png"
     messages = [
         {
@@ -177,5 +178,6 @@ def test_hydrate_skips_missing_files(tmp_path: Path) -> None:
         }
     ]
     hydrated = hydrate_message_images(messages)
-    # 文件不存在时保留原始 file:// URI
-    assert hydrated[0]["content"][0]["image_url"]["url"] == f"file://{missing_path}"
+    # 文件不存在时降级为文字占位符
+    assert hydrated[0]["content"][0]["type"] == "text"
+    assert "[图片文件" in hydrated[0]["content"][0]["text"]

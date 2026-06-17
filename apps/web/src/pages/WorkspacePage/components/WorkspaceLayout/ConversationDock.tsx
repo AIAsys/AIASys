@@ -45,6 +45,12 @@ interface ConversationDockProps {
     content: string,
     originalContent?: string,
   ) => Promise<void> | void;
+  /** 重试上一次失败的提交 */
+  onRetryLastSubmit?: () => Promise<void> | void;
+  /** 加载更多历史消息 */
+  onLoadMoreHistory?: () => Promise<void>;
+  /** 是否还有更多历史消息 */
+  hasMoreHistory?: boolean;
   inputValue: string;
   onInputChange: (value: string) => void;
   onSubmit: () => void;
@@ -52,6 +58,8 @@ interface ConversationDockProps {
   isRunning: boolean;
   isPrewarming: boolean;
   isUploading: boolean;
+  /** 当前上传进度 0-100，null 表示不在上传中 */
+  uploadProgress?: number | null;
   onStop: () => void;
   uploadedFiles: UploadedFile[];
   onRemoveFile: (index: number) => void;
@@ -107,6 +115,9 @@ export function ConversationDock({
   onOpenInBrowserTab,
   onViewToolDetails,
   onRewriteUserMessage,
+  onRetryLastSubmit,
+  onLoadMoreHistory,
+  hasMoreHistory,
   inputValue,
   onInputChange,
   onSubmit,
@@ -114,6 +125,7 @@ export function ConversationDock({
   isRunning,
   isPrewarming,
   isUploading,
+  uploadProgress,
   onStop,
   uploadedFiles,
   onRemoveFile,
@@ -156,6 +168,7 @@ export function ConversationDock({
       onOpenInBrowserTab,
       onViewToolDetails,
       onRewriteUserMessage,
+      onRetryLastSubmit,
     }),
     [
       onWorkerClick,
@@ -163,6 +176,7 @@ export function ConversationDock({
       onOpenInBrowserTab,
       onViewToolDetails,
       onRewriteUserMessage,
+      onRetryLastSubmit,
     ],
   );
 
@@ -222,8 +236,11 @@ export function ConversationDock({
         onWorkerClick={onWorkerClick}
         onOpenWorkspaceArtifact={onOpenWorkspaceArtifact}
         onOpenInBrowserTab={onOpenInBrowserTab}
+        onOpenRuntimeTab={onOpenRuntimeTab}
         onViewToolDetails={onViewToolDetails}
         chatAreaActions={chatAreaActions}
+        onLoadMoreHistory={onLoadMoreHistory}
+        hasMoreHistory={hasMoreHistory}
         inputValue={inputValue}
         onInputChange={onInputChange}
         onSubmit={onSubmit}
@@ -231,6 +248,7 @@ export function ConversationDock({
         isRunning={isRunning}
         isPrewarming={isPrewarming}
         isUploading={isUploading}
+        uploadProgress={uploadProgress}
         onStop={onStop}
         uploadedFiles={uploadedFiles}
         onRemoveFile={onRemoveFile}

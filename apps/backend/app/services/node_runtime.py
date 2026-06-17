@@ -446,19 +446,10 @@ class NodeRuntimeService:
             node_env_id=env.env_id,
             docker_resource_id=current_binding.resources.docker_resource_id,
         )
-        sandbox_mode = (
-            "docker"
-            if updated_resources.docker_resource_id
-            else "local"
-            if updated_resources.python_env_id or updated_resources.node_env_id
-            else None
-        )
         self.workspace_registry.update_workspace(
             user_id=user_id,
             workspace_id=workspace_id,
             runtime_binding=WorkspaceRuntimeBinding(
-                sandbox_mode=sandbox_mode,
-                env_id=updated_resources.python_env_id,
                 env_vars=current_binding.env_vars,
                 resources=updated_resources,
             ),

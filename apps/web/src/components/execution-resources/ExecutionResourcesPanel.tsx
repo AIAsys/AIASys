@@ -38,6 +38,7 @@ import type {
   WorkspaceRuntimeEnvironmentRegistry,
 } from "@/types/workspace";
 import type { TaskWorkspaceSummary } from "@/pages/WorkspacePage/types";
+import type { SettingsSection } from "@/components/settings/global-settings";
 import { cn } from "@/lib/utils";
 import { EnvVarsPanel } from "@/components/workspace/EnvVarsPanel";
 import { PythonRuntimeTab } from "./PythonRuntimeTab";
@@ -52,6 +53,7 @@ interface ExecutionResourcesPanelProps {
   workspaceTitle?: string | null;
   workspaceSummary?: TaskWorkspaceSummary | null;
   onWorkspaceUpdated?: () => void | Promise<void>;
+  onNavigate?: (section: SettingsSection) => void;
 }
 
 const statusLabels: Record<string, string> = {
@@ -129,11 +131,13 @@ function OverviewMetric({
   value,
   description,
   variant = "outline",
+  action,
 }: {
   label: string;
   value: string;
   description: string;
   variant?: BadgeVariant;
+  action?: ReactNode;
 }) {
   return (
     <div className="rounded-xl border border-border bg-background px-3 py-3">
@@ -148,6 +152,7 @@ function OverviewMetric({
       <div className="mt-2 text-xs leading-5 text-muted-foreground">
         {description}
       </div>
+      {action ? <div className="mt-1.5">{action}</div> : null}
     </div>
   );
 }
@@ -205,6 +210,7 @@ function ExecutionResourcesOverview({
   activeSandboxResourceId,
   containerResources,
   envVarsCount,
+  onNavigate,
 }: {
   workspaceId?: string | null;
   workspaceTitle?: string | null;
@@ -221,6 +227,7 @@ function ExecutionResourcesOverview({
   activeSandboxResourceId: string | null;
   containerResources: WorkspaceContainerResource[];
   envVarsCount: number;
+  onNavigate?: (section: SettingsSection) => void;
 }) {
   const envs = registry?.envs ?? [];
   const uvEnvs = envs.filter((env) => env.kind === "uv");
@@ -305,6 +312,17 @@ function ExecutionResourcesOverview({
                 : nodeRegistry?.fnm_available
                   ? "安装或激活一个 Node.js 版本"
                   : "fnm 未检测到"
+            }
+            action={
+              !activeNodeEnv && !nodeRegistry?.fnm_available && onNavigate ? (
+                <button
+                  type="button"
+                  onClick={() => onNavigate("shell-environment")}
+                  className="text-xs text-primary hover:underline"
+                >
+                  去环境增强查看 →
+                </button>
+              ) : null
             }
           />
           <OverviewMetric
@@ -410,6 +428,7 @@ export function ExecutionResourcesPanel({
   workspaceTitle,
   workspaceSummary,
   onWorkspaceUpdated,
+  onNavigate,
 }: ExecutionResourcesPanelProps) {
   const [activeSection, setActiveSection] =
     useState<RuntimePanelSection>("overview");
@@ -428,6 +447,7 @@ export function ExecutionResourcesPanel({
   const [containerResources, setContainerResources] = useState<WorkspaceContainerResource[]>([]);
   const [selectingSandboxId, setSelectingSandboxId] = useState<string | null>(null);
   const [showUvConfirmDialog, setShowUvConfirmDialog] = useState(false);
+  const [pendingDockerResource, setPendingDockerResource] = useState<WorkspaceContainerResource | null>(null);
 
   const loadRegistry = useCallback(async () => {
     if (!workspaceId) {
@@ -609,6 +629,10 @@ export function ExecutionResourcesPanel({
     [loadRegistry, workspaceId],
   );
 
+  const hasLocalEnvironments = Boolean(
+    registry?.envs?.some((e) => e.active) || nodeRegistry?.envs?.some((e) => e.active),
+  );
+
   const handleSelectDockerSandbox = useCallback(
     async (resource: WorkspaceContainerResource) => {
       if (!workspaceId) return;
@@ -617,8 +641,6 @@ export function ExecutionResourcesPanel({
       try {
         await updateTaskWorkspace(workspaceId, {
           runtimeBinding: {
-            sandbox_mode: "docker",
-            env_id: null,
             env_vars: workspaceSummary?.runtime_binding?.env_vars ?? undefined,
             resources: {
               python_env_id: null,
@@ -639,12 +661,22 @@ export function ExecutionResourcesPanel({
     [onWorkspaceUpdated, workspaceId, workspaceSummary?.runtime_binding?.env_vars],
   );
 
+  const handleDockerSandboxClick = useCallback(
+    (resource: WorkspaceContainerResource) => {
+      if (hasLocalEnvironments) {
+        setPendingDockerResource(resource);
+      } else {
+        void handleSelectDockerSandbox(resource);
+      }
+    },
+    [hasLocalEnvironments, handleSelectDockerSandbox],
+  );
 
 
-  const activeSandboxMode = workspaceSummary?.runtime_binding?.sandbox_mode ?? null;
-  const activeSandboxResourceId = activeSandboxMode === "docker"
-    ? workspaceSummary?.runtime_binding?.env_id ?? null
-    : null;
+
+  const runtimeResources = workspaceSummary?.runtime_binding?.resources ?? null;
+  const activeSandboxResourceId = runtimeResources?.docker_resource_id ?? null;
+  const activeSandboxMode = activeSandboxResourceId ? "docker" : null;
   const envVarsCount = workspaceSummary?.runtime_binding?.env_vars
     ? Object.keys(workspaceSummary.runtime_binding.env_vars).length
     : 0;
@@ -705,6 +737,7 @@ export function ExecutionResourcesPanel({
                 activeSandboxResourceId={activeSandboxResourceId}
                 containerResources={containerResources}
                 envVarsCount={envVarsCount}
+                onNavigate={onNavigate}
               />
             ) : null}
 
@@ -715,7 +748,7 @@ export function ExecutionResourcesPanel({
                   workspaceId={workspaceId}
                   activeSandboxResourceId={activeSandboxResourceId}
                   selectingSandboxId={selectingSandboxId}
-                  onSelectSandbox={(resource) => void handleSelectDockerSandbox(resource)}
+                  onSelectSandbox={(resource) => handleDockerSandboxClick(resource)}
                   onResourcesLoaded={setContainerResources}
                 />
               </div>
@@ -765,7 +798,7 @@ export function ExecutionResourcesPanel({
                     {nodeRegistryError}
                   </div>
                 ) : null}
-                <NodeRuntimeTab workspaceId={workspaceId} />
+                <NodeRuntimeTab workspaceId={workspaceId} onNavigateShellEnvironment={onNavigate ? () => onNavigate("shell-environment") : undefined} />
               </div>
             ) : null}
 
@@ -777,9 +810,26 @@ export function ExecutionResourcesPanel({
           <AlertDialogHeader>
             <AlertDialogTitle>安装 uv 包管理器</AlertDialogTitle>
             <AlertDialogDescription>
-              需要安装 Python 包管理器 uv（Astral 开发）才能创建 Python 运行环境。安装后 uv 会写入 ~/.cargo/bin/ 目录。是否继续？
+              需要安装 Python 包管理器 uv（Astral 开发）才能创建 Python 运行环境。
+              安装后 uv 会写入 ~/.cargo/bin/ 目录。是否继续？
             </AlertDialogDescription>
           </AlertDialogHeader>
+          {onNavigate ? (
+            <div className="text-xs text-muted-foreground">
+              国内网络环境建议先前往
+              <button
+                type="button"
+                onClick={() => {
+                  setShowUvConfirmDialog(false);
+                  onNavigate("uv-mirror");
+                }}
+                className="mx-1 text-primary hover:underline"
+              >
+                uv 镜像配置
+              </button>
+              配置加速源，再回来安装。
+            </div>
+          ) : null}
           <AlertDialogFooter>
             <AlertDialogCancel disabled={isEnsuringUv}>取消</AlertDialogCancel>
             <AlertDialogAction
@@ -791,6 +841,42 @@ export function ExecutionResourcesPanel({
             >
               {isEnsuringUv ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : null}
               安装
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={Boolean(pendingDockerResource)}
+        onOpenChange={(open) => {
+          if (!open) setPendingDockerResource(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>切换到 Docker 沙盒</AlertDialogTitle>
+            <AlertDialogDescription>
+              切换后当前的 Python 和 Node.js 环境将被解绑。之后可以随时切回本地环境，但需要重新绑定。是否继续？
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              disabled={Boolean(selectingSandboxId)}
+              onClick={() => setPendingDockerResource(null)}
+            >
+              取消
+            </AlertDialogCancel>
+            <AlertDialogAction
+              disabled={Boolean(selectingSandboxId)}
+              onClick={() => {
+                if (pendingDockerResource) {
+                  void handleSelectDockerSandbox(pendingDockerResource);
+                  setPendingDockerResource(null);
+                }
+              }}
+            >
+              {selectingSandboxId ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : null}
+              切换到 Docker
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

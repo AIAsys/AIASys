@@ -7,7 +7,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { API_ENDPOINTS } from "@/config/api";
-import { apiFetch, apiRequest, ApiRequestError } from "@/lib/api/httpClient";
+import { apiRequest, ApiRequestError } from "@/lib/api/httpClient";
 import type {
   FileInfo,
   FileListResponse,
@@ -34,6 +34,8 @@ export interface UploadState {
   isUploading: boolean;
   files: UploadedFile[];
   error?: string;
+  /** 当前上传进度 0-100，null 表示不在上传中 */
+  uploadProgress: number | null;
 }
 
 /** Hook 配置选项 */
@@ -76,6 +78,60 @@ function cleanupFileListCache(): void {
 }
 
 /**
+ * 使用 XMLHttpRequest 上传文件，支持进度回调。
+ * 相比 fetch，XHR 的 upload.onprogress 可以获取上传字节进度。
+ */
+async function uploadFileWithProgress(
+  url: string,
+  formData: FormData,
+  onProgress?: (percent: number) => void,
+): Promise<Response> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", url);
+    xhr.withCredentials = true;
+
+    xhr.upload.onprogress = (e: ProgressEvent) => {
+      if (e.lengthComputable && onProgress) {
+        onProgress(Math.round((e.loaded / e.total) * 100));
+      }
+    };
+
+    xhr.onload = () => {
+      // 构造一个类 Response 对象，与 apiFetch 返回行为一致
+      const response = new Response(xhr.responseText, {
+        status: xhr.status,
+        statusText: xhr.statusText,
+        headers: (() => {
+          const h = new Headers();
+          const headerStr = xhr.getAllResponseHeaders();
+          if (headerStr) {
+            for (const line of headerStr.trim().split(/\r?\n/)) {
+              const idx = line.indexOf(": ");
+              if (idx > 0) {
+                h.append(line.slice(0, idx), line.slice(idx + 2));
+              }
+            }
+          }
+          return h;
+        })(),
+      });
+      resolve(response);
+    };
+
+    xhr.onerror = () => {
+      reject(new Error("网络错误，上传失败"));
+    };
+
+    xhr.ontimeout = () => {
+      reject(new Error("上传超时"));
+    };
+
+    xhr.send(formData);
+  });
+}
+
+/**
  * Agent 文件上传 Hook — 支持 per-session 附件隔离
  */
 export function useAgentFileUpload(options: UseAgentFileUploadOptions = {}) {
@@ -84,6 +140,7 @@ export function useAgentFileUpload(options: UseAgentFileUploadOptions = {}) {
   const [state, setState] = useState<UploadState>({
     isUploading: false,
     files: [],
+    uploadProgress: null,
   });
 
   // Per-session 文件附件 Map
@@ -274,6 +331,7 @@ export function useAgentFileUpload(options: UseAgentFileUploadOptions = {}) {
       setState((prev) => ({
         ...prev,
         isUploading: true,
+        uploadProgress: 0,
         error: undefined,
       }));
 
@@ -284,10 +342,16 @@ export function useAgentFileUpload(options: UseAgentFileUploadOptions = {}) {
         const formData = new FormData();
         formData.append("file", file);
 
-        const response = await apiFetch(endpoint, {
-          method: "POST",
-          body: formData,
-        });
+        const response = await uploadFileWithProgress(
+          endpoint,
+          formData,
+          (percent) => {
+            setState((prev) => ({
+              ...prev,
+              uploadProgress: percent,
+            }));
+          },
+        );
 
         if (!response.ok) {
           throw new Error(`上传失败: ${response.status}`);
@@ -306,13 +370,14 @@ export function useAgentFileUpload(options: UseAgentFileUploadOptions = {}) {
           setState((prev) => ({
             ...prev,
             isUploading: false,
+            uploadProgress: null,
             files: [...prev.files, uploadedFile],
           }));
         } else {
           // 后台 session 只更新 Map
           const current = filesMapRef.current.get(sessionId) || [];
           filesMapRef.current.set(sessionId, [...current, uploadedFile]);
-          setState((prev) => ({ ...prev, isUploading: false }));
+          setState((prev) => ({ ...prev, isUploading: false, uploadProgress: null }));
         }
 
         onUploadSuccess?.(uploadedFile);
@@ -322,6 +387,7 @@ export function useAgentFileUpload(options: UseAgentFileUploadOptions = {}) {
         setState((prev) => ({
           ...prev,
           isUploading: false,
+          uploadProgress: null,
           error: errorMsg,
         }));
         if (errorMsg.includes("404")) {
@@ -533,6 +599,7 @@ export function useAgentFileUpload(options: UseAgentFileUploadOptions = {}) {
 
   return {
     state,
+    uploadProgress: state.uploadProgress,
     listFiles,
     reloadWorkspaceFiles,
     uploadFile,

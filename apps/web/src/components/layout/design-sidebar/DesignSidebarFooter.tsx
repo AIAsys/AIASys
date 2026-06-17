@@ -1,6 +1,7 @@
 import { isSingleUserAuthMode } from "@/config/auth";
 import { LogOut, Settings } from "lucide-react";
 import type { SettingsSection } from "@/components/settings/global-settings";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 interface DesignSidebarFooterProps {
   avatarChar: string;
@@ -55,6 +56,7 @@ export function DesignSidebarFooter({
               >
                 <Settings className="w-4 h-4" />
               </button>
+              <ThemeToggle />
               {showLogout ? (
                 <button
                   type="button"

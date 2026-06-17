@@ -428,6 +428,23 @@ export function KnowledgeBaseMarket({
     0,
   );
 
+  // 当存在正在构建索引的文档时，自动轮询刷新文档列表
+  const hasIndexingDocuments = documents.some(
+    (doc) => doc.status === "pending" || doc.status === "processing",
+  );
+  useEffect(() => {
+    if (!selectedKB || !hasIndexingDocuments) return;
+    const interval = setInterval(async () => {
+      try {
+        const docs = await knowledgeApi.listDocuments(selectedKB.id);
+        setDocuments(docs);
+      } catch (err) {
+        console.error("轮询文档状态失败:", err);
+      }
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [selectedKB, hasIndexingDocuments]);
+
   const content = isSplitLayout ? (
     <div className="grid min-h-0 flex-1 xl:grid-cols-[340px_minmax(0,1fr)]">
       <div className="flex min-h-[360px] flex-col border-b border-border/80 bg-muted/60 xl:min-h-0 xl:border-b-0 xl:border-r">

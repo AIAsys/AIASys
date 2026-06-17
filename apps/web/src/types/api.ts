@@ -198,6 +198,17 @@ export interface SubagentCapabilityConfirmationEvent extends SSEEvent {
   subagent_name?: string;
 }
 
+/** 系统警告事件（Auto-Nudge, Loop Guard 等） */
+export interface SystemWarningEvent extends SSEEvent {
+  type: "system_warning";
+  message: string;
+}
+
+/** 心跳事件（保活检测，后端每 15 秒发送一次） */
+export interface HeartbeatEvent extends SSEEvent {
+  type: "heartbeat";
+}
+
 export type AgentEvent =
   | ContentEvent
   | ToolCallEvent
@@ -218,7 +229,9 @@ export type AgentEvent =
   | AskUserRequestEvent
   | CapabilityConfirmationEvent
   | SubagentCapabilityConfirmationEvent
-  | CompactionEvent;
+  | CompactionEvent
+  | SystemWarningEvent
+  | HeartbeatEvent;
 
 // ==================== Agent 执行 ====================
 

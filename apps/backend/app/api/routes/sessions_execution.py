@@ -724,6 +724,7 @@ async def get_session_history(
     user_id: str,
     session_id: str,
     limit: int = Query(0, ge=0, description="限制返回最近 N 条消息，0 表示不限制"),
+    before: int = Query(0, ge=0, description="返回此索引之前的消息（向前分页），0 表示从最新开始"),
     current_user: UserInfo = Depends(require_auth()),
 ) -> dict[str, Any]:
     """
@@ -743,7 +744,7 @@ async def get_session_history(
             session_id,
             user_id,
         )
-        sdk_history = await agent_service.get_session_history(user_id, session_id, limit=limit)
+        sdk_history = await agent_service.get_session_history(user_id, session_id, limit=0)
         current_messages = _filter_visible_history_messages(sdk_history)
         current_messages = session_manager.assign_history_message_ids(
             session_id,
@@ -771,13 +772,25 @@ async def get_session_history(
         # 只过滤掉系统内部消息，保留用于 UI 展示的 system 分隔线
         messages.extend(current_messages)
 
-        # 分页：只保留最近 limit 条消息（从 current_messages 尾部截取）
         total_messages = len(messages)
-        limit_int = int(limit.default) if hasattr(limit, "default") else int(limit) if limit else 0
-        if limit_int > 0 and total_messages > limit_int:
-            messages = messages[-limit_int:]
+        limit_int = int(limit) if isinstance(limit, (int, float)) and limit else 0
+        before_int = int(before) if isinstance(before, (int, float)) and before else 0
 
-        # 直接返回原始格式
+        # 向前分页：before > 0 时取 [before-limit, before) 区间
+        if before_int > 0:
+            start = max(0, before_int - limit_int) if limit_int > 0 else 0
+            messages = messages[start:before_int]
+            has_more_before = start > 0
+            oldest_loaded_index = start
+        elif limit_int > 0 and total_messages > limit_int:
+            # 首次加载：尾部截取
+            messages = messages[-limit_int:]
+            has_more_before = True
+            oldest_loaded_index = total_messages - limit_int
+        else:
+            has_more_before = False
+            oldest_loaded_index = 0
+
         return {
             "user_id": user_id,
             "session_id": session_id,
@@ -786,7 +799,9 @@ async def get_session_history(
             "archived_batches": conversation_batches,
             "can_resume": total_messages > 0,
             "total_messages": total_messages,
-            "has_more": limit_int > 0 and total_messages > limit_int,
+            "has_more": has_more_before,
+            "has_more_before": has_more_before,
+            "oldest_loaded_index": oldest_loaded_index,
         }
     except Exception as e:
         logger.error(f"获取历史失败: {e}")

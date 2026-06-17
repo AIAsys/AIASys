@@ -1,6 +1,8 @@
 const { contextBridge, ipcRenderer } = require("electron");
 
 let trayActionCallback = null;
+let backendCrashedCallback = null;
+let backendReadyCallback = null;
 
 function getBackendBaseUrlFromArgv() {
   const arg = process.argv.find((a) => a.startsWith("--aiasys-backend-base-url="));
@@ -14,6 +16,20 @@ ipcRenderer.on("tray-action", (_event, action) => {
   }
 });
 
+// 监听后端崩溃通知
+ipcRenderer.on("backend:crashed", () => {
+  if (typeof backendCrashedCallback === "function") {
+    backendCrashedCallback();
+  }
+});
+
+// 监听后端重启就绪通知
+ipcRenderer.on("backend:ready", () => {
+  if (typeof backendReadyCallback === "function") {
+    backendReadyCallback();
+  }
+});
+
 contextBridge.exposeInMainWorld("__AIASYS_DESKTOP__", {
   platform: "electron",
   mode: process.env.AIASYS_DESKTOP_MODE || "dev",
@@ -22,6 +38,14 @@ contextBridge.exposeInMainWorld("__AIASYS_DESKTOP__", {
   // 注册托盘动作回调，让前端可以响应托盘菜单点击
   onTrayAction(callback) {
     trayActionCallback = callback;
+  },
+  // 注册后端崩溃回调（桌面版自动重启时触发）
+  onBackendCrashed(callback) {
+    backendCrashedCallback = callback;
+  },
+  // 注册后端重启就绪回调
+  onBackendReady(callback) {
+    backendReadyCallback = callback;
   },
   // 选择本地文件夹
   selectFolder(options) {

@@ -18,7 +18,10 @@ _SUPPORTED_IMAGE_MIME_TYPES = {
     "image/webp",
 }
 _DATA_URL_PREFIX = "data:"
-MAX_INLINE_IMAGE_BYTES = 20 * 1024 * 1024
+MAX_INLINE_IMAGE_BYTES = 10 * 1024 * 1024  # 单张图片大小上限 10MB（对齐 Claude API 限制）
+MAX_IMAGES_PER_TURN = 10  # 单轮对话图片数量上限（社区共识：超过 10 张模型开始幻觉）
+_HYDRATE_MAX_DIMENSION = 2048  # hydrate 时图片长边上限（对齐 OpenAI high detail + Claude 推荐值）
+_HYDRATE_JPEG_QUALITY = 85
 
 
 class TextContentPart(BaseModel):
@@ -209,26 +212,45 @@ def build_attachment_content_parts(
     workspace_dir: Path,
     detail: str = "auto",
 ) -> AttachmentContentParts:
+    import logging
+
+    _logger = logging.getLogger(__name__)
     transport_parts: list[dict[str, Any]] = []
     display_parts: list[dict[str, Any]] = []
     image_paths: list[str] = []
 
     for raw_attachment in attachments or []:
+        if len(image_paths) >= MAX_IMAGES_PER_TURN:
+            _logger.warning(
+                "图片数量超过上限 %d，忽略后续附件: %s",
+                MAX_IMAGES_PER_TURN,
+                raw_attachment,
+            )
+            break
+
         normalized_workspace_path = normalize_workspace_attachment_path(raw_attachment)
         mime_type = guess_supported_image_mime_type(Path(normalized_workspace_path))
         if mime_type is None:
             continue
 
-        host_path, workspace_path = resolve_workspace_attachment_path(
-            workspace_dir=workspace_dir,
-            raw_path=raw_attachment,
-        )
+        try:
+            host_path, workspace_path = resolve_workspace_attachment_path(
+                workspace_dir=workspace_dir,
+                raw_path=raw_attachment,
+            )
+        except (FileNotFoundError, PermissionError, ValueError) as exc:
+            _logger.warning("附件路径解析失败，跳过: %s — %s", raw_attachment, exc)
+            continue
 
         size_bytes = host_path.stat().st_size
         if size_bytes > MAX_INLINE_IMAGE_BYTES:
-            raise ValueError(
-                f"图片 `{workspace_path}` 过大（{size_bytes} bytes），当前内联上限为 {MAX_INLINE_IMAGE_BYTES} bytes。"
+            _logger.warning(
+                "图片 `%s` 过大（%d bytes > %d），跳过",
+                workspace_path,
+                size_bytes,
+                MAX_INLINE_IMAGE_BYTES,
             )
+            continue
 
         transport_parts.append(
             dump_message_content(
@@ -385,12 +407,51 @@ def to_data_url(mime_type: str, data: bytes) -> str:
     return f"{_DATA_URL_PREFIX}{mime_type};base64,{encoded}"
 
 
+def _resize_image_bytes(data: bytes, mime_type: str) -> tuple[bytes, str]:
+    """将图片缩放到 _HYDRATE_MAX_DIMENSION 以内，返回 (data, mime_type)。
+
+    如果图片已经足够小或 Pillow 不可用，返回原始数据。
+    PNG 保留 PNG 格式（保留透明通道），其他格式转为 JPEG quality 85。
+    """
+    try:
+        import io
+
+        from PIL import Image
+    except ImportError:
+        return data, mime_type
+
+    try:
+        img = Image.open(io.BytesIO(data))
+        max_dim = _HYDRATE_MAX_DIMENSION
+        if max(img.size) <= max_dim:
+            return data, mime_type
+
+        ratio = max_dim / max(img.size)
+        new_size = (int(img.size[0] * ratio), int(img.size[1] * ratio))
+        img = img.resize(new_size, Image.LANCZOS)
+
+        buf = io.BytesIO()
+        if mime_type == "image/png" and img.mode in ("RGBA", "LA", "P"):
+            img.save(buf, format="PNG")
+            return buf.getvalue(), "image/png"
+        else:
+            if img.mode in ("RGBA", "LA", "P"):
+                img = img.convert("RGB")
+            img.save(buf, format="JPEG", quality=_HYDRATE_JPEG_QUALITY)
+            return buf.getvalue(), "image/jpeg"
+    except Exception:
+        return data, mime_type
+
+
 def hydrate_message_images(
     messages: list[dict[str, Any]],
     *,
     workspace_dir: Path | None = None,
 ) -> list[dict[str, Any]]:
     """把消息列表中 file:// URI 的图片临时 hydrate 成 data URL。
+
+    - 超过 _HYDRATE_MAX_DIMENSION 的图片自动等比缩放
+    - 文件不存在时替换为文字占位符，不发无效 URI 给 LLM
 
     返回新的消息列表，不修改原始列表。
     """
@@ -413,6 +474,7 @@ def hydrate_message_images(
                     if isinstance(image_url, dict):
                         url = image_url.get("url", "")
                         if isinstance(url, str) and url.startswith("file://"):
+                            source_path = part.get("source_path", url)
                             try:
                                 host_path = _resolve_hydratable_image_path(
                                     url=url,
@@ -420,11 +482,17 @@ def hydrate_message_images(
                                     workspace_dir=workspace_dir,
                                 )
                                 if host_path is None:
-                                    new_parts.append(part)
+                                    new_parts.append(
+                                        {
+                                            "type": "text",
+                                            "text": f"[图片文件无法解析: {source_path}]",
+                                        }
+                                    )
                                     continue
                                 mime_type = guess_supported_image_mime_type(host_path)
                                 if mime_type:
                                     data = host_path.read_bytes()
+                                    data, mime_type = _resize_image_bytes(data, mime_type)
                                     new_url = to_data_url(mime_type, data)
                                     new_part = dict(part)
                                     new_image_url = dict(image_url)
@@ -432,6 +500,14 @@ def hydrate_message_images(
                                     new_part["image_url"] = new_image_url
                                     new_parts.append(new_part)
                                     continue
+                            except (FileNotFoundError, PermissionError):
+                                new_parts.append(
+                                    {
+                                        "type": "text",
+                                        "text": f"[图片文件不存在: {source_path}]",
+                                    }
+                                )
+                                continue
                             except Exception:
                                 pass  # fallback: 保留原始
                 new_parts.append(part)

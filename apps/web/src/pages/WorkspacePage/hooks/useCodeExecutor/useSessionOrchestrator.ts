@@ -206,6 +206,8 @@ export function useSessionOrchestrator({
     handleDeleteSession: deleteSessionApi,
     addOptimisticSession,
     updateSessionTitle,
+    loadMoreHistory,
+    hasMoreHistory,
   } = useSessionManagement({
     apiBaseUrl,
     initialSessionId,
@@ -340,7 +342,7 @@ export function useSessionOrchestrator({
     [sessionId, selectSession, cleanupDraftSessions],
   );
 
-  /** 删除 session — 先停流再清理 */
+  /** 删除 session — 先调 API，成功后再清理前端状态 */
   const handleDeleteSession = useCallback(
     async (sid: string, options?: SessionDeletionOptions) => {
       const isDeletingActiveSession = sid === sessionId;
@@ -352,16 +354,27 @@ export function useSessionOrchestrator({
       // 先停止流
       stopSession(sid);
 
+      // 先调后端删除 API，成功后再清理前端
+      try {
+        await deleteSessionApi(sid);
+      } catch (error) {
+        // API 失败时不清理前端状态，避免"删除后刷新复活"
+        console.error("Failed to delete session:", error);
+        // 仍然切换活跃会话（如果删的是当前会话），避免用户卡在已删除的会话上
+        if (isDeletingActiveSession && !options?.suppressActiveFallback) {
+          await activateReplacementDraft();
+        }
+        return;
+      }
+
       if (isDeletingActiveSession && !options?.suppressActiveFallback) {
         await activateReplacementDraft();
       }
 
-      // 清理前端 per-session 数据
+      // API 成功后清理前端 per-session 数据
       removeChatSession(sid);
       removeMultiTaskSession(sid);
       unregisterHiddenSession(sid);
-      // 调后端删除 API
-      await deleteSessionApi(sid);
     },
     [
       sessionId,
@@ -403,5 +416,7 @@ export function useSessionOrchestrator({
     handleSelectSession,
     handleDeleteSession,
     updateSessionTitle,
+    loadMoreHistory,
+    hasMoreHistory,
   };
 }

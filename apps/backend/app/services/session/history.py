@@ -7,6 +7,8 @@ import logging
 from pathlib import Path
 from typing import List
 
+from app.utils.path_utils import atomic_write_text
+
 logger = logging.getLogger(__name__)
 
 
@@ -54,9 +56,9 @@ class HistoryMixin:
                     payload["_compaction_snapshot"] = True
             except Exception:
                 pass
-        history_path.write_text(
+        atomic_write_text(
+            history_path,
             json.dumps(payload, indent=2, ensure_ascii=False),
-            encoding="utf-8",
         )
         return history_path
 
@@ -90,3 +92,14 @@ class HistoryMixin:
         """获取会话历史"""
         session_dir = self._get_session_dir(session_id, user_id)
         return self._read_history_snapshot(session_dir)
+
+    def sync_messages_to_history(self, session_id: str, user_id: str, messages: list[dict]) -> None:
+        """用完整消息列表覆写 history.json 快照。
+
+        用于执行完成后将 runtime session 的完整消息（含 tool_calls 和 tool 消息）
+        同步到持久化历史，确保 session 重建后 LLM 上下文完整。
+        保留已有的 _compaction_snapshot 标记。
+        """
+        session_dir = self._get_session_dir(session_id, user_id)
+        self._write_history_snapshot(session_dir, messages)
+        self._update_message_count(session_id, user_id, len(messages))

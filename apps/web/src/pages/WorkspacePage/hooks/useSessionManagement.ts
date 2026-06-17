@@ -28,9 +28,13 @@ export function useSessionManagement({
   const [isRestoringSession, setIsRestoringSession] = useState(
     Boolean(initialSessionId),
   );
+  const [historyLoadError, setHistoryLoadError] = useState<string | null>(null);
   const latestSelectRequestRef = useRef(0);
   const latestSelectTargetRef = useRef<string | null>(null);
   const loadedHistorySessionsRef = useRef<Set<string>>(new Set());
+  const sessionHasMoreRef = useRef<Map<string, boolean>>(new Map());
+  const sessionOldestIndexRef = useRef<Map<string, number>>(new Map());
+  const loadingMoreRef = useRef<Set<string>>(new Set());
   const hasLoadedHistoryRef = useRef(false);
   const isLoadingRef = useRef(false);
   const conversationsRef = useRef<Conversation[]>([]);
@@ -151,6 +155,7 @@ export function useSessionManagement({
       const requestId = latestSelectRequestRef.current;
       latestSelectTargetRef.current = sid;
       setIsRestoringSession(true);
+      setHistoryLoadError(null);
 
       const restoredItems: ChatItem[] = [];
 
@@ -164,9 +169,17 @@ export function useSessionManagement({
           messages?: HistoryMessage[];
           total_messages?: number;
           has_more?: boolean;
+          has_more_before?: boolean;
+          oldest_loaded_index?: number;
         }>(`${apiBaseUrl}${endpoint}${historyLimit > 0 ? `?limit=${historyLimit}` : ""}`);
         const messages = (data.messages || []) as HistoryMessage[];
         restoredItems.push(...restoreChatItemsFromHistory(sid, messages));
+
+        // 记录分页状态
+        if (isFirstLoad) {
+          sessionHasMoreRef.current.set(sid, Boolean(data.has_more_before ?? data.has_more));
+          sessionOldestIndexRef.current.set(sid, data.oldest_loaded_index ?? 0);
+        }
 
         // 标记该会话历史已加载过，下次切换回来不再限制条数
         loadedHistorySessionsRef.current.add(sid);
@@ -186,6 +199,14 @@ export function useSessionManagement({
           return restoredItems;
         }
         console.error("Failed to load session:", error);
+        if (
+          requestId === latestSelectRequestRef.current &&
+          sid === latestSelectTargetRef.current
+        ) {
+          setHistoryLoadError(
+            error instanceof Error ? error.message : "加载会话历史失败",
+          );
+        }
       } finally {
         if (requestId === latestSelectRequestRef.current) {
           setIsRestoringSession(false);
@@ -269,14 +290,54 @@ export function useSessionManagement({
     }
   }, [apiBaseUrl]);
 
+  const loadMoreHistory = useCallback(
+    async (sid: string): Promise<ChatItem[] | null> => {
+      if (loadingMoreRef.current.has(sid)) return null;
+      const hasMore = sessionHasMoreRef.current.get(sid);
+      if (!hasMore) return null;
+
+      loadingMoreRef.current.add(sid);
+      try {
+        const userId = getCurrentUserId();
+        const before = sessionOldestIndexRef.current.get(sid) ?? 0;
+        const endpoint = API_ENDPOINTS.SESSION_HISTORY(userId, sid);
+        const data = await apiRequest<{
+          messages?: HistoryMessage[];
+          has_more_before?: boolean;
+          oldest_loaded_index?: number;
+        }>(`${apiBaseUrl}${endpoint}?limit=50&before=${before}`);
+        const messages = (data.messages || []) as HistoryMessage[];
+        const olderItems = restoreChatItemsFromHistory(sid, messages);
+
+        sessionHasMoreRef.current.set(sid, Boolean(data.has_more_before));
+        sessionOldestIndexRef.current.set(sid, data.oldest_loaded_index ?? 0);
+
+        return olderItems;
+      } catch (error) {
+        console.error("Failed to load more history:", error);
+        return null;
+      } finally {
+        loadingMoreRef.current.delete(sid);
+      }
+    },
+    [apiBaseUrl],
+  );
+
+  const hasMoreHistory = useCallback((sid: string): boolean => {
+    return Boolean(sessionHasMoreRef.current.get(sid));
+  }, []);
+
   return {
     conversations,
     isLoadingHistory: isLoadingConversations,
     isRestoringSession,
+    historyLoadError,
     loadConversations,
     handleSessionSelect,
     handleDeleteSession,
     addOptimisticSession,
     updateSessionTitle,
+    loadMoreHistory,
+    hasMoreHistory,
   };
 }

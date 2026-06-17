@@ -46,11 +46,13 @@ export function useWorkspaceRuntimeControls({
   const [isLoadingRegisteredPythonEnvs, setIsLoadingRegisteredPythonEnvs] =
     useState(false);
   const workspaceId = workspace?.workspace_id ?? null;
-  const boundEnvId = workspace?.runtime_binding?.env_id ?? null;
-  const sandboxMode = workspace?.runtime_binding?.sandbox_mode ?? null;
+  const resources = workspace?.runtime_binding?.resources ?? null;
+  const boundEnvId = resources?.python_env_id ?? null;
+  const dockerResourceId = resources?.docker_resource_id ?? null;
+  const isDockerMode = Boolean(dockerResourceId);
 
   useEffect(() => {
-    if (!workspaceId || !boundEnvId || sandboxMode === "docker") {
+    if (!workspaceId || !boundEnvId || isDockerMode) {
       setBoundWorkspaceEnv(null);
       return;
     }
@@ -74,14 +76,14 @@ export function useWorkspaceRuntimeControls({
     return () => {
       cancelled = true;
     };
-  }, [boundEnvId, sandboxMode, workspaceId]);
+  }, [boundEnvId, isDockerMode, workspaceId]);
 
   const activeEnv: ActiveEnvironmentInfo | null = useMemo(
     () => {
-      if (sandboxMode === "docker" && boundEnvId) {
+      if (isDockerMode && dockerResourceId) {
         return {
-          id: boundEnvId,
-          name: boundEnvId,
+          id: dockerResourceId,
+          name: dockerResourceId,
           image: "docker",
           sandbox_mode: "docker",
           is_default: false,
@@ -115,7 +117,7 @@ export function useWorkspaceRuntimeControls({
         is_default: false,
       };
     },
-    [boundEnvId, boundWorkspaceEnv, sandboxMode],
+    [boundEnvId, boundWorkspaceEnv, dockerResourceId, isDockerMode],
   );
 
   const isCreatingWorkspace =
@@ -208,8 +210,6 @@ export function useWorkspaceRuntimeControls({
 
         const runtimeBinding = resources.dockerEnabled
           ? {
-              sandbox_mode: "docker",
-              env_id: null,
               resources: {
                 python_env_id: null,
                 node_env_id: null,
@@ -217,9 +217,6 @@ export function useWorkspaceRuntimeControls({
               },
             }
           : {
-              sandbox_mode:
-                resources.pythonEnabled || resources.nodeEnabled ? "local" : null,
-              env_id: resources.pythonEnabled ? "workspace-default" : null,
               resources: {
                 python_env_id: resources.pythonEnabled ? "workspace-default" : null,
                 node_env_id: resources.nodeEnabled ? "node-default" : null,

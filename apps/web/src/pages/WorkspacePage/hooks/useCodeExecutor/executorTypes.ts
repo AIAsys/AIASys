@@ -115,6 +115,7 @@ export interface UseCodeExecutorReturn {
     originalContent?: string,
   ) => Promise<void>;
   handleKeyDown: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void;
+  handleRetryLastSubmit: () => Promise<void>;
   handleWorkerClick: (workerName: string) => void;
   handleStop: () => void;
   isRunning: boolean;
@@ -145,10 +146,21 @@ export interface UseCodeExecutorReturn {
   moveFile: (source: string, target: string) => Promise<boolean>;
   readWorkspaceFileContent: (path: string) => Promise<string | null>;
   isUploading: boolean;
+  /** 当前上传进度 0-100，null 表示不在上传中 */
+  uploadProgress: number | null;
   /** 当前所有正在运行的 session ID 集合 */
   runningSessionIds: Set<string>;
   /** 更新指定 session 的聊天内容 */
   updateSessionChatItems: (
+    sessionId: string,
+    updater: (prev: ChatItem[]) => ChatItem[],
+  ) => void;
+  /** 加载更多历史消息（向上分页） */
+  loadMoreHistory: (sessionId: string) => Promise<ChatItem[] | null>;
+  /** 指定 session 是否还有更多历史消息 */
+  hasMoreHistory: (sessionId: string) => boolean;
+  /** 更新指定 session 的 chatItems（用于 prepend 历史消息） */
+  updateChatItemsForSession: (
     sessionId: string,
     updater: (prev: ChatItem[]) => ChatItem[],
   ) => void;

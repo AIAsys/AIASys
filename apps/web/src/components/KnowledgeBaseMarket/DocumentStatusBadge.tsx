@@ -15,10 +15,11 @@ export function DocumentStatusBadge({ status }: DocumentStatusBadgeProps) {
         </Badge>
       );
     case "processing":
+    case "pending":
       return (
         <Badge variant="outline" className="text-tertiary border-tertiary">
           <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-          处理中
+          索引中
         </Badge>
       );
     case "failed":
@@ -28,10 +29,9 @@ export function DocumentStatusBadge({ status }: DocumentStatusBadgeProps) {
           className="bg-destructive text-destructive-foreground"
         >
           <XCircle className="w-3 h-3 mr-1" />
-          失败
+          索引失败
         </Badge>
       );
-    case "pending":
     default:
       return (
         <Badge variant="secondary">

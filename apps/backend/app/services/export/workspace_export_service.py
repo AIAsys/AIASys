@@ -151,42 +151,36 @@ class WorkspaceExportService:
         return results
 
     def _read_conversation_history(self, user_id: str, session_id: str) -> list[dict[str, Any]]:
-        """读取单个 session 的完整对话历史（context.jsonl）。
-
-        过滤内部 SDK 消息和 system-reminder。
-        """
+        """读取单个 session 的完整对话历史（history.json）。"""
         session_dir = self.workspace_root / user_id / session_id
-        context_file = session_dir / ".aiasys" / "session" / session_id / "context.jsonl"
-        if not context_file.exists():
+        snapshot_path = session_dir / ".aiasys" / "session" / "_active" / "history.json"
+        if not snapshot_path.exists():
+            return []
+
+        try:
+            payload = json.loads(snapshot_path.read_text(encoding="utf-8"))
+        except Exception:
+            return []
+
+        if not isinstance(payload, dict):
+            return []
+
+        raw_messages = payload.get("messages") or []
+        if not isinstance(raw_messages, list):
             return []
 
         messages: list[dict[str, Any]] = []
-        try:
-            with open(context_file, "r", encoding="utf-8") as f:
-                for line in f:
-                    line = line.strip()
-                    if not line:
-                        continue
-                    try:
-                        msg = json.loads(line)
-                    except json.JSONDecodeError:
-                        continue
-
-                    role = msg.get("role")
-                    if role in ("_checkpoint", "_usage", "_system_prompt"):
-                        continue
-
-                    # 过滤 system-reminder（user 消息中以 <system-reminder> 开头）
-                    if role == "user":
-                        content = msg.get("content")
-                        if isinstance(content, str) and content.strip().startswith(
-                            "<system-reminder>"
-                        ):
-                            continue
-
-                    messages.append(msg)
-        except Exception:
-            pass
+        for msg in raw_messages:
+            if not isinstance(msg, dict):
+                continue
+            role = msg.get("role")
+            if role in ("_checkpoint", "_usage", "_system_prompt"):
+                continue
+            if role == "user":
+                content = msg.get("content")
+                if isinstance(content, str) and content.strip().startswith("<system-reminder>"):
+                    continue
+            messages.append(msg)
 
         return messages
 

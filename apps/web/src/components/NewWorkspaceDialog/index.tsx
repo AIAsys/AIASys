@@ -18,6 +18,7 @@ import {
 
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { PreflightCheck } from "./PreflightCheck";
 import {
   Dialog,
   DialogContent,
@@ -102,6 +103,7 @@ interface NewWorkspaceDialogProps {
   stage?: NewTaskStage;
   errorMessage?: string | null;
   isSubmitting?: boolean;
+  onOpenGlobalSettings?: (section: string) => void;
 }
 
 
@@ -116,6 +118,7 @@ export function NewWorkspaceDialog({
   stage = "idle",
   errorMessage = null,
   isSubmitting = false,
+  onOpenGlobalSettings,
 }: NewWorkspaceDialogProps) {
   const [templates, setTemplates] = useState<WorkspaceTemplateItem[]>([]);
   const [isLoadingTemplates, setIsLoadingTemplates] = useState(false);
@@ -125,7 +128,7 @@ export function NewWorkspaceDialog({
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [resources, setResources] = useState<ExecutionResourceSelection>({
-    pythonEnabled: false,
+    pythonEnabled: true,
     pythonSource: { kind: "uv" },
     nodeEnabled: false,
     dockerEnabled: false,
@@ -268,7 +271,7 @@ export function NewWorkspaceDialog({
       setTitle("");
       setDescription("");
       setResources({
-        pythonEnabled: false,
+        pythonEnabled: true,
         pythonSource: { kind: "uv" },
         nodeEnabled: false,
         dockerEnabled: false,
@@ -941,7 +944,7 @@ export function NewWorkspaceDialog({
 
           <div className="min-w-0 space-y-3 overflow-hidden">
             <div className="flex items-center justify-between">
-              <Label>执行资源组</Label>
+              <Label>运行环境</Label>
               {selectedTemplate &&
                 selectedTemplate.template_id !== "blank-workspace" &&
                 selectedTemplate.runtime_resources &&
@@ -985,7 +988,7 @@ export function NewWorkspaceDialog({
                     Python 环境
                   </span>
                   <span className="mt-0.5 block text-xs leading-5 text-muted-foreground">
-                    在当前工作区创建隔离 Python 环境，适合 notebook、依赖安装和可复现实验。
+                    创建隔离 Python 环境用于代码执行和数据分析。
                   </span>
 
                   {resources.pythonEnabled ? (
@@ -1107,7 +1110,7 @@ export function NewWorkspaceDialog({
                     Node.js 环境
                   </span>
                   <span className="mt-0.5 block text-xs leading-5 text-muted-foreground">
-                    创建 Node.js 环境，适合前端构建、npm 脚本和 JavaScript/TypeScript 任务。
+                    Node.js 环境，适合前端构建和 JS/TS 任务。
                   </span>
                 </span>
               </label>
@@ -1133,7 +1136,7 @@ export function NewWorkspaceDialog({
                     Docker 沙盒
                   </span>
                   <span className="mt-0.5 block text-xs leading-5 text-muted-foreground">
-                    使用容器执行，与本地 Python/Node 环境互斥。
+                    容器执行模式，与本地环境互斥。
                   </span>
                 </span>
               </label>
@@ -1280,6 +1283,8 @@ export function NewWorkspaceDialog({
           </div>
           )}
         </div>
+
+        <PreflightCheck onNavigateSettings={onOpenGlobalSettings} />
 
         <DialogFooter className="border-t px-6 py-4">
           <Button

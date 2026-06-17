@@ -5,14 +5,11 @@ import hashlib
 import json
 import logging
 import os
-import shutil
-import time
 import tomllib
 from pathlib import Path
 from typing import Any
 
 from app.services.agent.compaction import estimate_text_tokens
-from app.services.shell_executor import get_shell_executor
 from app.services.agent.message_content import (
     downgrade_message_content_for_history,
 )
@@ -24,6 +21,8 @@ from app.services.session.constants import (
     ACTIVE_SESSION_STATE_DIR_NAME,
     HISTORY_SNAPSHOT_FILE_NAME,
 )
+from app.services.shell_executor import get_shell_executor
+from app.utils.path_utils import atomic_write_text
 
 from ..base import RuntimeSessionCreateSpec
 from .capability_confirmation import CapabilityConfirmationManager
@@ -101,12 +100,6 @@ class AiasysRuntimeSession(
         # Feature flags for runtime adaptive behaviors
         self._auto_nudge_enabled = os.getenv("AIASYS_AUTO_NUDGE_ENABLED", "true").lower() == "true"
         self._loop_guard_enabled = os.getenv("AIASYS_LOOP_GUARD_ENABLED", "true").lower() == "true"
-
-        # context.jsonl 路径，与 get_session_history() 读取路径保持一致
-        _work_dir_path = Path(str(self._spec.work_dir))
-        self._context_file = (
-            _work_dir_path / ".aiasys" / "session" / self.session_id / "context.jsonl"
-        )
 
         # 从 metadata.json 恢复上次 LLM 返回的精确 context_tokens。
         # 顶层 context_tokens 与 budget 独立，确保 budget 关闭后仍能恢复精确值。
@@ -567,18 +560,6 @@ class AiasysRuntimeSession(
         # 避免运行中 _estimated_token_count 停留在旧精确值，导致上下文占用被低估。
         self._pending_token_estimate += estimate_text_tokens([message])
 
-        try:
-            self._context_file.parent.mkdir(parents=True, exist_ok=True)
-            with open(self._context_file, "a", encoding="utf-8") as f:
-                f.write(json.dumps(message, ensure_ascii=False) + "\n")
-        except Exception:
-            logger.warning(
-                "追加 context 消息失败: session=%s role=%s",
-                self.session_id,
-                message.get("role"),
-                exc_info=True,
-            )
-
     def _load_persisted_messages(self) -> list[InternalMessage]:
         session_dir = Path(str(self._spec.work_dir))
         history_path = (
@@ -612,7 +593,11 @@ class AiasysRuntimeSession(
                 continue
             role = item.get("role")
             content = item.get("content")
-            if role not in {"user", "assistant", "tool"} or content is None:
+            # assistant 消息可能只有 tool_calls 没有 content（纯工具调用轮），
+            # 不能因为 content 为 None 就跳过，否则 tool_calls 丢失导致上下文断裂。
+            if role not in {"user", "assistant", "tool"}:
+                continue
+            if content is None and not (role == "assistant" and item.get("tool_calls")):
                 continue
             message: dict[str, Any] = {"role": role, "content": content}
             message_id = item.get("id")
@@ -666,7 +651,8 @@ class AiasysRuntimeSession(
                 for msg in messages
                 if isinstance(msg, dict) and msg.get("role") in {"user", "assistant", "tool"}
             ]
-            history_path.write_text(
+            atomic_write_text(
+                history_path,
                 json.dumps(
                     {
                         "_schema_version": 1,
@@ -676,48 +662,9 @@ class AiasysRuntimeSession(
                     indent=2,
                     ensure_ascii=False,
                 ),
-                encoding="utf-8",
             )
         except Exception:
             logger.warning("写入 history snapshot 失败: session=%s", self.session_id, exc_info=True)
-
-    def _append_compaction_record(
-        self,
-        *,
-        summary_path: str,
-        compacted_count: int,
-        preserved_count: int,
-        summary_turn_n: int | None,
-        compacted_turn_range: tuple[int, int] | None,
-    ) -> None:
-        """向 context.jsonl 追加一条压缩事件记录。
-
-        context.jsonl 保持 append-only；该记录不进入 LLM 输入，
-        用于审计和未来可能的事件重放。
-        """
-        record: dict[str, Any] = {
-            "role": "_compaction",
-            "origin": "compaction_record",
-            "summary_path": summary_path,
-            "compacted_count": compacted_count,
-            "preserved_count": preserved_count,
-            "timestamp": time.time(),
-        }
-        if summary_turn_n is not None:
-            record["summary_turn_n"] = summary_turn_n
-        if compacted_turn_range is not None:
-            record["compacted_turn_range"] = list(compacted_turn_range)
-
-        try:
-            self._context_file.parent.mkdir(parents=True, exist_ok=True)
-            with open(self._context_file, "a", encoding="utf-8") as f:
-                f.write(json.dumps(record, ensure_ascii=False) + "\n")
-        except Exception:
-            logger.warning(
-                "追加压缩记录失败: session=%s",
-                self.session_id,
-                exc_info=True,
-            )
 
     def _downgrade_historical_image_messages(
         self,

@@ -223,7 +223,11 @@ export const AskUserInlineCard: React.FC<AskUserInlineCardProps> = ({
               className="w-full"
               autoFocus
               onKeyDown={(e) => {
-                if (e.key === "Enter" && !isConfirmDisabled()) {
+                if (
+                  e.key === "Enter" &&
+                  !isConfirmDisabled() &&
+                  !e.nativeEvent.isComposing
+                ) {
                   handleConfirm();
                 }
               }}

@@ -312,70 +312,120 @@ function logToBoth(stream, prefix, data) {
 
 function spawnManagedProcess(name, command, args, options) {
   const isWindows = process.platform === "win32";
+  const autoRestart = options?.autoRestart !== false;
+  const maxRestarts = 3;
+  const canRestart =
+    typeof options?.canRestart === "function" ? options.canRestart : () => true;
+  let restartCount = 0;
 
-  const child = spawn(command, args, {
-    ...options,
-    detached: !isWindows,
-    stdio: ["ignore", "pipe", "pipe"],
-    windowsHide: isWindows,
-  });
-
-  // 日志流
-  let logStream = null;
-  if (options?.__logFilePath) {
-    try {
-      logStream = createLogStream(options.__logFilePath);
-    } catch (error) {
-      console.error(`[aiasys-desktop] 无法创建日志文件 ${options.__logFilePath}:`, error);
-    }
-  }
-
-  if (child.stdout) {
-    child.stdout.on("data", (data) => {
-      logToBoth(logStream, name, data);
+  const spawnOnce = () => {
+    const child = spawn(command, args, {
+      ...options,
+      detached: !isWindows,
+      stdio: ["ignore", "pipe", "pipe"],
+      windowsHide: isWindows,
     });
-  }
 
-  if (child.stderr) {
-    child.stderr.on("data", (data) => {
-      logToBoth(logStream, `${name}:stderr`, data);
-    });
-  }
-
-  child.once("error", (error) => {
-    console.error(`[aiasys-desktop] ${name} 启动失败:`, error);
-    if (logStream && !logStream.destroyed) {
-      logStream.write(`[${name}] 启动失败: ${error.message}\n`);
-    }
-  });
-
-  child.once("exit", (code, signal) => {
-    if (code === 0 || signal === "SIGTERM") {
-      if (logStream && !logStream.destroyed) {
-        logStream.end(`[${name}] 正常退出: code=${code} signal=${signal}\n`);
+    // 日志流
+    let logStream = null;
+    if (options?.__logFilePath) {
+      try {
+        logStream = createLogStream(options.__logFilePath);
+      } catch (error) {
+        console.error(`[aiasys-desktop] 无法创建日志文件 ${options.__logFilePath}:`, error);
       }
-      return;
     }
-    console.error(
-      `[aiasys-desktop] ${name} 提前退出: code=${code ?? "null"} signal=${signal ?? "null"}`,
-    );
-    if (logStream && !logStream.destroyed) {
-      logStream.write(
-        `[${name}] 提前退出: code=${code ?? "null"} signal=${signal ?? "null"}\n`,
+
+    if (child.stdout) {
+      child.stdout.on("data", (data) => {
+        logToBoth(logStream, name, data);
+      });
+    }
+
+    if (child.stderr) {
+      child.stderr.on("data", (data) => {
+        logToBoth(logStream, `${name}:stderr`, data);
+      });
+    }
+
+    child.once("error", (error) => {
+      console.error(`[aiasys-desktop] ${name} 启动失败:`, error);
+      if (logStream && !logStream.destroyed) {
+        logStream.write(`[${name}] 启动失败: ${error.message}\n`);
+      }
+    });
+
+    child.once("exit", (code, signal) => {
+      const isExpectedExit =
+        code === 0 || signal === "SIGTERM" || child.__terminatedByUs;
+
+      if (logStream && !logStream.destroyed) {
+        logStream.end(
+          `[${name}] ${isExpectedExit ? "正常退出" : "提前退出"}: code=${code ?? "null"} signal=${signal ?? "null"}\n`,
+        );
+      }
+
+      if (isExpectedExit) {
+        return;
+      }
+
+      console.error(
+        `[aiasys-desktop] ${name} 提前退出: code=${code ?? "null"} signal=${signal ?? "null"}`,
       );
-    }
-  });
 
-  // 附加日志流引用，供外部关闭
-  child.__logStream = logStream;
+      // 通知崩溃
+      if (typeof options?.onCrash === "function") {
+        options.onCrash({ code, signal, restartCount, maxRestarts });
+      }
 
-  return child;
+      // 自动重启
+      if (autoRestart && restartCount < maxRestarts && canRestart()) {
+        restartCount++;
+        console.log(
+          `[aiasys-desktop] ${name} 将在 2 秒后自动重启 (${restartCount}/${maxRestarts})...`,
+        );
+        if (logStream && !logStream.destroyed) {
+          logStream.write(
+            `[${name}] 将在 2 秒后自动重启 (${restartCount}/${maxRestarts})...\n`,
+          );
+        }
+
+        setTimeout(() => {
+          if (!canRestart()) {
+            console.log(`[aiasys-desktop] ${name} 重启已取消（正在关闭）`);
+            return;
+          }
+          const newChild = spawnOnce();
+          if (typeof options?.onRestart === "function") {
+            options.onRestart(newChild);
+          }
+        }, 2000);
+      } else if (autoRestart) {
+        console.error(
+          `[aiasys-desktop] ${name} 已达最大重启次数 (${maxRestarts})，不再重启`,
+        );
+        if (typeof options?.onCrash === "function") {
+          options.onCrash({ code, signal, restartCount, maxRestarts, exhausted: true });
+        }
+      }
+    });
+
+    // 附加日志流引用，供外部关闭
+    child.__logStream = logStream;
+
+    return child;
+  };
+
+  return spawnOnce();
 }
 
 async function terminateChild(child) {
   if (!child || child.killed || child.exitCode !== null) {
     return;
   }
+
+  // 标记为主动终止，防止 exit handler 触发自动重启
+  child.__terminatedByUs = true;
 
   if (child.__logStream && !child.__logStream.destroyed) {
     child.__logStream.end(`[terminate] 进程被终止\n`);
@@ -440,6 +490,10 @@ class DesktopServiceManager {
     this.frontendPortLocked = FRONTEND_PORT_LOCKED;
     this.backendPortLocked = BACKEND_PORT_LOCKED;
     this.managedChildren = [];
+    this.isShuttingDown = false;
+    // 外部回调，由 main.cjs 设置
+    this.onBackendCrash = null;
+    this.onBackendReady = null;
   }
 
   preparePackagedRuntimeState() {
@@ -628,6 +682,7 @@ class DesktopServiceManager {
   }
 
   async stop() {
+    this.isShuttingDown = true;
     while (this.managedChildren.length > 0) {
       const child = this.managedChildren.pop();
       await terminateChild(child);
@@ -663,6 +718,10 @@ class DesktopServiceManager {
 
     const pythonExecutable = resolvePythonExecutable(this._getVenvRoot());
     console.log("[aiasys-desktop] 启动 backend ...");
+
+    // 用于跟踪当前 backend 子进程引用，重启后更新
+    let currentBackendChild = null;
+
     const child = spawnManagedProcess(
       "backend",
       pythonExecutable,
@@ -673,8 +732,37 @@ class DesktopServiceManager {
           AIASYS_RUNTIME_ROOT: this.runtimeStateRoot || this.backendRoot,
         }),
         __logFilePath: this.getLogFilePath("backend"),
+        autoRestart: true,
+        canRestart: () => !this.isShuttingDown,
+        onCrash: (info) => {
+          console.error(`[aiasys-desktop] backend 崩溃: ${JSON.stringify(info)}`);
+          if (typeof this.onBackendCrash === "function") {
+            this.onBackendCrash(info);
+          }
+        },
+        onRestart: (newChild) => {
+          // 替换 managedChildren 中的旧引用
+          const idx = this.managedChildren.indexOf(currentBackendChild);
+          if (idx !== -1) {
+            this.managedChildren[idx] = newChild;
+          }
+          currentBackendChild = newChild;
+
+          // 等待 backend 健康检查通过后通知渲染进程
+          waitForUrl(backendHealthUrl, "backend", 90_000, this.managedChildren)
+            .then(() => {
+              console.log("[aiasys-desktop] backend 重启后已就绪");
+              if (typeof this.onBackendReady === "function") {
+                this.onBackendReady();
+              }
+            })
+            .catch((err) => {
+              console.error("[aiasys-desktop] backend 重启后健康检查失败:", err);
+            });
+        },
       },
     );
+    currentBackendChild = child;
     this.managedChildren.push(child);
     await waitForUrl(backendHealthUrl, "backend", 90_000, this.managedChildren);
   }

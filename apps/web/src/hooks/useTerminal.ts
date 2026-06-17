@@ -14,6 +14,8 @@ export interface UseTerminalOptions {
   sessionId: string;
   /** 外部指定的 terminalId，用于 attach 已有 PTY（PaneRenderer 传入） */
   terminalId?: string;
+  /** 初始连接模式：'attach' 优先尝试 attach 已有 PTY，'spawn' 直接创建新 PTY（默认） */
+  initialMode?: "spawn" | "attach";
   onOutput?: (data: string) => void;
   onSpawned?: (terminalId: string, pid: number) => void;
   onExited?: (terminalId: string, exitCode: number) => void;
@@ -61,6 +63,7 @@ export function useTerminal(options: UseTerminalOptions): UseTerminalReturn {
     userId,
     sessionId,
     terminalId: externalTerminalId,
+    initialMode = "spawn",
     onOutput,
     onSpawned,
     onExited,
@@ -68,19 +71,25 @@ export function useTerminal(options: UseTerminalOptions): UseTerminalReturn {
     onAttached,
   } = options;
 
+  const isAttachMode = initialMode === "attach";
+
   const [state, setState] = useState<TerminalState>({
     status: "idle",
     error: null,
-    terminalId: externalTerminalId ?? null,
+    terminalId: isAttachMode ? (externalTerminalId ?? null) : null,
     pid: null,
   });
 
   const wsRef = useRef<WebSocket | null>(null);
   const pendingSpawnRef = useRef<{ rows: number; cols: number; cwd?: string }[]>([]);
-  const terminalIdRef = useRef<string | null>(externalTerminalId ?? null);
+  const terminalIdRef = useRef<string | null>(isAttachMode ? (externalTerminalId ?? null) : null);
   const reconnectCountRef = useRef(0);
+  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // 标记已过期的 terminalId，防止 render 阶段重新写入 externalTerminalIdRef
   const expiredTerminalIdRef = useRef<string | null>(null);
+  // 记录初始连接模式，用于 connect 时决定是否尝试 attach
+  const initialModeRef = useRef(initialMode);
+  initialModeRef.current = initialMode;
 
   // 稳定引用：userId/sessionId/externalTerminalId 变化时更新 ref
   const userIdRef = useRef(userId);
@@ -111,18 +120,25 @@ export function useTerminal(options: UseTerminalOptions): UseTerminalReturn {
     terminalIdRef.current = state.terminalId;
   }, [state.terminalId]);
 
-  // 外部 terminalId 变化时同步
+  // 外部 terminalId 变化时同步（仅 attach 模式需要预设 terminalId 到 state，
+  // spawn 模式保持 state.terminalId = null 以触发 TerminalPanel 调用 spawn）
   useEffect(() => {
-    if (externalTerminalId && externalTerminalId !== terminalIdRef.current) {
+    if (initialModeRef.current === "attach" && externalTerminalId && externalTerminalId !== terminalIdRef.current) {
       terminalIdRef.current = externalTerminalId;
       setState((prev) => ({ ...prev, terminalId: externalTerminalId }));
     }
   }, [externalTerminalId]);
 
+  // externalTerminalId 变化时清除过期标记
+  useEffect(() => {
+    expiredTerminalIdRef.current = null;
+  }, [externalTerminalId]);
+
   const connect = useCallback(() => {
     const currentUserId = userIdRef.current;
     const currentSessionId = sessionIdRef.current;
-    const attachTarget = externalTerminalIdRef.current;
+    // 仅 attach 模式尝试 attach 已有 PTY；spawn 模式直接走 spawn 路径
+    const attachTarget = initialModeRef.current === "attach" ? externalTerminalIdRef.current : null;
 
     if (wsRef.current?.readyState === WebSocket.OPEN || wsRef.current?.readyState === WebSocket.CONNECTING) {
       return;
@@ -156,10 +172,11 @@ export function useTerminal(options: UseTerminalOptions): UseTerminalReturn {
       if (pendingQueue.length > 0) {
         pendingSpawnRef.current = [];
         const pending = pendingQueue[pendingQueue.length - 1];
+        const spawnTid = terminalIdRef.current || externalTerminalIdRef.current || expiredTerminalIdRef.current || `term-${Date.now()}`;
         ws.send(
           JSON.stringify({
             type: "spawn",
-            terminal_id: terminalIdRef.current || `term-${Date.now()}`,
+            terminal_id: spawnTid,
             rows: pending.rows,
             cols: pending.cols,
             cwd: pending.cwd,
@@ -222,9 +239,22 @@ export function useTerminal(options: UseTerminalOptions): UseTerminalReturn {
                 wsRef.current = null;
                 try { ws.close(); } catch { /* ignore */ }
               }
-              setTimeout(() => {
+              // 指数退避重连：200ms → 400ms → 800ms → 1600ms → 5000ms，最多 5 次
+              const MAX_RECONNECT_ATTEMPTS = 5;
+              if (reconnectCountRef.current >= MAX_RECONNECT_ATTEMPTS) {
+                setState((prev) => ({
+                  ...prev,
+                  status: "error",
+                  error: "Terminal 重连次数过多，已停止重连",
+                }));
+                break;
+              }
+              const delay = Math.min(200 * Math.pow(2, reconnectCountRef.current), 5000);
+              reconnectCountRef.current += 1;
+              reconnectTimerRef.current = setTimeout(() => {
+                reconnectTimerRef.current = null;
                 connect();
-              }, 100);
+              }, delay);
             }
             onErrorRef.current?.(msg.terminal_id, msg.message);
             break;
@@ -282,7 +312,7 @@ export function useTerminal(options: UseTerminalOptions): UseTerminalReturn {
   const spawn = useCallback(
     (rows: number, cols: number, cwd?: string) => {
       const ws = wsRef.current;
-      const tid = terminalIdRef.current || `term-${Date.now()}`;
+      const tid = terminalIdRef.current || externalTerminalIdRef.current || expiredTerminalIdRef.current || `term-${Date.now()}`;
       if (ws?.readyState === WebSocket.OPEN) {
         ws.send(
           JSON.stringify({
@@ -353,6 +383,10 @@ export function useTerminal(options: UseTerminalOptions): UseTerminalReturn {
 
   const reconnect = useCallback(() => {
     disconnect();
+    if (reconnectTimerRef.current) {
+      clearTimeout(reconnectTimerRef.current);
+      reconnectTimerRef.current = null;
+    }
     reconnectCountRef.current = 0;
     connect();
   }, [disconnect, connect]);
@@ -360,6 +394,10 @@ export function useTerminal(options: UseTerminalOptions): UseTerminalReturn {
   useEffect(() => {
     return () => {
       disconnect();
+      if (reconnectTimerRef.current) {
+        clearTimeout(reconnectTimerRef.current);
+        reconnectTimerRef.current = null;
+      }
     };
   }, [disconnect]);
 

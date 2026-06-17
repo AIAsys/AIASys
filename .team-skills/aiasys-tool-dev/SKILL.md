@@ -133,6 +133,17 @@ async def tool_name(
 
 ---
 
+## 跨平台 Shell 工具设计
+
+当 Tool 需要调用系统 shell 时，按以下原则处理 Windows / POSIX 差异：
+
+1. **显式解释器参数**：提供 `interpreter` 字段，支持 `auto | bash | wsl | busybox | powershell | cmd`，也允许传入绝对路径或常见别名（如 `pwsh`、`sh`、`ash`）。
+2. **解释器标准化**：大小写不敏感；将别名映射到 canonical name 后再走 fallback 逻辑。
+3. **Windows fallback 链**：Git Bash → WSL → busybox-w32（自动下载到 `DATA_DIR/tools/busybox-w32/`）→ PowerShell → CMD。
+4. **命令转义**：Windows 下禁用 `shlex.quote`，改用 `subprocess.list2cmdline` 或手动双引号转义。
+5. **环境缓存**：检测结果（如 shell family、组件状态）缓存 30 秒，避免每次调用都探测系统；安装/卸载组件后主动清缓存。
+6. **Agent prompt 分段**：根据当前生效的 shell family（`posix` / `wsl` / `busybox` / `powershell` / `cmd`）注入对应的命令编写提示，避免 Agent 在 Windows 上写出无法执行的 POSIX 命令。
+
 ## 沙盒安全
 
 ### 安全原则
