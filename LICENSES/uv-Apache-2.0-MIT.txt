@@ -1,0 +1,16 @@
+Third-Party Component: uv
+================================================================================
+
+Name        : uv (Python package manager)
+Homepage    : https://github.com/astral-sh/uv
+Licenses    : Apache License 2.0 OR MIT License
+Full texts  : See Apache-2.0.txt and MIT.txt in this directory.
+
+AIASys bundles the unmodified uv binary inside the desktop application
+installer/package to set up and manage the embedded Python environment. uv is
+invoked as a separate command-line process; it is not linked into AIASys source
+code.
+
+You may use uv under either the Apache-2.0 or the MIT license at your option.
+Both license texts are included in this directory, and the source code of uv can
+be obtained from the project repository listed above.

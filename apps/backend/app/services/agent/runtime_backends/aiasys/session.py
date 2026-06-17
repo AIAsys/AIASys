@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from app.services.agent.compaction import estimate_text_tokens
+from app.services.shell_executor import get_shell_executor
 from app.services.agent.message_content import (
     downgrade_message_content_for_history,
 )
@@ -390,44 +391,63 @@ class AiasysRuntimeSession(
                 p.unlink()
 
     def _build_shell_environment_guidance(self) -> str:
-        """根据 Windows 实际 shell 环境给 Agent 追加提示。"""
+        """根据当前实际 shell 环境给 Agent 追加分段提示。"""
+        try:
+            from app.services.shell_environment import _find_busybox
+
+            executor = get_shell_executor()
+            _, _, family = executor.detect_interpreter("auto")
+        except Exception:
+            return ""
+
         if os.name != "nt":
+            if family in ("posix", "wsl"):
+                return (
+                    "Shell 环境为 POSIX。你编写的命令将直接由 bash/sh 执行，"
+                    "可使用标准 Unix 工具（ls、grep、sed、awk、find 等）。"
+                )
             return ""
 
-        bash_path = shutil.which("bash")
-        wsl_path = shutil.which("wsl") or shutil.which("wsl.exe")
+        # Windows 各 shell  family 的精确提示
+        guidance: dict[str, str] = {
+            "posix": (
+                "当前 Windows 使用 Git Bash。你可以编写标准 POSIX 命令 "
+                "（ls、cat、grep、sed、awk、find、python 等），路径使用 /c/foo/bar 风格。"
+                "若需要显式切换解释器，可在 Shell 工具的 interpreter 参数中指定 bash/wsl/busybox/powershell/cmd。"
+            ),
+            "wsl": (
+                "当前 Windows 未安装 Git Bash，但检测到 WSL。shell 命令将通过 `wsl.exe bash -c` 执行。"
+                "你可以使用常见 POSIX 命令；访问 Windows 路径时请注意 /mnt/c/ 挂载转换。"
+                "若需要显式切换解释器，可在 Shell 工具的 interpreter 参数中指定 bash/wsl/busybox/powershell/cmd。"
+            ),
+            "busybox": (
+                "当前 Windows 使用 busybox-w32（ash）作为轻量 POSIX fallback。"
+                "仅支持基础 POSIX 命令，避免使用 GNU bash 数组、[[ ]]、进程替换等扩展特性；"
+                "复杂任务建议用户安装 Git for Windows：https://git-scm.com/download/win。"
+                "若需要显式切换解释器，可在 Shell 工具的 interpreter 参数中指定 bash/wsl/busybox/powershell/cmd。"
+            ),
+            "powershell": (
+                "当前 Windows 未检测到 POSIX shell，shell 命令将使用 PowerShell 执行。"
+                "请优先使用跨平台命令或 PowerShell cmdlet（Get-Content、Select-String、Where-Object 等）；"
+                "如需完整 POSIX 环境，建议用户安装 Git for Windows：https://git-scm.com/download/win。"
+                "若需要显式切换解释器，可在 Shell 工具的 interpreter 参数中指定 bash/wsl/busybox/powershell/cmd。"
+            ),
+            "cmd": (
+                "当前 Windows 未检测到 POSIX shell / PowerShell，shell 命令将使用 CMD 执行。"
+                "请仅使用 CMD 兼容命令（dir、type、findstr、copy、move 等），路径用双引号包裹；"
+                "如需 POSIX 环境，建议安装 Git for Windows：https://git-scm.com/download/win "
+                "或下载轻量 fallback busybox-w32：https://frippery.org/busybox/。"
+                "若需要显式切换解释器，可在 Shell 工具的 interpreter 参数中指定 bash/wsl/busybox/powershell/cmd。"
+            ),
+        }
 
-        if bash_path:
-            # 有 Git Bash 时不额外提示，ShellExecutor 会优先用它
-            return ""
-
-        lines: list[str] = []
-        if wsl_path:
-            lines.append(
-                "当前 Windows 环境未安装 Git Bash，但检测到 WSL。"
-                "执行 shell 命令时将优先通过 `wsl.exe bash -c` 运行，"
-                "你可以继续使用常见 POSIX 命令（如 ls、cat、grep）。"
-            )
-        else:
-            ps_path = shutil.which("pwsh") or shutil.which("powershell")
-            if ps_path:
-                lines.append(
-                    "当前 Windows 环境未安装 Git Bash / WSL，shell 命令将降级到 PowerShell 执行。"
-                )
-                lines.append(
-                    "请优先使用跨平台命令；如需 POSIX 特有命令（如 `cat`、`ls -la` 复杂管道），"
-                    "建议用户安装 Git for Windows：https://gitforwindows.org/"
-                )
-            else:
-                lines.append(
-                    "当前 Windows 环境未安装 Git Bash / WSL / PowerShell，shell 命令将降级到 CMD 执行。"
-                )
-                lines.append(
-                    "请优先使用 CMD 兼容命令（如 `dir`、`type`、`findstr`）；"
-                    "如需 POSIX 命令，建议用户安装 Git for Windows：https://gitforwindows.org/"
-                )
-
-        return "\n".join(lines)
+        base = guidance.get(family, "")
+        if family == "busybox":
+            # busybox 下追加 busybox 路径，方便 Agent 知道可以用它执行 ash
+            busybox_path = _find_busybox()
+            if busybox_path:
+                base += f"\n已安装的 busybox-w32 路径：{busybox_path}"
+        return base
 
     def _build_system_prompt(self) -> str:
         base_prompt = ""

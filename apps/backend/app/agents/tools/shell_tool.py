@@ -116,7 +116,13 @@ class ShellParams(BaseModel):
     )
     interpreter: str = Field(
         default="auto",
-        description="指定使用的 shell 解释器。auto（自动检测，默认）、bash、cmd、powershell。Windows 上 bash 不可用时 fallback 到 cmd。",
+        description=(
+            "指定使用的 shell 解释器。支持："
+            "auto（自动选择，默认）、bash、wsl、busybox、powershell、cmd；"
+            "也支持常见别名如 pwsh/sh/ash；"
+            "还可以传入可执行文件路径（如 C:\\Program Files\\PowerShell\\7\\pwsh.exe）。"
+            "Windows 上 auto 的优先级为：Git Bash → WSL → busybox-w32 → PowerShell → CMD。"
+        ),
     )
 
 

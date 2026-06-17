@@ -1,0 +1,17 @@
+Third-Party Component: sqlite-vec
+================================================================================
+
+Name        : sqlite-vec (SQLite vector-search extension)
+Homepage    : https://github.com/asg017/sqlite-vec
+Licenses    : MIT License OR Apache License 2.0
+Full texts  : See MIT.txt and Apache-2.0.txt in this directory.
+
+AIASys bundles the unmodified sqlite-vec extension with the desktop application
+so that local vector-search capabilities are available without requiring the
+user to install additional SQLite extensions. sqlite-vec is loaded by SQLite at
+runtime as an external extension; it is not statically linked into AIASys source
+code.
+
+You may use sqlite-vec under either the MIT or the Apache-2.0 license at your
+option. Both license texts are included in this directory, and the source code
+can be obtained from the project repository listed above.

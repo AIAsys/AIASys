@@ -1,0 +1,16 @@
+Third-Party Component: busybox-w32
+================================================================================
+
+Name        : busybox-w32
+Homepage    : https://frippery.org/busybox/
+License     : GNU General Public License v2.0 (GPL-2.0)
+Full text   : See GPL-2.0.txt in this directory.
+
+busybox-w32 is NOT bundled with AIASys. It is offered as an optional,
+user-initiated download from the in-app "Environment Enhancements" panel for
+Windows users who do not have Git Bash or WSL available. When downloaded, it
+runs as a separate external process invoked by the AIASys shell executor.
+
+Because it is a GPL-2.0 component, the full license text is included here, and
+users who install it through AIASys are informed of its license and source-code
+availability before the download begins.

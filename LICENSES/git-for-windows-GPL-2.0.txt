@@ -1,0 +1,18 @@
+Third-Party Component: Git for Windows
+================================================================================
+
+Name        : Git for Windows (includes Git Bash)
+Homepage    : https://gitforwindows.org/
+License     : GNU General Public License v2.0 (GPL-2.0)
+Full text   : See GPL-2.0.txt in this directory.
+
+Git for Windows is NOT bundled with AIASys. It is recommended to Windows users
+through the in-app "Environment Enhancements" panel and downloaded/installed by
+the user, either from the official project site or from the Windows package
+manager of their choice.
+
+AIASys detects Git Bash at runtime and uses it as the preferred POSIX-compatible
+shell on Windows. Git for Windows is a separate external program; this project
+does not incorporate its source code. The full GPL-2.0 license text is provided
+here for compliance, and source code can be obtained from the project repository
+listed above.

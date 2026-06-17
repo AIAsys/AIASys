@@ -33,6 +33,7 @@ export type SettingsSection =
   | "env-vars"
   | "storage"
   | "uv-mirror"
+  | "shell-environment"
   | "capabilities"
   | "tool-strategy"
   | "execution-resources"
@@ -68,6 +69,7 @@ const NAV_GROUPS: NavGroup[] = [
       { id: "llm", label: "模型配置", icon: <Server className="h-4 w-4" /> },
       { id: "env-vars", label: "全局环境变量", icon: <Braces className="h-4 w-4" /> },
       { id: "uv-mirror", label: "uv 包管理器镜像", icon: <Globe className="h-4 w-4" /> },
+      { id: "shell-environment", label: "环境增强", icon: <Terminal className="h-4 w-4" /> },
       { id: "storage", label: "存储位置", icon: <FolderCog className="h-4 w-4" /> },
       { id: "execution-resources", label: "执行资源", icon: <FlaskConical className="h-4 w-4" /> },
     ],
@@ -120,6 +122,11 @@ const SECTION_META: Record<
     title: "uv 包管理器镜像",
     description: "配置 PyPI、Python 二进制和 uv 安装器的国内镜像源",
     icon: Globe,
+  },
+  "shell-environment": {
+    title: "环境增强",
+    description: "查看 shell 环境状态并安装/下载可选的跨平台组件",
+    icon: Terminal,
   },
   capabilities: {
     title: "能力管理",
@@ -550,6 +557,11 @@ const LazyUvMirrorSettings = lazy(() =>
     default: m.UvMirrorSettings,
   }))
 );
+const LazyShellEnvironmentPanel = lazy(() =>
+  import("@/components/settings/ShellEnvironmentPanel").then((m) => ({
+    default: m.ShellEnvironmentPanel,
+  }))
+);
 const LazyTokenUsagePanel = lazy(() =>
   import("@/components/settings/token-usage/TokenUsagePanel").then((m) => ({
     default: m.TokenUsagePanel,
@@ -637,6 +649,14 @@ function GlobalSettingsContent({ section, workspaceId, workspaceTitle, userId, w
         <div className="h-full">
           <Suspense fallback={<ContentFallback />}>
             <LazyUvMirrorSettings />
+          </Suspense>
+        </div>
+      );
+    case "shell-environment":
+      return (
+        <div className="h-full">
+          <Suspense fallback={<ContentFallback />}>
+            <LazyShellEnvironmentPanel />
           </Suspense>
         </div>
       );

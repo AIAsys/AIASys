@@ -462,6 +462,8 @@ export const API_ENDPOINTS = {
   STORAGE_SETTINGS_MIGRATION_PREVIEW: "/api/system/storage-settings/migration/preview",
   STORAGE_SETTINGS_MIGRATION_START: "/api/system/storage-settings/migration/start",
   UV_MIRROR_CONFIG: "/api/system/uv/mirror-config",
+  SHELL_ENVIRONMENT: "/api/system/shell-environment",
+  SHELL_ENVIRONMENT_INSTALL_BUSYBOX: "/api/system/shell-environment/install-busybox",
 
   // Knowledge Base 知识库
   KNOWLEDGE_BASES: "/api/knowledge/bases",

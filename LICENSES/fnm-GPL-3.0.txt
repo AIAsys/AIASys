@@ -1,0 +1,16 @@
+Third-Party Component: fnm
+================================================================================
+
+Name        : fnm (Fast Node Manager)
+Homepage    : https://github.com/Schniz/fnm
+License     : GNU General Public License v3.0 (GPL-3.0)
+Full text   : See GPL-3.0.txt in this directory.
+
+AIASys bundles the unmodified fnm binary inside the desktop application
+installer/package so that Node.js version management works out of the box on
+end-user machines. fnm is invoked as a separate command-line process; it is not
+linked into AIASys source code.
+
+This component is licensed under the GPL-3.0. In compliance with that license,
+this directory contains the full GPL-3.0 license text, and the source code of
+fnm can be obtained from the project repository listed above.

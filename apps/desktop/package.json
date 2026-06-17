@@ -1,7 +1,7 @@
 {
   "name": "aiasys-desktop",
   "private": true,
-  "version": "0.4.3",
+  "version": "0.4.4-beta.1",
   "description": "Electron desktop shell for AIASys",
   "homepage": "https://aiasys.ai",
   "author": "AIASys <contact@aiasys.ai>",
@@ -50,6 +50,14 @@
       {
         "from": ".dist/backend",
         "to": "backend"
+      },
+      {
+        "from": "../../LICENSE",
+        "to": "LICENSE"
+      },
+      {
+        "from": "../../LICENSES",
+        "to": "LICENSES"
       }
     ],
     "linux": {
