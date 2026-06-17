@@ -105,6 +105,7 @@ def get_runtime_storage_settings_service() -> RuntimeStorageSettingsService:
 
 
 from app.core.uv_utils import find_uv_binary, get_uv_version, install_uv
+from app.services.shell_environment import detect_shell_environment, install_busybox_w32
 
 
 @router.get("/capability-registry", response_model=CapabilityRegistryResponse)
@@ -313,3 +314,68 @@ async def update_uv_mirror_config(
         )
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"保存镜像配置失败: {exc}") from exc
+
+
+class ShellComponentItem(BaseModel):
+    id: str
+    name: str
+    installed: bool
+    path: str | None = None
+    version: str | None = None
+    description: str = ""
+    download_url: str = ""
+    license: str = ""
+    bundled: bool = False
+    optional: bool = False
+
+
+class ShellEnvironmentResponse(BaseModel):
+    platform: str
+    is_windows: bool
+    recommended_family: str
+    components: list[ShellComponentItem]
+    guidance: str
+
+
+class InstallBusyboxResponse(BaseModel):
+    installed: bool
+    path: str
+    message: str
+
+
+@router.get("/shell-environment", response_model=ShellEnvironmentResponse)
+async def get_shell_environment(
+    current_user: UserInfo = Depends(require_auth()),
+):
+    """检测当前系统可用的 shell 环境及增强组件状态。"""
+    _ = current_user
+    import dataclasses
+
+    report = detect_shell_environment()
+    return ShellEnvironmentResponse(
+        platform=report.platform,
+        is_windows=report.is_windows,
+        recommended_family=report.recommended_family,
+        components=[ShellComponentItem(**dataclasses.asdict(c)) for c in report.components],
+        guidance=report.guidance,
+    )
+
+
+@router.post("/shell-environment/install-busybox", response_model=InstallBusyboxResponse)
+async def install_busybox_endpoint(
+    current_user: UserInfo = Depends(require_auth()),
+):
+    """从官方源下载并安装 busybox-w32 到用户数据目录。"""
+    _ = current_user
+    try:
+        ok, path = await install_busybox_w32()
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"下载 busybox-w32 失败: {exc}") from exc
+
+    if not ok:
+        raise HTTPException(status_code=500, detail=path)
+    return InstallBusyboxResponse(
+        installed=True,
+        path=path,
+        message=f"busybox-w32 已下载到 {path}",
+    )

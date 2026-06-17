@@ -17,6 +17,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from app.core.config import DATA_DIR
 from app.core.encoding_utils import smart_decode
 
 logger = logging.getLogger(__name__)
@@ -73,19 +74,86 @@ class ShellExecutor:
         self._is_windows = os.name == "nt"
         self._git_bash_path: str | None = None
         self._wsl_path: str | None = None
+        self._busybox_path: str | None = None
 
     # -----------------------------------------------------------------------
     # 解释器探测
     # -----------------------------------------------------------------------
 
+    @staticmethod
+    def _normalize_interpreter_alias(name: str) -> str:
+        """把常见别名/缩写映射到标准 interpreter 名。"""
+        aliases = {
+            "sh": "bash",
+            "zsh": "bash",
+            "ash": "busybox",
+            "wsl2": "wsl",
+            "pwsh": "powershell",
+            "ps": "powershell",
+            "ps1": "powershell",
+            "command_prompt": "cmd",
+            "cmd.exe": "cmd",
+        }
+        return aliases.get(name.lower(), name)
+
+    @staticmethod
+    def _detect_family_from_name(name: str) -> str | None:
+        """根据可执行文件名猜测 shell family。"""
+        lower = name.lower()
+        if "wsl" in lower:
+            return "wsl"
+        if lower.endswith("bash.exe") or lower.endswith("bash") or lower.endswith("sh"):
+            # busybox 也包含 sh，但前面已特判；这里把 bash/sh 归为 posix
+            return "posix"
+        if "busybox" in lower:
+            return "busybox"
+        if "powershell" in lower or lower.endswith("pwsh") or lower.endswith("pwsh.exe"):
+            return "powershell"
+        if lower.endswith("cmd.exe") or lower.endswith("cmd"):
+            return "cmd"
+        return None
+
+    def _resolve_custom_interpreter(
+        self, interpreter: str
+    ) -> tuple[str, list[str], str] | None:
+        """如果传入的是可执行文件路径，则直接解析使用。"""
+        candidate = Path(interpreter).expanduser()
+        if not candidate.exists():
+            # 也尝试在 PATH 中查找相对名/短名
+            found = shutil.which(interpreter)
+            if found:
+                candidate = Path(found)
+            else:
+                return None
+
+        path = str(candidate)
+        name = candidate.name
+        family = self._detect_family_from_name(name) or "custom"
+
+        if family == "powershell":
+            return (path, ["-NoProfile", "-Command"], family)
+        if family == "cmd":
+            return (path, ["/c"], family)
+        if family == "wsl":
+            return (path, ["bash", "-c"], family)
+        if family == "busybox":
+            return (path, ["sh", "-c"], family)
+        # 默认按 POSIX shell 处理
+        return (path, ["-c"], family)
+
     def detect_interpreter(self, interpreter: str = "auto") -> tuple[str, list[str], str]:
         """返回 (shell_path, args_prefix, shell_family)。
 
         shell_family 用于上层判断是 posix/powershell/cmd/wsl，以便做命令适配。
+        支持关键字（auto/bash/wsl/busybox/powershell/cmd）、常见别名（pwsh/sh/ash）
+        以及可执行文件绝对/相对路径。
         """
         result: tuple[str, list[str], str] | None = None
+        original = interpreter
+        interpreter = self._normalize_interpreter_alias(interpreter)
+        name = interpreter.lower()
 
-        if interpreter == "bash":
+        if name == "bash":
             path = self._find_bash()
             if path:
                 result = (path, ["-c"], "posix")
@@ -96,7 +164,21 @@ class ShellExecutor:
             if result is None:
                 raise RuntimeError("系统未找到 bash 或 WSL，无法使用 interpreter='bash'")
 
-        elif interpreter == "powershell":
+        elif name == "wsl":
+            if not self._is_windows:
+                raise RuntimeError("interpreter='wsl' 仅在 Windows 上可用")
+            wsl = self._find_wsl_bash()
+            if not wsl:
+                raise RuntimeError("系统未找到 WSL，无法使用 interpreter='wsl'")
+            result = (wsl, ["bash", "-c"], "wsl")
+
+        elif name == "busybox":
+            busybox = self._find_busybox()
+            if not busybox:
+                raise RuntimeError("系统未找到 busybox-w32，无法使用 interpreter='busybox'")
+            result = (busybox, ["sh", "-c"], "busybox")
+
+        elif name == "powershell":
             if not self._is_windows:
                 raise RuntimeError("interpreter='powershell' 仅在 Windows 上可用")
             path = shutil.which("pwsh") or shutil.which("powershell")
@@ -104,16 +186,22 @@ class ShellExecutor:
                 raise RuntimeError("系统未找到 PowerShell（powershell 或 pwsh）")
             result = (path, ["-NoProfile", "-Command"], "powershell")
 
-        elif interpreter == "cmd":
+        elif name == "cmd":
             if not self._is_windows:
                 raise RuntimeError("interpreter='cmd' 仅在 Windows 上可用")
             path = shutil.which("cmd") or "cmd.exe"
             result = (path, ["/c"], "cmd")
 
-        elif interpreter != "auto":
-            raise ValueError(
-                f"不支持的 interpreter: {interpreter}，可选值: auto、bash、cmd、powershell"
-            )
+        elif name != "auto":
+            # 尝试作为路径/短名解析
+            custom = self._resolve_custom_interpreter(original)
+            if custom is None:
+                raise ValueError(
+                    f"不支持的 interpreter: {original}，"
+                    "可选值: auto、bash、wsl、busybox、powershell、cmd，"
+                    "或传入可执行文件路径"
+                )
+            result = custom
 
         if result is None:
             # auto
@@ -126,11 +214,15 @@ class ShellExecutor:
                     if wsl:
                         result = (wsl, ["bash", "-c"], "wsl")
                     else:
-                        ps = shutil.which("pwsh") or shutil.which("powershell")
-                        if ps:
-                            result = (ps, ["-NoProfile", "-Command"], "powershell")
+                        busybox = self._find_busybox()
+                        if busybox:
+                            result = (busybox, ["sh", "-c"], "busybox")
                         else:
-                            result = (shutil.which("cmd") or "cmd.exe", ["/c"], "cmd")
+                            ps = shutil.which("pwsh") or shutil.which("powershell")
+                            if ps:
+                                result = (ps, ["-NoProfile", "-Command"], "powershell")
+                            else:
+                                result = (shutil.which("cmd") or "cmd.exe", ["/c"], "cmd")
             else:
                 bash = shutil.which("bash")
                 if bash:
@@ -147,6 +239,36 @@ class ShellExecutor:
             shell_family,
         )
         return result
+
+    @staticmethod
+    def _find_git_bash_registry() -> str | None:
+        """通过 Windows 注册表查找 Git for Windows 安装路径。"""
+        if os.name != "nt":
+            return None
+        try:
+            import winreg
+
+            # Git for Windows 在注册表中可能的位置
+            keys = [
+                (winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\GitForWindows"),
+                (winreg.HKEY_CURRENT_USER, r"SOFTWARE\GitForWindows"),
+                (winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Git_is1"),
+                (winreg.HKEY_CURRENT_USER, r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Git_is1"),
+            ]
+            for hive, key in keys:
+                try:
+                    with winreg.OpenKey(hive, key) as reg:
+                        install_path, _ = winreg.QueryValueEx(reg, "InstallPath")
+                        if install_path:
+                            for sub in ("bin", r"usr\bin"):
+                                candidate = Path(install_path) / sub / "bash.exe"
+                                if candidate.exists():
+                                    return str(candidate)
+                except OSError:
+                    continue
+        except Exception:
+            pass
+        return None
 
     def _find_bash(self) -> str | None:
         return shutil.which("bash")
@@ -213,6 +335,12 @@ class ShellExecutor:
             except Exception:
                 pass
 
+        # 注册表兜底（处理 git 不在 PATH 但正常安装的情况）
+        registry_bash = self._find_git_bash_registry()
+        if registry_bash:
+            self._git_bash_path = registry_bash
+            return registry_bash
+
         # 固定候选路径
         candidates = [
             r"C:\Program Files\Git\bin\bash.exe",
@@ -231,6 +359,14 @@ class ShellExecutor:
                 return cand
 
         return None
+
+    def find_git_bash(self) -> str | None:
+        """公开接口：查找 Git Bash 路径。"""
+        return self._find_git_bash()
+
+    def find_wsl_bash(self) -> str | None:
+        """公开接口：查找可用 WSL 路径。"""
+        return self._find_wsl_bash()
 
     def _find_wsl_bash(self) -> str | None:
         """在 Windows 上查找可用的 WSL bash。
@@ -259,6 +395,28 @@ class ShellExecutor:
         except Exception:
             self._wsl_path = ""
             return None
+
+    def _find_busybox(self) -> str | None:
+        """查找 busybox-w32 可执行文件（优先用户数据目录，再 PATH）。"""
+        if self._busybox_path is not None:
+            return self._busybox_path if self._busybox_path else None
+
+        default = Path(DATA_DIR) / "tools" / "busybox-w32" / "busybox.exe"
+        if default.exists():
+            self._busybox_path = str(default)
+            return self._busybox_path
+
+        path = shutil.which("busybox") or shutil.which("busybox.exe")
+        if path:
+            self._busybox_path = path
+            return path
+
+        self._busybox_path = ""
+        return None
+
+    def find_busybox(self) -> str | None:
+        """公开接口：查找 busybox-w32 路径。"""
+        return self._find_busybox()
 
     # -----------------------------------------------------------------------
     # 路径转换
@@ -336,12 +494,15 @@ class ShellExecutor:
                 wsl_cwd = self.win_path_to_wsl(cwd)
                 if wsl_cwd:
                     cwd = wsl_cwd
+            elif self._is_windows and shell_family == "busybox":
+                # busybox-w32 接受 C:/foo/bar 风格，保留驱动器字母
+                cwd = cwd.replace("\\", "/")
             elif self.is_wsl():
                 wsl_cwd = self.win_path_to_wsl(cwd)
                 if wsl_cwd:
                     cwd = wsl_cwd
 
-        if self._is_windows and shell_family in ("posix", "wsl"):
+        if self._is_windows and shell_family in ("posix", "wsl", "busybox"):
             command = self.rewrite_windows_null_redirect(command)
 
         argv = [shell_path, *shell_args, command]
