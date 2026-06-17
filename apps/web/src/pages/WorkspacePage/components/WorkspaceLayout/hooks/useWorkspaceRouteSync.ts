@@ -186,7 +186,16 @@ export function useWorkspaceRouteSync({
           : preserveRouteSessionDuringHydration
             ? analysisSessionIdFromRoute
             : preferredWorkspaceSessionId;
-      if (nextSessionId && nextSearch.get("session_id") !== nextSessionId) {
+      // 如果 URL 中有 session_id 但它不在 workspace 的 conversation 列表中，
+      // 保留 URL 中的 session_id，让 bootstrap effect 尝试加载。
+      // 只有当 workspace 确认不包含该 session 且有其他可用 session 时才替换。
+      if (
+        !sessionBelongsToCurrentWorkspace &&
+        analysisSessionIdFromRoute &&
+        !nextSessionId?.startsWith(analysisSessionIdFromRoute)
+      ) {
+        // 保持 URL 中的 session_id，不覆盖
+      } else if (nextSessionId && nextSearch.get("session_id") !== nextSessionId) {
         nextSearch.set("session_id", nextSessionId);
         changed = true;
       } else if (!nextSessionId && nextSearch.has("session_id")) {

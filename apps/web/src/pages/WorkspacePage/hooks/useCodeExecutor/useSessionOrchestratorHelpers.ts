@@ -78,6 +78,10 @@ export function navigateToAnalysisSession(
 
   if (workspaceId) {
     url.searchParams.set("workspace_id", workspaceId);
+    // 同时写入 session_id 和 conversation_id，确保刷新后能正确恢复对话
+    if (_sessionId) {
+      url.searchParams.set("session_id", _sessionId);
+    }
     const conversationId = options?.conversationId ?? _sessionId;
     if (conversationId) {
       url.searchParams.set("conversation_id", conversationId);
