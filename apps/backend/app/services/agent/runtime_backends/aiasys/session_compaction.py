@@ -299,7 +299,7 @@ class SessionCompactionMixin:
                 "summary_tokens": summary_tokens,
                 "elapsed_ms": elapsed_ms,
             }
-            summary_path = self._persist_compaction_summary(
+            self._persist_compaction_summary(
                 summary=result.summary,
                 compacted_count=result.compacted_count,
                 preserved_count=result.preserved_count,

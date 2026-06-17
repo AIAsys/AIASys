@@ -101,8 +101,14 @@ async def upload_file(
 
             _copyfileobj_with_limit(file.file, f)
 
-        workspace_path = f"/workspace/{relative_dir}/{safe_filename}" if relative_dir else f"/workspace/{safe_filename}"
-        logger.info(f"文件上传: {user_id}/{session_id}/{relative_dir}/{safe_filename} by {current_user.user_id}")
+        workspace_path = (
+            f"/workspace/{relative_dir}/{safe_filename}"
+            if relative_dir
+            else f"/workspace/{safe_filename}"
+        )
+        logger.info(
+            f"文件上传: {user_id}/{session_id}/{relative_dir}/{safe_filename} by {current_user.user_id}"
+        )
 
         return {
             "success": True,

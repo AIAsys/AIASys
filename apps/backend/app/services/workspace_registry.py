@@ -135,7 +135,9 @@ def _merge_workspace_runtime_binding(
     if "sandbox_mode" in raw_patch or "env_id" in raw_patch:
         base.setdefault("resources", {})
         if raw_patch.get("sandbox_mode") == "docker":
-            base["resources"]["docker_resource_id"] = base["resources"].get("docker_resource_id") or "docker-default"
+            base["resources"]["docker_resource_id"] = (
+                base["resources"].get("docker_resource_id") or "docker-default"
+            )
             base["resources"]["python_env_id"] = None
             base["resources"]["node_env_id"] = None
         if raw_patch.get("env_id"):
@@ -1270,9 +1272,7 @@ class WorkspaceRegistryService:
         try:
             from app.services.container_resource import ContainerResourceService
 
-            service = ContainerResourceService(
-                self.workspace_root, workspace_registry=self
-            )
+            service = ContainerResourceService(self.workspace_root, workspace_registry=self)
             registry = service.list_workspace_containers(user_id, workspace_id)
             for container in registry.containers:
                 try:
@@ -1285,9 +1285,7 @@ class WorkspaceRegistryService:
                         exc_info=True,
                     )
         except Exception:
-            logger.warning(
-                "删除工作区 %s 时容器资源清理失败", workspace_id, exc_info=True
-            )
+            logger.warning("删除工作区 %s 时容器资源清理失败", workspace_id, exc_info=True)
 
     def _cleanup_workspace_graphrag_cache(self, workspace_dir: Path) -> None:
         """清理 GraphRAG 服务缓存中指向本工作区的条目。
@@ -1306,9 +1304,7 @@ class WorkspaceRegistryService:
                 for key, _svc in getattr(
                     graphrag_routes, "_workspace_graphrag_services", {}
                 ).items()
-                if isinstance(key, tuple)
-                and len(key) == 2
-                and str(key[1]).startswith(ws_prefix)
+                if isinstance(key, tuple) and len(key) == 2 and str(key[1]).startswith(ws_prefix)
             ]
             for key in stale_keys:
                 graphrag_routes._workspace_graphrag_services.pop(key, None)
@@ -1319,9 +1315,7 @@ class WorkspaceRegistryService:
             stale_tool_keys = []
             for key, svc in getattr(graphrag_tool, "_graphrag_services", {}).items():
                 try:
-                    db_path = str(
-                        getattr(getattr(svc, "graph_store", None), "_db_path", "")
-                    )
+                    db_path = str(getattr(getattr(svc, "graph_store", None), "_db_path", ""))
                     if db_path and db_path.startswith(ws_prefix):
                         stale_tool_keys.append(key)
                 except Exception:

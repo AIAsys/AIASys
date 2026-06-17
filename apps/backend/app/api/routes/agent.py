@@ -183,7 +183,7 @@ async def execute_stream(request: AgentExecuteRequest, user: UserInfo = Depends(
                 if item_type == "done":
                     break
                 elif item_type == "heartbeat":
-                    yield f'data: {json.dumps({"type": "heartbeat"})}\n\n'
+                    yield f"data: {json.dumps({'type': 'heartbeat'})}\n\n"
                 elif item_type == "error":
                     logger.error(f"流式执行失败: {item}")
                     if not done_sent:

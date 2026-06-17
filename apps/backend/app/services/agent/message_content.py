@@ -414,8 +414,9 @@ def _resize_image_bytes(data: bytes, mime_type: str) -> tuple[bytes, str]:
     PNG 保留 PNG 格式（保留透明通道），其他格式转为 JPEG quality 85。
     """
     try:
-        from PIL import Image
         import io
+
+        from PIL import Image
     except ImportError:
         return data, mime_type
 
@@ -481,10 +482,12 @@ def hydrate_message_images(
                                     workspace_dir=workspace_dir,
                                 )
                                 if host_path is None:
-                                    new_parts.append({
-                                        "type": "text",
-                                        "text": f"[图片文件无法解析: {source_path}]",
-                                    })
+                                    new_parts.append(
+                                        {
+                                            "type": "text",
+                                            "text": f"[图片文件无法解析: {source_path}]",
+                                        }
+                                    )
                                     continue
                                 mime_type = guess_supported_image_mime_type(host_path)
                                 if mime_type:
@@ -498,10 +501,12 @@ def hydrate_message_images(
                                     new_parts.append(new_part)
                                     continue
                             except (FileNotFoundError, PermissionError):
-                                new_parts.append({
-                                    "type": "text",
-                                    "text": f"[图片文件不存在: {source_path}]",
-                                })
+                                new_parts.append(
+                                    {
+                                        "type": "text",
+                                        "text": f"[图片文件不存在: {source_path}]",
+                                    }
+                                )
                                 continue
                             except Exception:
                                 pass  # fallback: 保留原始

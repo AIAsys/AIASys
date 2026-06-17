@@ -49,6 +49,7 @@ def _cache_get(key: Path) -> tuple[float, SessionPlanState] | None:
     _plan_state_cache.move_to_end(key)
     return mtime, plan_state
 
+
 TaskStatus = Literal["pending", "in_progress", "completed", "cancelled"]
 PlanModeStatus = Literal["active", "inactive"]
 PlanApprovalStatus = Literal["draft", "pending_approval", "approved", "rejected"]

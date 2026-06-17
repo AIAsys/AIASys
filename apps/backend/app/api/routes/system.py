@@ -106,7 +106,11 @@ def get_runtime_storage_settings_service() -> RuntimeStorageSettingsService:
 
 
 from app.core.uv_utils import find_uv_binary, get_uv_version, install_uv
-from app.services.shell_environment import detect_shell_environment, install_busybox_w32, install_busybox_w32_streamed
+from app.services.shell_environment import (
+    detect_shell_environment,
+    install_busybox_w32,
+    install_busybox_w32_streamed,
+)
 
 
 @router.get("/capability-registry", response_model=CapabilityRegistryResponse)

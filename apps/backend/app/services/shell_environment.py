@@ -231,11 +231,7 @@ def _detect_git() -> ShellComponentInfo:
 
 def _detect_fnm() -> ShellComponentInfo:
     # 桌面端打包时会通过环境变量注入内置 fnm 路径；探测不到时扫描 vendor 目录
-    path = (
-        os.environ.get("AIASYS_BUNDLED_FNM_PATH")
-        or shutil.which("fnm")
-        or _find_bundled_fnm()
-    )
+    path = os.environ.get("AIASYS_BUNDLED_FNM_PATH") or shutil.which("fnm") or _find_bundled_fnm()
     version = _get_version([path, "--version"]) if path else None
     return ShellComponentInfo(
         id="fnm",
@@ -253,11 +249,7 @@ def _detect_fnm() -> ShellComponentInfo:
 
 def _detect_uv() -> ShellComponentInfo:
     # 桌面端打包时会通过环境变量注入内置 uv 路径；探测不到时扫描 vendor 目录
-    path = (
-        os.environ.get("AIASYS_BUNDLED_UV_PATH")
-        or find_uv_binary()
-        or _find_bundled_uv()
-    )
+    path = os.environ.get("AIASYS_BUNDLED_UV_PATH") or find_uv_binary() or _find_bundled_uv()
     version = get_uv_version(path) if path else None
     return ShellComponentInfo(
         id="uv",
@@ -300,7 +292,6 @@ def detect_shell_environment(force: bool = False) -> ShellEnvironmentReport:
     else:
         # POSIX 下只需要关心基础 shell 和 uv/fnm
         bash_path = shutil.which("bash")
-        sh_path = shutil.which("sh")
         components.append(
             ShellComponentInfo(
                 id="bash",

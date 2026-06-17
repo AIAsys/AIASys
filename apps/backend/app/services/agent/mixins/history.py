@@ -316,9 +316,7 @@ class HistoryMixin:
             work_dir = _get_workspace_dir_for_session(user_id, session_id)
             from pathlib import Path as StdPath
 
-            session_dir = (
-                StdPath(str(work_dir)) / ".aiasys" / "session" / session_id
-            )
+            session_dir = StdPath(str(work_dir)) / ".aiasys" / "session" / session_id
             snapshot_file = (
                 StdPath(str(work_dir))
                 / ".aiasys"

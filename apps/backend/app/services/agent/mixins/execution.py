@@ -358,17 +358,32 @@ def _classify_runtime_error(message_lower: str) -> str | None:
     """根据错误消息文本返回友好化分类 key，无法识别返回 None。"""
     if "context_length_exceeded" in message_lower or "maximum context length" in message_lower:
         return "context_length_exceeded"
-    if "401" in message_lower or "unauthorized" in message_lower or "invalid api key" in message_lower:
+    if (
+        "401" in message_lower
+        or "unauthorized" in message_lower
+        or "invalid api key" in message_lower
+    ):
         return "auth"
     if "403" in message_lower or "forbidden" in message_lower:
         return "forbidden"
-    if "402" in message_lower or "billing" in message_lower or "insufficient" in message_lower or "quota" in message_lower:
+    if (
+        "402" in message_lower
+        or "billing" in message_lower
+        or "insufficient" in message_lower
+        or "quota" in message_lower
+    ):
         return "billing"
     if "404" in message_lower or "model_not_found" in message_lower:
         return "model_not_found"
     if "429" in message_lower or "rate_limit" in message_lower:
         return "rate_limit"
-    if "500" in message_lower or "502" in message_lower or "503" in message_lower or "server_error" in message_lower or "overloaded" in message_lower:
+    if (
+        "500" in message_lower
+        or "502" in message_lower
+        or "503" in message_lower
+        or "server_error" in message_lower
+        or "overloaded" in message_lower
+    ):
         return "server"
     if "timeout" in message_lower or "timed out" in message_lower:
         return "timeout"
@@ -953,7 +968,6 @@ class ExecutionMixin:
                             )
 
                         result = "".join(outputs)
-                        reasoning_result = "".join(reasoning_outputs)
                         try:
                             _persist_message_to_session_db(
                                 user_id=user_id,

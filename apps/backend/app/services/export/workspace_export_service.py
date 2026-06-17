@@ -153,9 +153,7 @@ class WorkspaceExportService:
     def _read_conversation_history(self, user_id: str, session_id: str) -> list[dict[str, Any]]:
         """读取单个 session 的完整对话历史（history.json）。"""
         session_dir = self.workspace_root / user_id / session_id
-        snapshot_path = (
-            session_dir / ".aiasys" / "session" / "_active" / "history.json"
-        )
+        snapshot_path = session_dir / ".aiasys" / "session" / "_active" / "history.json"
         if not snapshot_path.exists():
             return []
 
@@ -180,9 +178,7 @@ class WorkspaceExportService:
                 continue
             if role == "user":
                 content = msg.get("content")
-                if isinstance(content, str) and content.strip().startswith(
-                    "<system-reminder>"
-                ):
+                if isinstance(content, str) and content.strip().startswith("<system-reminder>"):
                     continue
             messages.append(msg)
 

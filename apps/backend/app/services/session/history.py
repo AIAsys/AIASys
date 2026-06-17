@@ -93,9 +93,7 @@ class HistoryMixin:
         session_dir = self._get_session_dir(session_id, user_id)
         return self._read_history_snapshot(session_dir)
 
-    def sync_messages_to_history(
-        self, session_id: str, user_id: str, messages: list[dict]
-    ) -> None:
+    def sync_messages_to_history(self, session_id: str, user_id: str, messages: list[dict]) -> None:
         """用完整消息列表覆写 history.json 快照。
 
         用于执行完成后将 runtime session 的完整消息（含 tool_calls 和 tool 消息）

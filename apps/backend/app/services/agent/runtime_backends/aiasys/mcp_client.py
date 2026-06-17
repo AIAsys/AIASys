@@ -197,9 +197,7 @@ class MCPClient:
             await self.connect()
             return True
         except Exception as exc:
-            logger.warning(
-                "MCP server '%s' 重连失败: %s", self._server_name, exc
-            )
+            logger.warning("MCP server '%s' 重连失败: %s", self._server_name, exc)
             return False
 
     async def list_tools(self) -> list[Tool]:
