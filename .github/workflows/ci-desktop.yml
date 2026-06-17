@@ -71,7 +71,15 @@ jobs:
           cd ../web
           node -e "const fs=require('fs'); const p=require('./package.json'); p.version='$VERSION'; fs.writeFileSync('./package.json', JSON.stringify(p, null, 2) + '\n')"
           cd ../backend
-          sed -i "s/^version = .*/version = \"$VERSION\"/" pyproject.toml
+          # 用 Python 替换 pyproject.toml 中的 version，避免 sed 跨平台差异
+          python3 -c "
+          import re
+          with open('pyproject.toml', 'r') as f:
+              content = f.read()
+          content = re.sub(r'^version = \".*?\"', 'version = \"$VERSION\"', content, count=1, flags=re.MULTILINE)
+          with open('pyproject.toml', 'w') as f:
+              f.write(content)
+          "
 
       - name: Setup Node.js (web)
         uses: actions/setup-node@v4
