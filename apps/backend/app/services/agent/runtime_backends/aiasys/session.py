@@ -426,8 +426,8 @@ class AiasysRuntimeSession(
                 "若需要显式切换解释器，可在 Shell 工具的 interpreter 参数中指定 bash/wsl/busybox/powershell。"
             ),
             "cmd": (
-                "cmd 解释器已废弃。AIASys 已对齐 Copilot，不再使用 cmd.exe 作为 shell。"
-                "传入 cmd 将自动降级为 powershell。请改用 powershell 或安装 POSIX shell（Git Bash / WSL / busybox-w32）。"
+                "cmd 解释器已移除，AIASys 不再支持 cmd.exe。"
+                "请改用 powershell，或安装 POSIX shell（Git Bash / WSL / busybox-w32）。"
             ),
         }
 
