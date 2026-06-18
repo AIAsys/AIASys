@@ -235,7 +235,14 @@ class ShellExecutor:
                             if ps:
                                 result = (ps, ["-NoProfile", "-Command"], "powershell")
                             else:
-                                result = (shutil.which("cmd") or "cmd.exe", ["/c"], "cmd")
+                                # 对齐 Copilot：Windows 上不再使用 cmd.exe 作为 auto fallback。
+                                # cmd 的引号解析和 POSIX 命令语法支持问题（mkdir -p、rm -rf 等）
+                                # 会导致 WinError 267 / os error 123 等不可靠行为。
+                                raise RuntimeError(
+                                    "Windows 上未找到可用的 shell 解释器。请安装 Git for Windows、WSL、"
+                                    "busybox-w32，或确认 PowerShell 已在系统 PATH 中。AIASys 已对齐 Copilot "
+                                    "策略，不再使用 cmd.exe 作为默认 shell。"
+                                )
             else:
                 bash = shutil.which("bash")
                 if bash:
@@ -517,17 +524,21 @@ class ShellExecutor:
         host_cwd: str | None = None
         cwd = options.cwd
         if cwd is not None:
-            host_cwd = str(cwd)
-            if self._is_windows and shell_family in ("posix", "busybox"):
-                # Git Bash / MSYS / busybox-w32：把 cwd 转成 POSIX/正斜杠风格，
-                # 通过 cd 前缀让 shell 自己切换，而不是把 POSIX 路径传给 Windows API。
-                if shell_family == "posix":
-                    shell_cwd = self.win_path_to_posix(host_cwd)
-                else:
-                    shell_cwd = host_cwd.replace("\\", "/")
-                command = f"cd {shlex.quote(shell_cwd)} && {command}"
-            # wsl：wsl.exe 启动时会自动把 Windows cwd 映射到 /mnt/c/...，无需处理。
-            # cmd：直接使用 Windows cwd。
+            cwd = str(cwd)
+            # Windows + Git Bash：保持 Windows 路径传给 CreateProcessW。
+            # bash.exe 是 Windows 可执行文件，cwd 必须能被 Windows 子系统识别；
+            # 转成 /c/foo/bar 会导致 WinError 267 "目录名称无效"。
+            if shell_family == "wsl":
+                wsl_cwd = self.win_path_to_wsl(cwd)
+                if wsl_cwd:
+                    cwd = wsl_cwd
+            elif self._is_windows and shell_family == "busybox":
+                # busybox-w32 接受 C:/foo/bar 风格，保留驱动器字母
+                cwd = cwd.replace("\\", "/")
+            elif self.is_wsl():
+                wsl_cwd = self.win_path_to_wsl(cwd)
+                if wsl_cwd:
+                    cwd = wsl_cwd
 
         if self._is_windows and shell_family in ("posix", "wsl", "busybox"):
             command = self.rewrite_windows_null_redirect(command)
