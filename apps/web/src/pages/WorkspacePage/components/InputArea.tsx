@@ -4,6 +4,7 @@ import {
   Container,
   FileText,
   FlaskConical,
+  Hash,
   SlidersHorizontal,
   StopCircle,
   Upload,
@@ -16,6 +17,7 @@ import {
   type RefObject,
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -30,12 +32,36 @@ import {
 } from "@/utils/workspaceFileDrag";
 import { cn } from "@/lib/utils";
 import { ModelSelector } from "./ModelSelector";
+import { FileMentionPicker, type FileMentionPickerRef } from "./FileMentionPicker";
 
 interface UploadedFile {
   filename: string;
   file_path?: string;
   size: number;
   progress?: number;
+}
+
+const FILE_MENTION_RE = /@(\/(?:workspace|global)\/[^\s]+)/g;
+
+interface FileMention {
+  fullMatch: string;
+  fullPath: string;
+  name: string;
+  scope: "workspace" | "global";
+}
+
+function extractFileMentions(value: string): FileMention[] {
+  const mentions: FileMention[] = [];
+  for (const match of value.matchAll(FILE_MENTION_RE)) {
+    const fullPath = match[1];
+    mentions.push({
+      fullMatch: match[0],
+      fullPath,
+      name: fullPath.split("/").pop() || fullPath,
+      scope: fullPath.startsWith("/global/") ? "global" : "workspace",
+    });
+  }
+  return mentions;
 }
 
 interface InputAreaProps {
@@ -90,6 +116,8 @@ interface InputAreaProps {
   } | null;
   /** 需要把焦点重新带回输入框时递增 */
   focusSignal?: number;
+  /** 当前工作区 ID，用于 @ 文件引用 */
+  workspaceId?: string;
 }
 
 export function InputArea({
@@ -124,14 +152,17 @@ export function InputArea({
   onOpenRuntimeTab,
   activeEnv,
   focusSignal,
+  workspaceId,
 }: InputAreaProps) {
   const isImageFile = (filename: string) =>
     /\.(png|jpe?g|gif|webp)$/i.test(filename);
 
   const [showAttachments, setShowAttachments] = useState(false);
+  const fileMentions = useMemo(() => extractFileMentions(inputValue), [inputValue]);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const mentionPickerRef = useRef<FileMentionPickerRef>(null);
   // 自动调整 textarea 高度
   useEffect(() => {
     const textarea = textareaRef.current;
@@ -419,33 +450,80 @@ export function InputArea({
           </div>
         )}
 
-        <textarea
-          ref={textareaRef}
-          value={inputValue}
-          aria-label="消息输入框"
-          onChange={(e) => onInputChange(e.target.value)}
-          onKeyDown={(e) => {
-            // 如果正在初始化环境，阻止键盘事件
-            if (isInitializingEnvironment) {
-              e.preventDefault();
-              return;
+        {/* 已引用的工作区/全局文件标签 */}
+        {fileMentions.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 mb-2">
+            {fileMentions.map((mention, idx) => (
+              <span
+                key={`${mention.fullPath}-${idx}`}
+                className="inline-flex items-center gap-1 bg-accent/60 border border-border/60 rounded px-2 py-0.5 text-xs text-foreground"
+                title={mention.fullPath}
+              >
+                {mention.scope === "global" ? (
+                  <Hash size={10} className="text-muted-foreground" />
+                ) : (
+                  <FileText size={10} className="text-muted-foreground" />
+                )}
+                <span className="truncate max-w-[140px]">{mention.name}</span>
+                <button
+                  type="button"
+                  className="ml-0.5 p-0.5 rounded-full text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                  onClick={() => {
+                    const escaped = mention.fullMatch.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+                    onInputChange(inputValue.replace(new RegExp(`\\s?${escaped}\\s?`), " ").trim());
+                  }}
+                  title="移除引用"
+                  aria-label="移除引用"
+                >
+                  <X size={10} />
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
+
+        <div className="relative flex-1 min-h-0">
+          <FileMentionPicker
+            ref={mentionPickerRef}
+            workspaceId={workspaceId}
+            inputValue={inputValue}
+            onInputChange={onInputChange}
+            textareaRef={textareaRef}
+            disabled={isUploading || isPrewarming || isInitializingEnvironment || isCompactingConversation}
+          />
+          <textarea
+            ref={textareaRef}
+            value={inputValue}
+            aria-label="消息输入框"
+            onChange={(e) => onInputChange(e.target.value)}
+            onKeyDown={(e) => {
+              // 如果正在初始化环境，阻止键盘事件
+              if (isInitializingEnvironment) {
+                e.preventDefault();
+                return;
+              }
+              // 优先处理 @ 文件引用选择器
+              if (mentionPickerRef.current?.isOpen()) {
+                const handled = mentionPickerRef.current.handleKeyDown(e);
+                if (handled) return;
+              }
+              onKeyDown(e);
+            }}
+            onPaste={handlePaste}
+            placeholder={
+              isInitializingEnvironment || isPrewarming
+                ? "工作区准备中，请稍候..."
+                : isCompactingConversation
+                  ? "正在压缩上下文，请稍候..."
+                  : isUploading
+                    ? "文件正在上传中..."
+                    : "可以拖拽、上传文件，输入 @ 引用工作区文件，并询问任何问题"
             }
-            onKeyDown(e);
-          }}
-          onPaste={handlePaste}
-          placeholder={
-            isInitializingEnvironment || isPrewarming
-              ? "工作区准备中，请稍候..."
-              : isCompactingConversation
-                ? "正在压缩上下文，请稍候..."
-                : isUploading
-                  ? "文件正在上传中..."
-                  : "可以拖拽、上传文件，并询问任何问题"
-          }
-          disabled={isUploading || isPrewarming || isInitializingEnvironment || isCompactingConversation}
-          rows={1}
-          className="w-full flex-1 resize-none outline-none text-base text-foreground placeholder:text-muted-foreground bg-transparent disabled:opacity-50 disabled:cursor-not-allowed min-h-[60px] max-h-[240px] overflow-y-auto"
-        />
+            disabled={isUploading || isPrewarming || isInitializingEnvironment || isCompactingConversation}
+            rows={1}
+            className="w-full h-full flex-1 resize-none outline-none text-base text-foreground placeholder:text-muted-foreground bg-transparent disabled:opacity-50 disabled:cursor-not-allowed min-h-[60px] max-h-[240px] overflow-y-auto"
+          />
+        </div>
 
         {/* 底部按钮区 -- 文件显示已移至右侧工作区 */}
         <div className="flex items-end mt-2 gap-2">

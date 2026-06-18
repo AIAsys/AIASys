@@ -571,6 +571,47 @@ def _resolve_model_capabilities(config: Any) -> set[str]:
     return set()
 
 
+# ---------------------------------------------------------------------------
+# @文件引用解析
+# ---------------------------------------------------------------------------
+
+_MENTION_PATH_RE = re.compile(r"@(/(?:workspace|global)/[^\s]+)")
+
+
+def _extract_mentioned_file_paths(prompt: str) -> list[str]:
+    """从用户 prompt 中提取 @/workspace/... 或 @/global/... 文件引用。
+
+    返回规范化路径列表，去重并保持原文顺序，供后续加入 attachments。
+    """
+    if not prompt:
+        return []
+    seen: set[str] = set()
+    results: list[str] = []
+    for match in _MENTION_PATH_RE.finditer(prompt):
+        path = match.group(1)
+        if path not in seen:
+            seen.add(path)
+            results.append(path)
+    return results
+
+
+def _merge_mentioned_attachments(
+    prompt: str,
+    attachments: list[str] | None,
+) -> list[str]:
+    """将 prompt 中的 @文件引用合并到 attachments，避免重复。"""
+    mentioned = _extract_mentioned_file_paths(prompt)
+    if not mentioned:
+        return list(attachments) if attachments else []
+    existing = set(attachments or [])
+    merged = list(attachments) if attachments else []
+    for path in mentioned:
+        if path not in existing:
+            existing.add(path)
+            merged.append(path)
+    return merged
+
+
 def _build_transport_user_input(
     *,
     prompt: str,
@@ -767,10 +808,11 @@ class ExecutionMixin:
             sandbox_mode=resolved_sandbox_mode,
             env_id=resolved_env_id,
         )
+        merged_attachments = _merge_mentioned_attachments(prompt, attachments)
         resource_context = _build_resource_context_for_prompt(
             user_id=user_id,
             workspace_path=logical_workspace_root,
-            attached_files=attachments,
+            attached_files=merged_attachments,
             selected_references=references,
         )
         transport_prompt = _wrap_transport_prompt(
@@ -781,7 +823,7 @@ class ExecutionMixin:
         transport_user_input, display_content, transport_content = _build_transport_user_input(
             prompt=prompt,
             transport_prompt=transport_prompt,
-            attachments=attachments,
+            attachments=merged_attachments,
             workspace_path=logical_workspace_root,
             model_capabilities=_resolve_model_capabilities(config),
         )
@@ -1189,10 +1231,11 @@ class ExecutionMixin:
             sandbox_mode=resolved_sandbox_mode,
             env_id=resolved_env_id,
         )
+        merged_attachments = _merge_mentioned_attachments(prompt, attachments)
         resource_context = _build_resource_context_for_prompt(
             user_id=user_id,
             workspace_path=logical_workspace_root,
-            attached_files=attachments,
+            attached_files=merged_attachments,
             selected_references=references,
         )
         transport_prompt = _wrap_transport_prompt(
@@ -1203,7 +1246,7 @@ class ExecutionMixin:
         transport_user_input, display_content, transport_content = _build_transport_user_input(
             prompt=prompt,
             transport_prompt=transport_prompt,
-            attachments=attachments,
+            attachments=merged_attachments,
             workspace_path=logical_workspace_root,
             model_capabilities=_resolve_model_capabilities(config),
         )

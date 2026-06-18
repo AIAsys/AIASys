@@ -3,8 +3,8 @@
  *
  * 专门处理用户消息的渲染，包括文本和附件
  */
-import { Check, FileText, Pencil, X } from "lucide-react";
-import { useState } from "react";
+import { Check, FileText, Pencil, X, Hash } from "lucide-react";
+import { useState, useMemo } from "react";
 import { MarkdownImage } from "../MarkdownImage";
 import { useChatAreaContext } from "./context";
 import { TableIcon } from "./chatAreaIcons";
@@ -27,6 +27,54 @@ function AttachmentIcon({ filename }: { filename: string }) {
     return <TableIcon className="h-3 w-3 text-muted-foreground" />;
   }
   return <FileText size={12} className="text-muted-foreground" />;
+}
+
+const FILE_MENTION_RE = /@(\/(?:workspace|global)\/[^\s]+)/g;
+
+interface MentionSegment {
+  type: "text" | "mention";
+  content: string;
+  fullPath?: string;
+  scope?: "workspace" | "global";
+}
+
+function splitMentions(content: string): MentionSegment[] {
+  const segments: MentionSegment[] = [];
+  let lastIndex = 0;
+  for (const match of content.matchAll(FILE_MENTION_RE)) {
+    const index = match.index ?? 0;
+    if (index > lastIndex) {
+      segments.push({ type: "text", content: content.slice(lastIndex, index) });
+    }
+    const fullPath = match[1];
+    segments.push({
+      type: "mention",
+      content: fullPath.split("/").pop() || fullPath,
+      fullPath,
+      scope: fullPath.startsWith("/global/") ? "global" : "workspace",
+    });
+    lastIndex = index + match[0].length;
+  }
+  if (lastIndex < content.length) {
+    segments.push({ type: "text", content: content.slice(lastIndex) });
+  }
+  return segments;
+}
+
+function MentionTag({ segment }: { segment: MentionSegment }) {
+  return (
+    <span
+      className="inline-flex items-center gap-1 align-middle bg-accent/60 border border-border/60 rounded px-1.5 py-0.5 text-xs text-foreground mx-0.5"
+      title={segment.fullPath}
+    >
+      {segment.scope === "global" ? (
+        <Hash size={10} className="text-muted-foreground" />
+      ) : (
+        <FileText size={10} className="text-muted-foreground" />
+      )}
+      <span className="truncate max-w-[160px]">{segment.content}</span>
+    </span>
+  );
 }
 
 export function UserMessageContent() {
@@ -54,6 +102,7 @@ export function UserMessageContent() {
   const [draftContent, setDraftContent] = useState(content);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
+  const segments = useMemo(() => splitMentions(content), [content]);
 
   const handleStartEdit = () => {
     if (!canRewrite || isRunning) {
@@ -170,7 +219,13 @@ export function UserMessageContent() {
       ) : content ? (
         <div className="group/user-message relative">
           <div className="whitespace-pre-wrap break-words pr-7 [overflow-wrap:anywhere]">
-            {content}
+            {segments.map((segment, idx) =>
+              segment.type === "mention" ? (
+                <MentionTag key={`${segment.fullPath}-${idx}`} segment={segment} />
+              ) : (
+                <span key={`${idx}`}>{segment.content}</span>
+              ),
+            )}
           </div>
           {canRewrite ? (
             <Button

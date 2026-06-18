@@ -717,12 +717,63 @@ function pruneDevDependencies(backendStageRoot) {
   }
 }
 
+/**
+ * 确保 license.txt 使用 UTF-8 BOM 编码。
+ * NSIS Unicode 模式读取无 BOM 的 UTF-8 中文时，在某些 Windows 系统上会按 ANSI 解码导致乱码。
+ */
+function ensureLicenseEncoding() {
+  const licensePath = path.join(desktopRoot, "build", "license.txt");
+  if (!fs.existsSync(licensePath)) {
+    console.warn(`[aiasys-desktop] license.txt 不存在: ${licensePath}`);
+    return;
+  }
+
+  const raw = fs.readFileSync(licensePath);
+  if (raw.length >= 3 && raw[0] === 0xef && raw[1] === 0xbb && raw[2] === 0xbf) {
+    console.log("[aiasys-desktop] license.txt 已包含 UTF-8 BOM");
+    return;
+  }
+
+  fs.writeFileSync(licensePath, Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), raw]));
+  console.log("[aiasys-desktop] 已为 license.txt 添加 UTF-8 BOM");
+}
+
+/**
+ * 构建前自检：检查图标、license、NSIS 脚本等关键文件是否就绪。
+ */
+function preBuildSanityChecks() {
+  const checks = [
+    { path: path.join(desktopRoot, "build", "icon.ico"), label: "Windows 图标" },
+    { path: path.join(desktopRoot, "build", "icon.png"), label: "通用图标" },
+    { path: path.join(desktopRoot, "build", "icon.icns"), label: "macOS 图标" },
+    { path: path.join(desktopRoot, "build", "license.txt"), label: "许可协议" },
+    { path: path.join(desktopRoot, "build", "installer.nsh"), label: "NSIS 脚本" },
+  ];
+
+  for (const { path: filePath, label } of checks) {
+    if (!fs.existsSync(filePath)) {
+      throw new Error(`构建前检查失败：缺少 ${label} (${filePath})`);
+    }
+  }
+
+  const licensePath = path.join(desktopRoot, "build", "license.txt");
+  const licenseRaw = fs.readFileSync(licensePath);
+  if (!(licenseRaw.length >= 3 && licenseRaw[0] === 0xef && licenseRaw[1] === 0xbb && licenseRaw[2] === 0xbf)) {
+    throw new Error(`构建前检查失败：license.txt 缺少 UTF-8 BOM，NSIS 安装向导中文可能乱码`);
+  }
+
+  console.log("[aiasys-desktop] 构建前自检通过");
+}
+
 function main() {
   console.log("[aiasys-desktop] 准备运行时...");
 
   // 清理 Python 缓存（在复制前清理源目录，避免复制到 staging）
   console.log("[aiasys-desktop] 清理 __pycache__ 和 .pyc 文件...");
   cleanPycache(backendRoot);
+
+  // 确保 license 编码正确（必须在打包前完成）
+  ensureLicenseEncoding();
 
   resetDir(runtimeRoot);
   prepareWebRuntime();
@@ -733,6 +784,9 @@ function main() {
 
   // 再次清理 staging 目录中可能残留的缓存（防御性）
   cleanPycache(backendStageRoot);
+
+  // 构建前最终自检
+  preBuildSanityChecks();
 
   console.log(`[aiasys-desktop] runtime prepared at ${runtimeRoot}`);
 }

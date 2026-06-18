@@ -103,7 +103,7 @@ def _normalize_attached_file_path(raw_path: str) -> str:
     normalized = str(raw_path or "").strip().replace("\\", "/")
     if not normalized:
         return ""
-    if normalized.startswith("/workspace/"):
+    if normalized.startswith("/workspace/") or normalized.startswith("/global/"):
         return normalized
     return f"/workspace/{normalized.lstrip('/')}"
 

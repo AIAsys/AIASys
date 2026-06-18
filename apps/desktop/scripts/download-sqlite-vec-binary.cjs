@@ -61,6 +61,15 @@ function curlDownload(url, dest) {
   console.log(`[download-sqlite-vec] 已保存: ${dest} (${(stat.size / 1024).toFixed(1)} KB)`);
 }
 
+function resolvePython() {
+  const candidates = [process.env.PYTHON, process.env.PYTHON3, "py", "python3", "python"].filter(Boolean);
+  for (const cmd of candidates) {
+    const result = spawnSync(cmd, ["--version"], { encoding: "utf-8", stdio: "pipe" });
+    if (result.status === 0) return cmd;
+  }
+  return null;
+}
+
 function extractTarGz(archivePath, targetDir) {
   console.log(`[download-sqlite-vec] 解压: ${archivePath}`);
   fs.mkdirSync(targetDir, { recursive: true });
@@ -68,9 +77,24 @@ function extractTarGz(archivePath, targetDir) {
     encoding: "utf-8",
     stdio: "pipe",
   });
-  if (result.status !== 0) {
-    throw new Error(`解压失败: ${result.stderr || result.error}`);
+  if (result.status === 0) return;
+  if (result.error && result.error.code === "ENOENT") {
+    const pyCmd = resolvePython();
+    if (!pyCmd) {
+      throw new Error("未找到可用的 Python 解释器（尝试 py/python3/python），无法解压 tar.gz");
+    }
+    console.log(`[download-sqlite-vec] 未找到 tar，使用 ${pyCmd} tarfile 解压`);
+    const pyResult = spawnSync(
+      pyCmd,
+      ["-c", `import tarfile, os, gzip; ar="${archivePath.replace(/"/g, '\\"')}"; td="${targetDir.replace(/"/g, '\\"')}"; f=tarfile.open(ar, "r:gz" if ar.endswith(".gz") else "r"); f.extractall(td)`],
+      { encoding: "utf-8", stdio: "pipe" }
+    );
+    if (pyResult.status !== 0) {
+      throw new Error(`${pyCmd} tarfile 解压失败: ${pyResult.stderr || pyResult.error}`);
+    }
+    return;
   }
+  throw new Error(`解压失败: ${result.stderr || result.error}`);
 }
 
 async function downloadForPlatform(platformSlug) {

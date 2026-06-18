@@ -271,6 +271,7 @@ export function ConversationDock({
         sessionInputFocusSignal={sessionInputFocusSignal}
         tasks={sessionStatus?.tasks}
         planState={sessionStatus?.plan_state}
+        workspaceId={workspace?.workspace_id}
       />
     </aside>
   );

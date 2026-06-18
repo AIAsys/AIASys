@@ -14,6 +14,7 @@
 
 from __future__ import annotations
 
+import os
 import platform
 import subprocess
 import sys
@@ -50,7 +51,17 @@ def run_node_download_script(script_name: str, platform_slug: str, repo_root: Pa
 
     cmd = ["node", str(script_path), platform_slug]
     print(f"[vendor] 执行: {' '.join(cmd)}")
-    result = subprocess.run(cmd, cwd=repo_root, text=True, capture_output=True)
+    env = dict(os.environ)
+    env["PYTHON"] = sys.executable
+    result = subprocess.run(
+        cmd,
+        cwd=repo_root,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        capture_output=True,
+        env=env,
+    )
     if result.returncode != 0:
         print(result.stdout, end="")
         print(result.stderr, end="", file=sys.stderr)

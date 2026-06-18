@@ -1,4 +1,4 @@
-AIASys Desktop 许可协议
+﻿AIASys Desktop 许可协议
 
 AIASys 桌面端应用程序（以下简称"本软件"）基于 Apache License 2.0 开源。
 完整许可证文本见安装目录中的 LICENSE 文件，或访问：

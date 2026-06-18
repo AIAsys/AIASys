@@ -101,6 +101,9 @@ jobs:
 
       - name: Install desktop deps
         run: cd apps/desktop && npm ci
+        env:
+          ELECTRON_MIRROR: https://npmmirror.com/mirrors/electron/
+          ELECTRON_BUILDER_BINARIES_MIRROR: https://npmmirror.com/mirrors/electron-builder-binaries/
 
       - name: Install uv
         uses: astral-sh/setup-uv@v5
@@ -139,6 +142,9 @@ jobs:
 
       - name: Build desktop (${{ matrix.target }})
         run: cd apps/desktop && npm run ${{ matrix.script }}
+        env:
+          ELECTRON_MIRROR: https://npmmirror.com/mirrors/electron/
+          ELECTRON_BUILDER_BINARIES_MIRROR: https://npmmirror.com/mirrors/electron-builder-binaries/
 
       - name: Upload to release
         uses: softprops/action-gh-release@v2

@@ -86,6 +86,7 @@ interface DockChatViewProps {
   sessionInputFocusSignal?: number;
   tasks?: SessionTaskItem[];
   planState?: SessionPlanState | null;
+  workspaceId?: string;
 }
 
 export function DockChatView({
@@ -133,6 +134,7 @@ export function DockChatView({
   sessionInputFocusSignal,
   tasks,
   planState,
+  workspaceId,
 }: DockChatViewProps) {
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
@@ -235,6 +237,7 @@ export function DockChatView({
         onOpenRuntimeTab={onOpenRuntimeTab}
         activeEnv={runtimeControls.activeEnv}
         focusSignal={sessionInputFocusSignal}
+        workspaceId={workspaceId}
       />
     </div>
   );

@@ -80,14 +80,38 @@ function verifySha256(filePath, expectedHash) {
   return true;
 }
 
+function resolvePython() {
+  const candidates = [process.env.PYTHON, process.env.PYTHON3, "py", "python3", "python"].filter(Boolean);
+  for (const cmd of candidates) {
+    const result = spawnSync(cmd, ["--version"], { encoding: "utf-8", stdio: "pipe" });
+    if (result.status === 0) return cmd;
+  }
+  return null;
+}
+
 function unzip(zipPath, targetDir) {
   console.log(`[download-fnm] 解压: ${zipPath}`);
   const result = spawnSync("unzip", ["-q", "-o", zipPath, "-d", targetDir], {
     encoding: "utf-8", stdio: "pipe",
   });
-  if (result.status !== 0) {
-    throw new Error(`解压失败: ${result.stderr || result.error}`);
+  if (result.status === 0) return;
+  if (result.error && result.error.code === "ENOENT") {
+    const pyCmd = resolvePython();
+    if (!pyCmd) {
+      throw new Error("未找到可用的 Python 解释器（尝试 py/python3/python），无法解压 zip");
+    }
+    console.log(`[download-fnm] 未找到 unzip，使用 ${pyCmd} zipfile 解压`);
+    const pyResult = spawnSync(
+      pyCmd,
+      ["-m", "zipfile", "-e", zipPath, targetDir],
+      { encoding: "utf-8", stdio: "pipe" }
+    );
+    if (pyResult.status !== 0) {
+      throw new Error(`${pyCmd} zipfile 解压失败: ${pyResult.stderr || pyResult.error}`);
+    }
+    return;
   }
+  throw new Error(`解压失败: ${result.stderr || result.error}`);
 }
 
 async function downloadForPlatform(slug) {

@@ -50,9 +50,19 @@ def _repo_root() -> Path:
 def _binary_paths(platform_slug: str) -> dict[str, Path]:
     """返回当前平台下需要检查的 vendor 二进制路径。"""
     repo = _repo_root()
+    # desktop 下载脚本对 uv 使用 windows-x64 / darwin-x64 等完整系统名，
+    # 对 node/fnm 使用 win-x64 / darwin-arm64 等项目 slug。
+    uv_subdir = {
+        "win-x64": "windows-x64",
+        "linux-x64": "linux-x64",
+        "linux-arm64": "linux-arm64",
+        "darwin-x64": "darwin-x64",
+        "darwin-arm64": "darwin-arm64",
+    }.get(platform_slug, platform_slug)
+    exe_ext = ".exe" if platform_slug == "win-x64" else ""
     return {
-        "uv": repo / "apps" / "backend" / "vendor" / "uv" / platform_slug / "uv",
-        "fnm": repo / "apps" / "backend" / "vendor" / "node" / platform_slug / "fnm",
+        "uv": repo / "apps" / "backend" / "vendor" / "uv" / uv_subdir / f"uv{exe_ext}",
+        "fnm": repo / "apps" / "backend" / "vendor" / "node" / platform_slug / f"fnm{exe_ext}",
         "sqlite-vec": repo
         / "apps"
         / "backend"
@@ -124,6 +134,8 @@ def ensure_vendor_binaries() -> None:
             [sys.executable, str(script)],
             cwd=_repo_root(),
             text=True,
+            encoding="utf-8",
+            errors="replace",
             capture_output=True,
             check=False,
             timeout=60,
