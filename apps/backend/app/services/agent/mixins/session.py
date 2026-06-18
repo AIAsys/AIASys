@@ -168,9 +168,13 @@ class SessionMixin:
                 user_id, workspace_id_for_session
             )
             work_dir = WorkspacePath(str(workspace_path))
+            # history.json 读写路径使用 session 目录，而非 workspace 目录
+            session_dir = get_workspace_registry_service().get_session_dir(user_id, session_id)
         else:
             work_dir = get_work_dir(user_id, session_id)
             workspace_path = Path(str(work_dir))
+            # 无工作区绑定时，session 目录 == work_dir
+            session_dir = Path(str(work_dir))
 
         ensure_workspace_layout(workspace_path)
         session_key = f"{user_id}/{session_id}"
@@ -398,6 +402,7 @@ class SessionMixin:
         session = await runtime_backend.create_session(
             RuntimeSessionCreateSpec(
                 work_dir=work_dir,
+                session_dir=session_dir,
                 session_id=session_id,
                 user_id=user_id,
                 config=config,

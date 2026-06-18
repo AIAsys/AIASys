@@ -105,6 +105,9 @@ class RuntimeSessionCreateSpec:
     """创建 runtime session 需要的显式参数。"""
 
     work_dir: WorkspacePath
+    session_dir: Path | None = (
+        None  # session 目录（history.json 读写路径），None 时 fallback 到 work_dir
+    )
     session_id: str
     user_id: str = ""  # 用户 ID，用于读取用户级配置
     config: AiasysLlmConfig

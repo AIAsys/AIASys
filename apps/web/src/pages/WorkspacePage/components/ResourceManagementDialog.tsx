@@ -1,12 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import {
-  type LucideIcon,
   LibraryBig,
   Network,
-  Orbit,
-  PanelLeftClose,
   Sparkles,
-  Users,
+  type LucideIcon,
 } from "lucide-react";
 import { KnowledgeBaseMarket } from "@/components/KnowledgeBaseMarket";
 import {
@@ -15,7 +12,6 @@ import {
 import { GraphWorkbench } from "@/pages/Knowledge/GraphPage/components/GraphWorkbench";
 import { CommunityAnalysisPanel } from "@/components/KnowledgeGraphDialog/CommunityAnalysisPanel";
 import { EntityBrowserPanel } from "@/components/KnowledgeGraphDialog/EntityBrowserPanel";
-import { cn } from "@/lib/utils";
 import type {
   KnowledgeBaseDialogTab,
   KnowledgeGraphDialogTab,
@@ -133,32 +129,6 @@ function KnowledgeGraphResourceSection({
     setActiveTab(defaultTab);
   }, [defaultTab]);
 
-  const graphNavItems: Array<{
-    id: KnowledgeGraphDialogTab;
-    label: string;
-    description: string;
-    icon: LucideIcon;
-  }> = [
-    {
-      id: "workbench",
-      label: "图谱工作台",
-      description: "构图、概览和问答交互",
-      icon: Network,
-    },
-    {
-      id: "entities",
-      label: "实体浏览",
-      description: "实体搜索、类型筛选和详情",
-      icon: Orbit,
-    },
-    {
-      id: "communities",
-      label: "社区分析",
-      description: "社区层级、指标和报告",
-      icon: Users,
-    },
-  ];
-
   return (
     <div className="flex h-full min-h-0 flex-col">
       <ResourceSectionHeader
@@ -173,77 +143,31 @@ function KnowledgeGraphResourceSection({
         }
       />
 
-      <div className="grid min-h-0 flex-1 xl:grid-cols-[252px_minmax(0,1fr)]">
-        <aside className="min-h-0 overflow-y-auto border-r bg-muted/20 p-3">
-          <div className="mb-3 rounded-2xl border border-border bg-background p-4">
-            <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
-              <PanelLeftClose className="h-3.5 w-3.5" />
-              图谱分区
-            </div>
-            <p className="mt-2 text-xs leading-5 text-muted-foreground">
-              {selectedGraphId
-                ? `当前图谱：${selectedGraphId}`
-                : "当前工作区还没有可用图谱。"}
-            </p>
-          </div>
+      <div className="min-h-0 flex-1 overflow-y-auto bg-[radial-gradient(circle_at_top,_rgba(14,165,233,0.08),_transparent_38%),linear-gradient(180deg,#f8fafc_0%,#eef6ff_100%)] px-6 py-5">
+        {activeTab === "workbench" ? (
+          <GraphWorkbench
+            key={`${workspaceId || "graph-dialog"}:${selectedGraphId || "default"}`}
+            workspaceId={workspaceId}
+            graphId={selectedGraphId}
+            presentation="page"
+          />
+        ) : null}
 
-          <div className="space-y-2">
-            {graphNavItems.map((item) => {
-              const Icon = item.icon;
-              const active = item.id === activeTab;
+        {activeTab === "entities" ? (
+          <EntityBrowserPanel
+            workspaceId={workspaceId}
+            graphId={selectedGraphId}
+            onOpenWorkbench={() => setActiveTab("workbench")}
+          />
+        ) : null}
 
-              return (
-                <button
-                  key={item.id}
-                  type="button"
-                  data-testid={`resource-management-dialog-knowledge-graph-tab-${item.id}`}
-                  onClick={() => setActiveTab(item.id)}
-                  className={cn(
-                    "w-full rounded-2xl border px-4 py-3 text-left transition-colors",
-                    active
-                      ? "border-border bg-background shadow-sm"
-                      : "border-transparent bg-background/70 hover:border-border/60 hover:bg-background"
-                  )}
-                >
-                  <div className="flex items-center gap-2 text-sm font-medium text-foreground">
-                    <Icon className="h-4 w-4 text-muted-foreground" />
-                    {item.label}
-                  </div>
-                  <div className="mt-1 text-xs leading-5 text-muted-foreground">
-                    {item.description}
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        </aside>
-
-        <div className="min-h-0 overflow-y-auto bg-[radial-gradient(circle_at_top,_rgba(14,165,233,0.08),_transparent_38%),linear-gradient(180deg,#f8fafc_0%,#eef6ff_100%)] px-6 py-5">
-          {activeTab === "workbench" ? (
-            <GraphWorkbench
-              key={`${workspaceId || "graph-dialog"}:${selectedGraphId || "default"}`}
-              workspaceId={workspaceId}
-              graphId={selectedGraphId}
-              presentation="dialog"
-            />
-          ) : null}
-
-          {activeTab === "entities" ? (
-            <EntityBrowserPanel
-              workspaceId={workspaceId}
-              graphId={selectedGraphId}
-              onOpenWorkbench={() => setActiveTab("workbench")}
-            />
-          ) : null}
-
-          {activeTab === "communities" ? (
-            <CommunityAnalysisPanel
-              workspaceId={workspaceId}
-              graphId={selectedGraphId}
-              onOpenWorkbench={() => setActiveTab("workbench")}
-            />
-          ) : null}
-        </div>
+        {activeTab === "communities" ? (
+          <CommunityAnalysisPanel
+            workspaceId={workspaceId}
+            graphId={selectedGraphId}
+            onOpenWorkbench={() => setActiveTab("workbench")}
+          />
+        ) : null}
       </div>
     </div>
   );
@@ -284,7 +208,7 @@ export function ResourceManagementDialog({
     }
 
     if (!workspaceId) {
-      return "当前以全局资源视角浏览知识图谱，不限定到某个工作区。";
+      return "当前以全局图谱视角浏览知识图谱，不限定到某个工作区。";
     }
     return `当前工作区：${workspaceId} · 知识图谱`;
   }, [

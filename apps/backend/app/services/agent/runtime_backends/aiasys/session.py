@@ -561,7 +561,10 @@ class AiasysRuntimeSession(
         self._pending_token_estimate += estimate_text_tokens([message])
 
     def _load_persisted_messages(self) -> list[InternalMessage]:
-        session_dir = Path(str(self._spec.work_dir))
+        # 使用 session_dir 而非 work_dir，确保与 SessionManager 写入路径一致。
+        # 当 workspace 绑定时 work_dir 指向 workspace 目录，而 history.json
+        # 由 SessionManager 写入 session 目录。
+        session_dir = self._spec.session_dir or Path(str(self._spec.work_dir))
         history_path = (
             session_dir
             / ".aiasys"
@@ -636,7 +639,8 @@ class AiasysRuntimeSession(
         压缩完成后调用，确保会话重建时能看到压缩后的状态。
         只保存 user/assistant/tool 消息，system prompt 由 __init__ 重新注入。
         """
-        session_dir = Path(str(self._spec.work_dir))
+        # 使用 session_dir 而非 work_dir，与 SessionManager 写入路径对齐
+        session_dir = self._spec.session_dir or Path(str(self._spec.work_dir))
         history_path = (
             session_dir
             / ".aiasys"
