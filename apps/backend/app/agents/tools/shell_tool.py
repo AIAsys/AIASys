@@ -125,7 +125,6 @@ class ShellParams(BaseModel):
             "也支持常见别名如 pwsh/sh/ash；"
             "还可以传入可执行文件路径（如 C:\\Program Files\\PowerShell\\7\\pwsh.exe）。"
             "Windows 上 auto 的优先级为：Git Bash → WSL → busybox-w32 → PowerShell。"
-            "注意：cmd 已禁用，传入 cmd 将降级为 powershell。"
         ),
     )
 

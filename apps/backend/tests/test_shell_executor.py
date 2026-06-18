@@ -46,7 +46,8 @@ def test_detect_family_from_name():
     assert ex._detect_family_from_name("busybox.exe") == "busybox"
     assert ex._detect_family_from_name("pwsh.exe") == "powershell"
     assert ex._detect_family_from_name("powershell.exe") == "powershell"
-    assert ex._detect_family_from_name("cmd.exe") == "cmd"
+    # cmd.exe 不再被识别为有效 shell family
+    assert ex._detect_family_from_name("cmd.exe") is None
     assert ex._detect_family_from_name("unknown") is None
     # Windows 内置 WSL bash 路径应识别为 wsl（仅 Windows 上生效）
     if os.name == "nt":
@@ -111,7 +112,7 @@ def test_windows_auto_no_cmd_fallback(monkeypatch: pytest.MonkeyPatch) -> None:
     with pytest.raises(RuntimeError) as exc_info:
         ex.detect_interpreter("auto")
 
-    assert "cmd.exe" in str(exc_info.value)
+    assert "shell 解释器" in str(exc_info.value)
     assert "PowerShell" in str(exc_info.value)
 
 
@@ -136,7 +137,7 @@ def test_windows_auto_prefers_powershell(monkeypatch: pytest.MonkeyPatch) -> Non
 
 
 def test_windows_explicit_cmd_degraded_to_powershell(monkeypatch: pytest.MonkeyPatch) -> None:
-    """显式指定 interpreter=cmd 时，应降级为 powershell（cmd 已废弃）。"""
+    """显式指定 interpreter=cmd 时，应降级为 powershell（cmd 已移除）。"""
     ex = ShellExecutor()
     monkeypatch.setattr(ex, "_is_windows", True)
     monkeypatch.setattr(
@@ -145,7 +146,6 @@ def test_windows_explicit_cmd_degraded_to_powershell(monkeypatch: pytest.MonkeyP
         lambda name: {
             "pwsh": r"C:\Program Files\PowerShell\7\pwsh.exe",
             "powershell": r"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe",
-            "cmd": r"C:\Windows\System32\cmd.exe",
         }.get(name),
     )
 
@@ -154,6 +154,16 @@ def test_windows_explicit_cmd_degraded_to_powershell(monkeypatch: pytest.MonkeyP
     assert family == "powershell"
     assert args == ["-NoProfile", "-Command"]
     assert path.endswith("pwsh.exe") or path.endswith("powershell.exe")
+
+
+def test_windows_cmd_no_fallback_when_no_powershell(monkeypatch: pytest.MonkeyPatch) -> None:
+    """cmd 请求且 PowerShell 不可用时，应抛出异常而非回退到 cmd.exe。"""
+    ex = ShellExecutor()
+    monkeypatch.setattr(ex, "_is_windows", True)
+    monkeypatch.setattr(shutil, "which", lambda name: None)
+
+    with pytest.raises(RuntimeError, match="cmd.*已移除"):
+        ex.detect_interpreter("cmd")
 
 
 @pytest.mark.asyncio
@@ -170,14 +180,18 @@ async def test_windows_git_bash_cwd_keeps_windows_path(monkeypatch: pytest.Monke
     async def fake_create_subprocess_exec(*args, **kwargs):
         captured["args"] = args
         captured["cwd"] = kwargs.get("cwd")
+
         class FakeProc:
             stdin = None
             stdout = None
             stderr = None
+
         return FakeProc()
 
     monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_create_subprocess_exec)
 
-    await ex.spawn("echo hi", options=ShellOptions(cwd=r"C:\Users\ke\workspace"), interpreter="bash")
+    await ex.spawn(
+        "echo hi", options=ShellOptions(cwd=r"C:\Users\ke\workspace"), interpreter="bash"
+    )
 
     assert captured["cwd"] == r"C:\Users\ke\workspace"

@@ -1,7 +1,7 @@
 """跨平台 Shell 执行器。
 
 为 Shell 工具、Monitor 工具、RunCode 等提供统一的子进程创建、输出收集、
-超时控制和进程清理能力。把平台差异（POSIX vs Windows、bash vs PowerShell vs cmd、
+超时控制和进程清理能力。把平台差异（POSIX vs Windows、bash vs PowerShell、
 WSL 路径转换、进程树清理）集中在此模块处理，避免散落在各工具中。
 """
 
@@ -13,7 +13,6 @@ import os
 import re
 import shutil
 import subprocess
-import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -92,8 +91,6 @@ class ShellExecutor:
             "pwsh": "powershell",
             "ps": "powershell",
             "ps1": "powershell",
-            "command_prompt": "cmd",
-            "cmd.exe": "cmd",
         }
         return aliases.get(name.lower(), name)
 
@@ -121,8 +118,6 @@ class ShellExecutor:
             return "busybox"
         if "powershell" in lower or lower.endswith("pwsh") or lower.endswith("pwsh.exe"):
             return "powershell"
-        if lower.endswith("cmd.exe") or lower.endswith("cmd"):
-            return "cmd"
         return None
 
     def _resolve_custom_interpreter(self, interpreter: str) -> tuple[str, list[str], str] | None:
@@ -141,8 +136,6 @@ class ShellExecutor:
 
         if family == "powershell":
             return (path, ["-NoProfile", "-Command"], family)
-        if family == "cmd":
-            return (path, ["/c"], family)
         if family == "wsl":
             return (path, ["bash", "-c"], family)
         if family == "busybox":
@@ -153,8 +146,8 @@ class ShellExecutor:
     def detect_interpreter(self, interpreter: str = "auto") -> tuple[str, list[str], str]:
         """返回 (shell_path, args_prefix, shell_family)。
 
-        shell_family 用于上层判断是 posix/powershell/cmd/wsl，以便做命令适配。
-        支持关键字（auto/bash/wsl/busybox/powershell/cmd）、常见别名（pwsh/sh/ash）
+        shell_family 用于上层判断是 posix/powershell/wsl，以便做命令适配。
+        支持关键字（auto/bash/wsl/busybox/powershell）、常见别名（pwsh/sh/ash）
         以及可执行文件绝对/相对路径。
         """
         result: tuple[str, list[str], str] | None = None
@@ -196,22 +189,19 @@ class ShellExecutor:
             result = (path, ["-NoProfile", "-Command"], "powershell")
 
         elif name == "cmd":
+            # cmd.exe 已彻底移除，不接受 cmd 作为解释器。
+            # 如果模型传入 cmd，直接降级到 powershell，不执行任何 cmd.exe 调用。
             if not self._is_windows:
                 raise RuntimeError("interpreter='cmd' 仅在 Windows 上可用")
-            # cmd 已禁用，降级到 powershell。仅当 powershell 也找不到时才用 cmd 兜底。
             ps = shutil.which("pwsh") or shutil.which("powershell")
             if ps:
-                logger.warning(
-                    "interpreter='cmd' 已废弃，自动降级为 powershell。"
-                    "AIASys 已对齐 Copilot，不再使用 cmd.exe 作为默认 shell。"
-                )
+                logger.warning("interpreter='cmd' 已移除，自动使用 powershell。")
                 result = (ps, ["-NoProfile", "-Command"], "powershell")
             else:
-                logger.warning(
-                    "interpreter='cmd' 已废弃且未找到 powershell，极端情况下回退到 cmd 兜底。"
+                raise RuntimeError(
+                    "interpreter='cmd' 已移除，且系统未找到 PowerShell。"
+                    "请安装 PowerShell 或使用 auto/bash/wsl/busybox。"
                 )
-                path = shutil.which("cmd") or "cmd.exe"
-                result = (path, ["/c"], "cmd")
 
         elif name != "auto":
             # 尝试作为路径/短名解析
@@ -243,13 +233,10 @@ class ShellExecutor:
                             if ps:
                                 result = (ps, ["-NoProfile", "-Command"], "powershell")
                             else:
-                                # 对齐 Copilot：Windows 上不再使用 cmd.exe 作为 auto fallback。
-                                # cmd 的引号解析和 POSIX 命令语法支持问题（mkdir -p、rm -rf 等）
-                                # 会导致 WinError 267 / os error 123 等不可靠行为。
+                                # Windows 上不使用 cmd.exe。
                                 raise RuntimeError(
                                     "Windows 上未找到可用的 shell 解释器。请安装 Git for Windows、WSL、"
-                                    "busybox-w32，或确认 PowerShell 已在系统 PATH 中。AIASys 已对齐 Copilot "
-                                    "策略，不再使用 cmd.exe 作为默认 shell。"
+                                    "busybox-w32，或确认 PowerShell 已在系统 PATH 中。"
                                 )
             else:
                 bash = shutil.which("bash")
@@ -551,14 +538,6 @@ class ShellExecutor:
         if self._is_windows and shell_family in ("posix", "wsl", "busybox"):
             command = self.rewrite_windows_null_redirect(command)
 
-        # Windows cmd /c 对命令字符串中的双引号解析非常敏感，尤其是带反斜杠
-        # 的路径被双引号包裹时，容易产生 os error 123 等路径错误。对包含双
-        # 引号的命令，写入临时 .cmd 脚本再执行，可绕过 cmd /c 的引号解析。
-        cmd_script_path: Path | None = None
-        if shell_family == "cmd" and '"' in command:
-            cmd_script_path = self._write_cmd_script(command)
-            command = str(cmd_script_path)
-
         argv = [shell_path, *shell_args, command]
         env = self._build_env(options.env, shell_family)
 
@@ -583,38 +562,7 @@ class ShellExecutor:
             spawn_kwargs["start_new_session"] = True
 
         proc = await asyncio.create_subprocess_exec(*argv, **spawn_kwargs)
-        if cmd_script_path is not None:
-            asyncio.create_task(
-                self._cleanup_cmd_script(proc, cmd_script_path),
-                name=f"cleanup-cmd-script-{cmd_script_path.name}",
-            )
         return proc
-
-    @staticmethod
-    def _write_cmd_script(command: str) -> Path:
-        """把命令写入临时 .cmd 脚本，避免 cmd /c 直接解析双引号。
-
-        Batch 文件中单个 % 会被当作变量引用，因此把 % 替换成 %% 表示
-        字面量百分号。环境变量展开 semantics 与直接 cmd /c 不完全一致，
-        但这是保证带引号命令能稳定执行的最小代价。
-        """
-        script = Path(tempfile.gettempdir()) / (f"aiasys_cmd_{os.getpid()}_{id(command)}.cmd")
-        # 在 batch 文件中 % 需要写成 %% 才能输出字面量 %
-        bat_command = command.replace("%", "%%")
-        script.write_text("@echo off\n" + bat_command + "\n", encoding="utf-8")
-        return script
-
-    @staticmethod
-    async def _cleanup_cmd_script(proc: asyncio.subprocess.Process, path: Path) -> None:
-        """等子进程结束后删除临时 cmd 脚本。"""
-        try:
-            await proc.wait()
-        except Exception:
-            pass
-        try:
-            path.unlink(missing_ok=True)
-        except Exception:
-            pass
 
     async def execute(
         self,
