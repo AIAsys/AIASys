@@ -102,7 +102,9 @@ async function downloadForPlatform(slug) {
   const binaryPath = path.join(platformDir, binaryName);
 
   // 已存在且可执行则跳过
-  if (fs.existsSync(binaryPath) && fs.statSync(binaryPath).mode & 0o111) {
+  // Windows 上 fs.statSync(path).mode 不包含可执行位，只要文件存在即可跳过
+  const isWindows = slug.startsWith("win");
+  if (fs.existsSync(binaryPath) && (isWindows || (fs.statSync(binaryPath).mode & 0o111))) {
     console.log(`[download-fnm] ${slug} 已存在且可执行，跳过下载`);
     return binaryPath;
   }

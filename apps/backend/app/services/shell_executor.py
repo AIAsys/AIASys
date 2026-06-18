@@ -220,7 +220,14 @@ class ShellExecutor:
                             if ps:
                                 result = (ps, ["-NoProfile", "-Command"], "powershell")
                             else:
-                                result = (shutil.which("cmd") or "cmd.exe", ["/c"], "cmd")
+                                # 对齐 Copilot：Windows 上不再使用 cmd.exe 作为 auto fallback。
+                                # cmd 的引号解析和 POSIX 命令语法支持问题（mkdir -p、rm -rf 等）
+                                # 会导致 WinError 267 / os error 123 等不可靠行为。
+                                raise RuntimeError(
+                                    "Windows 上未找到可用的 shell 解释器。请安装 Git for Windows、WSL、"
+                                    "busybox-w32，或确认 PowerShell 已在系统 PATH 中。AIASys 已对齐 Copilot "
+                                    "策略，不再使用 cmd.exe 作为默认 shell。"
+                                )
             else:
                 bash = shutil.which("bash")
                 if bash:
@@ -492,9 +499,10 @@ class ShellExecutor:
         cwd = options.cwd
         if cwd is not None:
             cwd = str(cwd)
-            if self._is_windows and shell_family == "posix":
-                cwd = self.win_path_to_posix(cwd)
-            elif shell_family == "wsl":
+            # Windows + Git Bash：保持 Windows 路径传给 CreateProcessW。
+            # bash.exe 是 Windows 可执行文件，cwd 必须能被 Windows 子系统识别；
+            # 转成 /c/foo/bar 会导致 WinError 267 "目录名称无效"。
+            if shell_family == "wsl":
                 wsl_cwd = self.win_path_to_wsl(cwd)
                 if wsl_cwd:
                     cwd = wsl_cwd
