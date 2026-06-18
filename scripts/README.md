@@ -28,8 +28,10 @@
 | `run_agent_test.py` | 单条 Agent 能力测试辅助脚本 |
 | `rerun_failed_tests.py` | 重测未通过的用例 |
 | `rerun_nb_tests.py` | 重测 Notebook 域用例 |
-| `update_test_records.py` | （已归档至 `design-draft/archive/`）批量更新测试用例文件的测试记录 |
-| `update_test_records_rerun.py` | （已归档至 `design-draft/archive/`）追加第二轮重测结果到测试记录 |
+| `multi_turn_context_test.py` | 多轮对话上下文连续性测试 |
+| `count_code.py` | 统计项目代码量 |
+
+> 根目录只保留**通用、可复用**的项目级工具脚本。一次性任务脚本（带硬编码 session_id / 输出路径 / 截图路径）归档到 `design-draft/archive/scripts/`，不留在本目录。
 
 ### dev/
 
@@ -64,3 +66,4 @@
 
 - `design-draft/archive/scripts/ux-audit-20250608/` — 2025-06-08 UX 审计相关脚本
 - `design-draft/archive/scripts/demo-record-20250607/` — 2025-06-07 Demo 视频录制脚本
+- `design-draft/archive/scripts/demo-qa-20250618/` — 2025-06-18 README 配图、知识图谱侧边栏检查等一次性 QA/Demo 脚本
