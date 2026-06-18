@@ -32,11 +32,7 @@ class RuntimeDatabaseClient:
         base = self.base_url.rstrip("/")
         url = f"{base}{path}"
         if query:
-            query_pairs = {
-                key: value
-                for key, value in query.items()
-                if value is not None
-            }
+            query_pairs = {key: value for key, value in query.items() if value is not None}
             if query_pairs:
                 url = f"{url}?{urllib.parse.urlencode(query_pairs)}"
 
@@ -64,9 +60,7 @@ class RuntimeDatabaseClient:
                 f"数据库 broker 请求失败: {exc.code} {detail or exc.reason}"
             ) from exc
         except urllib.error.URLError as exc:
-            raise RuntimeDatabaseHelperError(
-                f"无法连接数据库 broker: {exc.reason}"
-            ) from exc
+            raise RuntimeDatabaseHelperError(f"无法连接数据库 broker: {exc.reason}") from exc
 
         if not raw.strip():
             return None

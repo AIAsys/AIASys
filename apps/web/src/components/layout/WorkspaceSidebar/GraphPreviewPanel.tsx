@@ -1,5 +1,7 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  ArrowLeft,
+  ArrowRight,
   CircleAlert,
   Database,
   Trash2,
@@ -46,7 +48,7 @@ import { getText } from "./ResourcePreviewShared";
 import { CanvasActionMenu } from "@/components/workspace/CanvasActionMenu";
 
 const LazyPixiExplorer = lazy(() =>
-  import("@/pages/Knowledge/GraphPage/PixiExplorer").then((module) => ({
+  import("@/components/KnowledgeGraphDialog/PixiExplorer").then((module) => ({
     default: module.PixiExplorer,
   })),
 );
@@ -101,6 +103,10 @@ export function GraphPreviewPanel({
   const [visualizationError, setVisualizationError] = useState<string | null>(null);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+
+  // 探索历史（旅行地图导航）
+  const [explorationHistory, setExplorationHistory] = useState<string[]>([]);
+  const [historyIndex, setHistoryIndex] = useState(-1);
 
   // 节点编辑状态
   const [isEditingNode, setIsEditingNode] = useState(false);
@@ -377,8 +383,74 @@ export function GraphPreviewPanel({
       setNewNodeError(null);
       setIsConnectingNode(false);
       setRelationSaveError(null);
+      // 记录探索历史（旅行地图路径）
+      setExplorationHistory((prev) => {
+        const truncated = prev.slice(0, historyIndex + 1);
+        if (truncated[truncated.length - 1] === nodeId) {
+          return truncated;
+        }
+        return [...truncated, nodeId];
+      });
+      setHistoryIndex((prev) => prev + 1);
     }
-  }, []);
+  }, [historyIndex]);
+
+  // 旅行地图导航：跳转到指定节点并记录历史
+  const handleNavigateToNode = useCallback((nodeId: string) => {
+    setSelectedNodeId(nodeId);
+    setIsCreatingNode(false);
+    setIsConnectingNode(false);
+    setIsEditingNode(false);
+    setNewNodeError(null);
+    setRelationSaveError(null);
+    setExplorationHistory((prev) => {
+      // 截断当前索引之后的历史，再追加新节点
+      const truncated = prev.slice(0, historyIndex + 1);
+      if (truncated[truncated.length - 1] === nodeId) {
+        return truncated;
+      }
+      return [...truncated, nodeId];
+    });
+    setHistoryIndex((prev) => prev + 1);
+  }, [historyIndex]);
+
+  const handleHistoryBack = useCallback(() => {
+    if (historyIndex <= 0) return;
+    const newIndex = historyIndex - 1;
+    setHistoryIndex(newIndex);
+    const targetId = explorationHistory[newIndex];
+    if (targetId) {
+      setSelectedNodeId(targetId);
+      setIsCreatingNode(false);
+      setIsConnectingNode(false);
+      setIsEditingNode(false);
+    }
+  }, [explorationHistory, historyIndex]);
+
+  const handleHistoryForward = useCallback(() => {
+    if (historyIndex >= explorationHistory.length - 1) return;
+    const newIndex = historyIndex + 1;
+    setHistoryIndex(newIndex);
+    const targetId = explorationHistory[newIndex];
+    if (targetId) {
+      setSelectedNodeId(targetId);
+      setIsCreatingNode(false);
+      setIsConnectingNode(false);
+      setIsEditingNode(false);
+    }
+  }, [explorationHistory, historyIndex]);
+
+  // 查询结果实体 → 跳转到可视化 Tab 并选中节点
+  const handleJumpToEntityFromQuery = useCallback((entityName: string) => {
+    if (!visualization) return;
+    const matched = visualization.nodes.find(
+      (n) => n.name === entityName || n.id === entityName,
+    );
+    if (matched) {
+      setActiveTab("visualize");
+      handleNavigateToNode(matched.id);
+    }
+  }, [visualization, handleNavigateToNode]);
 
   const handleStartConnectNode = useCallback(() => {
     if (!selectedGraphNode) {
@@ -1027,15 +1099,41 @@ export function GraphPreviewPanel({
                   data-testid="graph-preview-node-inspector"
                 >
                   <div className="mb-3 flex items-center justify-between gap-3">
-                    <div>
-                      <div className="text-xs font-medium text-foreground">
-                        {inspectorMode === "create"
-                          ? "新建节点"
-                          : inspectorMode === "connect"
-                            ? "连接节点"
-                          : inspectorMode === "details"
-                            ? "节点详情"
-                            : "节点检查器"}
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        {inspectorMode === "details" && historyIndex > 0 ? (
+                          <button
+                            type="button"
+                            onClick={handleHistoryBack}
+                            disabled={historyIndex <= 0}
+                            className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-30 disabled:hover:bg-transparent"
+                            title="返回上一个节点"
+                            aria-label="返回上一个节点"
+                          >
+                            <ArrowLeft className="h-3 w-3" />
+                          </button>
+                        ) : null}
+                        {inspectorMode === "details" && historyIndex < explorationHistory.length - 1 ? (
+                          <button
+                            type="button"
+                            onClick={handleHistoryForward}
+                            disabled={historyIndex >= explorationHistory.length - 1}
+                            className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-30 disabled:hover:bg-transparent"
+                            title="前进到下一个节点"
+                            aria-label="前进到下一个节点"
+                          >
+                            <ArrowRight className="h-3 w-3" />
+                          </button>
+                        ) : null}
+                        <span className="truncate text-xs font-medium text-foreground">
+                          {inspectorMode === "create"
+                            ? "新建节点"
+                            : inspectorMode === "connect"
+                              ? "连接节点"
+                            : inspectorMode === "details"
+                              ? "节点详情"
+                              : "节点检查器"}
+                        </span>
                       </div>
                       <div className="mt-0.5 text-[11px] leading-4 text-muted-foreground">
                         {inspectorMode === "create"
@@ -1527,6 +1625,7 @@ export function GraphPreviewPanel({
                                   );
                                   const direction =
                                     edge.source === selectedGraphNode.id ? "指向" : "来自";
+                                  const canNavigate = Boolean(peer);
                                   return (
                                     <div
                                       key={edge.id}
@@ -1536,9 +1635,20 @@ export function GraphPreviewPanel({
                                       <span className="shrink-0 text-muted-foreground">
                                         {direction}
                                       </span>
-                                      <span className="min-w-0 truncate text-foreground">
-                                        {peer?.name ?? peerId}
-                                      </span>
+                                      {canNavigate ? (
+                                        <button
+                                          type="button"
+                                          onClick={() => handleNavigateToNode(peerId)}
+                                          className="min-w-0 truncate text-foreground underline-offset-2 transition-colors hover:text-primary hover:underline"
+                                          title={`跳转到「${peer?.name ?? peerId}」`}
+                                        >
+                                          {peer?.name ?? peerId}
+                                        </button>
+                                      ) : (
+                                        <span className="min-w-0 truncate text-muted-foreground">
+                                          {peer?.name ?? peerId}
+                                        </span>
+                                      )}
                                       <span className="shrink-0 text-muted-foreground">
                                         {edge.relation_type || "related_to"}
                                       </span>
@@ -1567,6 +1677,7 @@ export function GraphPreviewPanel({
                               </div>
                             </div>
                           ) : null}
+
                         </div>
                       )}
                     </div>
@@ -1583,8 +1694,8 @@ export function GraphPreviewPanel({
                         <div>关系</div>
                       </div>
                       <div className="rounded-md border border-dashed border-border bg-muted/20 px-3 py-2">
-                        <div className="font-medium text-foreground">未选择节点</div>
-                        <div className="mt-1">点击画布节点查看详情，或使用上方按钮添加实体。</div>
+                        <div className="font-medium text-foreground">开始探索</div>
+                        <div className="mt-1">点击画布中的节点查看详情，点击关系节点可跳转探索。</div>
                       </div>
                     </div>
                   ) : null}
@@ -1672,10 +1783,20 @@ export function GraphPreviewPanel({
                   <div className="space-y-2">
                     <div className="text-xs font-medium text-foreground">命中实体</div>
                     <div className="grid gap-2">
-                      {queryResult.entities.map((entity, idx) => (
+                      {queryResult.entities.map((entity, idx) => {
+                        const inGraph = visualization?.nodes.some(
+                          (n) => n.name === entity.name,
+                        );
+                        return (
                         <div
                           key={`${entity.entity_type}:${entity.name}:${idx}`}
-                          className="rounded-lg border border-border bg-background px-3 py-2.5 hover:shadow-sm hover:border-muted-foreground/20 transition-all cursor-default"
+                          className={`rounded-lg border border-border bg-background px-3 py-2.5 transition-all ${
+                            inGraph
+                              ? "cursor-pointer hover:shadow-sm hover:border-primary/30"
+                              : "cursor-default"
+                          }`}
+                          onClick={inGraph ? () => handleJumpToEntityFromQuery(entity.name) : undefined}
+                          title={inGraph ? "点击在可视化中定位此实体" : undefined}
                         >
                           <div className="flex items-center justify-between gap-3">
                             <div className="flex min-w-0 items-center gap-2">
@@ -1685,6 +1806,9 @@ export function GraphPreviewPanel({
                               <span className="truncate text-xs font-medium text-foreground">
                                 {entity.name}
                               </span>
+                              {inGraph ? (
+                                <Eye className="h-3 w-3 shrink-0 text-muted-foreground" />
+                              ) : null}
                             </div>
                             <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
                               {entity.entity_type}
@@ -1696,7 +1820,8 @@ export function GraphPreviewPanel({
                             </p>
                           ) : null}
                         </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
                 ) : null}

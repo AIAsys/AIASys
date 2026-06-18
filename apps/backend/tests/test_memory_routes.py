@@ -195,17 +195,12 @@ def test_memory_capacity_route_with_workspace(memory_route_case) -> None:
 
 
 @pytest.mark.asyncio
-async def test_memory_consolidate_route_triggers_consolidation(
-    memory_route_case, monkeypatch
-):
+async def test_memory_consolidate_route_triggers_consolidation(memory_route_case, monkeypatch):
     import app.services.memory.pipeline as pipeline_module
 
     class FakeChunk:
         class delta:
-            content = (
-                "<MEMORY>\n# Consolidated\n</MEMORY>\n\n"
-                "<SUMMARY>\nSummary\n</SUMMARY>"
-            )
+            content = "<MEMORY>\n# Consolidated\n</MEMORY>\n\n<SUMMARY>\nSummary\n</SUMMARY>"
 
     class FakeClient:
         async def chat_stream(self, *args, **kwargs):
@@ -214,9 +209,7 @@ async def test_memory_consolidate_route_triggers_consolidation(
         async def aclose(self):
             pass
 
-    monkeypatch.setattr(
-        pipeline_module, "_create_memory_llm_client", lambda user_id: FakeClient()
-    )
+    monkeypatch.setattr(pipeline_module, "_create_memory_llm_client", lambda user_id: FakeClient())
 
     # 写入大文件触发 consolidation
     user_memory = get_user_memory_file_path(memory_route_case["tmp_path"] / "local_default")

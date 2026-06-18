@@ -1,4 +1,4 @@
-import { Suspense, lazy } from "react";
+import { Suspense, lazy, memo, useMemo } from "react";
 import {
   ChevronDown,
   ChevronUp,
@@ -40,8 +40,13 @@ function containsMathSyntax(content: string): boolean {
   );
 }
 
-function MarkdownPreview({ content }: { content: string }) {
-  if (containsMathSyntax(content)) {
+const MarkdownPreview = memo(function MarkdownPreview({
+  content,
+}: {
+  content: string;
+}) {
+  const hasMath = useMemo(() => containsMathSyntax(content), [content]);
+  if (hasMath) {
     return (
       <Suspense
         fallback={<div className="whitespace-pre-wrap text-sm">{content}</div>}
@@ -58,7 +63,7 @@ function MarkdownPreview({ content }: { content: string }) {
       <LazyMarkdownRenderer content={content} />
     </Suspense>
   );
-}
+});
 
 export interface NotebookCellCardProps {
   cell: NotebookCell;
@@ -86,7 +91,7 @@ export interface NotebookCellCardProps {
   onDeleteCell: (cellId: string) => void;
 }
 
-export function NotebookCellCard({
+export const NotebookCellCard = memo(function NotebookCellCard({
   cell,
   cellIndex,
   isFocused,
@@ -274,4 +279,4 @@ export function NotebookCellCard({
       </div>
     </div>
   );
-}
+});

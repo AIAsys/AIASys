@@ -61,7 +61,9 @@ def get_workspace_root() -> Path:
 def resolve_path(raw: str, workspace_root: Path) -> Path:
     p = Path(raw)
     if p.is_absolute():
-        rel = Path(*p.parts[2:]) if str(p) == "/workspace" or str(p).startswith("/workspace/") else p
+        rel = (
+            Path(*p.parts[2:]) if str(p) == "/workspace" or str(p).startswith("/workspace/") else p
+        )
     else:
         rel = p
     host = (workspace_root / rel).resolve()
@@ -94,13 +96,21 @@ def load_existing_ids(references_dir: Path) -> set[str]:
                     if "papers" in data and isinstance(data["papers"], list):
                         for paper in data["papers"]:
                             if isinstance(paper, dict):
-                                pid = paper.get("id") or paper.get("paper_id") or paper.get("arxiv_id")
+                                pid = (
+                                    paper.get("id")
+                                    or paper.get("paper_id")
+                                    or paper.get("arxiv_id")
+                                )
                                 if pid:
                                     existing.add(str(pid).strip())
                     elif "entries" in data and isinstance(data["entries"], list):
                         for entry in data["entries"]:
                             if isinstance(entry, dict):
-                                pid = entry.get("id") or entry.get("paper_id") or entry.get("arxiv_id")
+                                pid = (
+                                    entry.get("id")
+                                    or entry.get("paper_id")
+                                    or entry.get("arxiv_id")
+                                )
                                 if pid:
                                     existing.add(str(pid).strip())
                     else:
@@ -256,17 +266,19 @@ def search_arxiv(
 
         pdf_url = f"https://arxiv.org/pdf/{paper_id}.pdf"
 
-        entries.append({
-            "id": paper_id,
-            "title": title,
-            "authors": authors,
-            "summary": summary,
-            "published": published,
-            "updated": updated,
-            "categories": categories,
-            "pdf_url": pdf_url,
-            "entry_id": entry_id,
-        })
+        entries.append(
+            {
+                "id": paper_id,
+                "title": title,
+                "authors": authors,
+                "summary": summary,
+                "published": published,
+                "updated": updated,
+                "categories": categories,
+                "pdf_url": pdf_url,
+                "entry_id": entry_id,
+            }
+        )
 
     return entries
 

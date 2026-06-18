@@ -35,7 +35,9 @@ def get_workspace_root() -> Path:
 def resolve_path(raw: str, workspace_root: Path) -> Path:
     p = Path(raw)
     if p.is_absolute():
-        rel = Path(*p.parts[2:]) if str(p) == "/workspace" or str(p).startswith("/workspace/") else p
+        rel = (
+            Path(*p.parts[2:]) if str(p) == "/workspace" or str(p).startswith("/workspace/") else p
+        )
     else:
         rel = p
     host = (workspace_root / rel).resolve()
@@ -355,16 +357,18 @@ def main():
         date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
         # 创建 AIASys 全局知识图谱 .db 文件
-        graph_db_path = workspace_root.parent / "global_workspace" / "resources" / "graphs" / f"{args.name}.db"
+        graph_db_path = (
+            workspace_root.parent / "global_workspace" / "resources" / "graphs" / f"{args.name}.db"
+        )
         graph_db_path.parent.mkdir(parents=True, exist_ok=True)
         with sqlite3.connect(str(graph_db_path)) as conn:
-            conn.execute('''
+            conn.execute("""
                 CREATE TABLE IF NOT EXISTS _aiasys_metadata (
                     key TEXT PRIMARY KEY,
                     value TEXT
                 )
-            ''')
-            conn.execute('''
+            """)
+            conn.execute("""
                 CREATE TABLE IF NOT EXISTS entities (
                     entity_id TEXT PRIMARY KEY,
                     name TEXT NOT NULL,
@@ -374,8 +378,8 @@ def main():
                     source_doc_id TEXT,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
-            ''')
-            conn.execute('''
+            """)
+            conn.execute("""
                 CREATE TABLE IF NOT EXISTS relations (
                     relation_id TEXT PRIMARY KEY,
                     source_entity_id TEXT NOT NULL,
@@ -387,8 +391,8 @@ def main():
                     source_doc_id TEXT,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
-            ''')
-            conn.execute('''
+            """)
+            conn.execute("""
                 CREATE TABLE IF NOT EXISTS communities (
                     community_id TEXT PRIMARY KEY,
                     level INTEGER NOT NULL,
@@ -396,24 +400,24 @@ def main():
                     summary TEXT,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
-            ''')
-            conn.execute('''
+            """)
+            conn.execute("""
                 CREATE TABLE IF NOT EXISTS graph_metadata (
                     key TEXT PRIMARY KEY,
                     value TEXT
                 )
-            ''')
+            """)
             conn.execute(
                 "INSERT OR REPLACE INTO _aiasys_metadata (key, value) VALUES (?, ?)",
-                ("id", args.name)
+                ("id", args.name),
             )
             conn.execute(
                 "INSERT OR REPLACE INTO _aiasys_metadata (key, value) VALUES (?, ?)",
-                ("resource_type", "graph")
+                ("resource_type", "graph"),
             )
             conn.execute(
                 "INSERT OR REPLACE INTO graph_metadata (key, value) VALUES (?, ?)",
-                ("name", args.name)
+                ("name", args.name),
             )
             conn.commit()
 
@@ -494,8 +498,7 @@ def main():
 
         statement_description_path = project_dir / "statement" / "description.md"
         statement_description_path.write_text(
-            "# 题面文本\n\n"
-            "请将完整题面文本整理到这里。\n",
+            "# 题面文本\n\n请将完整题面文本整理到这里。\n",
             encoding="utf-8",
         )
 
@@ -559,8 +562,7 @@ def main():
 
         experiments_readme_path = project_dir / "experiments" / "README.md"
         experiments_readme_path.write_text(
-            "# 实验台账\n\n"
-            "`experiments/` 存放竞赛研究的结构化实验事实。\n",
+            "# 实验台账\n\n`experiments/` 存放竞赛研究的结构化实验事实。\n",
             encoding="utf-8",
         )
 

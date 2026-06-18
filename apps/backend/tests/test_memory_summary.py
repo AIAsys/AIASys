@@ -52,9 +52,7 @@ async def test_summary_updated_after_consolidation(service_with_layout, monkeypa
         async def aclose(self):
             pass
 
-    monkeypatch.setattr(
-        pipeline_module, "_create_memory_llm_client", lambda user_id: FakeClient()
-    )
+    monkeypatch.setattr(pipeline_module, "_create_memory_llm_client", lambda user_id: FakeClient())
 
     service.record_stage1_output(
         user_id="local_default",
@@ -91,10 +89,7 @@ async def test_summary_truncated_when_too_long(service_with_layout, monkeypatch)
 
     class FakeChunk:
         class delta:
-            content = (
-                f"<MEMORY>\n# Mem\n</MEMORY>\n\n"
-                f"<SUMMARY>\n{long_summary}\n</SUMMARY>"
-            )
+            content = f"<MEMORY>\n# Mem\n</MEMORY>\n\n<SUMMARY>\n{long_summary}\n</SUMMARY>"
 
     class FakeClient:
         async def chat_stream(self, *args, **kwargs):
@@ -103,9 +98,7 @@ async def test_summary_truncated_when_too_long(service_with_layout, monkeypatch)
         async def aclose(self):
             pass
 
-    monkeypatch.setattr(
-        pipeline_module, "_create_memory_llm_client", lambda user_id: FakeClient()
-    )
+    monkeypatch.setattr(pipeline_module, "_create_memory_llm_client", lambda user_id: FakeClient())
 
     service.record_stage1_output(
         user_id="local_default",

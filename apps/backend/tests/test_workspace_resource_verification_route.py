@@ -95,7 +95,9 @@ async def test_workspace_resource_verification_route_returns_unified_status(
             return SimpleNamespace(total=1)
 
     class FakeGraphService:
-        def __init__(self, kb_id: str, auto_init_llm: bool, user_id: str | None = None, graph_store=None):
+        def __init__(
+            self, kb_id: str, auto_init_llm: bool, user_id: str | None = None, graph_store=None
+        ):
             assert kb_id == "system"
 
         async def health_check(self):
@@ -147,7 +149,9 @@ async def test_workspace_resource_verification_route_returns_unified_status(
                 },
             )
 
-        def list_attached_connector_tables(self, *, user_id: str, session_id: str, connector_id: str):
+        def list_attached_connector_tables(
+            self, *, user_id: str, session_id: str, connector_id: str
+        ):
             assert user_id == "local_default"
             assert session_id == conversation.session_id
             assert connector_id == "conn-1"
@@ -176,6 +180,7 @@ async def test_workspace_resource_verification_route_returns_unified_status(
         "get_sqlite_kb_service",
         lambda: FakeKnowledgeService(),
     )
+
     async def fake_list_available_knowledge_graphs(user_id: str = "local_default"):
         return [
             {
@@ -199,6 +204,7 @@ async def test_workspace_resource_verification_route_returns_unified_status(
     )
     # Mock find_db_path to return a valid path so GraphRAGService gets created
     from app.graphrag.core import SQLiteGraphStore
+
     db_file = tmp_path / "test-system.db"
     db_file.touch()
     monkeypatch.setattr(

@@ -584,7 +584,7 @@ export function NewWorkspaceDialog({
         setIsReadingFolder(false);
       }
     },
-    [isReadingFolder],
+    [isReadingFolder, isUploadingFiles, effectiveLifecycleState.isBusy, readEntryAsFiles],
   );
 
   const handleDragOver = useCallback((e: React.DragEvent<HTMLDivElement>) => {

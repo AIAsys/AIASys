@@ -1277,13 +1277,22 @@ export const FileTreeView: React.FC<FileTreeViewProps> = ({
       onDragOver={handleRootDragOver}
       onDrop={handleRootDrop}
     >
-      <div
-        style={{
-          height: `${virtualizer.getTotalSize()}px`,
-          width: "100%",
-          position: "relative",
-        }}
-      >
+      {flatNodes.length === 0 && searchQuery ? (
+        // 搜索过滤后无匹配结果：展示提示而非空白区域
+        <div className="flex flex-col items-center justify-center px-6 py-10 text-center text-muted-foreground">
+          <p className="text-sm font-medium text-foreground/70">未找到匹配的文件</p>
+          <p className="mt-1 text-xs leading-5">
+            没有名称包含「{searchQuery}」的文件或文件夹
+          </p>
+        </div>
+      ) : (
+        <div
+          style={{
+            height: `${virtualizer.getTotalSize()}px`,
+            width: "100%",
+            position: "relative",
+          }}
+        >
         {virtualizer.getVirtualItems().map((virtualItem) => {
           const flatNode = flatNodes[virtualItem.index];
           if (!flatNode) return null;
@@ -1335,7 +1344,8 @@ export const FileTreeView: React.FC<FileTreeViewProps> = ({
             </div>
           );
         })}
-      </div>
+        </div>
+      )}
 
       {imagePreview ? (
         <React.Suspense fallback={null}>

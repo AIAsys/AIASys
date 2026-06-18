@@ -41,7 +41,11 @@ def test_apply_display_content_ignores_older_orphan_entries_after_compact() -> N
 
     hydrated = apply_display_content_to_history(history, display_entries)
 
-    user_contents = [item.get("display_content") or item.get("content") for item in hydrated if item.get("role") == "user"]
+    user_contents = [
+        item.get("display_content") or item.get("content")
+        for item in hydrated
+        if item.get("role") == "user"
+    ]
     assert user_contents == ["latest-visible"]
 
 
@@ -75,7 +79,11 @@ def test_apply_display_content_keeps_newer_unmatched_entry_when_sdk_history_lags
 
     hydrated = apply_display_content_to_history(history, display_entries)
 
-    user_contents = [item.get("display_content") or item.get("content") for item in hydrated if item.get("role") == "user"]
+    user_contents = [
+        item.get("display_content") or item.get("content")
+        for item in hydrated
+        if item.get("role") == "user"
+    ]
     assert user_contents == ["previous-visible", "latest-visible"]
 
 
@@ -162,8 +170,7 @@ def test_apply_display_content_uses_display_timestamps_to_keep_order_stable() ->
     )
 
     assert [
-        (item.get("role"), item.get("display_content") or item.get("content"))
-        for item in hydrated
+        (item.get("role"), item.get("display_content") or item.get("content")) for item in hydrated
     ] == [
         ("user", "older-visible"),
         ("user", "latest-visible"),

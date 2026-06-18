@@ -150,9 +150,7 @@ def test_build_transport_user_input_persists_file_uri_transport_content(
     ]
     assert transport_content[0] == {"type": "text", "text": "[USER_TASK]\n看看这张图"}
     assert transport_content[1]["source_path"] == "/workspace/chart.png"
-    assert transport_content[1]["image_url"]["url"].startswith(
-        "file:///workspace/chart.png"
-    )
+    assert transport_content[1]["image_url"]["url"].startswith("file:///workspace/chart.png")
 
 
 def test_build_transport_user_input_rejects_image_for_text_only_model(

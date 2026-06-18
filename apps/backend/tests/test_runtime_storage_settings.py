@@ -163,9 +163,7 @@ async def test_storage_settings_routes_use_service(
     )
 
     saved = await system_route.update_storage_settings(
-        system_route.UpdateStorageSettingsRequest(
-            paths={"data_dir": str(tmp_path / "next-data")}
-        ),
+        system_route.UpdateStorageSettingsRequest(paths={"data_dir": str(tmp_path / "next-data")}),
         current_user=_build_user(),
     )
     validation = await system_route.validate_storage_path(
@@ -191,15 +189,11 @@ async def test_storage_migration_routes_use_service(
     )
 
     preview = await system_route.preview_storage_migration(
-        system_route.StorageMigrationRequest(
-            paths={"data_dir": str(tmp_path / "next-data")}
-        ),
+        system_route.StorageMigrationRequest(paths={"data_dir": str(tmp_path / "next-data")}),
         current_user=_build_user(),
     )
     started = await system_route.start_storage_migration(
-        system_route.StorageMigrationRequest(
-            paths={"data_dir": str(tmp_path / "next-data")}
-        ),
+        system_route.StorageMigrationRequest(paths={"data_dir": str(tmp_path / "next-data")}),
         current_user=_build_user(),
     )
     status = await system_route.get_storage_migration_status(current_user=_build_user())

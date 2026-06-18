@@ -25,7 +25,9 @@ def _build_client(monkeypatch, tmp_path) -> TestClient:
     return TestClient(app)
 
 
-def _prepare_workspace(tmp_path, *, user_id: str = "local_default", workspace_id: str = "ws-auto-task") -> WorkspaceRegistryService:
+def _prepare_workspace(
+    tmp_path, *, user_id: str = "local_default", workspace_id: str = "ws-auto-task"
+) -> WorkspaceRegistryService:
     service = WorkspaceRegistryService(tmp_path)
     service.create_workspace(
         user_id=user_id,

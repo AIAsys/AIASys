@@ -4,6 +4,7 @@ const DEFAULT_MCP_HOST = "http://localhost:8080";
 import {
   Loader2,
   Package,
+  Pencil,
   Plus,
   RefreshCw,
   Search,
@@ -92,6 +93,7 @@ export function SettingsMCPMarketPanel({
   const [detailEnvSaving, setDetailEnvSaving] = useState(false);
   const [processingName, setProcessingName] = useState<string | null>(null);
   const [addDialogOpen, setAddDialogOpen] = useState(false);
+  const [editingServerName, setEditingServerName] = useState<string | null>(null);
   const [addForm, setAddForm] = useState({
     name: "",
     type: "streamable-http" as "streamable-http" | "stdio" | "sse",
@@ -108,6 +110,7 @@ export function SettingsMCPMarketPanel({
     error,
     refreshStore,
     addStoreServer,
+    updateStoreServer,
     removeStoreServer,
   } = useSessionMCPManager({ enabled: true });
 
@@ -207,12 +210,44 @@ export function SettingsMCPMarketPanel({
           ? addForm.args.trim().split(/\s+/)
           : undefined;
       }
-      await addStoreServer(config as Parameters<typeof addStoreServer>[0]);
-      setAddDialogOpen(false);
-      void refreshStore();
+      const isEditing = editingServerName !== null;
+      const success = isEditing
+        ? await updateStoreServer(config as Parameters<typeof updateStoreServer>[0])
+        : await addStoreServer(config as Parameters<typeof addStoreServer>[0]);
+      if (success) {
+        setAddDialogOpen(false);
+        setEditingServerName(null);
+        void refreshStore();
+      }
     } finally {
       setAddSubmitting(false);
     }
+  };
+
+  const openEditDialog = (server: MCPStoreItem) => {
+    setEditingServerName(server.name);
+    setAddForm({
+      name: server.name,
+      type: (server.type as "streamable-http" | "stdio" | "sse") || "streamable-http",
+      url: server.url || "",
+      command: server.command || "",
+      args: server.args?.join(" ") || "",
+      description: server.description || "",
+    });
+    setAddDialogOpen(true);
+  };
+
+  const openAddDialog = () => {
+    setEditingServerName(null);
+    setAddForm({
+      name: "",
+      type: "streamable-http",
+      url: "",
+      command: "",
+      args: "",
+      description: "",
+    });
+    setAddDialogOpen(true);
   };
 
   const detailItem = storeServers.find((s) => s.name === detailServer) || null;
@@ -274,6 +309,20 @@ export function SettingsMCPMarketPanel({
           >
             详情
           </Button>
+
+          {!server.is_system_default && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
+              onClick={() => openEditDialog(server)}
+              disabled={isProcessing}
+              title="编辑"
+            >
+              <Pencil className="h-4 w-4" />
+            </Button>
+          )}
 
           {!server.is_system_default && (
             <Button
@@ -366,17 +415,7 @@ export function SettingsMCPMarketPanel({
                 variant="outline"
                 size="sm"
                 className="h-9 gap-1 text-xs"
-                onClick={() => {
-                  setAddForm({
-                    name: "",
-                    type: "streamable-http",
-                    url: "",
-                    command: "",
-                    args: "",
-                    description: "",
-                  });
-                  setAddDialogOpen(true);
-                }}
+                onClick={() => openAddDialog()}
               >
                 <Plus className="h-3.5 w-3.5" />
                 添加
@@ -951,13 +990,23 @@ export function SettingsMCPMarketPanel({
         </DialogContent>
       </Dialog>
 
-      {/* Add MCP Server Dialog */}
-      <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
+      {/* Add / Edit MCP Server Dialog */}
+      <Dialog
+        open={addDialogOpen}
+        onOpenChange={(open) => {
+          setAddDialogOpen(open);
+          if (!open) setEditingServerName(null);
+        }}
+      >
         <DialogContent className="max-w-lg max-h-[90vh] overflow-hidden flex flex-col bg-background">
           <DialogHeader className="shrink-0">
-            <DialogTitle>添加连接器</DialogTitle>
+            <DialogTitle>
+              {editingServerName !== null ? "编辑连接器" : "添加连接器"}
+            </DialogTitle>
             <DialogDescription>
-              将连接器添加到我的默认。
+              {editingServerName !== null
+                ? "修改连接器配置，保存后即时生效。"
+                : "将连接器添加到我的默认。"}
             </DialogDescription>
           </DialogHeader>
           <form
@@ -977,7 +1026,13 @@ export function SettingsMCPMarketPanel({
                   onChange={(e) =>
                     setAddForm((prev) => ({ ...prev, name: e.target.value }))
                   }
+                  disabled={editingServerName !== null}
                 />
+                {editingServerName !== null ? (
+                  <p className="text-[11px] text-muted-foreground">
+                    名称创建后不可修改。
+                  </p>
+                ) : null}
               </div>
 
               <div className="space-y-1.5">
@@ -1056,9 +1111,26 @@ export function SettingsMCPMarketPanel({
                 />
               </div>
 
-              <div className="rounded-lg border border-border bg-muted/40 p-3 text-xs text-muted-foreground">
-                如需配置 <strong>Headers</strong>、<strong>环境变量</strong>、<strong>超时</strong> 等高级选项，
-                请直接编辑我的默认配置文件 <code className="text-xs">global_workspace/.aiasys/mcp_config.json</code>。
+              {/* 配置说明 */}
+              <div className="rounded-lg border border-border bg-muted/40 p-3 space-y-2 text-xs text-muted-foreground">
+                <div className="font-medium text-foreground">配置说明</div>
+                <ul className="space-y-1.5 leading-5">
+                  <li>
+                    <strong>streamable-http</strong>：通过 HTTP 连接远程 MCP 服务器，需填写可访问的 URL（如 <code>http://host:port/mcp</code>）。
+                  </li>
+                  <li>
+                    <strong>stdio</strong>：通过子进程运行本地 MCP 服务器，需填写可执行命令（如 <code>npx</code>）和启动参数。
+                  </li>
+                  <li>
+                    <strong>sse</strong>：通过 Server-Sent Events 连接，需填写 SSE 端点 URL。
+                  </li>
+                  <li>
+                    <strong>环境变量</strong>：在卡片"详情"中配置，用于填写 API Key、Token 等凭据。
+                  </li>
+                  <li>
+                    <strong>高级选项</strong>：Headers、超时等可编辑配置文件 <code>global_workspace/.aiasys/mcp_config.json</code>。
+                  </li>
+                </ul>
               </div>
             </div>
 
@@ -1067,7 +1139,10 @@ export function SettingsMCPMarketPanel({
                 type="button"
                 variant="outline"
                 size="sm"
-                onClick={() => setAddDialogOpen(false)}
+                onClick={() => {
+                  setAddDialogOpen(false);
+                  setEditingServerName(null);
+                }}
                 disabled={addSubmitting}
               >
                 取消
@@ -1080,7 +1155,7 @@ export function SettingsMCPMarketPanel({
                 {addSubmitting ? (
                   <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
                 ) : null}
-                添加
+                {editingServerName !== null ? "保存" : "添加"}
               </Button>
             </div>
           </form>

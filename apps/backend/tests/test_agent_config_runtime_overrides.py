@@ -269,7 +269,7 @@ async def test_generate_dynamic_agent_config_filters_enabled_experts_and_renders
 
     host_config = config_dir / "host.toml"
     host_config.write_text(
-        '''version = 1
+        """version = 1
 [agent]
 name = "host"
 model = "host-model"
@@ -279,27 +279,27 @@ system_prompt_path = "./host_prompt.md"
 [agent.subagents]
 worker = { path = "./worker.toml", description = "worker" }
 reviewer = { path = "./reviewer.toml", description = "reviewer" }
-''',
+""",
         encoding="utf-8",
     )
     (config_dir / "worker.toml").write_text(
-        '''version = 1
+        """version = 1
 [agent]
 name = "worker"
 model = "worker-model"
 tools = []
 system_prompt_path = "./worker_prompt.md"
-''',
+""",
         encoding="utf-8",
     )
     (config_dir / "reviewer.toml").write_text(
-        '''version = 1
+        """version = 1
 [agent]
 name = "reviewer"
 model = "reviewer-model"
 tools = []
 system_prompt_path = "./reviewer_prompt.md"
-''',
+""",
         encoding="utf-8",
     )
 
@@ -356,17 +356,14 @@ system_prompt_path = "./reviewer_prompt.md"
     )
 
     import tomllib
-    generated_payload = tomllib.loads(
-        generated_path.read_text(encoding="utf-8")
-    )
+
+    generated_payload = tomllib.loads(generated_path.read_text(encoding="utf-8"))
     generated_subagents = generated_payload["agent"]["subagents"]
 
     assert list(generated_subagents.keys()) == ["reviewer"]
     reviewer_generated_path = generated_subagents["reviewer"]["path"]
     reviewer_payload = tomllib.loads(
-        dynamic_agent_config_module.Path(reviewer_generated_path).read_text(
-            encoding="utf-8"
-        )
+        dynamic_agent_config_module.Path(reviewer_generated_path).read_text(encoding="utf-8")
     )
     host_generated_prompt = dynamic_agent_config_module.Path(
         generated_payload["agent"]["system_prompt_path"]
@@ -482,7 +479,7 @@ async def test_compute_agent_config_version_tracks_expert_prompt_changes(
 
     host_config = config_dir / "host.toml"
     host_config.write_text(
-        '''version = 1
+        """version = 1
 [agent]
 name = "host"
 model = "host-model"
@@ -492,27 +489,27 @@ system_prompt_path = "./host_prompt.md"
 [agent.subagents]
 worker = { path = "./worker.toml", description = "worker" }
 reviewer = { path = "./reviewer.toml", description = "reviewer" }
-''',
+""",
         encoding="utf-8",
     )
     (config_dir / "worker.toml").write_text(
-        '''version = 1
+        """version = 1
 [agent]
 name = "worker"
 model = "worker-model"
 tools = []
 system_prompt_path = "./worker_prompt.md"
-''',
+""",
         encoding="utf-8",
     )
     (config_dir / "reviewer.toml").write_text(
-        '''version = 1
+        """version = 1
 [agent]
 name = "reviewer"
 model = "reviewer-model"
 tools = []
 system_prompt_path = "./reviewer_prompt.md"
-''',
+""",
         encoding="utf-8",
     )
 

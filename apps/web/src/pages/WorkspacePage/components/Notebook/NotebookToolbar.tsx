@@ -14,7 +14,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { NotebookStorageScope } from "@/types/notebook";
-import { CanvasActionMenu } from "@/pages/WorkspacePage/components/WorkspaceLayout/components/CanvasActionMenu";
+import { CanvasActionMenu } from "@/components/workspace/CanvasActionMenu";
 
 export const NOTEBOOK_INSPECTOR_TABS = [
   "outline",

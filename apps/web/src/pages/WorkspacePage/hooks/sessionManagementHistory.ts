@@ -29,7 +29,9 @@ function getHistoryAttachmentPaths(
   const results: string[] = [];
   const seen = new Set<string>();
   for (const item of content) {
-    if (item.type !== "image_url") {
+    // image_url：当前轮次附件；image_reference：后端降级后的历史图片引用。
+    // 两者都携带 source_path，需要一并提取，否则编辑重发后从历史恢复会丢失附件。
+    if (item.type !== "image_url" && item.type !== "image_reference") {
       continue;
     }
     const candidate =
@@ -235,7 +237,16 @@ export function restoreChatItemsFromHistory(
     if (msg.role === "user") {
       const renderedContent = msg.display_content ?? msg.content;
       const content = getHistoryTextContent(renderedContent);
-      const attachments = getHistoryAttachmentPaths(renderedContent);
+      // 编辑重发后后端会将 display_content 降级为纯文本字符串，丢失图片结构。
+      // 此时回退到 content（始终保留 image_url / image_reference 结构）提取附件。
+      let attachments = getHistoryAttachmentPaths(renderedContent);
+      if (
+        attachments.length === 0 &&
+        msg.display_content != null &&
+        msg.content !== msg.display_content
+      ) {
+        attachments = getHistoryAttachmentPaths(msg.content);
+      }
       // 过滤 SDK 内部注入的 system-reminder 消息
       if (content.trim().startsWith("<system-reminder>")) {
         return;

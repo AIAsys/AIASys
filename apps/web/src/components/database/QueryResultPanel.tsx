@@ -1,3 +1,4 @@
+import { memo, useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
 import type {
   RuntimeDatabaseExecuteResponse,
@@ -30,7 +31,18 @@ interface QueryResultPanelProps {
   result: QueryResultState;
 }
 
-export function QueryResultPanel({ result }: QueryResultPanelProps) {
+export const QueryResultPanel = memo(function QueryResultPanel({
+  result,
+}: QueryResultPanelProps) {
+  const formattedRows = useMemo(() => {
+    if (result?.type !== "query" || result.data.columns.length === 0) {
+      return null;
+    }
+    return result.data.rows.map((row) =>
+      result.data.columns.map((_, colIdx) => formatCellValue(row[colIdx])),
+    );
+  }, [result]);
+
   return (
     <div className="min-h-0 flex-1 flex flex-col overflow-hidden">
       <div className="min-h-0 flex-1 overflow-auto">
@@ -73,18 +85,18 @@ export function QueryResultPanel({ result }: QueryResultPanelProps) {
                     </tr>
                   </thead>
                   <tbody>
-                    {result.data.rows.map((row, index) => (
+                    {formattedRows?.map((formattedRow, index) => (
                       <tr
-                        key={`${index}-${row.length}`}
+                        key={`${index}-${formattedRow.length}`}
                         className="border-b border-border/60 last:border-b-0"
                       >
-                        {result.data.columns.map((_column, columnIndex) => (
+                        {formattedRow.map((cellValue, columnIndex) => (
                           <td
                             key={`c${columnIndex}-r${index}`}
                             className="px-2 py-1.5 align-top font-mono text-[10px] text-foreground max-w-[240px] truncate"
-                            title={formatCellValue(row[columnIndex])}
+                            title={cellValue}
                           >
-                            {formatCellValue(row[columnIndex])}
+                            {cellValue}
                           </td>
                         ))}
                       </tr>
@@ -138,4 +150,4 @@ export function QueryResultPanel({ result }: QueryResultPanelProps) {
       ) : null}
     </div>
   );
-}
+});

@@ -25,9 +25,7 @@ def resolve_file(raw: str, workspace_root: Path) -> Path:
     p = Path(raw)
     if p.is_absolute():
         rel = (
-            Path(*p.parts[2:])
-            if str(p) == "/workspace" or str(p).startswith("/workspace/")
-            else p
+            Path(*p.parts[2:]) if str(p) == "/workspace" or str(p).startswith("/workspace/") else p
         )
     else:
         rel = p

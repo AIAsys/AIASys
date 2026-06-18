@@ -1,4 +1,5 @@
 import { API_BASE_URL } from "@/config/api";
+import { backendHealth } from "@/lib/backendHealth";
 
 type QueryValue = string | number | boolean | null | undefined;
 
@@ -146,8 +147,9 @@ export async function apiRequest<T>(
   }
   const requestSignal = controller.signal;
 
+  let response: Response;
   try {
-    const response = await fetch(buildUrl(path, query), {
+    response = await fetch(buildUrl(path, query), {
       method: method || (requestBody ? "POST" : "GET"),
       credentials: credentials ?? "include",
       headers: requestHeaders,
@@ -155,21 +157,28 @@ export async function apiRequest<T>(
       signal: requestSignal,
       ...rest,
     });
-
-    const payload = await parseResponseBody(response);
-    if (!response.ok) {
-      // Global 401 handler: dispatch event for AuthContext to handle
-      if (response.status === 401) {
-        window.dispatchEvent(new CustomEvent("aiasys:auth-expired"));
-      }
-      throw new ApiRequestError(response.status, payload);
-    }
-    return payload as T;
+  } catch (networkErr) {
+    // fetch 本身抛异常 → 后端不可达
+    backendHealth.recordFailure();
+    throw networkErr;
   } finally {
     if (timeoutId !== null) {
       window.clearTimeout(timeoutId);
     }
   }
+
+  // 收到 HTTP 响应 → 后端可达
+  backendHealth.recordSuccess();
+
+  const payload = await parseResponseBody(response);
+  if (!response.ok) {
+    // Global 401 handler: dispatch event for AuthContext to handle
+    if (response.status === 401) {
+      window.dispatchEvent(new CustomEvent("aiasys:auth-expired"));
+    }
+    throw new ApiRequestError(response.status, payload);
+  }
+  return payload as T;
 }
 
 export async function apiFetch(
@@ -219,7 +228,7 @@ export async function apiFetch(
   const requestSignal = controller.signal;
 
   try {
-    return await fetch(buildUrl(path, query), {
+    const response = await fetch(buildUrl(path, query), {
       method: method || (requestBody ? "POST" : "GET"),
       credentials: credentials ?? "include",
       headers: requestHeaders,
@@ -227,6 +236,11 @@ export async function apiFetch(
       signal: requestSignal,
       ...rest,
     });
+    backendHealth.recordSuccess();
+    return response;
+  } catch (networkErr) {
+    backendHealth.recordFailure();
+    throw networkErr;
   } finally {
     if (timeoutId !== null) {
       window.clearTimeout(timeoutId);

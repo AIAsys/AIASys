@@ -27,33 +27,39 @@ from app.core.templates import (
 class TestSafePathGuards:
     """路径安全校验测试。"""
 
-    @pytest.mark.parametrize("path,expected", [
-        ("README.md", True),
-        ("dir/file.txt", True),
-        ("", False),
-        ("../secret.txt", False),
-        ("./file.txt", False),
-        ("/.bashrc", False),
-        ("a//b", False),
-        (".git/config", False),
-        ("dir/../escape", False),
-        ("file\x00.txt", False),
-        ("windows\\path", True),
-    ])
+    @pytest.mark.parametrize(
+        "path,expected",
+        [
+            ("README.md", True),
+            ("dir/file.txt", True),
+            ("", False),
+            ("../secret.txt", False),
+            ("./file.txt", False),
+            ("/.bashrc", False),
+            ("a//b", False),
+            (".git/config", False),
+            ("dir/../escape", False),
+            ("file\x00.txt", False),
+            ("windows\\path", True),
+        ],
+    )
     def test_is_safe_relative_path(self, path: str, expected: bool) -> None:
         assert _is_safe_relative_path(path) is expected
 
-    @pytest.mark.parametrize("tid,expected", [
-        ("blank-workspace", True),
-        ("my-template", True),
-        ("", False),
-        (" ", False),
-        ("../etc", False),
-        ("a/b", False),
-        ("a\\b", False),
-        ("..", False),
-        ("/abs", False),
-    ])
+    @pytest.mark.parametrize(
+        "tid,expected",
+        [
+            ("blank-workspace", True),
+            ("my-template", True),
+            ("", False),
+            (" ", False),
+            ("../etc", False),
+            ("a/b", False),
+            ("a\\b", False),
+            ("..", False),
+            ("/abs", False),
+        ],
+    )
     def test_is_safe_template_id(self, tid: str, expected: bool) -> None:
         assert _is_safe_template_id(tid) is expected
 
@@ -69,7 +75,7 @@ class TestTomlSerialization:
         data = {
             "template_id": "test-roundtrip",
             "name": "测试模板",
-            "description": "包含 \"\"\" 和换行",
+            "description": '包含 """ 和换行',
             "icon": "file",
             "category": "测试",
             "default_title": "新任务",
@@ -79,7 +85,7 @@ class TestTomlSerialization:
             "files": [
                 {
                     "relative_path": "README.md",
-                    "content": "# Hello\n```python\nprint(\"\"\"hi\"\"\")\n```",
+                    "content": '# Hello\n```python\nprint("""hi""")\n```',
                 }
             ],
             "env_vars": {"FOO": "bar"},
@@ -87,9 +93,7 @@ class TestTomlSerialization:
             "recommended_mcps": [],
             "recommended_capabilities": [],
         }
-        (template_dir / "template.toml").write_text(
-            _dump_template_toml(data), encoding="utf-8"
-        )
+        (template_dir / "template.toml").write_text(_dump_template_toml(data), encoding="utf-8")
 
         loaded = _load_template(template_dir)
         assert loaded is not None
@@ -109,13 +113,13 @@ class TestSourcePathTraversal:
         secret_file = tmp_path / "secret.txt"
         secret_file.write_text("SECRET", encoding="utf-8")
 
-        toml_content = f'''
+        toml_content = f"""
 template_id = "bad-tmpl"
 name = "Bad"
 [[files]]
 relative_path = "stolen.txt"
 source_path = "../secret.txt"
-'''
+"""
         (template_dir / "template.toml").write_text(toml_content, encoding="utf-8")
 
         loaded = _load_template(template_dir)
@@ -128,13 +132,13 @@ source_path = "../secret.txt"
         template_dir.mkdir()
         (template_dir / ".env").write_text("API_KEY=123", encoding="utf-8")
 
-        toml_content = '''
+        toml_content = """
 template_id = "hidden-tmpl"
 name = "Hidden"
 [[files]]
 relative_path = "env.txt"
 source_path = ".env"
-'''
+"""
         (template_dir / "template.toml").write_text(toml_content, encoding="utf-8")
 
         loaded = _load_template(template_dir)
@@ -193,6 +197,7 @@ class TestListAndGetTemplates:
 class TestBuildTemplatePayload:
     def test_is_builtin_for_system_template(self, monkeypatch) -> None:
         import app.core.templates as tmpl_mod
+
         fake_dir = Path("/fake/templates")
         monkeypatch.setattr(tmpl_mod, "_TEMPLATES_DIR", fake_dir)
         tmpl = WorkspaceTemplate(
@@ -230,6 +235,7 @@ class TestExportWorkspaceAsTemplate:
         (workspace_dir / "README.md").write_text("# Demo", encoding="utf-8")
 
         import app.core.templates as tmpl_mod
+
         monkeypatch = pytest.MonkeyPatch()
         monkeypatch.setattr(
             tmpl_mod,
@@ -258,6 +264,7 @@ class TestExportWorkspaceAsTemplate:
         )
 
         import app.core.templates as tmpl_mod
+
         monkeypatch = pytest.MonkeyPatch()
         monkeypatch.setattr(
             tmpl_mod,
@@ -280,6 +287,7 @@ class TestDeleteUserTemplate:
 
     def test_delete_existing_user_template(self, tmp_path: Path, monkeypatch) -> None:
         import app.core.templates as tmpl_mod
+
         user_dir = tmp_path / "user_templates"
         user_dir.mkdir()
         (user_dir / "my-tmpl" / "template.toml").parent.mkdir(parents=True)
@@ -294,6 +302,7 @@ class TestDeleteUserTemplate:
     def test_delete_builtin_template_refused(self, tmp_path: Path, monkeypatch) -> None:
         """系统内置模板不可删除。"""
         import app.core.templates as tmpl_mod
+
         builtin_dir = tmp_path / "builtin"
         builtin_dir.mkdir()
         (builtin_dir / "builtin-tmpl" / "template.toml").parent.mkdir(parents=True)

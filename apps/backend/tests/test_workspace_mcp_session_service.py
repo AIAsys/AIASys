@@ -39,7 +39,9 @@ def test_mcp_session_service_uses_workspace_root_for_bound_conversation(
     )
     monkeypatch.setattr("app.mcp.manager.WORKSPACE_DIR", tmp_path)
 
-    _write_metadata(tmp_path / "local_default" / conversation.session_id / "metadata.json", "analysis")
+    _write_metadata(
+        tmp_path / "local_default" / conversation.session_id / "metadata.json", "analysis"
+    )
 
     from app.models.mcp import MCPServerConfig
 
@@ -90,6 +92,7 @@ def test_mcp_session_service_reads_current_session_config(
     # 先创建全局 store 定义
     from app.mcp import get_mcp_manager
     from app.mcp.models import MCPServerDefinition
+
     mgr = get_mcp_manager()
     mgr.save_store_server(
         "local_default",

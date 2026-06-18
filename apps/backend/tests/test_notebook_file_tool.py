@@ -322,7 +322,7 @@ async def test_read_full_notebook_sanitizes_binary_outputs(tmp_path: Path):
                                 "output_type": "display_data",
                                 "data": {
                                     "image/png": raw_base64,
-                                    "text/html": f"<img src=\"data:image/png;base64,{raw_base64}\">",
+                                    "text/html": f'<img src="data:image/png;base64,{raw_base64}">',
                                 },
                             }
                         ],
@@ -417,7 +417,6 @@ async def test_write_notebook_defaults_to_session_private_copy_when_session_root
     workspace_notebook = json.loads(workspace_notebook_path.read_text(encoding="utf-8"))
     assert len(workspace_notebook["cells"]) == 2
     assert workspace_notebook["cells"][1]["source"] == "branch private"
-
 
 
 @pytest.mark.asyncio

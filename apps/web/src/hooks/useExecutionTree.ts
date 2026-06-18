@@ -9,6 +9,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { apiRequest } from "@/lib/api/httpClient";
 import { eventBus, EVENTS } from "@/lib/eventBus";
 import { getExecutionRecordSeed } from "@/lib/runtimeToolEvents";
+import { useDocumentVisibility } from "./useDocumentVisibility";
 import type { SessionExecutionRecord } from "@/pages/WorkspacePage/types";
 import type { ExpertRoleSummary } from "@/types/expertRoles";
 const EXECUTION_MATCH_WINDOW_MS = 5 * 60 * 1000;
@@ -304,6 +305,9 @@ export function useExecutionTree(
   // 数据 ref：用于在 refresh 函数中判断是否为首次加载，避免 setState 嵌套
   const executionTreeRef = useRef<ExecutionTree | null>(null);
   const codeRecordsLoadedRef = useRef(false);
+
+  // 页面不可见时暂停轮询，恢复可见时立即刷新
+  const isVisible = useDocumentVisibility();
 
   // 清理函数
   useEffect(() => {
@@ -668,7 +672,7 @@ export function useExecutionTree(
   executionTreeRef.current = executionTree;
 
   useEffect(() => {
-    if (!enabled || !userId || !sessionId ) return;
+    if (!enabled || !userId || !sessionId || !isVisible) return;
 
     const hasActiveWork = Boolean(
       executionTreeRef.current &&
@@ -681,12 +685,14 @@ export function useExecutionTree(
     );
     if (!hasActiveWork) return;
 
+    // 恢复可见时立即刷新一次，避免后台期间遗漏的状态更新
+    void refreshTree();
     const interval = setInterval(() => {
       void refreshTree();
     }, 3000); // 每 3 秒刷新一次
 
     return () => clearInterval(interval);
-  }, [enabled, userId, sessionId, refreshTree]);
+  }, [enabled, userId, sessionId, isVisible, refreshTree]);
 
   // 监听事件总线
   useEffect(() => {

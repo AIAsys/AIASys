@@ -30,7 +30,9 @@ def get_workspace_root() -> Path:
 def resolve_path(raw: str, workspace_root: Path) -> Path:
     p = Path(raw)
     if p.is_absolute():
-        rel = Path(*p.parts[2:]) if str(p) == "/workspace" or str(p).startswith("/workspace/") else p
+        rel = (
+            Path(*p.parts[2:]) if str(p) == "/workspace" or str(p).startswith("/workspace/") else p
+        )
     else:
         rel = p
     host = (workspace_root / rel).resolve()
@@ -163,7 +165,9 @@ def build_research_dashboard_html(data: dict[str, Any], dashboard_path: str) -> 
         or ""
     )
     next_direction = priority.get("direction") or "暂无下一步候选"
-    next_rationale = priority.get("rationale") or "优先队列为空，下一轮先根据当前阶段、反模式和图谱线索补候选。"
+    next_rationale = (
+        priority.get("rationale") or "优先队列为空，下一轮先根据当前阶段、反模式和图谱线索补候选。"
+    )
     auto_task_status = data.get("auto_task_status") or "unknown"
     runner_status = data.get("runner_status") or "unknown"
     graph_id, graph_path = get_graph_config(data)
@@ -171,9 +175,7 @@ def build_research_dashboard_html(data: dict[str, Any], dashboard_path: str) -> 
     runtime = runner.get("expected_runtime_minutes")
     runtime_text = f"{runtime} 分钟" if runtime not in (None, "") else "未登记"
     auto_task_ids = data.get("auto_task_ids") if isinstance(data.get("auto_task_ids"), list) else []
-    recent = [
-        item for item in data.get("experiments", [])[-8:] if isinstance(item, dict)
-    ]
+    recent = [item for item in data.get("experiments", [])[-8:] if isinstance(item, dict)]
     recent_rows = [
         {
             "version": item.get("version", ""),
@@ -187,22 +189,26 @@ def build_research_dashboard_html(data: dict[str, Any], dashboard_path: str) -> 
     anti_rows = []
     for item in data.get("anti_patterns", [])[:8]:
         if isinstance(item, dict):
-            anti_rows.append({
-                "pattern": item.get("pattern", ""),
-                "source": item.get("source_version", ""),
-                "consequence": item.get("consequence", ""),
-            })
+            anti_rows.append(
+                {
+                    "pattern": item.get("pattern", ""),
+                    "source": item.get("source_version", ""),
+                    "consequence": item.get("consequence", ""),
+                }
+            )
         else:
             anti_rows.append({"pattern": str(item), "source": "", "consequence": ""})
     priority_rows = []
     for item in data.get("priority_queue", [])[:8]:
         if isinstance(item, dict):
-            priority_rows.append({
-                "priority": item.get("priority", ""),
-                "candidate": item.get("candidate_version") or item.get("slug") or "",
-                "direction": item.get("direction", ""),
-                "rationale": item.get("rationale", ""),
-            })
+            priority_rows.append(
+                {
+                    "priority": item.get("priority", ""),
+                    "candidate": item.get("candidate_version") or item.get("slug") or "",
+                    "direction": item.get("direction", ""),
+                    "rationale": item.get("rationale", ""),
+                }
+            )
     highest_exp = experiment_by_version(data, highest_version)
     highest_reason = (
         highest_exp.get("findings")
@@ -429,11 +435,17 @@ def main() -> None:
         )
         write_text(dashboard_path, html_content)
 
-        print(json.dumps({
-            "status": "ok",
-            "dashboard": str(dashboard_path),
-            "dashboard_written": True,
-        }, ensure_ascii=False, indent=2))
+        print(
+            json.dumps(
+                {
+                    "status": "ok",
+                    "dashboard": str(dashboard_path),
+                    "dashboard_written": True,
+                },
+                ensure_ascii=False,
+                indent=2,
+            )
+        )
 
     except Exception as exc:
         print(json.dumps({"error": str(exc)}, ensure_ascii=False))

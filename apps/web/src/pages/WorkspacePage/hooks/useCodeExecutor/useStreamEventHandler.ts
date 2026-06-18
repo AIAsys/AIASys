@@ -2,7 +2,11 @@ import { useCallback, useEffect, useRef } from "react";
 import type { ChatItem, ChatSegment } from "../../types";
 import type { TaskEvent } from "@/types/task";
 import type { AskUserRequest } from "@/types/askUser";
-import type { AgentEvent, MonitorOutputEvent } from "@/types/api";
+import type {
+  AgentEvent,
+  MonitorOutputEvent,
+  SubagentCapabilityConfirmationEvent,
+} from "@/types/api";
 import type { SessionSlot } from "./sessionRegistry";
 import { eventBus, EVENTS } from "@/lib/eventBus";
 import { shouldTrackExecutionFlowTool } from "@/lib/runtimeToolEvents";
@@ -75,7 +79,13 @@ export function useStreamEventHandler({
   // 流式过程中保持到达时序，不做全局排序
   const syncSegmentsToUI = useCallback((sessionId: string) => {
     const slot = getSessionSlot(sessionId);
-    const currentSegments = slot.streamingSegments.map((s) => ({ ...s }));
+    // 只对最后一个 segment 做浅拷贝，其他保持原引用，
+    // 使下游 useMemo（如 renderSegments）能跳过未变 segment 的重复计算
+    const rawSegs = slot.streamingSegments;
+    const currentSegments =
+      rawSegs.length > 0
+        ? rawSegs.map((s, i) => (i === rawSegs.length - 1 ? { ...s } : s))
+        : [];
     const content = currentSegments
       .filter((s) => s.type === "text" || s.type === "think")
       .map((s) => s.content)
@@ -130,12 +140,12 @@ export function useStreamEventHandler({
 
   // 当新的非 think segment 到达时，将前面未完成的 think segment 标记为已完成
   // 使其 spinner 立即停止，而非等到整个消息结束
-  const closePendingThink = (segments: ChatSegment[]) => {
+  const closePendingThink = useCallback((segments: ChatSegment[]) => {
     const lastSeg = segments[segments.length - 1];
     if (lastSeg && lastSeg.type === "think" && !lastSeg.isComplete) {
       segments[segments.length - 1] = { ...lastSeg, isComplete: true };
     }
-  };
+  }, []);
 
   const handleStreamEvent = useCallback((sessionId: string, event: StreamEvent) => {
     const eventType = event.type;
@@ -559,9 +569,13 @@ export function useStreamEventHandler({
             prompt: event.content || `是否允许执行工具 ${event.tool_name || ""}？`,
             session_id: sessionId,
             status: "pending",
-            subagent_name: isSubagent ? (event as any).subagent_name : undefined,
-            agent_id: isSubagent ? (event as any).agent_id : undefined,
-            pattern_key: (event as any).pattern_key,
+            subagent_name: isSubagent
+              ? (event as SubagentCapabilityConfirmationEvent).subagent_name
+              : undefined,
+            agent_id: isSubagent
+              ? (event as SubagentCapabilityConfirmationEvent).agent_id
+              : undefined,
+            pattern_key: (event as { pattern_key?: string }).pattern_key,
             timestamp: new Date(),
           },
         ];
@@ -597,7 +611,7 @@ export function useStreamEventHandler({
         },
       ]);
     }
-  }, [getSessionSlot, updateChatItems, addStreamEventsForSession, scheduleFlush, syncSegmentsToUI]);
+  }, [getSessionSlot, updateChatItems, addStreamEventsForSession, scheduleFlush, syncSegmentsToUI, closePendingThink]);
 
   // Cleanup effect — clean up any flush timers
   useEffect(() => {

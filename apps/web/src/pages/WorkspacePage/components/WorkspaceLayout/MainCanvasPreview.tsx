@@ -11,7 +11,7 @@ import {
   getPreviewCategoryLabel,
   getPreviewTypeLabel,
 } from "@/utils/filePreviewRegistry";
-import { CanvasActionMenu } from "./components/CanvasActionMenu";
+import { CanvasActionMenu } from "@/components/workspace/CanvasActionMenu";
 import { isGenericallyEditable } from "@/utils/workspaceFileEditing";
 import type { WorkspaceFile } from "@/types/task";
 

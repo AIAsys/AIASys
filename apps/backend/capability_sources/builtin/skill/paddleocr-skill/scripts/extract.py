@@ -48,17 +48,17 @@ def resolve_path(raw: str, workspace_root: Path) -> Path:
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="将 PDF/图片转换为 Markdown（PaddleOCR Layout Parsing）")
+    parser = argparse.ArgumentParser(
+        description="将 PDF/图片转换为 Markdown（PaddleOCR Layout Parsing）"
+    )
     parser.add_argument("--file", required=True, help="输入文件路径（相对或 /workspace/ 形式）")
-    parser.add_argument("--file_type", type=int, default=0,
-                        help="文件类型: 0=PDF, 1=图片 (默认 0)")
+    parser.add_argument("--file_type", type=int, default=0, help="文件类型: 0=PDF, 1=图片 (默认 0)")
     parser.add_argument("--output_dir", default=None, help="输出目录（默认 <文件名>_extracted/）")
-    parser.add_argument("--use_doc_orientation_classify", action="store_true",
-                        help="启用文档方向分类")
-    parser.add_argument("--use_doc_unwarping", action="store_true",
-                        help="启用文档展平")
-    parser.add_argument("--use_chart_recognition", action="store_true",
-                        help="启用图表识别")
+    parser.add_argument(
+        "--use_doc_orientation_classify", action="store_true", help="启用文档方向分类"
+    )
+    parser.add_argument("--use_doc_unwarping", action="store_true", help="启用文档展平")
+    parser.add_argument("--use_chart_recognition", action="store_true", help="启用图表识别")
     return parser.parse_args()
 
 
@@ -84,7 +84,12 @@ def main():
         print(json.dumps({"error": "缺少 PADDLEOCR_API_URL 环境变量"}, ensure_ascii=False))
         sys.exit(1)
     if not token:
-        print(json.dumps({"error": "缺少 PADDLEOCR_TOKEN 环境变量。请参考 .env.example 配置"}, ensure_ascii=False))
+        print(
+            json.dumps(
+                {"error": "缺少 PADDLEOCR_TOKEN 环境变量。请参考 .env.example 配置"},
+                ensure_ascii=False,
+            )
+        )
         sys.exit(1)
 
     try:
@@ -121,9 +126,12 @@ def main():
 
         resp = requests.post(api_url, json=payload, headers=headers, timeout=300)
         if resp.status_code != 200:
-            print(json.dumps({
-                "error": f"API 请求失败 (HTTP {resp.status_code}): {resp.text[:500]}"
-            }, ensure_ascii=False))
+            print(
+                json.dumps(
+                    {"error": f"API 请求失败 (HTTP {resp.status_code}): {resp.text[:500]}"},
+                    ensure_ascii=False,
+                )
+            )
             sys.exit(1)
 
         result = resp.json()["result"]

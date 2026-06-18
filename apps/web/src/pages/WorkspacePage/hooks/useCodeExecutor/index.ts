@@ -93,6 +93,7 @@ export function useCodeExecutor({
     completeHost,
     completeAllTasks,
     reset: _resetMultiTask,
+    resetSessionTaskState,
     workspaceFiles,
     updateWorkspaceFiles,
     updateWorkspaceFilesForSession,
@@ -127,10 +128,13 @@ export function useCodeExecutor({
     switchSession: switchUploadSession,
     setActiveSessionId: setUploadActiveSessionId,
     removeSession: removeUploadSession,
+    retryUpload,
+    removeFailedUpload,
   } = useAgentFileUpload({ onUploadError: showError });
   const uploadedFiles = uploadState.files;
   const isUploading = uploadState.isUploading;
   const uploadProgress = uploadState.uploadProgress;
+  const failedUploads = uploadState.failedUploads;
 
   // Session-aware AskUser handler
   const handleAskUserRequest = useCallback(
@@ -273,6 +277,7 @@ export function useCodeExecutor({
     sessionId: sessionOrchestrator.sessionId,
     getSessionSlot,
     addStreamEventsForSession: addStreamEventsForSessionWrapped,
+    resetSessionTaskState,
     completeHost,
     completeAllTasks,
     reloadWorkspaceFiles,
@@ -694,10 +699,13 @@ export function useCodeExecutor({
       unregisterHiddenSession(id);
     },
     uploadedFiles,
+    failedUploads,
     removeFile: handleRemoveFile,
     handleUploadFiles,
     handleFileChange,
     handleAddFileClick,
+    retryUpload,
+    removeFailedUpload,
     conversations: sessionOrchestrator.conversations,
     updateSessionTitle: sessionOrchestrator.updateSessionTitle,
     handleViewExecutionSpace,

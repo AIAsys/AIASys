@@ -84,12 +84,10 @@ async def test_create_session_registers_mcp_tools(backend, base_spec):
     fake_tool.description = "Get time"
     fake_tool.inputSchema = {"type": "object"}
 
-    with patch(
-        "app.services.agent.runtime_backends.aiasys.mcp_client.MCPClient"
-    ) as mock_client_cls, patch(
-        "app.services.agent.runtime_backends.aiasys.tools.mcp_tool.MCPTool"
-    ) as mock_tool_cls:
-
+    with (
+        patch("app.services.agent.runtime_backends.aiasys.mcp_client.MCPClient") as mock_client_cls,
+        patch("app.services.agent.runtime_backends.aiasys.tools.mcp_tool.MCPTool") as mock_tool_cls,
+    ):
         mock_client = AsyncMock()
         mock_client.connect = AsyncMock()
         mock_client.list_tools = AsyncMock(return_value=[fake_tool])
@@ -103,7 +101,9 @@ async def test_create_session_registers_mcp_tools(backend, base_spec):
 
         session = await backend.create_session(base_spec)
 
-        mock_client_cls.assert_called_once_with("test-server", {"command": "python", "args": ["-c", "pass"]})
+        mock_client_cls.assert_called_once_with(
+            "test-server", {"command": "python", "args": ["-c", "pass"]}
+        )
         mock_client.connect.assert_awaited_once()
         mock_client.list_tools.assert_awaited_once()
         mock_tool_cls.assert_called_once()

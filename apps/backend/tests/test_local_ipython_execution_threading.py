@@ -65,6 +65,7 @@ async def test_local_ipython_box_offloads_kernel_polling_to_thread(
         "_resolve_runtime_helper_env",
         lambda self: {},
     )
+
     async def fake_get_or_create_kernel(cls, **kwargs):
         return object(), _FakeClient()
 

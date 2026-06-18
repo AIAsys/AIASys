@@ -2,7 +2,9 @@ import { Suspense, lazy, useCallback, useEffect, useState } from "react";
 
 import { PublicRoute, ProtectedRoute } from "./components/auth/RouteGuard";
 import { BackendCrashOverlay } from "./components/error/BackendCrashOverlay";
+import { ErrorBoundary } from "./components/error/ErrorBoundary";
 import NetworkStatusOverlay from "./components/error/NetworkStatusOverlay";
+import { RouteErrorFallback } from "./components/error/RouteErrorFallback";
 
 const HomePage = lazy(() => import("./pages/HomePage"));
 const WorkspacePage = lazy(() => import("./pages/WorkspacePage"));
@@ -111,41 +113,51 @@ function App() {
   if (routeConfig.isHome) {
     page = (
       <PublicRoute>
-        <Suspense fallback={<RouteLoading />}>
-          <HomePage />
-        </Suspense>
+        <ErrorBoundary fallback={(error, reset) => <RouteErrorFallback error={error} reset={reset} />}>
+          <Suspense fallback={<RouteLoading />}>
+            <HomePage />
+          </Suspense>
+        </ErrorBoundary>
       </PublicRoute>
     );
   } else if (routeConfig.isWorkspace) {
     page = (
       <ProtectedRoute fallbackUrl="/workspace">
-        <Suspense fallback={<RouteLoading />}>
-          <WorkspacePage initialSessionId={initialWorkspaceSessionId} />
-        </Suspense>
+        <ErrorBoundary fallback={(error, reset) => <RouteErrorFallback error={error} reset={reset} />}>
+          <Suspense fallback={<RouteLoading />}>
+            <WorkspacePage initialSessionId={initialWorkspaceSessionId} />
+          </Suspense>
+        </ErrorBoundary>
       </ProtectedRoute>
     );
   } else if (routeConfig.isProfile) {
     page = (
       <ProtectedRoute fallbackUrl="/profile">
-        <Suspense fallback={<RouteLoading />}>
-          <UserProfilePage />
-        </Suspense>
+        <ErrorBoundary fallback={(error, reset) => <RouteErrorFallback error={error} reset={reset} />}>
+          <Suspense fallback={<RouteLoading />}>
+            <UserProfilePage />
+          </Suspense>
+        </ErrorBoundary>
       </ProtectedRoute>
     );
   } else if (routeConfig.isDashboard) {
     page = (
       <ProtectedRoute fallbackUrl="/dashboard">
-        <Suspense fallback={<RouteLoading />}>
-          <TokenDashboard />
-        </Suspense>
+        <ErrorBoundary fallback={(error, reset) => <RouteErrorFallback error={error} reset={reset} />}>
+          <Suspense fallback={<RouteLoading />}>
+            <TokenDashboard />
+          </Suspense>
+        </ErrorBoundary>
       </ProtectedRoute>
     );
   } else {
     page = (
       <PublicRoute>
-        <Suspense fallback={<RouteLoading />}>
-          <HomePage />
-        </Suspense>
+        <ErrorBoundary fallback={(error, reset) => <RouteErrorFallback error={error} reset={reset} />}>
+          <Suspense fallback={<RouteLoading />}>
+            <HomePage />
+          </Suspense>
+        </ErrorBoundary>
       </PublicRoute>
     );
   }

@@ -23,9 +23,7 @@ class _FakeWriteStream:
 @pytest.fixture
 def mock_stdio_client():
     """Mock stdio_client async context manager。"""
-    with patch(
-        "app.services.agent.runtime_backends.aiasys.mcp_client.stdio_client"
-    ) as mock:
+    with patch("app.services.agent.runtime_backends.aiasys.mcp_client.stdio_client") as mock:
         mock.return_value.__aenter__ = AsyncMock(
             return_value=(_FakeReadStream(), _FakeWriteStream())
         )
@@ -36,9 +34,7 @@ def mock_stdio_client():
 @pytest.fixture
 def mock_client_session():
     """Mock ClientSession async context manager。"""
-    with patch(
-        "app.services.agent.runtime_backends.aiasys.mcp_client.ClientSession"
-    ) as mock_cls:
+    with patch("app.services.agent.runtime_backends.aiasys.mcp_client.ClientSession") as mock_cls:
         session = AsyncMock()
         session.initialize = AsyncMock()
         session.list_tools = AsyncMock()
@@ -75,9 +71,7 @@ async def test_mcp_client_accepts_streamable_http_session_callback(
     with patch(
         "app.services.agent.runtime_backends.aiasys.mcp_client._import_streamablehttp_client"
     ) as mock_import:
-        mock_streamablehttp_client = MagicMock(
-            return_value=_FakeHttpTransportContext()
-        )
+        mock_streamablehttp_client = MagicMock(return_value=_FakeHttpTransportContext())
         mock_import.return_value = mock_streamablehttp_client
 
         client = MCPClient(
@@ -121,10 +115,12 @@ async def test_mcp_client_list_tools_returns_tools(mock_stdio_client, mock_clien
     from mcp.types import Tool
 
     session = mock_client_session[1]
-    session.list_tools.return_value = MagicMock(tools=[
-        Tool(name="get_time", description="Get current time", inputSchema={"type": "object"}),
-        Tool(name="get_date", description="Get current date", inputSchema={"type": "object"}),
-    ])
+    session.list_tools.return_value = MagicMock(
+        tools=[
+            Tool(name="get_time", description="Get current time", inputSchema={"type": "object"}),
+            Tool(name="get_date", description="Get current date", inputSchema={"type": "object"}),
+        ]
+    )
 
     client = MCPClient("test-server", {"command": "test-cmd"})
     await client.connect()

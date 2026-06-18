@@ -33,10 +33,7 @@ def service_with_layout(tmp_path: Path, monkeypatch):
 
 class TestParseConsolidationResponse:
     def test_extracts_memory_and_summary(self):
-        text = (
-            "<MEMORY>\n# New Memory\nContent.\n</MEMORY>\n\n"
-            "<SUMMARY>\nNew summary.\n</SUMMARY>"
-        )
+        text = "<MEMORY>\n# New Memory\nContent.\n</MEMORY>\n\n<SUMMARY>\nNew summary.\n</SUMMARY>"
         memory, summary = _parse_consolidation_response(text)
         assert memory == "# New Memory\nContent."
         assert summary == "New summary."
@@ -117,10 +114,7 @@ async def test_run_stage2_consolidation_triggers_consolidation_on_capacity(
     # Mock LLM client
     class FakeChunk:
         class delta:
-            content = (
-                "<MEMORY>\n# Consolidated\n</MEMORY>\n\n"
-                "<SUMMARY>\nSummary\n</SUMMARY>"
-            )
+            content = "<MEMORY>\n# Consolidated\n</MEMORY>\n\n<SUMMARY>\nSummary\n</SUMMARY>"
 
     class FakeClient:
         async def chat_stream(self, *args, **kwargs):
@@ -129,9 +123,7 @@ async def test_run_stage2_consolidation_triggers_consolidation_on_capacity(
         async def aclose(self):
             pass
 
-    monkeypatch.setattr(
-        pipeline_module, "_create_memory_llm_client", lambda user_id: FakeClient()
-    )
+    monkeypatch.setattr(pipeline_module, "_create_memory_llm_client", lambda user_id: FakeClient())
 
     service.record_stage1_output(
         user_id="local_default",
@@ -207,9 +199,7 @@ async def test_run_stage2_noop_consolidation(service_with_layout, monkeypatch):
         async def aclose(self):
             pass
 
-    monkeypatch.setattr(
-        pipeline_module, "_create_memory_llm_client", lambda user_id: FakeClient()
-    )
+    monkeypatch.setattr(pipeline_module, "_create_memory_llm_client", lambda user_id: FakeClient())
 
     service.record_stage1_output(
         user_id="local_default",

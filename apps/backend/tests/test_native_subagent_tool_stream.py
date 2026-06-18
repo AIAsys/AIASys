@@ -110,9 +110,7 @@ async def test_invoke_stream_unknown_tool():
 
 
 def test_streaming_event_serializes_slots_dataclass() -> None:
-    result = _streaming_event(
-        AgentRuntimeEvent(kind="content", content_type="text", text="hello")
-    )
+    result = _streaming_event(AgentRuntimeEvent(kind="content", content_type="text", text="hello"))
 
     assert result.artifacts is not None
     payload = result.artifacts[0]["_streaming_event"]

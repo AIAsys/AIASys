@@ -41,7 +41,14 @@ def _family(version: str) -> str:
 
 def _short_version(version: str) -> str:
     """Shorten version for axis labels."""
-    return version.replace("lgb_b", "L").replace("blend_b", "B").replace("xgb_b", "X").replace("catboost_b", "C").replace("transformer_b", "T").replace("lstm_b", "M")
+    return (
+        version.replace("lgb_b", "L")
+        .replace("blend_b", "B")
+        .replace("xgb_b", "X")
+        .replace("catboost_b", "C")
+        .replace("transformer_b", "T")
+        .replace("lstm_b", "M")
+    )
 
 
 def _fmt_score(v) -> str:
@@ -51,7 +58,12 @@ def _fmt_score(v) -> str:
 
 
 def _phase_color(phase: str) -> str:
-    return {"model": "#5470c6", "feature": "#91cc75", "ensemble": "#fac858", "literature": "#ee6666"}.get(phase, "#999")
+    return {
+        "model": "#5470c6",
+        "feature": "#91cc75",
+        "ensemble": "#fac858",
+        "literature": "#ee6666",
+    }.get(phase, "#999")
 
 
 def _decision_color(decision: str) -> str:
@@ -110,24 +122,28 @@ def gen_timeline(data):
 
     mark_points = []
     if best_idx >= 0 and scores[best_idx] is not None:
-        mark_points.append({
-            "name": "Trusted Best",
-            "coord": [best_idx, scores[best_idx]],
-            "value": scores[best_idx],
-            "itemStyle": {"color": "#22c55e"}
-        })
+        mark_points.append(
+            {
+                "name": "Trusted Best",
+                "coord": [best_idx, scores[best_idx]],
+                "value": scores[best_idx],
+                "itemStyle": {"color": "#22c55e"},
+            }
+        )
     if highest_idx >= 0 and scores[highest_idx] is not None:
-        mark_points.append({
-            "name": "Highest Observed",
-            "coord": [highest_idx, scores[highest_idx]],
-            "value": scores[highest_idx],
-            "itemStyle": {"color": "#f59e0b"}
-        })
+        mark_points.append(
+            {
+                "name": "Highest Observed",
+                "coord": [highest_idx, scores[highest_idx]],
+                "value": scores[highest_idx],
+                "itemStyle": {"color": "#f59e0b"},
+            }
+        )
 
     return {
         "title": {
             "text": "实验得分演进",
-            "subtext": f"{len(exps)} 次实验 | 可信最优 {data.get('trusted_best_score', 'N/A')} | 历史最高 {data.get('highest_observed_score', 'N/A')}"
+            "subtext": f"{len(exps)} 次实验 | 可信最优 {data.get('trusted_best_score', 'N/A')} | 历史最高 {data.get('highest_observed_score', 'N/A')}",
         },
         "tooltip": {"trigger": "axis", "axisPointer": {"type": "cross"}},
         "legend": {
@@ -135,33 +151,43 @@ def gen_timeline(data):
             "bottom": 0,
             "itemWidth": 12,
             "itemHeight": 8,
-            "textStyle": {"fontSize": 10}
+            "textStyle": {"fontSize": 10},
         },
         "grid": {"left": "3%", "right": "4%", "bottom": "22%", "top": "12%", "containLabel": True},
         "xAxis": {
             "type": "category",
             "data": versions,
             "axisLabel": {"rotate": 55, "fontSize": 8, "interval": "auto"},
-            "axisTick": {"alignWithLabel": True}
+            "axisTick": {"alignWithLabel": True},
         },
         "yAxis": {"type": "value", "name": "Score", **_y_axis_opts(data)},
-        "series": [{
-            "name": "Score",
-            "type": "line",
-            "data": [
-                {"value": s, "itemStyle": {"color": point_colors[i]}} if s is not None else None
-                for i, s in enumerate(scores)
-            ],
-            "smooth": True,
-            "connectNulls": False,
-            "lineStyle": {"color": "#5470c6", "width": 2},
-            "areaStyle": {"color": "#5470c6", "opacity": 0.05},
-            "markPoint": {"data": mark_points, "symbolSize": 48},
-            "markLine": {
-                "silent": True,
-                "data": [{"yAxis": data.get("trusted_best_score"), "lineStyle": {"type": "dashed", "color": "#22c55e"}, "label": {"formatter": "Best"}}]
-            } if data.get("trusted_best_score") else {}
-        }]
+        "series": [
+            {
+                "name": "Score",
+                "type": "line",
+                "data": [
+                    {"value": s, "itemStyle": {"color": point_colors[i]}} if s is not None else None
+                    for i, s in enumerate(scores)
+                ],
+                "smooth": True,
+                "connectNulls": False,
+                "lineStyle": {"color": "#5470c6", "width": 2},
+                "areaStyle": {"color": "#5470c6", "opacity": 0.05},
+                "markPoint": {"data": mark_points, "symbolSize": 48},
+                "markLine": {
+                    "silent": True,
+                    "data": [
+                        {
+                            "yAxis": data.get("trusted_best_score"),
+                            "lineStyle": {"type": "dashed", "color": "#22c55e"},
+                            "label": {"formatter": "Best"},
+                        }
+                    ],
+                }
+                if data.get("trusted_best_score")
+                else {},
+            }
+        ],
     }
 
 
@@ -183,7 +209,9 @@ def gen_mainline(data):
         if running_best is None:
             mainline.append(e)
             running_best = s
-        elif (direction == "maximize" and s > running_best) or (direction == "minimize" and s < running_best):
+        elif (direction == "maximize" and s > running_best) or (
+            direction == "minimize" and s < running_best
+        ):
             mainline.append(e)
             running_best = s
 
@@ -200,32 +228,63 @@ def gen_mainline(data):
     phases = [e.get("phase", "unknown") for e in mainline]
 
     return {
-        "title": {
-            "text": "主线提升阶梯",
-            "subtext": f"{len(mainline)} 个里程碑"
-        },
+        "title": {"text": "主线提升阶梯", "subtext": f"{len(mainline)} 个里程碑"},
         "tooltip": {"trigger": "axis"},
         "grid": {"left": 80, "right": 120, "bottom": 100, "top": 60, "containLabel": False},
-        "xAxis": {"type": "category", "data": versions, "axisLabel": {"rotate": 30, "fontSize": 10}},
-        "yAxis": {"type": "value", "name": "Score", "axisLabel": {"fontSize": 10}, **_y_axis_opts(data)},
-        "series": [{
-            "name": "Mainline",
-            "type": "line",
-            "data": [
-                {"value": s, "label": {"show": True, "position": "top", "formatter": "{c}", "distance": 8, "color": "#333", "fontSize": 11}}
-                for s in scores
-            ],
-            "step": "end",
-            "lineStyle": {"color": "#175cd3", "width": 3},
-            "itemStyle": {"color": "#175cd3", "borderWidth": 2, "borderColor": "#fff"},
-            "areaStyle": {"color": "#175cd3", "opacity": 0.1},
-            "markPoint": {
-                "symbol": "none",
+        "xAxis": {
+            "type": "category",
+            "data": versions,
+            "axisLabel": {"rotate": 30, "fontSize": 10},
+        },
+        "yAxis": {
+            "type": "value",
+            "name": "Score",
+            "axisLabel": {"fontSize": 10},
+            **_y_axis_opts(data),
+        },
+        "series": [
+            {
+                "name": "Mainline",
+                "type": "line",
                 "data": [
-                    {"coord": [len(scores) - 1, scores[-1]], "value": scores[-1], "label": {"show": True, "position": "top", "formatter": "{c}", "color": "#333", "fontSize": 11, "distance": 8}}
-                ] if scores else []
+                    {
+                        "value": s,
+                        "label": {
+                            "show": True,
+                            "position": "top",
+                            "formatter": "{c}",
+                            "distance": 8,
+                            "color": "#333",
+                            "fontSize": 11,
+                        },
+                    }
+                    for s in scores
+                ],
+                "step": "end",
+                "lineStyle": {"color": "#175cd3", "width": 3},
+                "itemStyle": {"color": "#175cd3", "borderWidth": 2, "borderColor": "#fff"},
+                "areaStyle": {"color": "#175cd3", "opacity": 0.1},
+                "markPoint": {
+                    "symbol": "none",
+                    "data": [
+                        {
+                            "coord": [len(scores) - 1, scores[-1]],
+                            "value": scores[-1],
+                            "label": {
+                                "show": True,
+                                "position": "top",
+                                "formatter": "{c}",
+                                "color": "#333",
+                                "fontSize": 11,
+                                "distance": 8,
+                            },
+                        }
+                    ]
+                    if scores
+                    else [],
+                },
             }
-        }]
+        ],
     }
 
 
@@ -267,8 +326,13 @@ def gen_family_compare(data):
         "yAxis": {"type": "value", "name": "Score", **_y_axis_opts(data)},
         "series": [
             {"name": "Boxplot", "type": "boxplot", "data": box_data},
-            {"name": "Points", "type": "scatter", "data": scatter_data, "itemStyle": {"opacity": 0.5}}
-        ]
+            {
+                "name": "Points",
+                "type": "scatter",
+                "data": scatter_data,
+                "itemStyle": {"opacity": 0.5},
+            },
+        ],
     }
 
 
@@ -310,8 +374,13 @@ def gen_phase_compare(data):
         "yAxis": {"type": "value", "name": "Score", **_y_axis_opts(data)},
         "series": [
             {"name": "Boxplot", "type": "boxplot", "data": box_data},
-            {"name": "Points", "type": "scatter", "data": scatter_data, "itemStyle": {"opacity": 0.5}}
-        ]
+            {
+                "name": "Points",
+                "type": "scatter",
+                "data": scatter_data,
+                "itemStyle": {"opacity": 0.5},
+            },
+        ],
     }
 
 
@@ -333,7 +402,10 @@ def gen_phase_success(data):
     discard_counts = [phase_decisions[p].get("discard", 0) for p in phases]
     crash_counts = [phase_decisions[p].get("crash", 0) for p in phases]
     total_counts = [sum(phase_decisions[p].values()) for p in phases]
-    keep_rates = [round(keep_counts[i] / total_counts[i] * 100, 1) if total_counts[i] else 0 for i in range(len(phases))]
+    keep_rates = [
+        round(keep_counts[i] / total_counts[i] * 100, 1) if total_counts[i] else 0
+        for i in range(len(phases))
+    ]
 
     return {
         "title": {"text": "阶段成功率", "subtext": "keep / discard / crash 堆叠 + keep 率折线"},
@@ -343,14 +415,44 @@ def gen_phase_success(data):
         "xAxis": {"type": "category", "data": phases},
         "yAxis": [
             {"type": "value", "name": "Count"},
-            {"type": "value", "name": "Keep Rate %", "max": 100, "axisLabel": {"formatter": "{value}%"}}
+            {
+                "type": "value",
+                "name": "Keep Rate %",
+                "max": 100,
+                "axisLabel": {"formatter": "{value}%"},
+            },
         ],
         "series": [
-            {"name": "keep", "type": "bar", "stack": "total", "data": keep_counts, "itemStyle": {"color": "#22c55e"}},
-            {"name": "discard", "type": "bar", "stack": "total", "data": discard_counts, "itemStyle": {"color": "#9ca3af"}},
-            {"name": "crash", "type": "bar", "stack": "total", "data": crash_counts, "itemStyle": {"color": "#ef4444"}},
-            {"name": "keep rate %", "type": "line", "yAxisIndex": 1, "data": keep_rates, "itemStyle": {"color": "#175cd3"}, "label": {"show": True, "formatter": "{c}%", "color": "#333", "fontWeight": "bold"}}
-        ]
+            {
+                "name": "keep",
+                "type": "bar",
+                "stack": "total",
+                "data": keep_counts,
+                "itemStyle": {"color": "#22c55e"},
+            },
+            {
+                "name": "discard",
+                "type": "bar",
+                "stack": "total",
+                "data": discard_counts,
+                "itemStyle": {"color": "#9ca3af"},
+            },
+            {
+                "name": "crash",
+                "type": "bar",
+                "stack": "total",
+                "data": crash_counts,
+                "itemStyle": {"color": "#ef4444"},
+            },
+            {
+                "name": "keep rate %",
+                "type": "line",
+                "yAxisIndex": 1,
+                "data": keep_rates,
+                "itemStyle": {"color": "#175cd3"},
+                "label": {"show": True, "formatter": "{c}%", "color": "#333", "fontWeight": "bold"},
+            },
+        ],
     }
 
 
@@ -378,13 +480,15 @@ def gen_anti_patterns(data):
         "grid": {"left": "3%", "right": "4%", "bottom": "15%", "containLabel": True},
         "xAxis": {"type": "category", "data": cats, "axisLabel": {"rotate": 35, "fontSize": 10}},
         "yAxis": {"type": "value", "name": "Count"},
-        "series": [{
-            "name": "Count",
-            "type": "bar",
-            "data": counts,
-            "itemStyle": {"color": "#ee6666", "borderRadius": [4, 4, 0, 0]},
-            "label": {"show": True, "position": "top"}
-        }]
+        "series": [
+            {
+                "name": "Count",
+                "type": "bar",
+                "data": counts,
+                "itemStyle": {"color": "#ee6666", "borderRadius": [4, 4, 0, 0]},
+                "label": {"show": True, "position": "top"},
+            }
+        ],
     }
 
 
@@ -420,18 +524,20 @@ def gen_anti_sankey(data):
     return {
         "title": {"text": "反模式来源流向", "subtext": "来源版本 → 反模式分类"},
         "tooltip": {"trigger": "item", "triggerOn": "mousemove"},
-        "series": [{
-            "type": "sankey",
-            "data": nodes,
-            "links": links,
-            "left": "3%",
-            "right": "22%",
-            "top": "12%",
-            "bottom": "5%",
-            "emphasis": {"focus": "adjacency"},
-            "lineStyle": {"color": "gradient", "curveness": 0.5},
-            "label": {"fontSize": 10, "color": "#333", "position": "right"}
-        }]
+        "series": [
+            {
+                "type": "sankey",
+                "data": nodes,
+                "links": links,
+                "left": "3%",
+                "right": "22%",
+                "top": "12%",
+                "bottom": "5%",
+                "emphasis": {"focus": "adjacency"},
+                "lineStyle": {"color": "gradient", "curveness": 0.5},
+                "label": {"fontSize": 10, "color": "#333", "position": "right"},
+            }
+        ],
     }
 
 
@@ -453,14 +559,22 @@ def gen_decisions(data):
     return {
         "title": {"text": "实验决策分布"},
         "tooltip": {"trigger": "item"},
-        "series": [{
-            "name": "Decision",
-            "type": "pie",
-            "radius": ["40%", "70%"],
-            "data": pie_data,
-            "label": {"formatter": "{b}: {c} ({d}%)"},
-            "emphasis": {"itemStyle": {"shadowBlur": 10, "shadowOffsetX": 0, "shadowColor": "rgba(0,0,0,0.5)"}}
-        }]
+        "series": [
+            {
+                "name": "Decision",
+                "type": "pie",
+                "radius": ["40%", "70%"],
+                "data": pie_data,
+                "label": {"formatter": "{b}: {c} ({d}%)"},
+                "emphasis": {
+                    "itemStyle": {
+                        "shadowBlur": 10,
+                        "shadowOffsetX": 0,
+                        "shadowColor": "rgba(0,0,0,0.5)",
+                    }
+                },
+            }
+        ],
     }
 
 
@@ -477,12 +591,17 @@ def gen_family_success(data):
             family_decisions[fam] = {}
         family_decisions[fam][d] = family_decisions[fam].get(d, 0) + 1
 
-    families = sorted(family_decisions.keys(), key=lambda f: sum(family_decisions[f].values()), reverse=True)
+    families = sorted(
+        family_decisions.keys(), key=lambda f: sum(family_decisions[f].values()), reverse=True
+    )
     keep_counts = [family_decisions[f].get("keep", 0) for f in families]
     discard_counts = [family_decisions[f].get("discard", 0) for f in families]
     crash_counts = [family_decisions[f].get("crash", 0) for f in families]
     total_counts = [sum(family_decisions[f].values()) for f in families]
-    keep_rates = [round(keep_counts[i] / total_counts[i] * 100, 1) if total_counts[i] else 0 for i in range(len(families))]
+    keep_rates = [
+        round(keep_counts[i] / total_counts[i] * 100, 1) if total_counts[i] else 0
+        for i in range(len(families))
+    ]
 
     return {
         "title": {"text": "模型家族成功率", "subtext": "keep / discard / crash 堆叠 + keep 率折线"},
@@ -492,14 +611,44 @@ def gen_family_success(data):
         "xAxis": {"type": "category", "data": families},
         "yAxis": [
             {"type": "value", "name": "Count"},
-            {"type": "value", "name": "Keep Rate %", "max": 100, "axisLabel": {"formatter": "{value}%"}}
+            {
+                "type": "value",
+                "name": "Keep Rate %",
+                "max": 100,
+                "axisLabel": {"formatter": "{value}%"},
+            },
         ],
         "series": [
-            {"name": "keep", "type": "bar", "stack": "total", "data": keep_counts, "itemStyle": {"color": "#22c55e"}},
-            {"name": "discard", "type": "bar", "stack": "total", "data": discard_counts, "itemStyle": {"color": "#9ca3af"}},
-            {"name": "crash", "type": "bar", "stack": "total", "data": crash_counts, "itemStyle": {"color": "#ef4444"}},
-            {"name": "keep rate %", "type": "line", "yAxisIndex": 1, "data": keep_rates, "itemStyle": {"color": "#175cd3"}, "label": {"show": True, "formatter": "{c}%"}}
-        ]
+            {
+                "name": "keep",
+                "type": "bar",
+                "stack": "total",
+                "data": keep_counts,
+                "itemStyle": {"color": "#22c55e"},
+            },
+            {
+                "name": "discard",
+                "type": "bar",
+                "stack": "total",
+                "data": discard_counts,
+                "itemStyle": {"color": "#9ca3af"},
+            },
+            {
+                "name": "crash",
+                "type": "bar",
+                "stack": "total",
+                "data": crash_counts,
+                "itemStyle": {"color": "#ef4444"},
+            },
+            {
+                "name": "keep rate %",
+                "type": "line",
+                "yAxisIndex": 1,
+                "data": keep_rates,
+                "itemStyle": {"color": "#175cd3"},
+                "label": {"show": True, "formatter": "{c}%"},
+            },
+        ],
     }
 
 
@@ -524,6 +673,7 @@ def gen_hypothesis_outcome(data):
     # Simple keyword extraction: split by common delimiters and filter short words
     def extract_keywords(texts):
         import re
+
         freq = {}
         for t in texts:
             # Split by common Chinese/English delimiters
@@ -550,12 +700,26 @@ def gen_hypothesis_outcome(data):
         "tooltip": {"trigger": "axis", "axisPointer": {"type": "shadow"}},
         "legend": {"data": ["keep", "discard"], "top": 0},
         "grid": {"left": "3%", "right": "4%", "bottom": "15%", "top": "12%", "containLabel": True},
-        "xAxis": {"type": "category", "data": all_words, "axisLabel": {"rotate": 35, "fontSize": 10}},
+        "xAxis": {
+            "type": "category",
+            "data": all_words,
+            "axisLabel": {"rotate": 35, "fontSize": 10},
+        },
         "yAxis": {"type": "value", "name": "Frequency"},
         "series": [
-            {"name": "keep", "type": "bar", "data": keep_vals, "itemStyle": {"color": "#22c55e", "borderRadius": [4, 4, 0, 0]}},
-            {"name": "discard", "type": "bar", "data": discard_vals, "itemStyle": {"color": "#9ca3af", "borderRadius": [4, 4, 0, 0]}}
-        ]
+            {
+                "name": "keep",
+                "type": "bar",
+                "data": keep_vals,
+                "itemStyle": {"color": "#22c55e", "borderRadius": [4, 4, 0, 0]},
+            },
+            {
+                "name": "discard",
+                "type": "bar",
+                "data": discard_vals,
+                "itemStyle": {"color": "#9ca3af", "borderRadius": [4, 4, 0, 0]},
+            },
+        ],
     }
 
 

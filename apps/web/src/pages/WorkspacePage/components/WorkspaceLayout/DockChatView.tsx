@@ -5,11 +5,13 @@ import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { SectionErrorFallback } from "@/components/error/SectionErrorFallback";
 import { AlertCircle, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { memo } from "react";
 import type { ChatItem } from "../../types";
 import type { PreviewFile } from "@/components/layout/WorkspaceSidebar/preview";
 import type { LLMModelConfig } from "@/lib/api/llm";
 import type { RuntimeControlsState } from "./types";
 import type { SessionTaskItem, SessionPlanState } from "@/components/session/SessionTaskPanel";
+import type { FailedUpload } from "@/hooks/useAgentFileUpload";
 import { InputArea } from "../InputArea";
 
 interface UploadedFile {
@@ -63,6 +65,12 @@ interface DockChatViewProps {
   uploadProgress?: number | null;
   onStop: () => void;
   uploadedFiles: UploadedFile[];
+  /** 上传失败的文件列表 */
+  failedUploads?: FailedUpload[];
+  /** 重试某个失败的上传 */
+  onRetryUpload?: (id: string) => void;
+  /** 移除某个失败的上传记录 */
+  onRemoveFailedUpload?: (id: string) => void;
   onRemoveFile: (index: number) => void;
   onAddFileClick: () => void;
   fileInputRef: React.RefObject<HTMLInputElement | null>;
@@ -89,7 +97,7 @@ interface DockChatViewProps {
   workspaceId?: string;
 }
 
-export function DockChatView({
+export const DockChatView = memo(function DockChatView({
   currentSessionId,
   chatItems,
   messagesEndRef,
@@ -111,6 +119,9 @@ export function DockChatView({
   uploadProgress,
   onStop,
   uploadedFiles,
+  failedUploads,
+  onRetryUpload,
+  onRemoveFailedUpload,
   onRemoveFile,
   onAddFileClick,
   fileInputRef,
@@ -213,6 +224,9 @@ export function DockChatView({
         uploadProgress={uploadProgress}
         onStop={onStop}
         uploadedFiles={uploadedFiles}
+        failedUploads={failedUploads}
+        onRetryUpload={onRetryUpload}
+        onRemoveFailedUpload={onRemoveFailedUpload}
         onRemoveFile={onRemoveFile}
         onAddFileClick={onAddFileClick}
         fileInputRef={fileInputRef}
@@ -241,4 +255,4 @@ export function DockChatView({
       />
     </div>
   );
-}
+});

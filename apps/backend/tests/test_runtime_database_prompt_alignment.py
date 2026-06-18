@@ -14,13 +14,19 @@ def test_runtime_bootstrap_code_preloads_database_helper() -> None:
 
     assert "from db_helper import get_db" in code
     assert "db = get_db()" in code
-    assert 'AIASYS_DB_BROKER_URL' in code
-    assert 'AIASYS_DB_SESSION_TOKEN' in code
-    assert 'AIASYS_DB_DEFAULT_HANDLE' in code
+    assert "AIASYS_DB_BROKER_URL" in code
+    assert "AIASYS_DB_SESSION_TOKEN" in code
+    assert "AIASYS_DB_DEFAULT_HANDLE" in code
 
 
 def test_general_host_prompt_documents_runtime_db_helper_instead_of_legacy_dsn() -> None:
-    prompt_path = Path(__file__).resolve().parents[1] / "app" / "agents" / "local_sandbox_agent_config" / "general_host_prompt.md"
+    prompt_path = (
+        Path(__file__).resolve().parents[1]
+        / "app"
+        / "agents"
+        / "local_sandbox_agent_config"
+        / "general_host_prompt.md"
+    )
     prompt = prompt_path.read_text(encoding="utf-8")
 
     # 当前 system prompt 已精简，数据库连接 helper 的详细说明下沉到 skill/tool 描述。

@@ -18,15 +18,7 @@ def _write_subagent_meta(
     description: str = "审查补丁",
     last_task_id: str = "task-1",
 ) -> Path:
-    subagent_dir = (
-        root
-        / user_id
-        / session_id
-        / ".aiasys"
-        / "session"
-        / "subagents"
-        / agent_id
-    )
+    subagent_dir = root / user_id / session_id / ".aiasys" / "session" / "subagents" / agent_id
     subagent_dir.mkdir(parents=True, exist_ok=True)
     meta = {
         "agent_id": agent_id,
@@ -187,8 +179,7 @@ async def test_tracking_service_avoids_fake_step_defaults(
         last_task_id="task-no-step",
     )
     (subagent_dir / "wire.jsonl").write_text(
-        json.dumps({"type": "metadata", "protocol_version": "1.0"}, ensure_ascii=False)
-        + "\n",
+        json.dumps({"type": "metadata", "protocol_version": "1.0"}, ensure_ascii=False) + "\n",
         encoding="utf-8",
     )
     monkeypatch.setattr(tracking_module, "WORKSPACE_DIR", tmp_path)

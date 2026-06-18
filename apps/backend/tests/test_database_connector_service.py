@@ -24,6 +24,7 @@ from app.services.session import SessionManager
 def _get_connector_from_db(user_id: str, connector_id: str | None = None):
     """从 DuckDB 查询连接器记录（替代直接读取 JSON 文件）"""
     from app.core.database import SessionLocal, DatabaseConnectorORM
+
     db = SessionLocal()
     try:
         q = db.query(DatabaseConnectorORM).filter_by(user_id=user_id)
@@ -37,6 +38,7 @@ def _get_connector_from_db(user_id: str, connector_id: str | None = None):
 def _get_attachments_from_db(session_id: str, connector_id: str | None = None):
     """从 DuckDB 查询会话挂载记录（替代直接读取 JSON 文件）"""
     from app.core.database import SessionLocal, SessionAttachmentORM
+
     db = SessionLocal()
     try:
         q = db.query(SessionAttachmentORM).filter_by(session_id=session_id)
@@ -111,6 +113,7 @@ def test_update_connector_reencrypts_secret_and_resets_test_status(tmp_path: Pat
 
 def test_attach_and_detach_connector_for_session(tmp_path: Path) -> None:
     from uuid import uuid4
+
     session_manager = SessionManager(tmp_path)
     service = DatabaseConnectorService(tmp_path, session_manager=session_manager)
     session_id = f"session-{uuid4().hex[:8]}"
@@ -210,6 +213,7 @@ def test_influxdb3_capability_reports_timeseries_query_only(tmp_path: Path) -> N
 
 def test_list_session_attachments_persists_to_duckdb(tmp_path: Path) -> None:
     from uuid import uuid4
+
     session_manager = SessionManager(tmp_path)
     service = DatabaseConnectorService(tmp_path, session_manager=session_manager)
     session_id = f"session-{uuid4().hex[:8]}"
@@ -356,8 +360,6 @@ def test_query_attached_connector_readonly_allows_writable_connector_reads(
     assert result.rows == [[1], [2]]
 
 
-
-
 def test_create_connector_can_persist_explicit_write_access_policy(tmp_path: Path) -> None:
     service = DatabaseConnectorService(tmp_path, session_manager=SessionManager(tmp_path))
 
@@ -374,7 +376,6 @@ def test_create_connector_can_persist_explicit_write_access_policy(tmp_path: Pat
     )
 
     pass
-
 
 
 def test_create_influxdb3_connector_persists_token_and_family(tmp_path: Path) -> None:
@@ -403,7 +404,6 @@ def test_create_influxdb3_connector_persists_token_and_family(tmp_path: Path) ->
     assert saved_record is not None
     assert saved_record.api_token_encrypted != "super-secret-token"
     assert "super-secret-token" not in (saved_record.api_token_encrypted or "")
-
 
 
 def test_test_connector_draft_uses_influxdb3_branch(

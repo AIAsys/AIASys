@@ -36,6 +36,8 @@ function validatePythonExecutable(pythonPath) {
     const result = spawnSync(pythonPath, ["-V"], {
       encoding: "utf-8",
       timeout: 5000,
+      // Windows 上 Electron 是 GUI 进程无控制台，子进程会弹黑窗，需隐藏
+      windowsHide: process.platform === "win32",
     });
     if (result.status === 0) {
       return { ok: true, version: result.stdout.trim() };

@@ -5,6 +5,7 @@
  */
 import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import { FileUploadToast, useFileUploadToast } from "@/components/file/FileUploadToast";
+import { useSafeTimeout } from "@/hooks/useSafeTimeout";
 import type { UploadedFile } from "@/hooks/useAgentFileUpload";
 import type { TaskState } from "@/hooks/useMultiTaskEventStream";
 import type { WorkspaceFile } from "@/types/task";
@@ -132,6 +133,7 @@ export function SidebarProvider({
   const didMountDefaultTabSyncRef = useRef(false);
   const [isExporting, setIsExporting] = useState(false);
   const { toasts, showError, showSuccess } = useFileUploadToast();
+  const setSafeTimeout = useSafeTimeout();
   const [selectedTool, setSelectedTool] = useState<{
     toolName: string;
     toolParams?: Record<string, unknown>;
@@ -197,9 +199,9 @@ export function SidebarProvider({
       console.error("Export failed:", error);
       showError(error instanceof Error ? error.message : "工作区导出失败");
     } finally {
-      setTimeout(() => setIsExporting(false), 2000);
+      setSafeTimeout(() => setIsExporting(false), 2000);
     }
-  }, [downloadBlob, sessionId, showError, showSuccess]);
+  }, [downloadBlob, sessionId, setSafeTimeout, showError, showSuccess]);
 
   const exportWorkspaceFile = useCallback(
     async (filename: string, format: "md" | "docx" | "pdf") => {

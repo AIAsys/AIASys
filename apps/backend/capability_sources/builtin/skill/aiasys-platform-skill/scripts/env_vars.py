@@ -20,7 +20,16 @@ import os
 import sys
 from pathlib import Path
 
-SENSITIVE_KEY_PATTERNS = ("KEY", "SECRET", "TOKEN", "PASSWORD", "PASS", "AUTH", "CREDENTIAL", "PRIVATE")
+SENSITIVE_KEY_PATTERNS = (
+    "KEY",
+    "SECRET",
+    "TOKEN",
+    "PASSWORD",
+    "PASS",
+    "AUTH",
+    "CREDENTIAL",
+    "PRIVATE",
+)
 
 
 def _is_sensitive_key(name: str) -> bool:
@@ -86,19 +95,34 @@ def cmd_get(args):
     env_vars = _read_env_vars(ws)
 
     if args.name not in env_vars:
-        print(json.dumps({"status": "not_found", "name": args.name, "message": f"环境变量 '{args.name}' 不存在"}, ensure_ascii=False))
+        print(
+            json.dumps(
+                {
+                    "status": "not_found",
+                    "name": args.name,
+                    "message": f"环境变量 '{args.name}' 不存在",
+                },
+                ensure_ascii=False,
+            )
+        )
         sys.exit(1)
 
     raw_value = env_vars[args.name]
     sensitive = _is_sensitive_key(args.name)
     display_value = _mask_sensitive(raw_value) if sensitive else raw_value
 
-    print(json.dumps({
-        "status": "success",
-        "name": args.name,
-        "value": display_value,
-        "masked": sensitive,
-    }, ensure_ascii=False, indent=2))
+    print(
+        json.dumps(
+            {
+                "status": "success",
+                "name": args.name,
+                "value": display_value,
+                "masked": sensitive,
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+    )
 
 
 def cmd_set(args):
@@ -107,11 +131,17 @@ def cmd_set(args):
     env_vars[args.name] = args.value
     _write_env_vars(ws, env_vars)
 
-    print(json.dumps({
-        "status": "success",
-        "name": args.name,
-        "message": f"环境变量 '{args.name}' 已设置",
-    }, ensure_ascii=False, indent=2))
+    print(
+        json.dumps(
+            {
+                "status": "success",
+                "name": args.name,
+                "message": f"环境变量 '{args.name}' 已设置",
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+    )
 
 
 def cmd_delete(args):
@@ -119,17 +149,32 @@ def cmd_delete(args):
     env_vars = _read_env_vars(ws)
 
     if args.name not in env_vars:
-        print(json.dumps({"status": "not_found", "name": args.name, "message": f"环境变量 '{args.name}' 不存在"}, ensure_ascii=False))
+        print(
+            json.dumps(
+                {
+                    "status": "not_found",
+                    "name": args.name,
+                    "message": f"环境变量 '{args.name}' 不存在",
+                },
+                ensure_ascii=False,
+            )
+        )
         sys.exit(1)
 
     del env_vars[args.name]
     _write_env_vars(ws, env_vars)
 
-    print(json.dumps({
-        "status": "success",
-        "name": args.name,
-        "message": f"环境变量 '{args.name}' 已删除",
-    }, ensure_ascii=False, indent=2))
+    print(
+        json.dumps(
+            {
+                "status": "success",
+                "name": args.name,
+                "message": f"环境变量 '{args.name}' 已删除",
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+    )
 
 
 def main():

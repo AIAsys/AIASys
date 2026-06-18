@@ -3,7 +3,7 @@ import {
   BookOpen,
   CircleAlert,
   Clock,
-  Database,
+  Code2,
   FileText,
   Loader2,
   Search,
@@ -78,6 +78,20 @@ const EXTRACTION_MODE_OPTIONS: Array<{ value: KnowledgeBaseExtractionMode; label
   { value: "docling", label: "Docling" },
 ];
 
+const SEARCH_MODE_HINTS: Record<KnowledgeBaseSearchMode, string> = {
+  fulltext: "基于关键词的精确匹配，速度快，不需要 Embedding 模型",
+  vector: "基于语义相似度搜索，能理解同义词和近义词，需要 Embedding 模型",
+  hybrid: "同时使用全文和向量检索，自动融合排序，效果最好",
+};
+
+const EXTRACTION_MODE_HINTS: Record<KnowledgeBaseExtractionMode, string> = {
+  enhanced: "优先使用高级解析，失败时自动回退到基础模式",
+  basic: "快速文本提取，适合纯文本文件",
+  docling: "使用 Docling 引擎解析，适合复杂排版的 PDF",
+};
+
+const TOP_K_OPTIONS = [5, 10, 15, 20] as const;
+
 function normalizeSearchMode(value?: string | null): KnowledgeBaseSearchMode {
   if (value === "vector" || value === "hybrid" || value === "fulltext") {
     return value;
@@ -93,6 +107,36 @@ function formatEmbeddingModel(model: LLMModelConfig): string {
 function toPositiveInteger(value: string, fallback: number): number {
   const parsed = Number.parseInt(value, 10);
   return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/**
+ * 在文本中高亮匹配的搜索词（大小写不敏感），返回 React 节点。
+ * 搜索词按空白拆分为多个 term，任一 term 命中都会被 <mark> 包裹。
+ */
+function highlightText(text: string, query: string): React.ReactNode {
+  const trimmed = query.trim();
+  if (!trimmed) return text;
+  const terms = trimmed
+    .split(/\s+/)
+    .filter(Boolean)
+    .map(escapeRegExp);
+  if (terms.length === 0) return text;
+  const splitRe = new RegExp(`(${terms.join("|")})`, "gi");
+  const parts = text.split(splitRe);
+  const matchRe = new RegExp(`^(?:${terms.join("|")})$`, "i");
+  return parts.map((part, index) =>
+    part && matchRe.test(part) ? (
+      <mark key={index} className="rounded bg-yellow-200/60 px-0.5 text-inherit">
+        {part}
+      </mark>
+    ) : (
+      part
+    ),
+  );
 }
 
 function getStatusBadge(status?: string): { label: string; className: string } {
@@ -145,6 +189,13 @@ export function KnowledgeBasePreviewPanel({
       if (saved === "fulltext" || saved === "vector" || saved === "hybrid") return saved;
     } catch { /* ignore */ }
     return "fulltext";
+  });
+  const [topK, setTopK] = useState<number>(() => {
+    try {
+      const saved = Number.parseInt(localStorage.getItem("kb-top-k") ?? "", 10);
+      if (TOP_K_OPTIONS.includes(saved as (typeof TOP_K_OPTIONS)[number])) return saved;
+    } catch { /* ignore */ }
+    return 5;
   });
   const [isUploading, setIsUploading] = useState(false);
   const [uploadMessage, setUploadMessage] = useState<string | null>(null);
@@ -306,6 +357,34 @@ export function KnowledgeBasePreviewPanel({
     };
   }, [activeTab, knowledgeBaseId]);
 
+  // 文档轮询：存在 pending/processing 文档时每 3 秒刷新一次
+  const hasProcessingDocs = documents.some(
+    (doc) => doc.status === "pending" || doc.status === "processing",
+  );
+  useEffect(() => {
+    if (activeTab !== "documents" || !knowledgeBaseId || !hasProcessingDocs) {
+      return;
+    }
+    let cancelled = false;
+    const interval = setInterval(async () => {
+      try {
+        const docs = await knowledgeApi.listDocuments(knowledgeBaseId);
+        if (cancelled) return;
+        setDocuments(docs);
+        // 如果知识库统计也需更新（文档数变化），刷新详情
+        await onRefresh?.();
+        await refreshKnowledgeBase();
+      } catch (err) {
+        if (cancelled) return;
+        console.error("轮询文档状态失败:", err);
+      }
+    }, 3000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [activeTab, knowledgeBaseId, hasProcessingDocs, onRefresh, refreshKnowledgeBase]);
+
   const handleDeleteDoc = useCallback(
     (docId: string) => {
       if (!knowledgeBaseId) return;
@@ -359,7 +438,7 @@ export function KnowledgeBasePreviewPanel({
     try {
       const response = await knowledgeApi.query(knowledgeBaseId, {
         query,
-        top_k: 5,
+        top_k: topK,
         search_mode: searchMode,
       });
       setQueryResults(response.results || []);
@@ -369,7 +448,7 @@ export function KnowledgeBasePreviewPanel({
     } finally {
       setIsQuerying(false);
     }
-  }, [canUseKnowledgeBase, isQuerying, knowledgeBase?.config_issue, knowledgeBaseId, queryText, searchMode]);
+  }, [canUseKnowledgeBase, isQuerying, knowledgeBase?.config_issue, knowledgeBaseId, queryText, searchMode, topK]);
 
   const handleUploadChange = useCallback(
     async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -522,11 +601,11 @@ export function KnowledgeBasePreviewPanel({
     refreshKnowledgeBase,
   ]);
 
-  const tabs: { id: KbTab; label: string; icon: React.ReactNode }[] = [
+  const tabs: { id: KbTab; label: string; icon: React.ReactNode; muted?: boolean }[] = [
     { id: "documents", label: "文档", icon: <FileText className="h-3.5 w-3.5" /> },
     { id: "search", label: "搜索", icon: <Search className="h-3.5 w-3.5" /> },
     { id: "settings", label: "设置", icon: <Settings className="h-3.5 w-3.5" /> },
-    { id: "data", label: "原始数据", icon: <Database className="h-3.5 w-3.5" /> },
+    { id: "data", label: "原始数据", icon: <Code2 className="h-3 w-3" />, muted: true },
   ];
 
   return (
@@ -571,8 +650,12 @@ export function KnowledgeBasePreviewPanel({
               onClick={() => setActiveTab(tab.id)}
               className={`flex flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-xs transition-colors ${
                 activeTab === tab.id
-                  ? "bg-foreground font-semibold text-background shadow-sm"
-                  : "font-medium text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+                  ? tab.muted
+                    ? "bg-muted font-semibold text-foreground shadow-sm"
+                    : "bg-foreground font-semibold text-background shadow-sm"
+                  : tab.muted
+                    ? "text-[11px] font-normal text-muted-foreground/70 hover:bg-muted/60 hover:text-foreground"
+                    : "font-medium text-muted-foreground hover:bg-muted/60 hover:text-foreground"
               }`}
             >
               {tab.icon}
@@ -732,9 +815,31 @@ export function KnowledgeBasePreviewPanel({
               </div>
             ) : (
               <div className="flex flex-col items-center justify-center py-12 text-center rounded-lg border border-dashed border-border bg-muted/10">
-                <BookOpen className="mb-3 h-8 w-8 opacity-30" />
-                <p className="text-sm text-muted-foreground">暂无文档</p>
-                <p className="mt-1 text-xs text-muted-foreground/60">点击"上传文档"按钮添加 PDF、Markdown、TXT 等格式</p>
+                {knowledgeBase && (knowledgeBase.init_status === "draft" || !knowledgeBase.config_complete) ? (
+                  <>
+                    <Settings className="mb-3 h-8 w-8 opacity-30" />
+                    <p className="text-sm text-muted-foreground">请先完成配置</p>
+                    <p className="mt-1 text-xs text-muted-foreground/60">
+                      当前知识库尚未配置 Embedding 模型，无法上传文档
+                    </p>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="mt-3"
+                      onClick={() => setActiveTab("settings")}
+                    >
+                      <Settings className="mr-1.5 h-3.5 w-3.5" />
+                      前往设置
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <BookOpen className="mb-3 h-8 w-8 opacity-30" />
+                    <p className="text-sm text-muted-foreground">暂无文档</p>
+                    <p className="mt-1 text-xs text-muted-foreground/60">点击"上传文档"按钮添加 PDF、Markdown、TXT 等格式</p>
+                  </>
+                )}
               </div>
             )}
           </div>
@@ -746,6 +851,26 @@ export function KnowledgeBasePreviewPanel({
             <div className="flex items-center justify-between">
               <div className="text-sm font-medium text-foreground">知识库搜索</div>
             </div>
+            {knowledgeBase && (knowledgeBase.init_status === "draft" || !knowledgeBase.config_complete) ? (
+              <div className="flex flex-col items-center justify-center py-10 text-center rounded-lg border border-dashed border-border bg-muted/10">
+                <Settings className="mb-3 h-8 w-8 opacity-30" />
+                <p className="text-sm text-muted-foreground">请先完成配置</p>
+                <p className="mt-1 text-xs text-muted-foreground/60">
+                  当前知识库尚未配置完成，搜索功能不可用
+                </p>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="mt-3"
+                  onClick={() => setActiveTab("settings")}
+                >
+                  <Settings className="mr-1.5 h-3.5 w-3.5" />
+                  前往设置
+                </Button>
+              </div>
+            ) : (
+            <>
             <div className="flex gap-1 rounded-md border border-border bg-muted/40 p-0.5">
               {[
                 { key: "fulltext" as const, label: "全文" },
@@ -801,6 +926,29 @@ export function KnowledgeBasePreviewPanel({
               </Button>
             </div>
 
+            <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+              <span>结果数量</span>
+              <Select
+                value={String(topK)}
+                onValueChange={(value) => {
+                  const next = Number.parseInt(value, 10);
+                  setTopK(next);
+                  try { localStorage.setItem("kb-top-k", String(next)); } catch { /* noop */ }
+                }}
+              >
+                <SelectTrigger className="h-7 w-[72px] text-[11px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {TOP_K_OPTIONS.map((option) => (
+                    <SelectItem key={option} value={String(option)}>
+                      {option}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
             {queryError ? (
               <div className="flex items-start gap-2 rounded-md border border-error/20 bg-error-container px-3 py-2 text-xs text-error">
                 <CircleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />
@@ -819,12 +967,20 @@ export function KnowledgeBasePreviewPanel({
                       <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                       <span className="truncate">{result.document_name}</span>
                     </div>
-                    <span className="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary">
-                      {result.score.toFixed(3)}
-                    </span>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <div className="h-1 w-12 rounded-full bg-muted" title={`相关度 ${(result.score * 100).toFixed(1)}%`}>
+                        <div
+                          className="h-1 rounded-full bg-primary"
+                          style={{ width: `${Math.min(100, Math.max(0, result.score * 100))}%` }}
+                        />
+                      </div>
+                      <span className="text-[11px] font-medium text-muted-foreground tabular-nums">
+                        {(result.score * 100).toFixed(0)}%
+                      </span>
+                    </div>
                   </div>
                   <p className="mt-2 line-clamp-3 text-xs leading-5 text-muted-foreground">
-                    {result.content}
+                    {highlightText(result.content, queryText)}
                   </p>
                 </div>
               ))}
@@ -834,6 +990,8 @@ export function KnowledgeBasePreviewPanel({
                 </div>
               ) : null}
             </div>
+            </>
+            )}
           </div>
         ) : null}
 
@@ -895,6 +1053,9 @@ export function KnowledgeBasePreviewPanel({
                   </SelectContent>
                 </Select>
                 <p className="text-[11px] leading-5 text-muted-foreground">
+                  Embedding 模型将文档转换为向量，用于语义检索。不配置则只能使用全文搜索。
+                </p>
+                <p className="text-[11px] leading-5 text-muted-foreground/80">
                   {isLoadingModels
                     ? "正在读取模型配置。"
                     : canEditIndexConfig
@@ -922,6 +1083,9 @@ export function KnowledgeBasePreviewPanel({
                     ))}
                   </SelectContent>
                 </Select>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {SEARCH_MODE_HINTS[editSearchMode]}
+                </p>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="kb-edit-extraction-mode" className="text-xs text-muted-foreground">
@@ -943,8 +1107,8 @@ export function KnowledgeBasePreviewPanel({
                     ))}
                   </SelectContent>
                 </Select>
-                <p className="text-[11px] leading-5 text-muted-foreground">
-                  优先使用增强模式解析，失败时自动回退到基础模式。
+                <p className="text-xs text-muted-foreground mt-1">
+                  {EXTRACTION_MODE_HINTS[editExtractionMode]}
                 </p>
               </div>
               <div className="space-y-2">
@@ -1026,6 +1190,9 @@ export function KnowledgeBasePreviewPanel({
                     className="h-8 text-xs"
                     disabled={!knowledgeBaseId || isSaving || !canEditIndexConfig}
                   />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    文档会被切分成若干片段进行索引。值越小检索越精确但上下文越少，默认 512 适合大多数场景。
+                  </p>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="kb-edit-chunk-overlap" className="text-xs text-muted-foreground">
@@ -1041,6 +1208,9 @@ export function KnowledgeBasePreviewPanel({
                     className="h-8 text-xs"
                     disabled={!knowledgeBaseId || isSaving || !canEditIndexConfig}
                   />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    相邻片段之间的重叠字数，避免内容被截断。默认 50。
+                  </p>
                 </div>
               </div>
               <div className="flex items-center justify-between text-xs">

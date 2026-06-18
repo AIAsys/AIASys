@@ -264,7 +264,7 @@ export function useSubagentStream(
         });
       }
     },
-    [userId, sessionId, agentId, isRunning],
+    [userId, sessionId, agentId, isRunning, handleSseEvent, handleSseError],
   );
 
   const close = useCallback(async () => {

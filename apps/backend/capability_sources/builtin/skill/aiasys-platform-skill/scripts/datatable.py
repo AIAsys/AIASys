@@ -70,12 +70,18 @@ def cmd_create(args):
         columns=column_defs,
     )
     result = create_data_table(ws, request)
-    print(json.dumps({
-        "status": "success",
-        "name": result.name,
-        "relative_path": result.relative_path,
-        "record_count": result.record_count,
-    }, ensure_ascii=False, indent=2))
+    print(
+        json.dumps(
+            {
+                "status": "success",
+                "name": result.name,
+                "relative_path": result.relative_path,
+                "record_count": result.record_count,
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+    )
 
 
 def cmd_list(args):
@@ -85,10 +91,16 @@ def cmd_list(args):
         if file_path.is_file():
             rel = file_path.relative_to(ws).as_posix()
             tables.append(rel)
-    print(json.dumps({
-        "count": len(tables),
-        "tables": tables,
-    }, ensure_ascii=False, indent=2))
+    print(
+        json.dumps(
+            {
+                "count": len(tables),
+                "tables": tables,
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+    )
 
 
 def cmd_query(args):
@@ -116,12 +128,18 @@ def cmd_query(args):
                     filtered.append(rec)
             records = filtered
 
-        print(json.dumps({
-            "table": schema.get("metadata", {}).get("name", args.file),
-            "count": len(records),
-            "columns": col_names,
-            "records": records,
-        }, ensure_ascii=False, indent=2))
+        print(
+            json.dumps(
+                {
+                    "table": schema.get("metadata", {}).get("name", args.file),
+                    "count": len(records),
+                    "columns": col_names,
+                    "records": records,
+                },
+                ensure_ascii=False,
+                indent=2,
+            )
+        )
 
 
 def cmd_insert(args):
@@ -134,11 +152,17 @@ def cmd_insert(args):
 
     records = json.loads(args.records)
     inserted_ids = insert_data_table_records(file_path, records)
-    print(json.dumps({
-        "status": "success",
-        "inserted_count": len(inserted_ids),
-        "inserted_ids": inserted_ids,
-    }, ensure_ascii=False, indent=2))
+    print(
+        json.dumps(
+            {
+                "status": "success",
+                "inserted_count": len(inserted_ids),
+                "inserted_ids": inserted_ids,
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+    )
 
 
 def cmd_update(args):
@@ -151,10 +175,16 @@ def cmd_update(args):
 
     data = json.loads(args.data)
     success = update_data_table_record(file_path, args.record_id, data)
-    print(json.dumps({
-        "status": "success" if success else "not_found",
-        "record_id": args.record_id,
-    }, ensure_ascii=False, indent=2))
+    print(
+        json.dumps(
+            {
+                "status": "success" if success else "not_found",
+                "record_id": args.record_id,
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+    )
 
 
 def cmd_delete(args):
@@ -166,10 +196,16 @@ def cmd_delete(args):
         sys.exit(1)
 
     success = delete_data_table_record(file_path, args.record_id)
-    print(json.dumps({
-        "status": "success" if success else "not_found",
-        "record_id": args.record_id,
-    }, ensure_ascii=False, indent=2))
+    print(
+        json.dumps(
+            {
+                "status": "success" if success else "not_found",
+                "record_id": args.record_id,
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+    )
 
 
 def cmd_modify_column(args):
@@ -190,11 +226,21 @@ def cmd_modify_column(args):
             options=options,
         )
         add_data_table_column(file_path, col_def)
-        print(json.dumps({"status": "success", "action": "add", "column": args.column_name}, ensure_ascii=False))
+        print(
+            json.dumps(
+                {"status": "success", "action": "add", "column": args.column_name},
+                ensure_ascii=False,
+            )
+        )
 
     elif args.action == "remove":
         remove_data_table_column(file_path, args.column_name)
-        print(json.dumps({"status": "success", "action": "remove", "column": args.column_name}, ensure_ascii=False))
+        print(
+            json.dumps(
+                {"status": "success", "action": "remove", "column": args.column_name},
+                ensure_ascii=False,
+            )
+        )
 
     elif args.action == "update":
         col_def = DataTableColumnDef(
@@ -204,7 +250,12 @@ def cmd_modify_column(args):
             options=options,
         )
         update_data_table_column(file_path, args.column_name, col_def)
-        print(json.dumps({"status": "success", "action": "update", "column": args.column_name}, ensure_ascii=False))
+        print(
+            json.dumps(
+                {"status": "success", "action": "update", "column": args.column_name},
+                ensure_ascii=False,
+            )
+        )
 
 
 def main():

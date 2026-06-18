@@ -195,7 +195,7 @@ class TestForkTurns:
                     {
                         "id": "tool-1",
                         "type": "function",
-                        "function": {"name": "Task", "arguments": "{\"subagent_name\":\"worker\"}"},
+                        "function": {"name": "Task", "arguments": '{"subagent_name":"worker"}'},
                     }
                 ],
             },
@@ -270,12 +270,12 @@ def test_find_subagent_manifest_supports_materialized_toml(tmp_path: Path) -> No
     toml_path.write_text(
         "\n".join(
             [
-                'version = 1',
-                '',
-                '[agent]',
+                "version = 1",
+                "",
+                "[agent]",
                 'name = "worker"',
                 'system_prompt = "你是执行专家"',
-                'tools = []',
+                "tools = []",
             ]
         ),
         encoding="utf-8",
@@ -725,7 +725,10 @@ class TestSubagentAuthorizationInheritance:
         async for _ in tool.invoke_stream(ctx, subagent_name="coder", prompt="test"):
             pass
 
-        spec = mock_backend.create_session.call_args.kwargs.get("spec") or mock_backend.create_session.call_args[0][0]
+        spec = (
+            mock_backend.create_session.call_args.kwargs.get("spec")
+            or mock_backend.create_session.call_args[0][0]
+        )
         assert spec.authorization_mode == "smart"
         assert spec.yolo is False
 
@@ -778,7 +781,10 @@ class TestSubagentAuthorizationInheritance:
         async for _ in tool.invoke_stream(ctx, subagent_name="coder", prompt="test"):
             pass
 
-        spec = mock_backend.create_session.call_args.kwargs.get("spec") or mock_backend.create_session.call_args[0][0]
+        spec = (
+            mock_backend.create_session.call_args.kwargs.get("spec")
+            or mock_backend.create_session.call_args[0][0]
+        )
         assert spec.authorization_mode == "smart"
         assert spec.yolo is True
 
@@ -833,7 +839,10 @@ class TestSubagentNestingProhibition:
         async for _ in tool.invoke_stream(ctx, subagent_name="coder", prompt="test"):
             pass
 
-        spec = mock_backend.create_session.call_args.kwargs.get("spec") or mock_backend.create_session.call_args[0][0]
+        spec = (
+            mock_backend.create_session.call_args.kwargs.get("spec")
+            or mock_backend.create_session.call_args[0][0]
+        )
         assert spec.is_subagent is True
 
     @pytest.mark.asyncio
@@ -885,12 +894,17 @@ class TestSubagentNestingProhibition:
         async for _ in tool.invoke_stream(ctx, subagent_name="coder", prompt="test"):
             pass
 
-        spec = mock_backend.create_session.call_args.kwargs.get("spec") or mock_backend.create_session.call_args[0][0]
+        spec = (
+            mock_backend.create_session.call_args.kwargs.get("spec")
+            or mock_backend.create_session.call_args[0][0]
+        )
         assert spec.host_session_id == "host-s1"
         assert spec.agent_path.startswith("/root/coder_")
         assert spec.agent_max_depth == 1
         assert spec.allow_subagent_spawn is False
-        assert mock_storage.create_workspace.call_args.kwargs["agent_path"].startswith("/root/coder_")
+        assert mock_storage.create_workspace.call_args.kwargs["agent_path"].startswith(
+            "/root/coder_"
+        )
         assert mock_storage.create_workspace.call_args.kwargs["depth"] == 1
 
     @pytest.mark.asyncio
@@ -1051,7 +1065,9 @@ class TestSubagentNestingProhibition:
         ):
             pass
 
-        assert mock_storage.create_workspace.call_args.kwargs["parent_tool_call_id"] == "task-call-1"
+        assert (
+            mock_storage.create_workspace.call_args.kwargs["parent_tool_call_id"] == "task-call-1"
+        )
         assert mock_storage.append_context_message.call_args_list[0].args[0] == {
             "role": "user",
             "content": "只回复：一致性复测完成",
@@ -1135,7 +1151,11 @@ class TestSubagentNoNesting:
         """is_subagent=True 时 registry 不应包含 Task/Agent/CreateSubagent 工具。"""
         mock_load_manifest.return_value = {"tools": [], "model": "gpt-4"}
         mock_resolve_model_id.return_value = "gpt-4"
-        mock_resolve_model_entry.return_value = {"model": "gpt-4", "provider": "openai", "api_key": "test"}
+        mock_resolve_model_entry.return_value = {
+            "model": "gpt-4",
+            "provider": "openai",
+            "api_key": "test",
+        }
         mock_resolve_provider.return_value = ("openai", {"api_key": "test"})
         mock_create_client.return_value = MagicMock()
         mock_load_config.return_value = {}

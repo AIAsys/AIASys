@@ -204,9 +204,7 @@ def test_sync_config_json_to_user_with_object_models_and_capabilities(
     assert full["default_model"] == "stepfun-step-3.7-flash"
 
 
-def test_sync_config_json_to_user_with_string_models_fallback(
-    temp_user_config_dir, monkeypatch
-):
+def test_sync_config_json_to_user_with_string_models_fallback(temp_user_config_dir, monkeypatch):
     """验证字符串数组模型配置仍兼容，capabilities 由接口类型推断。"""
     monkeypatch.setattr(
         "app.services.llm.llm_config_service.LLM_CONFIG",

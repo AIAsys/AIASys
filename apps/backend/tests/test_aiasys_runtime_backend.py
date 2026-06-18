@@ -10,7 +10,11 @@ from app.core.agent_tool import AiasysTool
 from app.core.tool_result import ToolResult
 from app.models.session import SessionBudget, SessionMetadata, SessionPlanState
 from app.services.agent.models.llm_config import AiasysLlmConfig, LlmModelConfig, LlmProviderConfig
-from app.services.agent.runtime_backends import AiasysRuntimeBackend, RuntimeSessionCreateSpec, get_backend
+from app.services.agent.runtime_backends import (
+    AiasysRuntimeBackend,
+    RuntimeSessionCreateSpec,
+    get_backend,
+)
 from app.services.agent.runtime_backends.aiasys.backend import (
     _instantiate_tool,
     _resolve_model_id,
@@ -410,7 +414,7 @@ async def test_runtime_session_filters_tools_in_plan_mode(tmp_path, monkeypatch)
     agent_file = _write_agent_files(tmp_path)
     manifest = agent_file.read_text(encoding="utf-8")
     agent_file.write_text(
-        manifest + "\ntool_strategy = \"passthrough\"\n",
+        manifest + '\ntool_strategy = "passthrough"\n',
         encoding="utf-8",
     )
     session_id = "session-plan-mode"
@@ -633,15 +637,13 @@ async def test_aiasys_runtime_session_downgrades_old_inline_images_before_next_t
     # Prefix Cache 改造后，messages 列表中多了 contextual user message（memory + AGENTS.md），
     # 需要明确找 content 为数组（含 image）的 user message，而不是第一个 user message。
     image_user_messages = [
-        m for m in client.calls[0]
-        if m["role"] == "user" and isinstance(m.get("content"), list)
+        m for m in client.calls[0] if m["role"] == "user" and isinstance(m.get("content"), list)
     ]
     assert len(image_user_messages) == 1
     assert image_user_messages[0]["content"][1]["type"] == "image_url"
 
     previous_image_user_messages = [
-        m for m in client.calls[1]
-        if m["role"] == "user" and isinstance(m.get("content"), list)
+        m for m in client.calls[1] if m["role"] == "user" and isinstance(m.get("content"), list)
     ]
     assert len(previous_image_user_messages) == 1
     assert previous_image_user_messages[0]["content"] == [
@@ -918,6 +920,7 @@ def test_tool_registry_schema_sorts_builtin_before_mcp():
     class _ZBuiltin(AiasysTool):
         name = "ZBuiltin"
         description = "z"
+
         async def invoke(self, ctx=None, **kwargs):
             return ToolResult(content="z")
 
@@ -925,6 +928,7 @@ def test_tool_registry_schema_sorts_builtin_before_mcp():
         name = "AMcp"
         description = "a"
         is_mcp = True
+
         async def invoke(self, ctx=None, **kwargs):
             return ToolResult(content="a")
 
@@ -1105,9 +1109,7 @@ async def test_finish_reason_length_auto_continuation(tmp_path):
     assert [e.text for e in text_events] == ["第一部分", "第二部分"]
 
     # 验证历史消息中插入了续写提示
-    last_user_msg = next(
-        (m for m in reversed(session.messages) if m.get("role") == "user"), None
-    )
+    last_user_msg = next((m for m in reversed(session.messages) if m.get("role") == "user"), None)
     assert last_user_msg is not None
     assert "truncated" in str(last_user_msg.get("content", "")).lower()
     await session.close()
@@ -1261,7 +1263,9 @@ async def test_tool_result_image_downgraded_for_text_only_model(tmp_path):
     tool_content = tool_messages[0].get("content")
     assert isinstance(tool_content, list)
     assert _contains_data_image(tool_content) is False
-    image_ref_parts = [p for p in tool_content if isinstance(p, dict) and p.get("type") == "image_reference"]
+    image_ref_parts = [
+        p for p in tool_content if isinstance(p, dict) and p.get("type") == "image_reference"
+    ]
     assert len(image_ref_parts) == 1
     assert image_ref_parts[0].get("source_path") == "/workspace/chart.png"
     await session.close()

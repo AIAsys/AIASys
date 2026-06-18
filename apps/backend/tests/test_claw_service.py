@@ -13,7 +13,6 @@ from app.services.memory import SessionDB
 from app.services.session import SessionManager
 
 
-
 def _build_service(tmp_path: Path) -> tuple[ClawService, SessionManager]:
     session_manager = SessionManager(tmp_path)
     service = ClawService(tmp_path, session_manager=session_manager)
@@ -29,8 +28,6 @@ def _create_test_channel(service: ClawService, user_id: str, **kwargs) -> str:
     entry = ChannelEntry(channel_id=channel_id, enabled=True, **kwargs)
     get_channel_config(user_id, workspace_root=service.workspace_root).set_channel(entry)
     return channel_id
-
-
 
 
 def test_claw_connector_and_binding_lifecycle(tmp_path: Path) -> None:
@@ -201,7 +198,6 @@ def test_save_session_binding_allows_rebind_after_other_session_cleared(
         ),
     )
     assert binding_b.chat_id == "wx-chat-alpha"
-
 
 
 def test_claw_outbound_preview_ignores_think_content(tmp_path: Path) -> None:

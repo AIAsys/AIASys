@@ -111,13 +111,13 @@ def test_channel_config_cache_reloads_external_yaml_edits(tmp_path: Path) -> Non
 
     config_path = tmp_path / user_id / "global_workspace" / ".aiasys" / "channels.toml"
     config_path.write_text(
-        '''[channels.weixin_external]
+        """[channels.weixin_external]
 platform = "weixin"
 enabled = true
 name = "外部编辑频道"
 account_id = "wx_external"
 token = "external-token"
-''',
+""",
         encoding="utf-8",
     )
 

@@ -73,12 +73,13 @@ export function MainContent({
   const setConversationDockOpen = executor.setIsRightSidebarOpen;
   const setConversationDockClosedByUser = executor.setUserClosedSidebar;
   const currentWorkspaceId = currentWorkspace?.workspace_id;
+  // 刷新信号只携带语义化触发器：会话切换、运行状态切换、token_usage 事件序号。
+  // 不要塞入 chatItems.length / message_count 这类高频变化值，否则流式输出期间会
+  // 触发大量冗余的 token 统计请求（见 useTokenUsageStats）。
   const tokenUsageRefreshSignal = [
     executorSessionId ?? "",
-    executor.chatItems.length,
     executor.isRunning ? "running" : "idle",
     executor.tokenUsageRevision,
-    sessionLifecycle.sessionStatus?.message_count ?? 0,
   ].join(":");
 
   const {
@@ -424,6 +425,9 @@ export function MainContent({
               uploadProgress={executor.uploadProgress}
               onStop={executor.handleStop}
               uploadedFiles={executor.uploadedFiles}
+              failedUploads={executor.failedUploads}
+              onRetryUpload={executor.retryUpload}
+              onRemoveFailedUpload={executor.removeFailedUpload}
               onRemoveFile={async (idx) => {
                 const fileToRemove = executor.uploadedFiles[idx];
                 await executor.removeFile(

@@ -72,9 +72,9 @@ async def test_runtime_env_route_ensures_uv_env_without_mutating_backend_venv(
     assert response.env.env_id == "workspace-default"
     assert response.env.display_name == "任务 UV"
     assert response.env.material_path == str(workspace_dir / ".env")
-    assert 'requires-python = ">=3.11"' in (
-        workspace_dir / ".env" / "pyproject.toml"
-    ).read_text(encoding="utf-8")
+    assert 'requires-python = ">=3.11"' in (workspace_dir / ".env" / "pyproject.toml").read_text(
+        encoding="utf-8"
+    )
     assert (workspace_dir / ".env" / ".python-version").read_text(encoding="utf-8") == "3.11\n"
     assert not (workspace_dir / ".env" / ".venv").exists()
     assert "apps/backend/.venv" not in (response.env.python_executable or "")
@@ -165,6 +165,7 @@ async def test_runtime_env_route_keeps_uv_display_name_when_installing_packages(
 
 
 # Docker helper classes removed; Docker routes dismantled.
+
 
 @pytest.mark.asyncio
 async def test_runtime_env_route_binds_uv_env_as_default_runtime(

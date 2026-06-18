@@ -59,10 +59,13 @@ def test_client_list_handles_makes_get_request() -> None:
     class FakeResponse:
         def __init__(self, data: bytes):
             self._data = data
+
         def read(self) -> bytes:
             return self._data
+
         def __enter__(self):
             return self
+
         def __exit__(self, *args):
             pass
 
@@ -70,21 +73,25 @@ def test_client_list_handles_makes_get_request() -> None:
         captured["url"] = request.full_url
         captured["method"] = request.method
         captured["headers"] = dict(request.headers)
-        return FakeResponse(json.dumps({
-            "session_id": "session-1",
-            "handles": [
+        return FakeResponse(
+            json.dumps(
                 {
-                    "handle": "connector:dbc_1",
-                    "connector_id": "dbc_1",
-                    "name": "订单库",
-                    "db_type": "postgres",
-                    "grants": ["schema_read", "data_read"],
-                    "capability_upper_bound": ["schema_read", "data_read"],
-                    "approval_policy": "none",
-                    "attached_at": "2026-03-21T08:00:00Z",
+                    "session_id": "session-1",
+                    "handles": [
+                        {
+                            "handle": "connector:dbc_1",
+                            "connector_id": "dbc_1",
+                            "name": "订单库",
+                            "db_type": "postgres",
+                            "grants": ["schema_read", "data_read"],
+                            "capability_upper_bound": ["schema_read", "data_read"],
+                            "approval_policy": "none",
+                            "attached_at": "2026-03-21T08:00:00Z",
+                        }
+                    ],
                 }
-            ],
-        }).encode("utf-8"))
+            ).encode("utf-8")
+        )
 
     with patch("urllib.request.urlopen", fake_urlopen):
         result = client.list_handles()
@@ -120,10 +127,13 @@ def test_client_list_tables_uses_default_handle() -> None:
     class FakeResponse:
         def __init__(self, data: bytes):
             self._data = data
+
         def read(self) -> bytes:
             return self._data
+
         def __enter__(self):
             return self
+
         def __exit__(self, *args):
             pass
 
@@ -153,22 +163,29 @@ def test_client_describe_table_uses_handle_override() -> None:
     class FakeResponse:
         def __init__(self, data: bytes):
             self._data = data
+
         def read(self) -> bytes:
             return self._data
+
         def __enter__(self):
             return self
+
         def __exit__(self, *args):
             pass
 
     def fake_urlopen(request, **kwargs):
         captured["url"] = request.full_url
         captured["method"] = request.method
-        return FakeResponse(json.dumps({
-            "columns": [
-                {"name": "id", "type": "integer", "nullable": False, "default": None},
-                {"name": "name", "type": "text", "nullable": True, "default": None},
-            ]
-        }).encode("utf-8"))
+        return FakeResponse(
+            json.dumps(
+                {
+                    "columns": [
+                        {"name": "id", "type": "integer", "nullable": False, "default": None},
+                        {"name": "name", "type": "text", "nullable": True, "default": None},
+                    ]
+                }
+            ).encode("utf-8")
+        )
 
     with patch("urllib.request.urlopen", fake_urlopen):
         result = client.describe_table("users", handle="connector:dbc_1")
@@ -196,10 +213,13 @@ def test_client_query_posts_payload() -> None:
     class FakeResponse:
         def __init__(self, data: bytes):
             self._data = data
+
         def read(self) -> bytes:
             return self._data
+
         def __enter__(self):
             return self
+
         def __exit__(self, *args):
             pass
 
@@ -207,10 +227,14 @@ def test_client_query_posts_payload() -> None:
         captured["url"] = request.full_url
         captured["method"] = request.method
         captured["body"] = request.data
-        return FakeResponse(json.dumps({
-            "columns": ["id", "name"],
-            "rows": [[1, "alice"]],
-        }).encode("utf-8"))
+        return FakeResponse(
+            json.dumps(
+                {
+                    "columns": ["id", "name"],
+                    "rows": [[1, "alice"]],
+                }
+            ).encode("utf-8")
+        )
 
     with patch("urllib.request.urlopen", fake_urlopen):
         result = client.query(
@@ -244,10 +268,13 @@ def test_client_execute_posts_payload() -> None:
     class FakeResponse:
         def __init__(self, data: bytes):
             self._data = data
+
         def read(self) -> bytes:
             return self._data
+
         def __enter__(self):
             return self
+
         def __exit__(self, *args):
             pass
 
@@ -280,22 +307,23 @@ def test_client_raises_on_http_error() -> None:
         def __init__(self, url, code, msg, hdrs, fp):
             self.code = code
             self.reason = msg
-            self.read = lambda: json.dumps({
-                "detail": {
-                    "code": "session_connector_not_attached",
-                    "category": "session",
-                    "message": "会话未挂载该数据库连接器",
+            self.read = lambda: json.dumps(
+                {
+                    "detail": {
+                        "code": "session_connector_not_attached",
+                        "category": "session",
+                        "message": "会话未挂载该数据库连接器",
+                    }
                 }
-            }).encode("utf-8")
+            ).encode("utf-8")
 
     import urllib.error
+
     original = urllib.error.HTTPError
     urllib.error.HTTPError = FakeHTTPError
 
     def fake_urlopen(request, **kwargs):
-        raise FakeHTTPError(
-            request.full_url, 403, "Forbidden", {}, None
-        )
+        raise FakeHTTPError(request.full_url, 403, "Forbidden", {}, None)
 
     try:
         with patch("urllib.request.urlopen", fake_urlopen):

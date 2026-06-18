@@ -1,6 +1,7 @@
 import { Database, Globe } from "lucide-react";
 import { DatabaseQueryWorkbench } from "@/components/database/DatabaseQueryWorkbench";
 import { DbFilePreview } from "./preview/DbFilePreview";
+import { CanvasActionMenu } from "@/components/workspace/CanvasActionMenu";
 
 interface DatabaseResourceNode {
   name: string;
@@ -11,6 +12,10 @@ interface DatabaseResourceNode {
 interface DatabasePreviewPanelProps {
   node: DatabaseResourceNode;
   sessionId?: string | null;
+  onClose?: () => void;
+  closeLabel?: string;
+  onSplitRight?: () => void;
+  onSplitDown?: () => void;
 }
 
 function getText(value: unknown): string {
@@ -71,18 +76,32 @@ function getDbKindLabel(handle: string): { icon: React.ReactNode; label: string 
 export function DatabasePreviewPanel({
   node,
   sessionId,
+  onClose,
+  closeLabel = "返回文件资产",
+  onSplitRight,
+  onSplitDown,
 }: DatabasePreviewPanelProps) {
   if (isLocalDbFile(node)) {
     const fileName = resolveDbFileName(node);
     return (
       <div className="flex h-full min-h-0 flex-col bg-background">
         <div className="flex-shrink-0 border-b border-border px-4 py-2">
-          <div className="flex min-w-0 items-center gap-2">
-            <Database className="h-4 w-4 shrink-0 text-tertiary" />
-            <span className="truncate text-sm font-semibold">{node.name}</span>
-            <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
-              本地文件
-            </span>
+          <div className="flex min-w-0 items-center justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-2">
+              <Database className="h-4 w-4 shrink-0 text-tertiary" />
+              <span className="truncate text-sm font-semibold">{node.name}</span>
+              <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                本地文件
+              </span>
+            </div>
+            {onClose ? (
+              <CanvasActionMenu
+                onClose={onClose}
+                closeLabel={closeLabel}
+                onSplitRight={onSplitRight}
+                onSplitDown={onSplitDown}
+              />
+            ) : null}
           </div>
         </div>
         <div className="min-h-0 flex-1 overflow-hidden">
@@ -110,6 +129,14 @@ export function DatabasePreviewPanel({
               {label}
             </span>
           </div>
+          {onClose ? (
+            <CanvasActionMenu
+              onClose={onClose}
+              closeLabel={closeLabel}
+              onSplitRight={onSplitRight}
+              onSplitDown={onSplitDown}
+            />
+          ) : null}
         </div>
       </div>
       <div className="min-h-0 flex-1 overflow-hidden">

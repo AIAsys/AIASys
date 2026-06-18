@@ -57,6 +57,8 @@ interface UseExecutionSubmitProps {
     events: TaskEvent[],
     sourceAgent: string,
   ) => void;
+  /** 仅重置指定 session 的执行树任务状态（用于 SSE 重连去重） */
+  resetSessionTaskState: (sessionId: string) => void;
   completeHost: () => void;
   completeAllTasks: () => void;
   reloadWorkspaceFiles: (
@@ -113,6 +115,7 @@ export function useExecutionSubmit(props: UseExecutionSubmitProps) {
     sessionId,
     getSessionSlot,
     addStreamEventsForSession,
+    resetSessionTaskState,
     completeHost,
     completeAllTasks,
     reloadWorkspaceFiles,
@@ -370,6 +373,42 @@ export function useExecutionSubmit(props: UseExecutionSubmitProps) {
             return newItems;
           });
         },
+        onReconnect: () => {
+          // SSE 重连前清理上一轮残留的流式数据，避免后端重放导致内容重复
+          const reconnectSlot = getSessionSlot(currentSessionId);
+          if (reconnectSlot.flushTimer) {
+            clearTimeout(reconnectSlot.flushTimer);
+            reconnectSlot.flushTimer = null;
+          }
+          reconnectSlot.streamingSegments = [];
+          reconnectSlot.outputAccumulators.clear();
+          reconnectSlot.toolCallMap.clear();
+          reconnectSlot.taskEventsMap = {};
+
+          // 重置执行树任务状态，避免工具调用事件重复堆积
+          resetSessionTaskState(currentSessionId);
+
+          // 清空流式消息内容，让重连后的新内容从空白开始
+          const reconnectMsgId = reconnectSlot.streamingMessageId;
+          if (reconnectMsgId) {
+            updateChatItems(currentSessionId, (prev: ChatItem[]) => {
+              const idx = prev.findIndex((item) => item.id === reconnectMsgId);
+              if (idx === -1) return prev;
+              const newItems = [...prev];
+              const target = newItems[idx];
+              if (target.type === "message") {
+                newItems[idx] = { ...target, segments: [], content: "" };
+              }
+              return newItems;
+            });
+          }
+
+          // 通知执行树重新开始追踪
+          eventBus.emit(EVENTS.EXECUTION_ACTIVITY, {
+            session_id: currentSessionId,
+            type: "stream_start",
+          });
+        },
       },
       effectiveModelId,
       attachmentPaths,
@@ -405,6 +444,7 @@ export function useExecutionSubmit(props: UseExecutionSubmitProps) {
     syncExecutionHistory,
     activeSessionIdRef,
     onTokenUsageShouldRefresh,
+    resetSessionTaskState,
   ]);
 
   const handleStop = useCallback(async () => {
@@ -466,8 +506,10 @@ export function useExecutionSubmit(props: UseExecutionSubmitProps) {
     updateChatItems,
     getSessionSlot,
     showSuccess,
+    showError,
     apiBaseUrl,
     sessionId,
+    activeSessionIdRef,
     onTokenUsageShouldRefresh,
   ]);
 
@@ -497,7 +539,7 @@ export function useExecutionSubmit(props: UseExecutionSubmitProps) {
       skipUserEcho: true,
       attachmentPaths: last.attachmentPaths,
     });
-  }, [handleSubmit, isSessionRunning, sessionId, updateChatItems]);
+  }, [handleSubmit, isSessionRunning, sessionId, updateChatItems, activeSessionIdRef]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {

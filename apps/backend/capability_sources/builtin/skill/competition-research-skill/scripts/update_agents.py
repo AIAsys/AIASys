@@ -30,7 +30,9 @@ def get_workspace_root() -> Path:
 def resolve_path(raw: str, workspace_root: Path) -> Path:
     p = Path(raw)
     if p.is_absolute():
-        rel = Path(*p.parts[2:]) if str(p) == "/workspace" or str(p).startswith("/workspace/") else p
+        rel = (
+            Path(*p.parts[2:]) if str(p) == "/workspace" or str(p).startswith("/workspace/") else p
+        )
     else:
         rel = p
     host = (workspace_root / rel).resolve()
@@ -157,9 +159,7 @@ def _runner_config(data: dict) -> tuple[str, str, str, str, str, str]:
     record_policy = str(runner.get("record_policy") or "experiment_record").strip()
     expected_runtime = runner.get("expected_runtime_minutes")
     expected_runtime_text = (
-        f"{expected_runtime} 分钟"
-        if expected_runtime not in (None, "")
-        else "未登记"
+        f"{expected_runtime} 分钟" if expected_runtime not in (None, "") else "未登记"
     )
     long_running = "是" if runner.get("long_running") else "否"
     background_required = "是" if runner.get("background_required") else "否"
@@ -174,12 +174,16 @@ def _runner_config(data: dict) -> tuple[str, str, str, str, str, str]:
 
 
 def _runtime_contract_config(data: dict) -> tuple[str, str, str, str, str]:
-    contract = data.get("runtime_contract") if isinstance(data.get("runtime_contract"), dict) else {}
+    contract = (
+        data.get("runtime_contract") if isinstance(data.get("runtime_contract"), dict) else {}
+    )
     mode = str(contract.get("mode") or "stable_bound_environment").strip()
     env_id = str(contract.get("env_id") or "workspace-default").strip()
     imports = contract.get("preflight_imports")
     if isinstance(imports, list) and imports:
-        preflight_imports = ", ".join(f"`{_escape_md(item)}`" for item in imports if str(item).strip())
+        preflight_imports = ", ".join(
+            f"`{_escape_md(item)}`" for item in imports if str(item).strip()
+        )
     else:
         preflight_imports = "未登记"
     large_dependency_policy = str(

@@ -453,10 +453,6 @@
     width: 100%;
     border-collapse: collapse;
     font-size: 0.9em;
-    margin-top: 0.75em;
-    margin-bottom: 0.75em;
-    display: block;
-    overflow-x: auto;
   }
 
   .prose th {

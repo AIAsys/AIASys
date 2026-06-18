@@ -73,7 +73,9 @@ def test_default_mode_uses_configured_mode_for_spreadsheet() -> None:
     assert "alice\t98" in result.text
 
 
-def test_default_mode_falls_back_to_basic_when_primary_mode_fails(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_default_mode_falls_back_to_basic_when_primary_mode_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     service = DocumentExtractionService(
         DocumentExtractionSettings.from_values(
             default_mode="docling",

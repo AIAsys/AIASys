@@ -9,6 +9,7 @@ import {
   createGlobalWorkspacePreviewFile,
   createWorkspacePreviewFile,
 } from "@/utils/workspaceFiles";
+import { validateWindowsFilePath } from "@/utils/normalizePath";
 import {
   WORKSPACE_FOLDER_MARKER_FILENAME,
   type FileTreeNode,
@@ -751,7 +752,7 @@ const WorkspaceAssetPanelComponent: React.FC<WorkspaceAssetPanelProps> = ({
           ? runtimeResources.python_env_id ?? null
           : null,
       ),
-    [runtimeResources?.python_env_id, runtimeResources?.docker_resource_id, runtimeRegistry],
+    [runtimeResources, runtimeRegistry],
   );
 
   const handleCopyRuntimePath = useCallback(async (value: string, label: string) => {
@@ -1178,6 +1179,14 @@ const WorkspaceAssetPanelComponent: React.FC<WorkspaceAssetPanelProps> = ({
       if (normalizedSource === normalizedTarget) {
         return true;
       }
+      // Windows 文件名合法性校验，避免移动到 Windows 非法路径
+      const winError = validateWindowsFilePath(normalizedTarget);
+      if (winError) {
+        if (import.meta.env.DEV) {
+          console.warn("目标路径包含 Windows 非法字符", winError);
+        }
+        return false;
+      }
       if (isGlobal) {
         if (!workspaceId || !token) return false;
         try {
@@ -1543,6 +1552,13 @@ const WorkspaceAssetPanelComponent: React.FC<WorkspaceAssetPanelProps> = ({
     const normalizedPath = normalizeWorkspaceFileInputPath(newFilePath);
     if (!normalizedPath || isCreatingFile) return;
 
+    // Windows 文件名合法性校验，避免在 Windows 上创建失败
+    const winError = validateWindowsFilePath(normalizedPath);
+    if (winError) {
+      setCreateFileError(winError);
+      return;
+    }
+
     setIsCreatingFile(true);
     setCreateFileError(null);
     try {
@@ -1751,6 +1767,13 @@ const WorkspaceAssetPanelComponent: React.FC<WorkspaceAssetPanelProps> = ({
   const handleCreateFolder = useCallback(async () => {
     const normalizedPath = normalizeWorkspaceFolderInputPath(newFolderPath);
     if (!normalizedPath || isCreatingFolder) return;
+
+    // Windows 文件名合法性校验，避免在 Windows 上创建失败
+    const winError = validateWindowsFilePath(normalizedPath);
+    if (winError) {
+      setCreateFolderError(winError);
+      return;
+    }
 
     if (isGlobal) {
       if (!workspaceId) {
@@ -2026,6 +2049,16 @@ const WorkspaceAssetPanelComponent: React.FC<WorkspaceAssetPanelProps> = ({
                 onOpenFileCreate={openCreateFileDialog}
                 onOpenFolderCreate={openCreateFolderDialog}
               />
+            ) : isRefreshing ? (
+              // 加载态：数据正在请求中，尚未拿到任何条目时显示加载指示器，
+              // 避免在加载期间误导性地展示"暂无文件"空状态
+              <div
+                className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 px-6 text-center text-muted-foreground"
+                data-testid={isGlobal ? "workspace-global-resources-loading" : "workspace-artifacts-loading"}
+              >
+                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground/70" />
+                <p className="text-xs leading-5">{isGlobal ? "正在加载全局工作区资源…" : "正在加载工作区文件…"}</p>
+              </div>
             ) : (
               <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-6 text-center text-muted-foreground/60">
                 <div className="mb-3 rounded-full bg-muted/30 p-4">{emptyIcon}</div>

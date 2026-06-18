@@ -61,4 +61,3 @@ class TestSafeTruncatePromptText:
         result = _safe_truncate_prompt_text(text, 10)
         assert len(result) <= 10
         assert result.endswith("...")
-

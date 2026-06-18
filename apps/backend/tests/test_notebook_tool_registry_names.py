@@ -21,10 +21,7 @@ def test_notebook_tool_runtime_names_match_prompts():
     registry.register(ManageNotebook())
     registry.register(EditNotebookFile())
 
-    schema_names = {
-        item["function"]["name"]
-        for item in registry.get_openai_schema()
-    }
+    schema_names = {item["function"]["name"] for item in registry.get_openai_schema()}
 
     assert "ManageNotebook" in schema_names
     assert "EditNotebookFile" in schema_names
@@ -41,10 +38,7 @@ def test_notebook_tool_runtime_names_match_system_preset_loaded_schemas():
             continue
         registry.register(_instantiate_tool_from_path(tool_path))
 
-    schema_names = {
-        item["function"]["name"]
-        for item in registry.get_openai_schema()
-    }
+    schema_names = {item["function"]["name"] for item in registry.get_openai_schema()}
 
     assert "ListSessionNotebooks" in schema_names
     assert "ManageNotebook" in schema_names

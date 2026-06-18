@@ -139,13 +139,7 @@ def test_register_existing_docker_container_persists_workspace_entry(
     assert resource.status == "running"
     assert resource.managed is False
 
-    registry_path = (
-        tmp_path
-        / "local_default"
-        / "task-env"
-        / ".env"
-        / "container_registry.json"
-    )
+    registry_path = tmp_path / "local_default" / "task-env" / ".env" / "container_registry.json"
     payload = json.loads(registry_path.read_text(encoding="utf-8"))
     assert payload["containers"][0]["container_id"] == "sandbox-alpha-resource"
     assert payload["containers"][0]["docker_container_id"] == "abc123"

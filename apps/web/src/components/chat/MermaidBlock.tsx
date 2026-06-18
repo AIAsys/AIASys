@@ -73,6 +73,11 @@ type MarkdownCodeProps = React.HTMLAttributes<HTMLElement> & {
   node?: unknown;
 };
 
+type MarkdownTableProps = React.HTMLAttributes<HTMLTableElement> & {
+  children?: React.ReactNode;
+  node?: unknown;
+};
+
 function getCodeLanguage(className?: string): string {
   const match = /language-(\w+)/.exec(className || "");
   return match?.[1] || "";
@@ -85,6 +90,9 @@ function readCodeText(children: React.ReactNode): string {
 export function withMermaidSupport(baseComponents?: Components): Components {
   const BaseCode = baseComponents?.code as
     | React.ComponentType<MarkdownCodeProps>
+    | undefined;
+  const BaseTable = baseComponents?.table as
+    | React.ComponentType<MarkdownTableProps>
     | undefined;
 
   return {
@@ -110,6 +118,21 @@ export function withMermaidSupport(baseComponents?: Components): Components {
         >
           {children}
         </code>
+      );
+    },
+    table: (props: MarkdownTableProps) => {
+      // 若调用方提供了自定义 table 组件，优先委托
+      if (BaseTable) {
+        return <BaseTable {...props} />;
+      }
+
+      // 用可滚动容器包裹表格，避免 display:block 破坏表格列宽计算
+      // 表格保持原生 display:table 布局，仅在内容溢出时水平滚动
+      const { node: _node, ...htmlProps } = props;
+      return (
+        <div className="my-3 overflow-x-auto scrollbar-thin">
+          <table {...htmlProps} />
+        </div>
       );
     },
   };

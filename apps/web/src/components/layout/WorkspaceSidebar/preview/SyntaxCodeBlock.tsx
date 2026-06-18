@@ -13,7 +13,9 @@ import tsx from "react-syntax-highlighter/dist/esm/languages/prism/tsx";
 import typescript from "react-syntax-highlighter/dist/esm/languages/prism/typescript";
 import yaml from "react-syntax-highlighter/dist/esm/languages/prism/yaml";
 import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism";
-import { Copy, Check } from "lucide-react";
+import { Copy, Check, X } from "lucide-react";
+import { writeTextToClipboard } from "@/utils/clipboardText";
+import { useSafeTimeout } from "@/hooks/useSafeTimeout";
 
 PrismSyntaxHighlighter.registerLanguage("bash", bash);
 PrismSyntaxHighlighter.registerLanguage("css", css);
@@ -97,13 +99,22 @@ export const SyntaxCodeBlock: React.FC<SyntaxCodeBlockProps> = ({
   const resolvedLang = resolveLanguage(fileName, language) || "text";
   const displayLang = LANGUAGE_LABEL[resolvedLang] || resolvedLang;
   const [copied, setCopied] = useState(false);
+  const [copyError, setCopyError] = useState(false);
+  const setSafeTimeout = useSafeTimeout();
 
-  const handleCopy = useCallback(() => {
-    void navigator.clipboard.writeText(code).then(() => {
+  const handleCopy = useCallback(async () => {
+    const result = await writeTextToClipboard(code);
+    if (result.ok) {
       setCopied(true);
-      window.setTimeout(() => setCopied(false), 2000);
-    });
-  }, [code]);
+      setCopyError(false);
+      setSafeTimeout(() => setCopied(false), 2000);
+    } else {
+      // 复制失败：短暂显示错误状态，提示用户手动复制
+      setCopyError(true);
+      setCopied(false);
+      setSafeTimeout(() => setCopyError(false), 2000);
+    }
+  }, [code, setSafeTimeout]);
 
   return (
     <div className="my-3 overflow-hidden rounded-lg border border-border/40 shadow-sm">
@@ -135,6 +146,11 @@ export const SyntaxCodeBlock: React.FC<SyntaxCodeBlockProps> = ({
             <>
               <Check size={12} />
               <span>已复制</span>
+            </>
+          ) : copyError ? (
+            <>
+              <X size={12} />
+              <span>复制失败</span>
             </>
           ) : (
             <>

@@ -648,7 +648,9 @@ async def test_diff_promote_and_variables_routes_cover_scope_and_runtime_helpers
             ]
 
         @classmethod
-        async def restart_kernel(cls, session_id, notebook_path, user_id, *, cwd=None, helper_env=None):
+        async def restart_kernel(
+            cls, session_id, notebook_path, user_id, *, cwd=None, helper_env=None
+        ):
             _ = (session_id, notebook_path, user_id, cwd, helper_env)
             return True
 

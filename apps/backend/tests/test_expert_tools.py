@@ -68,18 +68,14 @@ async def test_install_expert_to_workspace(setup_context: Path) -> None:
     assert "workspace" in result.content
 
     artifacts = result.artifacts or []
-    assert any(
-        isinstance(a, dict) and a.get("name") == "data_analyst" for a in artifacts
-    )
+    assert any(isinstance(a, dict) and a.get("name") == "data_analyst" for a in artifacts)
 
 
 @pytest.mark.asyncio
 async def test_configure_expert_disable_installed(setup_context: Path) -> None:
     await InstallExpert().invoke(name="data_analyst", scope="workspace")
 
-    result = await ConfigureExpert().invoke(
-        name="data_analyst", scope="workspace", enabled=False
-    )
+    result = await ConfigureExpert().invoke(name="data_analyst", scope="workspace", enabled=False)
 
     assert result.is_error is False
     assert "data_analyst" in result.content
@@ -95,9 +91,7 @@ async def test_configure_expert_disable_installed(setup_context: Path) -> None:
 
 @pytest.mark.asyncio
 async def test_configure_expert_rejects_not_installed(setup_context: Path) -> None:
-    result = await ConfigureExpert().invoke(
-        name="reviewer", scope="workspace", enabled=False
-    )
+    result = await ConfigureExpert().invoke(name="reviewer", scope="workspace", enabled=False)
 
     assert result.is_error is True
     assert "尚未安装" in result.content
@@ -112,9 +106,7 @@ async def test_install_expert_by_display_name(setup_context: Path) -> None:
     assert "workspace" in result.content
 
     artifacts = result.artifacts or []
-    assert any(
-        isinstance(a, dict) and a.get("name") == "data_analyst" for a in artifacts
-    )
+    assert any(isinstance(a, dict) and a.get("name") == "data_analyst" for a in artifacts)
 
 
 @pytest.mark.asyncio

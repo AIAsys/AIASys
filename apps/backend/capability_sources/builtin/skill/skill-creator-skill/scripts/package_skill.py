@@ -99,9 +99,12 @@ def package_skill(skill_path, output_dir=None, fmt="zip"):
             print(f"Error: Target directory already exists: {target_dir}")
             return None
         import shutil
-        shutil.copytree(skill_path, target_dir, ignore=shutil.ignore_patterns(
-            "__pycache__", "*.pyc", ".DS_Store", "node_modules"
-        ))
+
+        shutil.copytree(
+            skill_path,
+            target_dir,
+            ignore=shutil.ignore_patterns("__pycache__", "*.pyc", ".DS_Store", "node_modules"),
+        )
         print(f"Successfully copied skill to: {target_dir}")
         print(f"   Install to AIASys: cp -r {target_dir} apps/backend/skills/builtin/")
         return target_dir
@@ -109,8 +112,8 @@ def package_skill(skill_path, output_dir=None, fmt="zip"):
     # Zip mode — .skill file for external sharing
     skill_filename = output_path / f"{skill_name}.skill"
     try:
-        with zipfile.ZipFile(skill_filename, 'w', zipfile.ZIP_DEFLATED) as zipf:
-            for file_path in skill_path.rglob('*'):
+        with zipfile.ZipFile(skill_filename, "w", zipfile.ZIP_DEFLATED) as zipf:
+            for file_path in skill_path.rglob("*"):
                 if not file_path.is_file():
                     continue
                 arcname = file_path.relative_to(skill_path.parent)
@@ -132,8 +135,12 @@ def main():
     parser = argparse.ArgumentParser(description="Package a skill folder")
     parser.add_argument("skill_path", help="Path to the skill folder")
     parser.add_argument("output_dir", nargs="?", default=None, help="Output directory")
-    parser.add_argument("--format", choices=["zip", "dir"], default="zip",
-                        help="Output format: zip (default, .skill file) or dir (directory copy for AIASys)")
+    parser.add_argument(
+        "--format",
+        choices=["zip", "dir"],
+        default="zip",
+        help="Output format: zip (default, .skill file) or dir (directory copy for AIASys)",
+    )
     args = parser.parse_args()
 
     print(f"Packaging skill: {args.skill_path}")

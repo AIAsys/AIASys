@@ -161,14 +161,20 @@ def test_pipeline_records_stage1_outputs_and_consolidation_state(
         now=120,
     )
 
-    assert runtime.get_consolidation_watermark(
-        user_id="local_default",
-        scope_key="workspace-a",
-    ) == 100
-    assert service.pending_consolidation_inputs(
-        user_id="local_default",
-        scope_key="workspace-a",
-    ) == []
+    assert (
+        runtime.get_consolidation_watermark(
+            user_id="local_default",
+            scope_key="workspace-a",
+        )
+        == 100
+    )
+    assert (
+        service.pending_consolidation_inputs(
+            user_id="local_default",
+            scope_key="workspace-a",
+        )
+        == []
+    )
 
 
 def test_retention_prunes_only_consolidated_outputs_and_rebuilds_mirrors(
@@ -229,8 +235,7 @@ def test_retention_prunes_only_consolidated_outputs_and_rebuilds_mirrors(
     assert result["pruned_count"] == 1
     assert result["pruned_rollout_slugs"] == ["workspace-a_old-session"]
     retained_ids = {
-        record.id
-        for record in runtime.list_stage1_outputs(user_id="local_default", limit=10)
+        record.id for record in runtime.list_stage1_outputs(user_id="local_default", limit=10)
     }
     assert old_record.id not in retained_ids
     assert new_record.id in retained_ids
@@ -339,14 +344,20 @@ async def test_stage2_consolidation_appends_global_and_workspace_memory(
     )
 
     assert count == 1
-    assert service.pending_consolidation_inputs(
-        user_id="local_default",
-        scope_key="workspace-a",
-    ) == []
-    assert runtime.get_consolidation_watermark(
-        user_id="local_default",
-        scope_key="workspace-a",
-    ) == 100
+    assert (
+        service.pending_consolidation_inputs(
+            user_id="local_default",
+            scope_key="workspace-a",
+        )
+        == []
+    )
+    assert (
+        runtime.get_consolidation_watermark(
+            user_id="local_default",
+            scope_key="workspace-a",
+        )
+        == 100
+    )
 
     global_store = MemoryStore(
         config_module.get_user_global_memory_dir("local_default") / "MEMORY.md"
@@ -401,10 +412,13 @@ async def test_stage2_default_scope_only_processes_user_default_global_workspace
     count = await service.run_stage2_consolidation(user_id="local_default")
 
     assert count == 1
-    assert runtime.get_consolidation_watermark(
-        user_id="local_default",
-        scope_key=USER_DEFAULT_GLOBAL_WORKSPACE_SCOPE,
-    ) == 100
+    assert (
+        runtime.get_consolidation_watermark(
+            user_id="local_default",
+            scope_key=USER_DEFAULT_GLOBAL_WORKSPACE_SCOPE,
+        )
+        == 100
+    )
     global_text = MemoryStore(
         config_module.get_user_global_memory_dir("local_default") / "MEMORY.md"
     ).read_text()
@@ -465,7 +479,9 @@ async def test_schedule_stage2_consolidation_creates_background_task() -> None:
 
     assert task is not None
     await task
-    assert service.calls == [{"user_id": "local_default", "scope_key": "user_default_global_workspace"}]
+    assert service.calls == [
+        {"user_id": "local_default", "scope_key": "user_default_global_workspace"}
+    ]
 
 
 def test_get_memory_state_runtime_defaults_to_user_memory_root(
@@ -476,15 +492,12 @@ def test_get_memory_state_runtime_defaults_to_user_memory_root(
     import app.services.memory.pipeline as pipeline_module
 
     monkeypatch.setattr(config_module, "WORKSPACE_DIR", tmp_path)
-    monkeypatch.setattr(pipeline_module, "get_user_global_memory_dir", config_module.get_user_global_memory_dir)
+    monkeypatch.setattr(
+        pipeline_module, "get_user_global_memory_dir", config_module.get_user_global_memory_dir
+    )
 
     runtime = get_memory_state_runtime(user_id="local_default")
 
     assert runtime.db_path == (
-        tmp_path
-        / "local_default"
-        / "global_workspace"
-        / ".aiasys"
-        / ".memory"
-        / "state.db"
+        tmp_path / "local_default" / "global_workspace" / ".aiasys" / ".memory" / "state.db"
     )

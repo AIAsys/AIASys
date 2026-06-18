@@ -43,7 +43,7 @@ export interface UseEditableFileResult {
   loaded: boolean;
   dirty: boolean;
   setContent: (content: string) => void;
-  save: () => Promise<void>;
+  save: () => Promise<boolean>;
   reset: () => void;
 }
 
@@ -191,7 +191,7 @@ export function useEditableFile(
   );
 
   const save = useCallback(async () => {
-    if (!fileName || (!sessionId && !workspaceId) || state.isSaving || !state.loaded) return;
+    if (!fileName || (!sessionId && !workspaceId) || state.isSaving || !state.loaded) return false;
 
     setState((prev) => ({ ...prev, isSaving: true, error: null }));
 
@@ -216,9 +216,11 @@ export function useEditableFile(
       if (sessionId) {
         await onRefreshWorkspace?.(sessionId);
       }
+      return true;
     } catch (err) {
       const message = err instanceof Error ? err.message : "保存文件失败";
       setState((prev) => ({ ...prev, isSaving: false, error: message }));
+      return false;
     }
   }, [fileName, sessionId, workspaceId, state.content, state.isSaving, state.loaded, onDirtyChange, onRefreshWorkspace]);
 

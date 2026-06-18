@@ -44,7 +44,9 @@ async def test_list_session_notebooks_reads_workspace_directory(
 
     tokens = _set_context(workspace)
     try:
-        result = await ListSessionNotebooks().invoke(**ListSessionNotebooksParams(directory="research/notebooks").model_dump())
+        result = await ListSessionNotebooks().invoke(
+            **ListSessionNotebooksParams(directory="research/notebooks").model_dump()
+        )
     finally:
         _reset_context(tokens)
 
@@ -97,17 +99,19 @@ async def test_create_session_notebook_writes_private_notebook_and_seeds_cells(
 
     tokens = _set_context(workspace, session_root)
     try:
-        result = await CreateSessionNotebook().invoke(**CreateSessionNotebookParams(
-            notebook_path="research/notebooks/_scratch/demo.ipynb",
-            title="Scratch Demo",
-            cells=[
-                {
-                    "cell_type": "code",
-                    "source": "print('hello')",
-                    "cell_id": "cell-code",
-                }
-            ],
-        ).model_dump())
+        result = await CreateSessionNotebook().invoke(
+            **CreateSessionNotebookParams(
+                notebook_path="research/notebooks/_scratch/demo.ipynb",
+                title="Scratch Demo",
+                cells=[
+                    {
+                        "cell_type": "code",
+                        "source": "print('hello')",
+                        "cell_id": "cell-code",
+                    }
+                ],
+            ).model_dump()
+        )
     finally:
         _reset_context(tokens)
 
@@ -189,10 +193,12 @@ async def test_read_notebook_outputs_prefers_session_copy_and_filters_output_cel
 
     tokens = _set_context(workspace)
     try:
-        result = await ReadNotebookOutputs().invoke(**ReadNotebookOutputsParams(
+        result = await ReadNotebookOutputs().invoke(
+            **ReadNotebookOutputsParams(
                 notebook_path="research/notebooks/analysis.ipynb",
                 max_cells=10,
-            ).model_dump())
+            ).model_dump()
+        )
     finally:
         _reset_context(tokens)
 
@@ -218,10 +224,12 @@ async def test_create_session_notebook_creates_in_workspace(tmp_path: Path) -> N
 
     tokens = _set_context(workspace)
     try:
-        result = await CreateSessionNotebook().invoke(**CreateSessionNotebookParams(
+        result = await CreateSessionNotebook().invoke(
+            **CreateSessionNotebookParams(
                 notebook_path="research/notebooks/demo.ipynb",
                 title="Workspace Notebook",
-            ).model_dump())
+            ).model_dump()
+        )
     finally:
         _reset_context(tokens)
 

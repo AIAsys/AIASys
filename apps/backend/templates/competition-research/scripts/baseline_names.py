@@ -143,11 +143,13 @@ def validate_workspace(workspace: Path, experiments_path: Path) -> dict:
             return
         target = errors if severity == "error" else warnings
         if not is_valid_baseline_name(name):
-            target.append({
-                "source": source,
-                "name": name,
-                "message": "baseline 名必须使用 {family}_b{NNN}_{slug}",
-            })
+            target.append(
+                {
+                    "source": source,
+                    "name": name,
+                    "message": "baseline 名必须使用 {family}_b{NNN}_{slug}",
+                }
+            )
 
     seen_numbers: dict[tuple[str, int], str] = {}
     baselines_dir = workspace / "baselines"
@@ -163,11 +165,13 @@ def validate_workspace(workspace: Path, experiments_path: Path) -> dict:
                 continue
             key = (parsed["family"], parsed["number"])
             if key in seen_numbers:
-                errors.append({
-                    "source": f"baselines/{child.name}",
-                    "name": child.name,
-                    "message": f"同一 family 内编号重复，已存在 {seen_numbers[key]}",
-                })
+                errors.append(
+                    {
+                        "source": f"baselines/{child.name}",
+                        "name": child.name,
+                        "message": f"同一 family 内编号重复，已存在 {seen_numbers[key]}",
+                    }
+                )
             else:
                 seen_numbers[key] = child.name
 
@@ -176,18 +180,22 @@ def validate_workspace(workspace: Path, experiments_path: Path) -> dict:
         version = str(item.get("version") or "").strip()
         check_name(version, f"experiments[{index}].version")
         if version in experiment_versions:
-            errors.append({
-                "source": f"experiments[{index}].version",
-                "name": version,
-                "message": "experiments 中出现重复 version",
-            })
+            errors.append(
+                {
+                    "source": f"experiments[{index}].version",
+                    "name": version,
+                    "message": "experiments 中出现重复 version",
+                }
+            )
         experiment_versions.add(version)
         if version and baseline_dirs and version not in baseline_dirs:
-            warnings.append({
-                "source": f"experiments[{index}].version",
-                "name": version,
-                "message": "experiments 有记录，但 baselines/ 中没有同名代码快照",
-            })
+            warnings.append(
+                {
+                    "source": f"experiments[{index}].version",
+                    "name": version,
+                    "message": "experiments 有记录，但 baselines/ 中没有同名代码快照",
+                }
+            )
 
     for key in ("best_version", "trusted_best_version", "highest_observed_version"):
         check_name(str(data.get(key) or "").strip(), key)
@@ -238,7 +246,9 @@ def validate_workspace(workspace: Path, experiments_path: Path) -> dict:
 def main() -> None:
     parser = argparse.ArgumentParser(description="竞赛 baseline 命名工具")
     parser.add_argument("--mode", choices=["check", "validate", "next"], required=True)
-    parser.add_argument("--workspace", help="竞赛工作区根目录，默认当前目录或 AIASYS_WORKSPACE_ROOT")
+    parser.add_argument(
+        "--workspace", help="竞赛工作区根目录，默认当前目录或 AIASYS_WORKSPACE_ROOT"
+    )
     parser.add_argument("--experiments", default="experiments/index.json")
     parser.add_argument("--name", help="需要检查的单个 baseline 版本名")
     parser.add_argument("--family", help="模型或方法家族，如 lgb、blend、catboost")

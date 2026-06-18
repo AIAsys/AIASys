@@ -6,7 +6,7 @@
  * - page 模式：独立路由页承载
  */
 
-import { useEffect, useMemo, useState, lazy, Suspense } from "react";
+import { useEffect, useMemo, useRef, useState, lazy, Suspense } from "react";
 import { cn } from "@/lib/utils";
 import { knowledgeApi } from "@/lib/api/knowledge";
 import { getModelDefaults, getModels, type LLMModelConfig } from "@/lib/api/llm";
@@ -15,6 +15,7 @@ import type {
   KnowledgeBase,
   KnowledgeBaseExtractionMode,
   KnowledgeBaseSearchMode,
+  UpdateKnowledgeBaseRequest,
   UploadDocumentResponse,
 } from "@/types/knowledge";
 import {
@@ -95,6 +96,7 @@ export function KnowledgeBaseMarket({
   const [uploadChunkOverlap, setUploadChunkOverlap] = useState("50");
   const [uploadResults, setUploadResults] = useState<UploadDocumentResponse[]>([]);
   const [isUploading, setIsUploading] = useState(false);
+  const uploadAbortRef = useRef<AbortController | null>(null);
 
 
   const [isQueryOpen, setIsQueryOpen] = useState(false);
@@ -188,6 +190,13 @@ export function KnowledgeBaseMarket({
     setSelectedKB(null);
     setSearchQuery("");
   }, [isActive]);
+
+  // 组件卸载时取消正在进行的上传请求
+  useEffect(() => {
+    return () => {
+      uploadAbortRef.current?.abort();
+    };
+  }, []);
 
   const scopedKnowledgeBases = useMemo(
     () =>
@@ -300,6 +309,16 @@ export function KnowledgeBaseMarket({
     }
   };
 
+  const handleUpdateKBConfig = async (
+    kbId: string,
+    payload: UpdateKnowledgeBaseRequest,
+  ) => {
+    await knowledgeApi.updateKnowledgeBase(kbId, payload);
+    const refreshed = await knowledgeApi.getKnowledgeBase(kbId);
+    setSelectedKB(refreshed);
+    await loadKnowledgeBases();
+  };
+
   const openDetail = async (kb: KnowledgeBase) => {
     setSelectedKB(kb);
     onSelectKnowledgeBaseIdChange?.(kb.id);
@@ -360,17 +379,24 @@ export function KnowledgeBaseMarket({
       return;
     }
     setIsUploading(true);
+    const controller = new AbortController();
+    uploadAbortRef.current = controller;
     try {
       uploadFiles.forEach((file) => {
         setUploadProgress((prev) => ({ ...prev, [file.name]: 35 }));
       });
-      const response = await knowledgeApi.uploadDocuments(selectedKB.id, uploadFiles, {
-        extraction_mode: uploadExtractionMode,
-        embedding_model: documents.length === 0 ? uploadEmbeddingModel : undefined,
-        chunk_size: chunkSize,
-        chunk_overlap: chunkOverlap,
-        search_mode: uploadSearchMode,
-      });
+      const response = await knowledgeApi.uploadDocuments(
+        selectedKB.id,
+        uploadFiles,
+        {
+          extraction_mode: uploadExtractionMode,
+          embedding_model: documents.length === 0 ? uploadEmbeddingModel : undefined,
+          chunk_size: chunkSize,
+          chunk_overlap: chunkOverlap,
+          search_mode: uploadSearchMode,
+        },
+        controller.signal,
+      );
       response.results.forEach((result) => {
         setUploadProgress((prev) => ({
           ...prev,
@@ -389,10 +415,21 @@ export function KnowledgeBaseMarket({
         setUploadProgress({});
       }
     } catch (err) {
-      alert(err instanceof Error ? err.message : "上传失败");
+      if (controller.signal.aborted) {
+        // 用户主动取消，不弹错误提示
+        setUploadProgress({});
+        setIsUploadOpen(false);
+      } else {
+        alert(err instanceof Error ? err.message : "上传失败");
+      }
     } finally {
+      uploadAbortRef.current = null;
       setIsUploading(false);
     }
+  };
+
+  const handleCancelUpload = () => {
+    uploadAbortRef.current?.abort();
   };
 
   const handleDeleteDoc = async (docId: string) => {
@@ -472,10 +509,14 @@ export function KnowledgeBaseMarket({
             isLoadingDocs={isLoadingDocs}
             documentChunkCount={documentChunkCount}
             isSplitLayout={isSplitLayout}
+            embeddingModels={embeddingModels}
+            defaultEmbeddingModelId={defaultEmbeddingModelId}
+            isLoadingModels={isLoadingModels}
             onBack={backToList}
             onUpload={openUploadDialog}
             onQuery={() => setIsQueryOpen(true)}
             onDeleteDoc={handleDeleteDoc}
+            onSaveConfig={handleUpdateKBConfig}
           />
         ) : (
           <KBDetailEmpty />
@@ -505,10 +546,14 @@ export function KnowledgeBaseMarket({
       isLoadingDocs={isLoadingDocs}
       documentChunkCount={documentChunkCount}
       isSplitLayout={isSplitLayout}
+      embeddingModels={embeddingModels}
+      defaultEmbeddingModelId={defaultEmbeddingModelId}
+      isLoadingModels={isLoadingModels}
       onBack={backToList}
       onUpload={openUploadDialog}
       onQuery={() => setIsQueryOpen(true)}
       onDeleteDoc={handleDeleteDoc}
+      onSaveConfig={handleUpdateKBConfig}
     />
   );
 
@@ -586,6 +631,7 @@ export function KnowledgeBaseMarket({
           onFileSelect={handleFileSelect}
           onRemoveFile={handleRemoveFile}
           onUpload={handleUpload}
+          onCancelUpload={handleCancelUpload}
           onClearFiles={() => setUploadFiles([])}
         />
       </Suspense>

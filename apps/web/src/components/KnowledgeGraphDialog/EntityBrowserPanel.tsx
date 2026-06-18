@@ -12,7 +12,7 @@ import {
   getEntityTypeLabel,
   normalizeDisplayText,
   normalizeEntityType,
-} from "@/pages/Knowledge/GraphPage/shared";
+} from "./shared";
 
 interface EntityBrowserPanelProps {
   workspaceId?: string | null;

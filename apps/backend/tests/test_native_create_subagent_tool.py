@@ -170,9 +170,7 @@ class TestCreateSubagentTool:
             name="bad_orchestrator",
             description="非法调度工具测试",
             system_prompt="你是一个测试专家...",
-            tools=[
-                "app.services.agent.runtime_backends.aiasys.tools.task_tool:TaskTool"
-            ],
+            tools=["app.services.agent.runtime_backends.aiasys.tools.task_tool:TaskTool"],
         )
 
         assert result.is_error is True

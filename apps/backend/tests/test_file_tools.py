@@ -40,6 +40,7 @@ def tmp_global_workspace(tmp_path: Path):
 # ReadFile
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_read_file_basic(tmp_workspace: Path) -> None:
     (tmp_workspace / "test.txt").write_text("line1\nline2\nline3\n", encoding="utf-8")
@@ -58,7 +59,9 @@ async def test_read_file_line_offset(tmp_workspace: Path) -> None:
     (tmp_workspace / "test.txt").write_text("a\nb\nc\nd\n", encoding="utf-8")
 
     tool = ReadFile()
-    result = await tool.invoke(**ReadFileParams(path="test.txt", line_offset=2, n_lines=2).model_dump())
+    result = await tool.invoke(
+        **ReadFileParams(path="test.txt", line_offset=2, n_lines=2).model_dump()
+    )
 
     assert not result.is_error
     assert "a" not in result.output
@@ -167,14 +170,7 @@ async def test_read_file_magic_byte_rejected(tmp_workspace: Path) -> None:
 @pytest.mark.asyncio
 async def test_read_file_expand_block_function(tmp_workspace: Path) -> None:
     """验证缩进感知代码块读取能自动扩展完整函数。"""
-    code = (
-        "def outer():\n"
-        "    if True:\n"
-        "        return 1\n"
-        "\n"
-        "def other():\n"
-        "    pass\n"
-    )
+    code = "def outer():\n    if True:\n        return 1\n\ndef other():\n    pass\n"
     (tmp_workspace / "code.py").write_text(code, encoding="utf-8")
 
     tool = ReadFile()
@@ -191,14 +187,7 @@ async def test_read_file_expand_block_function(tmp_workspace: Path) -> None:
 @pytest.mark.asyncio
 async def test_read_file_expand_block_class(tmp_workspace: Path) -> None:
     """验证缩进感知读取以 class 自身为锚点时返回整个类。"""
-    code = (
-        "class Foo:\n"
-        "    def method(self):\n"
-        "        pass\n"
-        "\n"
-        "class Bar:\n"
-        "    pass\n"
-    )
+    code = "class Foo:\n    def method(self):\n        pass\n\nclass Bar:\n    pass\n"
     (tmp_workspace / "code.py").write_text(code, encoding="utf-8")
 
     tool = ReadFile()
@@ -229,10 +218,13 @@ async def test_read_file_crlf_normalized_for_display(tmp_workspace: Path) -> Non
 # WriteFile
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_write_file_overwrite(tmp_workspace: Path) -> None:
     tool = WriteFile()
-    result = await tool.invoke(**WriteFileParams(path="new.txt", content="hello world").model_dump())
+    result = await tool.invoke(
+        **WriteFileParams(path="new.txt", content="hello world").model_dump()
+    )
 
     assert not result.is_error
     assert (tmp_workspace / "new.txt").read_text(encoding="utf-8") == "hello world"
@@ -243,7 +235,9 @@ async def test_write_file_append(tmp_workspace: Path) -> None:
     (tmp_workspace / "append.txt").write_text("first\n", encoding="utf-8")
 
     tool = WriteFile()
-    result = await tool.invoke(**WriteFileParams(path="append.txt", content="second\n", mode="append").model_dump())
+    result = await tool.invoke(
+        **WriteFileParams(path="append.txt", content="second\n", mode="append").model_dump()
+    )
 
     assert not result.is_error
     content = (tmp_workspace / "append.txt").read_text(encoding="utf-8")
@@ -270,7 +264,9 @@ async def test_write_file_records_workspace_history(tmp_workspace: Path) -> None
 @pytest.mark.asyncio
 async def test_write_file_auto_mkdir(tmp_workspace: Path) -> None:
     tool = WriteFile()
-    result = await tool.invoke(**WriteFileParams(path="sub/dir/file.txt", content="deep").model_dump())
+    result = await tool.invoke(
+        **WriteFileParams(path="sub/dir/file.txt", content="deep").model_dump()
+    )
 
     assert not result.is_error
     assert (tmp_workspace / "sub" / "dir" / "file.txt").read_text(encoding="utf-8") == "deep"
@@ -279,6 +275,7 @@ async def test_write_file_auto_mkdir(tmp_workspace: Path) -> None:
 # ---------------------------------------------------------------------------
 # StrReplaceFile
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_str_replace_file_single(tmp_workspace: Path) -> None:
@@ -421,6 +418,7 @@ async def test_str_replace_file_magic_byte_rejected(tmp_workspace: Path) -> None
 # Global workspace path support
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_read_file_global_path(tmp_global_workspace: Path) -> None:
     (tmp_global_workspace / "shared.txt").write_text("global content", encoding="utf-8")
@@ -435,7 +433,9 @@ async def test_read_file_global_path(tmp_global_workspace: Path) -> None:
 @pytest.mark.asyncio
 async def test_write_file_global_path(tmp_global_workspace: Path) -> None:
     tool = WriteFile()
-    result = await tool.invoke(**WriteFileParams(path="/global/new.txt", content="written to global").model_dump())
+    result = await tool.invoke(
+        **WriteFileParams(path="/global/new.txt", content="written to global").model_dump()
+    )
 
     assert not result.is_error
     assert (tmp_global_workspace / "new.txt").read_text(encoding="utf-8") == "written to global"
@@ -490,6 +490,7 @@ async def test_global_path_escape_rejected(tmp_global_workspace: Path) -> None:
 # ---------------------------------------------------------------------------
 # /workspace/ prefix support (upload API returns this format)
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_read_file_workspace_prefix(tmp_workspace: Path) -> None:

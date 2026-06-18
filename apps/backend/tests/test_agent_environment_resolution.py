@@ -77,11 +77,5 @@ def test_explicit_runtime_env_preferred_over_session_and_workspace(monkeypatch):
         lambda: registry,
     )
 
-    assert (
-        service._resolve_env_id_for_session("u1", "s1", "request-env")
-        == "request-env"
-    )
-    assert (
-        service._resolve_sandbox_mode_for_session("u1", "s1", "plain_shell")
-        == "plain_shell"
-    )
+    assert service._resolve_env_id_for_session("u1", "s1", "request-env") == "request-env"
+    assert service._resolve_sandbox_mode_for_session("u1", "s1", "plain_shell") == "plain_shell"

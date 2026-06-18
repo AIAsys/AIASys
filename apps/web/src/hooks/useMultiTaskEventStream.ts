@@ -213,6 +213,19 @@ export function useMultiTaskEventStream(): UseMultiTaskEventStreamReturn {
     [stopAll],
   );
 
+  /** 仅重置指定 session 的任务状态，不影响工作区文件和监控连接（用于 SSE 重连去重） */
+  const resetSessionTaskState = useCallback(
+    (sessionId: string) => {
+      if (sessionId === activeSessionIdRef.current) {
+        setState(createEmptyMultiTaskState());
+      } else {
+        const psd = getPerSessionData(sessionId);
+        psd.state = createEmptyMultiTaskState();
+      }
+    },
+    [getPerSessionData],
+  );
+
   useEffect(() => {
     return () => stopAll();
   }, [stopAll]);
@@ -288,6 +301,7 @@ export function useMultiTaskEventStream(): UseMultiTaskEventStreamReturn {
     stopAll,
     reset,
     resetSession,
+    resetSessionTaskState,
     completeHost,
     completeAllTasks,
     workspaceFiles,

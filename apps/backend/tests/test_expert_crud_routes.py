@@ -45,7 +45,6 @@ async def test_create_workspace_expert_success(
         user_id="local_default",
         workspace_id="task-crud",
         title="CRUD 测试工作区",
-
         initial_conversation_title="测试会话",
     )
 
@@ -91,7 +90,6 @@ async def test_get_workspace_expert_detail(
         user_id="local_default",
         workspace_id="task-detail",
         title="详情测试工作区",
-
     )
 
     await workspaces_core_module.create_workspace_expert(
@@ -135,7 +133,6 @@ async def test_update_workspace_expert(
         user_id="local_default",
         workspace_id="task-update",
         title="更新测试工作区",
-
     )
 
     await workspaces_core_module.create_workspace_expert(
@@ -184,7 +181,6 @@ async def test_delete_workspace_expert(
         user_id="local_default",
         workspace_id="task-delete",
         title="删除测试工作区",
-
     )
 
     await workspaces_core_module.create_workspace_expert(
@@ -231,7 +227,6 @@ async def test_create_workspace_expert_rejects_invalid_name(
         user_id="local_default",
         workspace_id="task-invalid",
         title="非法名称测试",
-
     )
 
     with pytest.raises(HTTPException) as exc_info:
@@ -264,7 +259,6 @@ async def test_create_workspace_expert_rejects_system_name(
         user_id="local_default",
         workspace_id="task-system",
         title="系统预设冲突测试",
-
     )
 
     with pytest.raises(HTTPException) as exc_info:
@@ -276,7 +270,7 @@ async def test_create_workspace_expert_rejects_system_name(
                 system_prompt="prompt",
             ),
             current_user=_build_user(),
-    )
+        )
     assert exc_info.value.status_code == 400
     assert exc_info.value.detail
 
@@ -297,7 +291,6 @@ async def test_cannot_modify_system_preset_via_rest(
         user_id="local_default",
         workspace_id="task-preset",
         title="系统预设保护测试",
-
     )
 
     # 尝试修改系统预设 coder
@@ -324,9 +317,12 @@ async def test_cannot_modify_system_preset_via_rest(
     )
     assert delete_response == {"success": True, "name": "coder"}
     assert subagent_catalog.is_system_subagent_name("coder") is True
-    assert subagent_catalog.is_subagent_installed_to_scope(
-        user_id="local_default",
-        name="coder",
-        scope="workspace",
-        workspace_id="task-preset",
-    ) is False
+    assert (
+        subagent_catalog.is_subagent_installed_to_scope(
+            user_id="local_default",
+            name="coder",
+            scope="workspace",
+            workspace_id="task-preset",
+        )
+        is False
+    )

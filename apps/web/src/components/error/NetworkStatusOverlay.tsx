@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useSafeTimeout } from "@/hooks/useSafeTimeout";
 
 /**
  * 全局网络状态横幅。
@@ -11,6 +12,7 @@ export default function NetworkStatusOverlay() {
     typeof navigator !== "undefined" ? navigator.onLine : true,
   );
   const [showRestored, setShowRestored] = useState(false);
+  const setSafeTimeout = useSafeTimeout();
 
   useEffect(() => {
     const handleOffline = () => {
@@ -20,7 +22,7 @@ export default function NetworkStatusOverlay() {
     const handleOnline = () => {
       setIsOnline(true);
       setShowRestored(true);
-      window.setTimeout(() => setShowRestored(false), 2000);
+      setSafeTimeout(() => setShowRestored(false), 2000);
     };
     window.addEventListener("offline", handleOffline);
     window.addEventListener("online", handleOnline);
@@ -28,7 +30,7 @@ export default function NetworkStatusOverlay() {
       window.removeEventListener("offline", handleOffline);
       window.removeEventListener("online", handleOnline);
     };
-  }, []);
+  }, [setSafeTimeout]);
 
   if (isOnline && !showRestored) {
     return null;

@@ -32,6 +32,7 @@ from app.services.agent.runtime_backends.aiasys.llm_clients import create_llm_cl
 
 # ── Error Classifier Tests ──────────────────────────────────────────────
 
+
 class FakeHttpError(Exception):
     def __init__(self, message: str, status_code: int | None = None):
         super().__init__(message)
@@ -184,6 +185,7 @@ def test_classified_error_is_auth_property():
 
 # ── Retry Utils Tests ───────────────────────────────────────────────────
 
+
 def test_jittered_backoff_increases_with_attempt():
     d1 = jittered_backoff(1)
     d2 = jittered_backoff(2)
@@ -295,9 +297,7 @@ async def test_router_primary_succeeds():
         thinking_effort="high",
         thinking_budget_tokens=8192,
     )
-    chunks = [
-        c async for c in router.chat_stream([], None, 0.7, 1024, request_options)
-    ]
+    chunks = [c async for c in router.chat_stream([], None, 0.7, 1024, request_options)]
     assert len(chunks) == 1
     assert chunks[0].delta.content == "ok"
     assert primary.calls[0][4] is request_options
@@ -396,7 +396,10 @@ async def test_router_aclose_closes_current_client():
 
 # ── Credential Pool Tests ───────────────────────────────────────────────
 
-from app.services.agent.runtime_backends.aiasys.llm_clients.credential_pool import CredentialPool, PooledCredential
+from app.services.agent.runtime_backends.aiasys.llm_clients.credential_pool import (
+    CredentialPool,
+    PooledCredential,
+)
 
 
 def test_pool_from_single_key_returns_none():
@@ -405,9 +408,7 @@ def test_pool_from_single_key_returns_none():
 
 
 def test_pool_from_multiple_keys():
-    pool = CredentialPool.from_provider_config(
-        "p1", api_key="k1", api_keys=["k2", "k3"]
-    )
+    pool = CredentialPool.from_provider_config("p1", api_key="k1", api_keys=["k2", "k3"])
     assert pool is not None
     assert pool.size == 3
     assert pool.has_available is True
@@ -415,9 +416,7 @@ def test_pool_from_multiple_keys():
 
 @pytest.mark.asyncio
 async def test_pool_round_robin():
-    pool = CredentialPool.from_provider_config(
-        "p1", api_key="k1", api_keys=["k2", "k3"]
-    )
+    pool = CredentialPool.from_provider_config("p1", api_key="k1", api_keys=["k2", "k3"])
     c1 = await pool.get_next()
     c2 = await pool.get_next()
     c3 = await pool.get_next()
@@ -430,9 +429,7 @@ async def test_pool_round_robin():
 
 @pytest.mark.asyncio
 async def test_pool_mark_exhausted():
-    pool = CredentialPool.from_provider_config(
-        "p1", api_key="k1", api_keys=["k2"]
-    )
+    pool = CredentialPool.from_provider_config("p1", api_key="k1", api_keys=["k2"])
     c1 = await pool.get_next()
     next_cred = await pool.mark_exhausted(c1.id, reason="billing")
     assert next_cred is not None
@@ -442,9 +439,7 @@ async def test_pool_mark_exhausted():
 
 @pytest.mark.asyncio
 async def test_pool_all_exhausted():
-    pool = CredentialPool.from_provider_config(
-        "p1", api_key="k1", api_keys=["k2"]
-    )
+    pool = CredentialPool.from_provider_config("p1", api_key="k1", api_keys=["k2"])
     c1 = await pool.get_next()
     await pool.mark_exhausted(c1.id, reason="billing")
     c2 = await pool.get_next()
@@ -455,9 +450,7 @@ async def test_pool_all_exhausted():
 
 @pytest.mark.asyncio
 async def test_pool_cooldown_recovery(monkeypatch):
-    pool = CredentialPool.from_provider_config(
-        "p1", api_key="k1", api_keys=["k2"]
-    )
+    pool = CredentialPool.from_provider_config("p1", api_key="k1", api_keys=["k2"])
     assert pool is not None
     c1 = await pool.get_next()
     await pool.mark_exhausted(c1.id, reason="rate_limit")
@@ -465,6 +458,7 @@ async def test_pool_cooldown_recovery(monkeypatch):
 
     # 模拟时间前进超过冷却期
     import time as time_mod
+
     future = time_mod.time() + 4000
     monkeypatch.setattr(time_mod, "time", lambda: future)
     assert c1.is_available is True
@@ -473,7 +467,9 @@ async def test_pool_cooldown_recovery(monkeypatch):
 @pytest.mark.asyncio
 async def test_pool_random_strategy():
     pool = CredentialPool.from_provider_config(
-        "p1", api_key="k1", api_keys=["k2", "k3", "k4"],
+        "p1",
+        api_key="k1",
+        api_keys=["k2", "k3", "k4"],
         strategy="random",
     )
     keys = {(await pool.get_next()).api_key for _ in range(20)}
@@ -483,7 +479,9 @@ async def test_pool_random_strategy():
 @pytest.mark.asyncio
 async def test_pool_least_used_strategy():
     pool = CredentialPool.from_provider_config(
-        "p1", api_key="k1", api_keys=["k2", "k3"],
+        "p1",
+        api_key="k1",
+        api_keys=["k2", "k3"],
         strategy="least_used",
     )
     c1 = await pool.get_next()
@@ -493,6 +491,7 @@ async def test_pool_least_used_strategy():
 
 
 # ── ProviderRouter + CredentialPool Integration Tests ───────────────────
+
 
 class _FakeKeyTrackingClient:
     """记录传入的 api_key_override 的 fake client。"""
@@ -960,9 +959,7 @@ def test_anthropic_client_uses_adaptive_thinking_for_opus_46() -> None:
         thinking_enabled=True,
         thinking_effort="high",
     )
-    kwargs = _extract_anthropic_kwargs(
-        client, request_options=request_options, max_tokens=8192
-    )
+    kwargs = _extract_anthropic_kwargs(client, request_options=request_options, max_tokens=8192)
 
     assert kwargs["thinking"] == {"type": "adaptive", "display": "summarized"}
     assert kwargs["output_config"] == {"effort": "high"}
@@ -1007,9 +1004,7 @@ def test_anthropic_client_uses_legacy_thinking_for_claude_35() -> None:
         thinking_enabled=True,
         thinking_effort="medium",
     )
-    kwargs = _extract_anthropic_kwargs(
-        client, request_options=request_options, max_tokens=4096
-    )
+    kwargs = _extract_anthropic_kwargs(client, request_options=request_options, max_tokens=4096)
 
     assert kwargs["thinking"] == {"type": "enabled", "budget_tokens": 4096}
     assert kwargs["max_tokens"] >= 4096 + 2048
@@ -1056,9 +1051,7 @@ def test_anthropic_client_does_not_force_temperature_for_adaptive() -> None:
         thinking_enabled=True,
         thinking_effort="high",
     )
-    kwargs = _extract_anthropic_kwargs(
-        client, request_options=request_options, temperature=0.5
-    )
+    kwargs = _extract_anthropic_kwargs(client, request_options=request_options, temperature=0.5)
 
     assert kwargs["thinking"] == {"type": "adaptive", "display": "summarized"}
     assert kwargs["temperature"] == 0.5

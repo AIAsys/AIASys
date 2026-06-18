@@ -108,7 +108,6 @@ def test_mcp_session_service_reads_workspace_mcp_config(
     assert [server.name for server in servers] == ["demo"]
 
 
-
 def test_workspace_database_mounts_round_trip(tmp_path: Path) -> None:
     session_dir = tmp_path / "user-db" / "workspace-db"
 
@@ -173,9 +172,11 @@ async def test_build_runtime_config_projection_reports_pending_versions(
     (skill_dir / "SKILL.md").write_text("# demo", encoding="utf-8")
     # 三层合并模型：在工作区 mcp_config.json 中直接定义 server
     import app.mcp.manager as mcp_manager_module
+
     mcp_manager_module.WORKSPACE_DIR = tmp_path
     from app.mcp import MCPManager
     from app.mcp.models import MCPServerDefinition, MCPConfig
+
     mgr = MCPManager()
     workspace_config = MCPConfig(
         version=1,
@@ -292,9 +293,7 @@ async def test_build_runtime_config_projection_reports_aligned_state(
         lambda: _get_isolated_mcp_manager(tmp_path),
     )
 
-    current_capability_version = config_projection.compute_capability_snapshot_version(
-        session_dir
-    )
+    current_capability_version = config_projection.compute_capability_snapshot_version(session_dir)
     config_projection.write_runtime_config_state(
         session_dir,
         applied_agent_config_version="agent-same",

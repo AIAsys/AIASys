@@ -5,6 +5,7 @@ import type { ChatItem } from "../../types";
 import type { RuntimeControlsState } from "./types";
 import type { LLMModelConfig } from "@/lib/api/llm";
 import type { SessionStatusInfo, TaskWorkspaceSummary } from "../../types";
+import type { FailedUpload } from "@/hooks/useAgentFileUpload";
 import { useDockResize } from "./useDockResize";
 import { DockHeader } from "./DockHeader";
 import { DockChatView } from "./DockChatView";
@@ -62,6 +63,12 @@ interface ConversationDockProps {
   uploadProgress?: number | null;
   onStop: () => void;
   uploadedFiles: UploadedFile[];
+  /** 上传失败的文件列表 */
+  failedUploads?: FailedUpload[];
+  /** 重试某个失败的上传 */
+  onRetryUpload?: (id: string) => void;
+  /** 移除某个失败的上传记录 */
+  onRemoveFailedUpload?: (id: string) => void;
   onRemoveFile: (index: number) => void;
   onAddFileClick: () => void;
   fileInputRef: React.RefObject<HTMLInputElement | null>;
@@ -128,6 +135,9 @@ export function ConversationDock({
   uploadProgress,
   onStop,
   uploadedFiles,
+  failedUploads,
+  onRetryUpload,
+  onRemoveFailedUpload,
   onRemoveFile,
   onAddFileClick,
   fileInputRef,
@@ -181,6 +191,17 @@ export function ConversationDock({
   );
 
   if (!isOpen) {
+    // 折叠态指示器：运行中绿色脉冲 / 预热中琥珀色脉冲 / 空闲灰色静态
+    const indicatorColor = isRunning
+      ? "bg-success animate-pulse"
+      : isPrewarming
+        ? "bg-warning animate-pulse"
+        : "bg-muted-foreground/40";
+    const indicatorTitle = isRunning
+      ? "会话运行中 — 展开对话侧栏"
+      : isPrewarming
+        ? "正在预热 — 展开对话侧栏"
+        : "展开对话侧栏";
     return (
       <div className="pointer-events-none absolute bottom-4 right-4 z-30">
         <button
@@ -188,11 +209,13 @@ export function ConversationDock({
           data-testid="conversation-dock-collapsed-toggle"
           className="pointer-events-auto relative flex h-12 w-12 items-center justify-center rounded-full border border-border bg-background text-foreground shadow-[0_14px_34px_rgba(15,23,42,0.18)]  transition-transform hover:scale-[1.02] hover:bg-background"
           onClick={onOpen}
-          title="展开对话侧栏"
+          title={indicatorTitle}
         >
-          <Bot className="h-5 w-5 text-success" />
-          <span className="absolute bottom-1.5 right-1.5 h-2.5 w-2.5 rounded-full border border-background bg-success" />
-          <span className="sr-only">展开对话侧栏</span>
+          <Bot className="h-5 w-5 text-muted-foreground" />
+          <span
+            className={`absolute bottom-1.5 right-1.5 h-2.5 w-2.5 rounded-full border border-background ${indicatorColor}`}
+          />
+          <span className="sr-only">{indicatorTitle}</span>
         </button>
       </div>
     );
@@ -251,6 +274,9 @@ export function ConversationDock({
         uploadProgress={uploadProgress}
         onStop={onStop}
         uploadedFiles={uploadedFiles}
+        failedUploads={failedUploads}
+        onRetryUpload={onRetryUpload}
+        onRemoveFailedUpload={onRemoveFailedUpload}
         onRemoveFile={onRemoveFile}
         onAddFileClick={onAddFileClick}
         fileInputRef={fileInputRef}

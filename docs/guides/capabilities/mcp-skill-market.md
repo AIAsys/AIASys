@@ -148,7 +148,7 @@ Skill 采用全局源仓库 + 工作区副本的两层架构：
 | skill-creator-skill | Skill 开发工作台（结构、测试、打包、部署） |
 | extension-management-skill | MCP、Skill 和协作专家扩展管理 |
 | arxiv-search-skill | arXiv 论文搜索与下载 |
-| pdf-translate-skill | PDF 保版式翻译 |
+| pdf-translate-skill | PDF 保版式翻译，输出单语版和双语对照版 |
 | pymupdf4llm-pdf-to-markdown-skill | PDF 转 Markdown 供 Agent 阅读 |
 | paddleocr-skill | PaddleOCR 文档提取 |
 | aiasys-canvas-skill | AIASys Canvas 对象编辑 |

@@ -46,9 +46,7 @@ class TestWorkspaceExportConversations:
         # 创建 session 目录和 history.json
         session_dir = ws_dir / ".." / "session-001"
         session_dir.mkdir(parents=True)
-        history_file = (
-            session_dir / ".aiasys" / "session" / "_active" / "history.json"
-        )
+        history_file = session_dir / ".aiasys" / "session" / "_active" / "history.json"
         history_file.parent.mkdir(parents=True)
         messages = [
             {"role": "user", "content": "你好", "timestamp": "2024-01-01T00:00:00Z"},
@@ -94,15 +92,17 @@ class TestWorkspaceExportConversations:
 
         session_dir = ws_dir / ".." / "session-002"
         session_dir.mkdir(parents=True)
-        history_file = (
-            session_dir / ".aiasys" / "session" / "_active" / "history.json"
-        )
+        history_file = session_dir / ".aiasys" / "session" / "_active" / "history.json"
         history_file.parent.mkdir(parents=True)
         messages = [
             {"role": "user", "content": "你好", "timestamp": "2024-01-01T00:00:00Z"},
             {"role": "_checkpoint", "content": "internal", "timestamp": "2024-01-01T00:00:00Z"},
             {"role": "_usage", "content": "internal", "timestamp": "2024-01-01T00:00:00Z"},
-            {"role": "user", "content": "<system-reminder>提醒</system-reminder>", "timestamp": "2024-01-01T00:00:00Z"},
+            {
+                "role": "user",
+                "content": "<system-reminder>提醒</system-reminder>",
+                "timestamp": "2024-01-01T00:00:00Z",
+            },
             {"role": "assistant", "content": "收到", "timestamp": "2024-01-01T00:00:01Z"},
         ]
         history_file.write_text(
@@ -135,9 +135,7 @@ class TestWorkspaceExportConversations:
 
         session_dir = ws_dir / ".." / "session-003"
         session_dir.mkdir(parents=True)
-        history_file = (
-            session_dir / ".aiasys" / "session" / "_active" / "history.json"
-        )
+        history_file = session_dir / ".aiasys" / "session" / "_active" / "history.json"
         history_file.parent.mkdir(parents=True)
         history_file.write_text(
             json.dumps(
@@ -148,9 +146,7 @@ class TestWorkspaceExportConversations:
         )
 
         service = WorkspaceExportService(workspace_root=tmp_path)
-        payloads = [
-            {"conversation_id": "conv-003", "session_id": "session-003", "title": "T"}
-        ]
+        payloads = [{"conversation_id": "conv-003", "session_id": "session-003", "title": "T"}]
         buf, _ = service.build_archive(
             user_id="user1",
             workspace_id="ws-1",

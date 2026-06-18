@@ -56,7 +56,9 @@ def get_workspace_root() -> Path:
 def resolve_path(raw: str, workspace_root: Path) -> Path:
     p = Path(raw)
     if p.is_absolute():
-        rel = Path(*p.parts[2:]) if str(p) == "/workspace" or str(p).startswith("/workspace/") else p
+        rel = (
+            Path(*p.parts[2:]) if str(p) == "/workspace" or str(p).startswith("/workspace/") else p
+        )
     else:
         rel = p
     host = (workspace_root / rel).resolve()
@@ -123,7 +125,9 @@ def find_graph_db(
 
     kg_id = str(experiments_data.get("knowledge_graph_id") or "").strip()
     if kg_id:
-        global_candidate = ws_root.parent / "global_workspace" / "resources" / "graphs" / f"{kg_id}.db"
+        global_candidate = (
+            ws_root.parent / "global_workspace" / "resources" / "graphs" / f"{kg_id}.db"
+        )
         if global_candidate.exists():
             return global_candidate
 
@@ -158,12 +162,14 @@ def get_methods_from_graph(graph_db_path: Path) -> list[dict]:
                         props = json.loads(row[3])
                     except json.JSONDecodeError:
                         pass
-                methods.append({
-                    "entity_id": row[0],
-                    "name": row[1],
-                    "description": row[2] or "",
-                    "properties": props,
-                })
+                methods.append(
+                    {
+                        "entity_id": row[0],
+                        "name": row[1],
+                        "description": row[2] or "",
+                        "properties": props,
+                    }
+                )
             return methods
     except Exception:
         return []
@@ -187,12 +193,14 @@ def get_papers_from_graph(graph_db_path: Path) -> list[dict]:
                         props = json.loads(row[3])
                     except json.JSONDecodeError:
                         pass
-                papers.append({
-                    "entity_id": row[0],
-                    "title": row[1],
-                    "abstract": row[2] or "",
-                    "properties": props,
-                })
+                papers.append(
+                    {
+                        "entity_id": row[0],
+                        "title": row[1],
+                        "abstract": row[2] or "",
+                        "properties": props,
+                    }
+                )
             return papers
     except Exception:
         return []
@@ -233,22 +241,10 @@ def generate_plan(data: dict, methods: list[dict], project_dir: Path | None = No
         expected_direction = direction
 
         phase_hypotheses = {
-            "literature": (
-                f"查阅相关文献，寻找可迁移到 {competition} 的方法。"
-                f"{method_hint}"
-            ),
-            "feature": (
-                f"基于当前最佳特征集，尝试新的特征工程方向以改善 {metric}。"
-                f"{method_hint}"
-            ),
-            "model": (
-                f"尝试新的模型架构或超参数组合，目标 {direction} {metric}。"
-                f"{method_hint}"
-            ),
-            "ensemble": (
-                f"构建模型集成策略，进一步 {direction} {metric}。"
-                f"{method_hint}"
-            ),
+            "literature": (f"查阅相关文献，寻找可迁移到 {competition} 的方法。{method_hint}"),
+            "feature": (f"基于当前最佳特征集，尝试新的特征工程方向以改善 {metric}。{method_hint}"),
+            "model": (f"尝试新的模型架构或超参数组合，目标 {direction} {metric}。{method_hint}"),
+            "ensemble": (f"构建模型集成策略，进一步 {direction} {metric}。{method_hint}"),
         }
         hypothesis = phase_hypotheses.get(
             current_phase,
@@ -263,10 +259,7 @@ def generate_plan(data: dict, methods: list[dict], project_dir: Path | None = No
                 ap_texts.append(f"{ap.get('pattern', str(ap))}")
             else:
                 ap_texts.append(str(ap))
-        hypothesis += (
-            f"\n注意：以下方向已被验证无效，应避免重复 — "
-            + "; ".join(ap_texts)
-        )
+        hypothesis += f"\n注意：以下方向已被验证无效，应避免重复 — " + "; ".join(ap_texts)
 
     # 阶段转换建议
     phase_transition_hint = ""
@@ -393,12 +386,12 @@ def _normalize_cell_source(source) -> list[str]:
 def inject_hypothesis_comments(content: str, hypothesis: str, ext: str) -> str:
     """在文件内容中注入 hypothesis 的 TODO 注释。"""
     header = f"""
-# {'=' * 60}
+# {"=" * 60}
 # EXPERIMENT HYPOTHESIS
-# {'=' * 60}
+# {"=" * 60}
 # {hypothesis}
 # TODO: 按上述 hypothesis 修改以下代码
-# {'=' * 60}
+# {"=" * 60}
 
 """
     if ext == ".py":
@@ -495,7 +488,9 @@ def run_with_timeout(
     return process.returncode, stdout, stderr, runtime
 
 
-def _find_source_file(project_dir: Path, from_version: str | None, baseline_name: str | None) -> tuple[Path, str]:
+def _find_source_file(
+    project_dir: Path, from_version: str | None, baseline_name: str | None
+) -> tuple[Path, str]:
     """确定实验的起点文件。
 
     优先级：
@@ -564,9 +559,7 @@ def cmd_run(args):
     # 确定实验起点文件
     source_type = None
     try:
-        source_file, source_type = _find_source_file(
-            project_dir, args.from_version, args.baseline
-        )
+        source_file, source_type = _find_source_file(project_dir, args.from_version, args.baseline)
     except FileNotFoundError as exc:
         hint = "baselines/ 为空。这是 bootstrap 阶段，Agent 需要先写一个可运行的 baseline。"
         if args.baseline:
@@ -651,9 +644,7 @@ def cmd_run(args):
             runtime = 0.0
 
     # 保存日志
-    out_log, err_log = _save_experiment_logs(
-        project_dir, version, exp_name, stdout, stderr
-    )
+    out_log, err_log = _save_experiment_logs(project_dir, version, exp_name, stdout, stderr)
 
     # 解析 score
     score = parse_score_from_output(stdout, stderr)
@@ -755,12 +746,14 @@ def _read_runner_lock(project_dir: Path) -> dict:
         except PermissionError:
             active = True
 
-    result.update({
-        "active": active,
-        "stale": not active,
-        "pid": pid,
-        "data": data,
-    })
+    result.update(
+        {
+            "active": active,
+            "stale": not active,
+            "pid": pid,
+            "data": data,
+        }
+    )
     return result
 
 
@@ -790,7 +783,14 @@ def _versions_with_outputs(project_dir: Path) -> set[str]:
         return set()
     versions = set()
     for child in outputs_dir.iterdir():
-        if child.name in {"logs", "submissions", "observations", "reports", "runtime-prep", "parallel_research"}:
+        if child.name in {
+            "logs",
+            "submissions",
+            "observations",
+            "reports",
+            "runtime-prep",
+            "parallel_research",
+        }:
             continue
         if child.is_dir() and is_valid_baseline_name(child.name) and any(child.iterdir()):
             versions.add(child.name)
@@ -851,9 +851,7 @@ def cmd_preflight(args):
         candidate_version and not is_valid_baseline_name(candidate_version)
     )
     existing_candidate_paths = (
-        _existing_version_paths(project_dir, candidate_version)
-        if candidate_version
-        else {}
+        _existing_version_paths(project_dir, candidate_version) if candidate_version else {}
     )
     active_auto_task_sessions = _active_auto_task_sessions(project_dir)
     runner_lock = _read_runner_lock(project_dir)
@@ -910,19 +908,18 @@ def _active_auto_task_sessions(project_dir: Path) -> list[dict]:
         session_root = user_root / session_id
         metadata = _load_session_metadata(session_root / "metadata.json")
         running_monitors = _running_monitors(session_root)
-        if (
-            metadata.get("status") in {"completed", "failed", "cancelled"}
-            and not running_monitors
-        ):
+        if metadata.get("status") in {"completed", "failed", "cancelled"} and not running_monitors:
             continue
-        active.append({
-            "session_id": session_id,
-            "auto_task_id": item.get("auto_task_id"),
-            "title": item.get("title"),
-            "created_at": item.get("created_at"),
-            "status": metadata.get("status"),
-            "running_monitors": running_monitors,
-        })
+        active.append(
+            {
+                "session_id": session_id,
+                "auto_task_id": item.get("auto_task_id"),
+                "title": item.get("title"),
+                "created_at": item.get("created_at"),
+                "status": metadata.get("status"),
+                "running_monitors": running_monitors,
+            }
+        )
     return active
 
 
@@ -946,11 +943,13 @@ def _running_monitors(session_root: Path) -> list[dict]:
         except Exception:
             continue
         if meta.get("status") not in {"completed", "failed", "killed", "cancelled"}:
-            running.append({
-                "id": meta.get("id") or meta_path.stem.removesuffix(".meta"),
-                "status": meta.get("status"),
-                "command": meta.get("command"),
-            })
+            running.append(
+                {
+                    "id": meta.get("id") or meta_path.stem.removesuffix(".meta"),
+                    "status": meta.get("status"),
+                    "command": meta.get("command"),
+                }
+            )
     return running
 
 
@@ -1109,17 +1108,18 @@ def cmd_record(args):
         anti_patterns = data.get("anti_patterns", [])
         # 去重：相同的 pattern 不重复添加
         existing_patterns = {
-            ap.get("pattern", str(ap)) if isinstance(ap, dict) else str(ap)
-            for ap in anti_patterns
+            ap.get("pattern", str(ap)) if isinstance(ap, dict) else str(ap) for ap in anti_patterns
         }
         new_pattern_text = hypothesis or findings
         if new_pattern_text and new_pattern_text not in existing_patterns:
-            anti_patterns.append({
-                "pattern": new_pattern_text,
-                "consequence": findings,
-                "source_version": version,
-                "category": pipeline_layer or "strategy",
-            })
+            anti_patterns.append(
+                {
+                    "pattern": new_pattern_text,
+                    "consequence": findings,
+                    "source_version": version,
+                    "category": pipeline_layer or "strategy",
+                }
+            )
         data["anti_patterns"] = anti_patterns
 
     # 阶段转换判断
@@ -1184,13 +1184,15 @@ def cmd_status(args):
     # 最近实验摘要
     recent_summary = []
     for e in experiments[-5:]:
-        recent_summary.append({
-            "version": e.get("version"),
-            "decision": e.get("decision"),
-            "score": e.get("score"),
-            "phase": e.get("phase"),
-            "name": e.get("name", ""),
-        })
+        recent_summary.append(
+            {
+                "version": e.get("version"),
+                "decision": e.get("decision"),
+                "score": e.get("score"),
+                "phase": e.get("phase"),
+                "name": e.get("name", ""),
+            }
+        )
 
     # 统计
     total = len(experiments)
@@ -1243,9 +1245,7 @@ def cmd_status(args):
     if not has_baseline:
         if bootstrap_status == "ready":
             bootstrap_status = "needs_baseline"
-        bootstrap_actions.append(
-            "请提供 baseline 代码放入 baselines/，或由 Agent 自行创建"
-        )
+        bootstrap_actions.append("请提供 baseline 代码放入 baselines/，或由 Agent 自行创建")
     if not experiments:
         bootstrap_actions.append("运行首个 baseline 建立 v0 基准")
 
@@ -1262,8 +1262,7 @@ def cmd_status(args):
             "research_dashboard_path", DEFAULT_RESEARCH_DASHBOARD_PATH
         ),
         "research_dashboard_exists": (
-            project_dir
-            / str(data.get("research_dashboard_path", DEFAULT_RESEARCH_DASHBOARD_PATH))
+            project_dir / str(data.get("research_dashboard_path", DEFAULT_RESEARCH_DASHBOARD_PATH))
         ).exists(),
         "bootstrap": {
             "status": bootstrap_status,
@@ -1343,9 +1342,11 @@ def main():
     parser.add_argument("--description", help="实验修改的具体描述")
     parser.add_argument("--status", choices=["completed", "failed"], help="实验执行状态")
     parser.add_argument("--method_tested", help="测试的方法名称")
-    parser.add_argument("--pipeline_layer", choices=[
-        "features", "loss", "model", "post-processing", "strategy"
-    ], help="实验修改的层级")
+    parser.add_argument(
+        "--pipeline_layer",
+        choices=["features", "loss", "model", "post-processing", "strategy"],
+        help="实验修改的层级",
+    )
     parser.add_argument(
         "--inspired_by",
         nargs="+",

@@ -139,9 +139,9 @@ async def test_runtime_environment_tool_ensures_uv_and_binds_runtime_plan(
     assert payload["env"]["kind"] == "uv"
     assert payload["env"]["display_name"] == "Agent UV"
     assert payload["refresh_required"] is True
-    assert 'requires-python = ">=3.11"' in (
-        workspace_dir / ".env" / "pyproject.toml"
-    ).read_text(encoding="utf-8")
+    assert 'requires-python = ">=3.11"' in (workspace_dir / ".env" / "pyproject.toml").read_text(
+        encoding="utf-8"
+    )
 
     workspace = service.workspace_registry.get_workspace(
         "local_default",
@@ -155,6 +155,7 @@ async def test_runtime_environment_tool_ensures_uv_and_binds_runtime_plan(
     assert plan.kind == "uv"
     assert plan.env_id == "workspace-default"
     assert plan.display_name == "Agent UV"
+
 
 @pytest.mark.asyncio
 async def test_runtime_environment_tool_unregisters_active_uv_and_preserves_env_vars(

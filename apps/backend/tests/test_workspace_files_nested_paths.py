@@ -97,9 +97,7 @@ def workspace_case():
         shutil.rmtree(WORKSPACE_DIR / TEST_USER_ID / session_id, ignore_errors=True)
 
 
-def test_list_files_returns_nested_relative_paths(
-    workspace_case
-) -> None:
+def test_list_files_returns_nested_relative_paths(workspace_case) -> None:
     payload = asyncio.run(
         _list_workspace_files(
             workspace_case["workspace_id"],
@@ -116,9 +114,7 @@ def test_list_files_returns_nested_relative_paths(
     ]
 
 
-def test_nested_file_endpoints_support_read_update_delete_and_export(
-    workspace_case
-) -> None:
+def test_nested_file_endpoints_support_read_update_delete_and_export(workspace_case) -> None:
     session_id = workspace_case["session_id"]
     nested_path = "kb_documents/001_report.md"
 
@@ -253,6 +249,7 @@ def test_export_markdown_document_supports_md_docx_pdf(monkeypatch, workspace_ca
         )
 
     import app.api.routes.files_core as files_core_module
+
     monkeypatch.setattr(files_core_module, "export_markdown_file", fake_export_markdown_file)
 
     for export_format in ("docx", "pdf"):
@@ -276,9 +273,7 @@ def test_export_markdown_document_supports_md_docx_pdf(monkeypatch, workspace_ca
 
         payload = asyncio.run(_read_body())
         assert payload == f"{export_format}-binary".encode("utf-8")
-        assert response.headers["content-disposition"].endswith(
-            f'"001_report.{export_format}"'
-        )
+        assert response.headers["content-disposition"].endswith(f'"001_report.{export_format}"')
 
 
 def test_export_markdown_document_rejects_non_markdown(workspace_case) -> None:
@@ -296,9 +291,7 @@ def test_export_markdown_document_rejects_non_markdown(workspace_case) -> None:
     assert exc_info.value.status_code == 400
 
 
-def test_nested_file_endpoints_reject_path_traversal(
-    workspace_case
-) -> None:
+def test_nested_file_endpoints_reject_path_traversal(workspace_case) -> None:
     with pytest.raises(HTTPException) as exc_info:
         asyncio.run(
             files_module.download_file(
@@ -358,9 +351,7 @@ def test_workspace_memory_mirror_writes_workspace_root(
         )
     )
 
-    workspace_mirror = (
-        workspace_memory_case["workspace_root"] / "记忆" / "工作区记忆.md"
-    )
+    workspace_mirror = workspace_memory_case["workspace_root"] / "记忆" / "工作区记忆.md"
     assert workspace_mirror.read_text(encoding="utf-8").startswith("## 长期目标")
 
     workspace_store = MemoryStore(

@@ -8,8 +8,9 @@ import {
   Terminal,
   AlertTriangle,
 } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { usePolling } from "@/hooks/usePolling";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -84,26 +85,33 @@ export function DockHeader({
     conversationCount > 0 ? `${conversationCount} 个对话` : "暂无对话";
   const { status: shellStatus } = useShellEnvStatus();
 
-  // 轮询全局 AutoTask 状态，检测被自动禁用的任务
+  // 轮询全局 AutoTask 状态，检测异常和被自动禁用的任务
+  const [failingTaskCount, setFailingTaskCount] = useState(0);
   const [disabledTaskCount, setDisabledTaskCount] = useState(0);
 
-  const refreshDisabledTaskCount = useCallback(async () => {
+  const refreshAutoTaskStatus = useCallback(async () => {
     try {
       const response = await getGlobalAutoTasks();
-      const count = (response.tasks ?? []).filter(
-        (task) => task.status === "disabled" && (task.consecutive_errors ?? 0) > 0,
-      ).length;
-      setDisabledTaskCount(count);
+      const tasks = response.tasks ?? [];
+      setDisabledTaskCount(
+        tasks.filter(
+          (task) =>
+            task.status === "disabled" && (task.consecutive_errors ?? 0) > 0,
+        ).length,
+      );
+      setFailingTaskCount(
+        tasks.filter(
+          (task) =>
+            task.status === "active" && (task.consecutive_errors ?? 0) > 0,
+        ).length,
+      );
     } catch {
       // 静默失败，不打扰用户
     }
   }, []);
 
-  useEffect(() => {
-    void refreshDisabledTaskCount();
-    const timer = window.setInterval(refreshDisabledTaskCount, 30_000);
-    return () => window.clearInterval(timer);
-  }, [refreshDisabledTaskCount]);
+  // 30 秒轮询，标签页隐藏时自动暂停，重新可见时立即刷新
+  usePolling(refreshAutoTaskStatus, 30_000);
 
   return (
     <Popover>
@@ -243,6 +251,32 @@ export function DockHeader({
                 {shellStatus.needsAttention
                   ? "当前 Shell 体验受限，建议安装 Git Bash 或 busybox 获得更好体验"
                   : `当前 Shell: ${shellFamilyLabel(shellStatus.family)}`}
+              </TooltipContent>
+            </Tooltip>
+          ) : null}
+          {/* AutoTask 异常警告：连续出错但仍在运行的任务 */}
+          {failingTaskCount > 0 ? (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  onClick={() =>
+                    window.dispatchEvent(
+                      new CustomEvent("aiasys:open-global-settings", {
+                        detail: "auto-tasks",
+                      }),
+                    )
+                  }
+                  className="rounded-full transition-colors hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
+                >
+                  <DockStatusChip className="border-warning/30 bg-warning-container/40 text-warning">
+                    <AlertTriangle className="mr-1 h-3 w-3" />
+                    {failingTaskCount} 个任务异常
+                  </DockStatusChip>
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>
+                有 {failingTaskCount} 个自动化任务连续出错，点击查看
               </TooltipContent>
             </Tooltip>
           ) : null}

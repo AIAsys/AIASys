@@ -81,23 +81,48 @@ def apply_optional_node_updates(target: dict[str, object], args: argparse.Namesp
 def main():
     parser = argparse.ArgumentParser(description="修改 .canvas 文件的节点和边")
     parser.add_argument("--file", required=True, help=".canvas 文件路径")
-    parser.add_argument("--action", required=True,
-                        choices=["add_node", "update_node", "remove_node", "add_edge", "update_edge", "remove_edge"])
+    parser.add_argument(
+        "--action",
+        required=True,
+        choices=[
+            "add_node",
+            "update_node",
+            "remove_node",
+            "add_edge",
+            "update_edge",
+            "remove_edge",
+        ],
+    )
     parser.add_argument("--node_id", default=None, help="节点 ID（update/remove 时必需）")
     parser.add_argument("--text", default=None, help="节点文本内容")
     parser.add_argument("--x", type=float, default=None, help="节点 X 坐标")
     parser.add_argument("--y", type=float, default=None, help="节点 Y 坐标")
     parser.add_argument("--width", type=float, default=None, help="节点宽度")
     parser.add_argument("--height", type=float, default=None, help="节点高度")
-    parser.add_argument("--node_type", default="text", choices=["text", "file", "link", "group"], help="节点类型（默认 text）")
+    parser.add_argument(
+        "--node_type",
+        default="text",
+        choices=["text", "file", "link", "group"],
+        help="节点类型（默认 text）",
+    )
     parser.add_argument("--file_path", default=None, help="file 节点引用的工作区路径")
     parser.add_argument("--url", default=None, help="link 节点 URL")
     parser.add_argument("--subpath", default=None, help="file 节点内部位置，如 #标题")
     parser.add_argument("--color", default=None, help="节点或边颜色")
     parser.add_argument("--from_node", default=None, help="add_edge: 起始节点 ID")
     parser.add_argument("--to_node", default=None, help="add_edge: 目标节点 ID")
-    parser.add_argument("--from_side", default=None, choices=["top", "right", "bottom", "left"], help="add_edge: 起始侧")
-    parser.add_argument("--to_side", default=None, choices=["top", "right", "bottom", "left"], help="add_edge: 目标侧")
+    parser.add_argument(
+        "--from_side",
+        default=None,
+        choices=["top", "right", "bottom", "left"],
+        help="add_edge: 起始侧",
+    )
+    parser.add_argument(
+        "--to_side",
+        default=None,
+        choices=["top", "right", "bottom", "left"],
+        help="add_edge: 目标侧",
+    )
     parser.add_argument("--label", default=None, help="add_edge: 边标签")
     parser.add_argument("--edge_id", default=None, help="remove_edge: 边 ID")
     args = parser.parse_args()
@@ -122,7 +147,13 @@ def main():
                 node["color"] = args.color
             canvas["nodes"].append(node)
             save_canvas(file_path, canvas)
-            print(json.dumps({"status": "success", "action": "add_node", "node": node}, ensure_ascii=False, indent=2))
+            print(
+                json.dumps(
+                    {"status": "success", "action": "add_node", "node": node},
+                    ensure_ascii=False,
+                    indent=2,
+                )
+            )
 
         elif args.action == "update_node":
             if not args.node_id:
@@ -132,16 +163,30 @@ def main():
                 raise ValueError(f"节点 {args.node_id} 不存在")
             apply_optional_node_updates(target, args)
             save_canvas(file_path, canvas)
-            print(json.dumps({"status": "success", "action": "update_node", "node": target}, ensure_ascii=False, indent=2))
+            print(
+                json.dumps(
+                    {"status": "success", "action": "update_node", "node": target},
+                    ensure_ascii=False,
+                    indent=2,
+                )
+            )
 
         elif args.action == "remove_node":
             if not args.node_id:
                 raise ValueError("remove_node 操作必须提供 --node_id")
             canvas["nodes"] = [n for n in canvas["nodes"] if n["id"] != args.node_id]
-            canvas["edges"] = [e for e in canvas["edges"]
-                               if e.get("fromNode") != args.node_id and e.get("toNode") != args.node_id]
+            canvas["edges"] = [
+                e
+                for e in canvas["edges"]
+                if e.get("fromNode") != args.node_id and e.get("toNode") != args.node_id
+            ]
             save_canvas(file_path, canvas)
-            print(json.dumps({"status": "success", "action": "remove_node", "node_id": args.node_id}, ensure_ascii=False))
+            print(
+                json.dumps(
+                    {"status": "success", "action": "remove_node", "node_id": args.node_id},
+                    ensure_ascii=False,
+                )
+            )
 
         elif args.action == "add_edge":
             if not args.from_node or not args.to_node:
@@ -167,7 +212,13 @@ def main():
                 edge["color"] = args.color
             canvas["edges"].append(edge)
             save_canvas(file_path, canvas)
-            print(json.dumps({"status": "success", "action": "add_edge", "edge": edge}, ensure_ascii=False, indent=2))
+            print(
+                json.dumps(
+                    {"status": "success", "action": "add_edge", "edge": edge},
+                    ensure_ascii=False,
+                    indent=2,
+                )
+            )
 
         elif args.action == "update_edge":
             if not args.edge_id:
@@ -190,14 +241,25 @@ def main():
                 else:
                     target.pop("color", None)
             save_canvas(file_path, canvas)
-            print(json.dumps({"status": "success", "action": "update_edge", "edge": target}, ensure_ascii=False, indent=2))
+            print(
+                json.dumps(
+                    {"status": "success", "action": "update_edge", "edge": target},
+                    ensure_ascii=False,
+                    indent=2,
+                )
+            )
 
         elif args.action == "remove_edge":
             if not args.edge_id:
                 raise ValueError("remove_edge 操作必须提供 --edge_id")
             canvas["edges"] = [e for e in canvas["edges"] if e.get("id") != args.edge_id]
             save_canvas(file_path, canvas)
-            print(json.dumps({"status": "success", "action": "remove_edge", "edge_id": args.edge_id}, ensure_ascii=False))
+            print(
+                json.dumps(
+                    {"status": "success", "action": "remove_edge", "edge_id": args.edge_id},
+                    ensure_ascii=False,
+                )
+            )
 
     except Exception as exc:
         print(json.dumps({"error": str(exc)}, ensure_ascii=False))

@@ -944,7 +944,9 @@ async def test_claw_feishu_runtime_imports_inbound_attachment_into_workspace(
     binding = service.get_session_binding(user_id, session_id)
     assert binding.last_inbound_attachments
     assert binding.last_inbound_attachments[0].display_name == "inbound.txt"
-    assert binding.last_inbound_attachments[0].workspace_path.startswith("/workspace/claw-inbox/feishu/")
+    assert binding.last_inbound_attachments[0].workspace_path.startswith(
+        "/workspace/claw-inbox/feishu/"
+    )
 
 
 @pytest.mark.asyncio

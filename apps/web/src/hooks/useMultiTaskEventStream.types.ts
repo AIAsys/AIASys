@@ -75,6 +75,8 @@ export interface UseMultiTaskEventStreamReturn {
   reset: () => void;
   /** 重置指定 session */
   resetSession: (sessionId: string) => void;
+  /** 仅重置指定 session 的任务状态（不清理工作区文件和监控连接） */
+  resetSessionTaskState: (sessionId: string) => void;
   /** 完成 Host Task */
   completeHost: () => void;
   /** 完成所有 Tasks */

@@ -52,13 +52,11 @@ def test_session_export_routes_respect_scope_and_skip_sensitive_files(
         legacy_dir.mkdir(exist_ok=True)
         (legacy_dir / "legacy.csv").write_text("a,b\n1,2\n", encoding="utf-8")
 
-        conversation_body, _download_filename = (
-            session_export_service.build_conversation_export(
-                user_id=TEST_USER_ID,
-                session_id=TEST_SESSION_ID,
-                conversation_messages=conversation_messages,
-                exported_by=TEST_USER_ID,
-            )
+        conversation_body, _download_filename = session_export_service.build_conversation_export(
+            user_id=TEST_USER_ID,
+            session_id=TEST_SESSION_ID,
+            conversation_messages=conversation_messages,
+            exported_by=TEST_USER_ID,
         )
         conversation_payload = json.loads(conversation_body.decode("utf-8"))
         assert conversation_payload["session"]["session_id"] == TEST_SESSION_ID
@@ -67,12 +65,10 @@ def test_session_export_routes_respect_scope_and_skip_sensitive_files(
             "assistant",
         ]
 
-        workspace_body, _download_filename = (
-            session_export_service.build_workspace_archive(
-                user_id=TEST_USER_ID,
-                session_id=TEST_SESSION_ID,
-                exported_by=TEST_USER_ID,
-            )
+        workspace_body, _download_filename = session_export_service.build_workspace_archive(
+            user_id=TEST_USER_ID,
+            session_id=TEST_SESSION_ID,
+            exported_by=TEST_USER_ID,
         )
         with zipfile.ZipFile(workspace_body) as zip_file:
             names = set(zip_file.namelist())
@@ -101,9 +97,7 @@ def test_session_export_routes_respect_scope_and_skip_sensitive_files(
             assert "workspace/legacy.csv" not in names
             assert "workspace/config.local.json" not in names
 
-            conversation_from_zip = json.loads(
-                zip_file.read("conversation.json").decode("utf-8")
-            )
+            conversation_from_zip = json.loads(zip_file.read("conversation.json").decode("utf-8"))
             assert conversation_from_zip[0]["content"] == "请导出会话"
     finally:
         shutil.rmtree(user_dir, ignore_errors=True)

@@ -2,6 +2,7 @@
 
 对齐 Codex 实现：将 memory_summary.md 注入到 system prompt 中。
 """
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -33,6 +34,7 @@ def isolated_workspace(tmp_path: Path):
     """隔离 WORKSPACE_DIR 环境，确保每个测试使用独立的 workspace。"""
     # 保存原始值
     import app.core.config
+
     original_workspace = app.core.config.WORKSPACE_DIR
 
     # 设置新的 WORKSPACE_DIR
@@ -78,9 +80,7 @@ def test_memory_injection_returns_none_when_summary_empty(
     assert result is None
 
 
-def test_memory_injection_success_with_content(
-    tmp_path: Path, isolated_workspace: Path
-) -> None:
+def test_memory_injection_success_with_content(tmp_path: Path, isolated_workspace: Path) -> None:
     """正常场景：读取 memory_summary.md 并格式化为 developer instructions。"""
     work_dir = tmp_path / "user123" / "session456"
     work_dir.mkdir(parents=True, exist_ok=True)
@@ -99,9 +99,7 @@ def test_memory_injection_success_with_content(
     assert "Memory Usage Guidelines" in result
 
 
-def test_memory_injection_respects_max_chars(
-    tmp_path: Path, isolated_workspace: Path
-) -> None:
+def test_memory_injection_respects_max_chars(tmp_path: Path, isolated_workspace: Path) -> None:
     """当内容超过 max_chars 时进行截断。"""
     work_dir = tmp_path / "user123" / "session456"
     work_dir.mkdir(parents=True, exist_ok=True)
@@ -112,9 +110,7 @@ def test_memory_injection_respects_max_chars(
 
     from app.services.agent.mixins.context import build_memory_tool_developer_instructions
 
-    result = build_memory_tool_developer_instructions(
-        work_dir=work_dir, max_chars=15000
-    )
+    result = build_memory_tool_developer_instructions(work_dir=work_dir, max_chars=15000)
 
     assert result is not None
     # 截断逻辑会保留最后的换行符并添加提示，所以结果会略超 max_chars
@@ -136,9 +132,7 @@ def test_memory_injection_truncates_at_line_boundary(
 
     from app.services.agent.mixins.context import build_memory_tool_developer_instructions
 
-    result = build_memory_tool_developer_instructions(
-        work_dir=work_dir, max_chars=10001
-    )
+    result = build_memory_tool_developer_instructions(work_dir=work_dir, max_chars=10001)
 
     assert result is not None
     # 应该在第一个换行符处截断，不会出现 A 和 B 混合

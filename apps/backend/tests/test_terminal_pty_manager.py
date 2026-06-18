@@ -1,4 +1,5 @@
 """Tests for PtyManager detach/attach functionality."""
+
 import asyncio
 import sys
 from unittest.mock import MagicMock
@@ -6,6 +7,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from app.services.terminal.pty_manager import PtyManager, PtySession
+
 
 @pytest.fixture
 def pty_manager():

@@ -1,7 +1,7 @@
 import React from "react";
 import type { AskUserRequest } from "@/types/askUser";
 import type { AgentStreamState, StreamCallbacks } from "@/hooks/useAgentStream";
-import type { UploadedFile } from "@/hooks/useAgentFileUpload";
+import type { UploadedFile, FailedUpload } from "@/hooks/useAgentFileUpload";
 import type { TaskState } from "@/hooks/useMultiTaskEventStream";
 import type { WorkspaceFile } from "@/types/task";
 import type { ChatItem, Conversation } from "../../types";
@@ -95,10 +95,16 @@ export interface UseCodeExecutorReturn {
   /** 仅清理前端 per-session 缓存（chat/upload/multi-task），不调后端删除 API */
   removeSessionFrontendState: (sid: string) => void;
   uploadedFiles: UploadedFile[];
+  /** 当前会话上传失败的文件列表（可重试） */
+  failedUploads: FailedUpload[];
   removeFile: (filePath?: string) => void;
   handleUploadFiles: (files: File[] | FileList) => Promise<void>;
   handleFileChange: (e: React.ChangeEvent<HTMLInputElement>) => Promise<void>;
   handleAddFileClick: () => void;
+  /** 重试某个失败的上传 */
+  retryUpload: (id: string) => Promise<void>;
+  /** 移除某个失败的上传记录 */
+  removeFailedUpload: (id: string) => void;
   conversations: Conversation[]; // 替代 historySessions
   updateSessionTitle: (
     sessionId: string,

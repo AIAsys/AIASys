@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import {
   AlertCircle,
   ChevronLeft,
@@ -5,16 +6,51 @@ import {
   FileText,
   Loader2,
   Search,
+  Settings,
   Trash2,
   Upload,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import type { KnowledgeBase, Document } from "@/types/knowledge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import type {
+  Document,
+  KnowledgeBase,
+  KnowledgeBaseExtractionMode,
+  KnowledgeBaseSearchMode,
+  UpdateKnowledgeBaseRequest,
+} from "@/types/knowledge";
+import type { LLMModelConfig } from "@/lib/api/llm";
 import { DocumentStatusBadge } from "./DocumentStatusBadge";
-import { formatDate, formatFileSize, getFileIcon, getStatusBadge } from "./utils";
-import { SEARCH_MODE_OPTIONS, normalizeSearchMode } from "./constants";
+import {
+  formatDate,
+  formatFileSize,
+  formatEmbeddingModel,
+  getFileIcon,
+  getStatusBadge,
+  toPositiveInteger,
+} from "./utils";
+import {
+  SEARCH_MODE_OPTIONS,
+  EXTRACTION_MODE_OPTIONS,
+  normalizeSearchMode,
+} from "./constants";
 
 interface KBDetailPaneProps {
   selectedKB: KnowledgeBase;
@@ -22,10 +58,17 @@ interface KBDetailPaneProps {
   isLoadingDocs: boolean;
   documentChunkCount: number;
   isSplitLayout: boolean;
+  embeddingModels: LLMModelConfig[];
+  defaultEmbeddingModelId: string | null;
+  isLoadingModels: boolean;
   onBack: () => void;
   onUpload: () => void;
   onQuery: () => void;
   onDeleteDoc: (docId: string) => void;
+  onSaveConfig: (
+    kbId: string,
+    payload: UpdateKnowledgeBaseRequest,
+  ) => Promise<void>;
 }
 
 export function KBDetailPane({
@@ -34,11 +77,91 @@ export function KBDetailPane({
   isLoadingDocs,
   documentChunkCount,
   isSplitLayout,
+  embeddingModels,
+  defaultEmbeddingModelId,
+  isLoadingModels,
   onBack,
   onUpload,
   onQuery,
   onDeleteDoc,
+  onSaveConfig,
 }: KBDetailPaneProps) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [editName, setEditName] = useState("");
+  const [editDescription, setEditDescription] = useState("");
+  const [editEmbeddingModel, setEditEmbeddingModel] = useState("");
+  const [editSearchMode, setEditSearchMode] = useState<KnowledgeBaseSearchMode>("fulltext");
+  const [editExtractionMode, setEditExtractionMode] = useState<KnowledgeBaseExtractionMode>("enhanced");
+  const [editChunkSize, setEditChunkSize] = useState("512");
+  const [editChunkOverlap, setEditChunkOverlap] = useState("50");
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saveMessage, setSaveMessage] = useState<string | null>(null);
+
+  const canEditIndexConfig = selectedKB.can_edit_index_config ?? documents.length === 0;
+
+  // 切换知识库时收起编辑区域
+  useEffect(() => {
+    setIsEditing(false);
+    setSaveError(null);
+    setSaveMessage(null);
+  }, [selectedKB.id]);
+
+  const startEditing = () => {
+    setEditName(selectedKB.name);
+    setEditDescription(selectedKB.description ?? "");
+    setEditEmbeddingModel(selectedKB.embedding_model || "");
+    setEditSearchMode(normalizeSearchMode(selectedKB.default_search_mode));
+    setEditExtractionMode(
+      (selectedKB.default_extraction_mode as KnowledgeBaseExtractionMode) || "enhanced",
+    );
+    setEditChunkSize(String(selectedKB.chunk_size || 512));
+    setEditChunkOverlap(String(selectedKB.chunk_overlap || 50));
+    setSaveError(null);
+    setSaveMessage(null);
+    setIsEditing(true);
+  };
+
+  const cancelEditing = () => {
+    setIsEditing(false);
+    setSaveError(null);
+    setSaveMessage(null);
+  };
+
+  const handleSave = async () => {
+    const nextChunkSize = toPositiveInteger(editChunkSize, selectedKB.chunk_size || 512);
+    const nextChunkOverlap = toPositiveInteger(editChunkOverlap, selectedKB.chunk_overlap || 50);
+    if (canEditIndexConfig && nextChunkOverlap >= nextChunkSize) {
+      setSaveError("分块重叠必须小于分块大小");
+      return;
+    }
+
+    const payload: UpdateKnowledgeBaseRequest = {
+      name: editName.trim() || undefined,
+      description: editDescription.trim() || undefined,
+      default_search_mode: editSearchMode,
+      default_extraction_mode: editExtractionMode,
+    };
+    if (canEditIndexConfig) {
+      payload.embedding_model = editEmbeddingModel || defaultEmbeddingModelId || "";
+      payload.chunk_size = nextChunkSize;
+      payload.chunk_overlap = nextChunkOverlap;
+    }
+
+    setIsSaving(true);
+    setSaveError(null);
+    setSaveMessage(null);
+    try {
+      await onSaveConfig(selectedKB.id, payload);
+      setSaveMessage("配置已保存");
+      setIsEditing(false);
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : "保存失败");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   return (
     <>
       <div className="border-b border-border/80 px-6 py-6">
@@ -133,6 +256,206 @@ export function KBDetailPane({
               {formatDate(selectedKB.updated_at || selectedKB.created_at)}
             </div>
           </div>
+        </div>
+
+        {/* 编辑设置入口 */}
+        <div className="mt-5">
+          {!isEditing ? (
+            <Button variant="outline" size="sm" onClick={startEditing}>
+              <Settings className="mr-1.5 h-3.5 w-3.5" />
+              编辑设置
+            </Button>
+          ) : null}
+
+          {isEditing ? (
+            <TooltipProvider>
+              <div className="rounded-2xl border border-border bg-muted/40 p-5">
+                <div className="mb-4 flex items-center justify-between">
+                  <div className="text-sm font-semibold text-foreground">编辑知识库配置</div>
+                  <Button variant="ghost" size="sm" className="h-7 px-2" onClick={cancelEditing} disabled={isSaving}>
+                    取消
+                  </Button>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="kb-detail-edit-name" className="text-xs text-muted-foreground">
+                      名称
+                    </Label>
+                    <Input
+                      id="kb-detail-edit-name"
+                      value={editName}
+                      onChange={(e) => setEditName(e.target.value)}
+                      disabled={isSaving}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="kb-detail-edit-desc" className="text-xs text-muted-foreground">
+                      描述
+                    </Label>
+                    <Textarea
+                      id="kb-detail-edit-desc"
+                      value={editDescription}
+                      onChange={(e) => setEditDescription(e.target.value)}
+                      rows={2}
+                      disabled={isSaving}
+                      placeholder="输入知识库描述"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-1">
+                      <Label htmlFor="kb-detail-edit-embedding" className="text-xs text-muted-foreground">
+                        Embedding 模型
+                      </Label>
+                      {!canEditIndexConfig ? (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <AlertCircle className="h-3 w-3 cursor-help text-amber-500" />
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            已有文档时不能切换 Embedding 模型，请先清空文档
+                          </TooltipContent>
+                        </Tooltip>
+                      ) : null}
+                    </div>
+                    <Select
+                      value={editEmbeddingModel || "__default__"}
+                      onValueChange={(value) =>
+                        setEditEmbeddingModel(value === "__default__" ? "" : value)
+                      }
+                      disabled={isSaving || isLoadingModels || !canEditIndexConfig}
+                    >
+                      <SelectTrigger id="kb-detail-edit-embedding">
+                        <SelectValue placeholder="选择 embedding 模型" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__default__">跟随默认 embedding</SelectItem>
+                        {embeddingModels.map((model) => (
+                          <SelectItem key={model.id} value={model.id}>
+                            {formatEmbeddingModel(model)}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs leading-5 text-muted-foreground">
+                      {!canEditIndexConfig
+                        ? "已有文档时不能切换 Embedding 模型，请先清空文档"
+                        : isLoadingModels
+                          ? "正在读取模型配置…"
+                          : "空知识库可在这里切换 Embedding 模型。"}
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="kb-detail-edit-search-mode" className="text-xs text-muted-foreground">
+                      默认检索策略
+                    </Label>
+                    <Select
+                      value={editSearchMode}
+                      onValueChange={(value) =>
+                        setEditSearchMode(value as KnowledgeBaseSearchMode)
+                      }
+                      disabled={isSaving}
+                    >
+                      <SelectTrigger id="kb-detail-edit-search-mode">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {SEARCH_MODE_OPTIONS.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="kb-detail-edit-extraction-mode" className="text-xs text-muted-foreground">
+                      默认解析模式
+                    </Label>
+                    <Select
+                      value={editExtractionMode}
+                      onValueChange={(value) =>
+                        setEditExtractionMode(value as KnowledgeBaseExtractionMode)
+                      }
+                      disabled={isSaving}
+                    >
+                      <SelectTrigger id="kb-detail-edit-extraction-mode">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {EXTRACTION_MODE_OPTIONS.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <Label htmlFor="kb-detail-edit-chunk-size" className="text-xs text-muted-foreground">
+                        分块大小
+                      </Label>
+                      <Input
+                        id="kb-detail-edit-chunk-size"
+                        type="number"
+                        min={64}
+                        max={8192}
+                        value={editChunkSize}
+                        onChange={(e) => setEditChunkSize(e.target.value)}
+                        disabled={isSaving || !canEditIndexConfig}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="kb-detail-edit-chunk-overlap" className="text-xs text-muted-foreground">
+                        重叠
+                      </Label>
+                      <Input
+                        id="kb-detail-edit-chunk-overlap"
+                        type="number"
+                        min={0}
+                        max={4096}
+                        value={editChunkOverlap}
+                        onChange={(e) => setEditChunkOverlap(e.target.value)}
+                        disabled={isSaving || !canEditIndexConfig}
+                      />
+                    </div>
+                  </div>
+                  {!canEditIndexConfig ? (
+                    <p className="text-xs leading-5 text-muted-foreground">
+                      已有文档时分块配置不可修改，请先清空文档。
+                    </p>
+                  ) : null}
+
+                  {saveMessage ? (
+                    <div className="rounded-md border border-success/20 bg-success-container px-3 py-2 text-xs text-success">
+                      {saveMessage}
+                    </div>
+                  ) : null}
+                  {saveError ? (
+                    <div className="rounded-md border border-error/20 bg-error-container px-3 py-2 text-xs text-error">
+                      {saveError}
+                    </div>
+                  ) : null}
+
+                  <div className="flex items-center gap-2">
+                    <Button size="sm" onClick={() => void handleSave()} disabled={isSaving}>
+                      {isSaving ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : null}
+                      保存
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={cancelEditing} disabled={isSaving}>
+                      取消
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </TooltipProvider>
+          ) : null}
         </div>
       </div>
 

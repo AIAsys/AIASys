@@ -32,9 +32,7 @@ def _write_resource_metadata_db(path: Path, metadata: dict[str, object]) -> None
     path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(path)
     try:
-        conn.execute(
-            "CREATE TABLE _aiasys_metadata (key TEXT PRIMARY KEY, value TEXT)"
-        )
+        conn.execute("CREATE TABLE _aiasys_metadata (key TEXT PRIMARY KEY, value TEXT)")
         conn.executemany(
             "INSERT INTO _aiasys_metadata (key, value) VALUES (?, ?)",
             [(key, str(value)) for key, value in metadata.items()],

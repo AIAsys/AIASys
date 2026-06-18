@@ -85,6 +85,8 @@ export function useTerminal(options: UseTerminalOptions): UseTerminalReturn {
   const terminalIdRef = useRef<string | null>(isAttachMode ? (externalTerminalId ?? null) : null);
   const reconnectCountRef = useRef(0);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // 标记主动关闭（unmount / 手动 reconnect / kill），用于阻止 onclose 自动重连
+  const manualCloseRef = useRef(false);
   // 标记已过期的 terminalId，防止 render 阶段重新写入 externalTerminalIdRef
   const expiredTerminalIdRef = useRef<string | null>(null);
   // 记录初始连接模式，用于 connect 时决定是否尝试 attach
@@ -144,6 +146,9 @@ export function useTerminal(options: UseTerminalOptions): UseTerminalReturn {
       return;
     }
 
+    // 重置主动关闭标记：新一轮连接不再视为主动关闭
+    manualCloseRef.current = false;
+
     setState((prev) => ({
       ...prev,
       status: attachTarget ? "attaching" : "connecting",
@@ -154,7 +159,33 @@ export function useTerminal(options: UseTerminalOptions): UseTerminalReturn {
     const ws = new WebSocket(url);
     wsRef.current = ws;
 
+    // 指数退避重连：200ms → 400ms → 800ms → 1600ms → 5000ms，最多 5 次。
+    // 设置前先清理已有定时器，避免多个重连定时器叠加。
+    const scheduleReconnect = () => {
+      if (reconnectTimerRef.current) {
+        clearTimeout(reconnectTimerRef.current);
+        reconnectTimerRef.current = null;
+      }
+      const MAX_RECONNECT_ATTEMPTS = 5;
+      if (reconnectCountRef.current >= MAX_RECONNECT_ATTEMPTS) {
+        setState((prev) => ({
+          ...prev,
+          status: "error",
+          error: "Terminal 重连次数过多，已停止重连",
+        }));
+        return;
+      }
+      const delay = Math.min(200 * Math.pow(2, reconnectCountRef.current), 5000);
+      reconnectCountRef.current += 1;
+      reconnectTimerRef.current = setTimeout(() => {
+        reconnectTimerRef.current = null;
+        connect();
+      }, delay);
+    };
+
     ws.onopen = () => {
+      // 忽略来自旧 socket 的回调（手动 reconnect / cleanup 后旧 socket 仍可能触发）
+      if (ws !== wsRef.current) return;
       reconnectCountRef.current = 0;
 
       if (attachTarget) {
@@ -186,6 +217,8 @@ export function useTerminal(options: UseTerminalOptions): UseTerminalReturn {
     };
 
     ws.onmessage = (event) => {
+      // 忽略来自旧 socket 的回调
+      if (ws !== wsRef.current) return;
       try {
         const msg = JSON.parse(event.data);
         switch (msg.type) {
@@ -234,27 +267,14 @@ export function useTerminal(options: UseTerminalOptions): UseTerminalReturn {
               // 清除过期 terminalId，下次 connect 走 spawn 而非 attach
               externalTerminalIdRef.current = null;
               // 关闭当前 WebSocket，触发 reconnect
-              const ws = wsRef.current;
-              if (ws) {
+              const wsToClose = wsRef.current;
+              if (wsToClose) {
                 wsRef.current = null;
-                try { ws.close(); } catch { /* ignore */ }
+                try { wsToClose.close(); } catch { /* ignore */ }
               }
-              // 指数退避重连：200ms → 400ms → 800ms → 1600ms → 5000ms，最多 5 次
-              const MAX_RECONNECT_ATTEMPTS = 5;
-              if (reconnectCountRef.current >= MAX_RECONNECT_ATTEMPTS) {
-                setState((prev) => ({
-                  ...prev,
-                  status: "error",
-                  error: "Terminal 重连次数过多，已停止重连",
-                }));
-                break;
-              }
-              const delay = Math.min(200 * Math.pow(2, reconnectCountRef.current), 5000);
-              reconnectCountRef.current += 1;
-              reconnectTimerRef.current = setTimeout(() => {
-                reconnectTimerRef.current = null;
-                connect();
-              }, delay);
+              // 标记非主动关闭，交由 scheduleReconnect 重连
+              manualCloseRef.current = false;
+              scheduleReconnect();
             }
             onErrorRef.current?.(msg.terminal_id, msg.message);
             break;
@@ -270,17 +290,30 @@ export function useTerminal(options: UseTerminalOptions): UseTerminalReturn {
     };
 
     ws.onclose = () => {
+      // 忽略来自旧 socket 的回调
+      if (ws !== wsRef.current) return;
       wsRef.current = null;
-      setState((prev) => {
-        const wasActive = prev.status === "connected" || prev.status === "connecting" || prev.status === "attaching";
-        return {
-          ...prev,
-          status: wasActive ? "disconnected" : prev.status,
-        };
-      });
+
+      // 主动关闭（unmount / 手动 reconnect / kill）：仅更新状态，不自动重连
+      if (manualCloseRef.current) {
+        setState((prev) => {
+          const wasActive = prev.status === "connected" || prev.status === "connecting" || prev.status === "attaching";
+          return {
+            ...prev,
+            status: wasActive ? "disconnected" : prev.status,
+          };
+        });
+        return;
+      }
+
+      // 意外断开（后端重启 / 网络抖动）：标记 disconnected 并自动重连
+      setState((prev) => ({ ...prev, status: "disconnected" }));
+      scheduleReconnect();
     };
 
     ws.onerror = () => {
+      // 忽略来自旧 socket 的回调
+      if (ws !== wsRef.current) return;
       wsRef.current = null;
       setState((prev) => ({
         ...prev,
@@ -300,6 +333,8 @@ export function useTerminal(options: UseTerminalOptions): UseTerminalReturn {
   const disconnect = useCallback(() => {
     const ws = wsRef.current;
     if (ws) {
+      // 标记主动关闭，阻止 onclose 自动重连
+      manualCloseRef.current = true;
       wsRef.current = null;
       try {
         ws.close();
@@ -371,6 +406,8 @@ export function useTerminal(options: UseTerminalOptions): UseTerminalReturn {
     const ws = wsRef.current;
     const tid = terminalIdRef.current;
     if (ws?.readyState === WebSocket.OPEN && tid) {
+      // kill 是主动操作：标记主动关闭，防止服务端关闭连接后触发自动重连 + re-spawn
+      manualCloseRef.current = true;
       ws.send(
         JSON.stringify({
           type: "kill",

@@ -26,6 +26,8 @@ export interface StreamCallbacks {
   onContent?: (content: string, type: "text" | "think") => void;
   onFinish?: () => void;
   onError?: (error: string) => void;
+  /** SSE 重连前调用，用于清理上一轮残留的流式数据，避免内容重复 */
+  onReconnect?: () => void;
 }
 
 /** 每个 session 的流条目 */
@@ -37,6 +39,8 @@ interface SessionStreamEntry {
   userAborted: boolean;
   reconnectCount: number;
   heartbeatTimedOut: boolean;
+  /** 最近一次收到心跳的时间戳，页面恢复可见时重置以避免节流导致的误判 */
+  lastHeartbeatTime: number;
 }
 
 function createEmptyStreamEntry(): SessionStreamEntry {
@@ -52,6 +56,7 @@ function createEmptyStreamEntry(): SessionStreamEntry {
     userAborted: false,
     reconnectCount: 0,
     heartbeatTimedOut: false,
+    lastHeartbeatTime: 0,
   };
 }
 
@@ -223,6 +228,23 @@ export function useAgentStream(): UseAgentStreamResult {
     };
   }, []);
 
+  // 页面恢复可见时重置心跳时间戳，避免后台定时器节流导致的心跳超时误判
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        sessionsRef.current.forEach((entry) => {
+          if (entry.state.isConnected) {
+            entry.lastHeartbeatTime = Date.now();
+          }
+        });
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, []);
+
   const run = useCallback(
     async (
       input: string,
@@ -310,10 +332,10 @@ export function useAgentStream(): UseAgentStreamResult {
           }
 
           // 心跳检测：超过 45 秒（3 个心跳周期）未收到 heartbeat 则主动中断并触发重连
-          let lastHeartbeatTime = Date.now();
+          entry.lastHeartbeatTime = Date.now();
           heartbeatChecker = setInterval(() => {
             if (
-              Date.now() - lastHeartbeatTime > 45000 &&
+              Date.now() - entry.lastHeartbeatTime > 45000 &&
               entry.requestId === requestId &&
               !entry.userAborted
             ) {
@@ -383,7 +405,7 @@ export function useAgentStream(): UseAgentStreamResult {
 
                 switch (event.type) {
                   case "heartbeat":
-                    lastHeartbeatTime = Date.now();
+                    entry.lastHeartbeatTime = Date.now();
                     break;
 
                   case "content":
@@ -460,6 +482,8 @@ export function useAgentStream(): UseAgentStreamResult {
               syncIfActive(sessionId, entry.state);
               await new Promise((resolve) => setTimeout(resolve, 3000));
               if (entry.requestId !== requestId || entry.userAborted) return;
+              // 重连前清理上一轮残留的流式数据，避免后端重放导致内容重复
+              callbacks?.onReconnect?.();
               entry.state = {
                 ...entry.state,
                 isReconnecting: false,
@@ -512,6 +536,8 @@ export function useAgentStream(): UseAgentStreamResult {
             syncIfActive(sessionId, entry.state);
             await new Promise((resolve) => setTimeout(resolve, 3000));
             if (entry.requestId !== requestId || entry.userAborted) return;
+            // 重连前清理上一轮残留的流式数据，避免后端重放导致内容重复
+            callbacks?.onReconnect?.();
             entry.state = {
               ...entry.state,
               isReconnecting: false,

@@ -63,11 +63,14 @@ async def test_workspace_runtime_list_reports_branch_status_and_controls(
     monkeypatch.setattr(
         runtime_state_module,
         "_resolve_workspace_runtime_env",
-        lambda **kwargs: ("task-runtime-list", {
-            "kind": "uv",
-            "status": "ready",
-            "display_name": "Workspace UV",
-        }),
+        lambda **kwargs: (
+            "task-runtime-list",
+            {
+                "kind": "uv",
+                "status": "ready",
+                "display_name": "Workspace UV",
+            },
+        ),
     )
     import app.api.routes.workspaces_conversation_utils as conversation_utils_module
 
@@ -85,9 +88,7 @@ async def test_workspace_runtime_list_reports_branch_status_and_controls(
     assert response.total == 2
     assert response.current_conversation_id == "branch-beta"
 
-    by_session_id = {
-        item.session_id: item for item in response.conversation_runtimes
-    }
+    by_session_id = {item.session_id: item for item in response.conversation_runtimes}
     assert by_session_id["branch-alpha"].runtime_summary["status"] == "ready"
     assert by_session_id["branch-alpha"].can_stop_runtime is True
     assert by_session_id["branch-alpha"].can_start_runtime is False
@@ -117,11 +118,14 @@ async def test_workspace_runtime_start_warms_branch_kernel_and_marks_available(
     monkeypatch.setattr(
         runtime_state_module,
         "_resolve_workspace_runtime_env",
-        lambda **kwargs: ("task-runtime-start", {
-            "kind": "uv",
-            "status": "ready",
-            "display_name": "Workspace UV",
-        }),
+        lambda **kwargs: (
+            "task-runtime-start",
+            {
+                "kind": "uv",
+                "status": "ready",
+                "display_name": "Workspace UV",
+            },
+        ),
     )
 
     workspace = service.create_workspace(
@@ -202,11 +206,14 @@ async def test_workspace_runtime_stop_releases_branch_kernel_and_marks_discarded
     monkeypatch.setattr(
         runtime_state_module,
         "_resolve_workspace_runtime_env",
-        lambda **kwargs: ("task-runtime-stop", {
-            "kind": "uv",
-            "status": "ready",
-            "display_name": "Workspace UV",
-        }),
+        lambda **kwargs: (
+            "task-runtime-stop",
+            {
+                "kind": "uv",
+                "status": "ready",
+                "display_name": "Workspace UV",
+            },
+        ),
     )
 
     workspace = service.create_workspace(

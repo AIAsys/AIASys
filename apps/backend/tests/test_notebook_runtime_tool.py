@@ -107,10 +107,12 @@ async def test_run_notebook_all_updates_outputs_and_execution_counts(
 
     tokens = _set_context(workspace, session_root, "session-demo")
     try:
-        result = await RunNotebook().invoke(**RunNotebookParams(
+        result = await RunNotebook().invoke(
+            **RunNotebookParams(
                 notebook_path="notebooks/demo.ipynb",
                 scope="all",
-            ).model_dump())
+            ).model_dump()
+        )
     finally:
         _reset_context(tokens)
 
@@ -221,11 +223,13 @@ async def test_run_notebook_stops_on_error_and_persists_error_output(
 
     tokens = _set_context(workspace, session_root, "session-demo")
     try:
-        result = await RunNotebook().invoke(**RunNotebookParams(
+        result = await RunNotebook().invoke(
+            **RunNotebookParams(
                 notebook_path="notebooks/demo.ipynb",
                 scope="all",
                 stop_on_error=True,
-            ).model_dump())
+            ).model_dump()
+        )
     finally:
         _reset_context(tokens)
 
@@ -304,10 +308,12 @@ async def test_run_notebook_persists_structured_outputs_without_returning_base64
 
     tokens = _set_context(workspace, session_root, "session-demo")
     try:
-        result = await RunNotebook().invoke(**RunNotebookParams(
+        result = await RunNotebook().invoke(
+            **RunNotebookParams(
                 notebook_path="notebooks/demo.ipynb",
                 scope="all",
-            ).model_dump())
+            ).model_dump()
+        )
     finally:
         _reset_context(tokens)
 
@@ -338,10 +344,12 @@ async def test_run_notebook_respects_existing_notebook_session_lock(
     await lock.acquire()
     tokens = _set_context(workspace, session_root, "session-busy")
     try:
-        result = await RunNotebook().invoke(**RunNotebookParams(
+        result = await RunNotebook().invoke(
+            **RunNotebookParams(
                 notebook_path="notebooks/missing.ipynb",
                 scope="all",
-            ).model_dump())
+            ).model_dump()
+        )
     finally:
         _reset_context(tokens)
         lock.release()

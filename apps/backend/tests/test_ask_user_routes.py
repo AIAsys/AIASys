@@ -157,7 +157,9 @@ async def test_create_dev_pending_request_creates_visible_pending_item() -> None
 
 
 @pytest.mark.asyncio
-async def test_create_dev_pending_request_hidden_outside_local_auth(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_create_dev_pending_request_hidden_outside_local_auth(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.setattr(ask_user_routes, "AUTH_MODE", "sso")
 
     with pytest.raises(HTTPException) as exc_info:

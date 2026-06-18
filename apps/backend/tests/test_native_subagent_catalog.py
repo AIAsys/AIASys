@@ -155,9 +155,9 @@ class TestSubagentCatalog:
         path.write_text(
             "\n".join(
                 [
-                    'version = 1',
-                    '',
-                    '[agent]',
+                    "version = 1",
+                    "",
+                    "[agent]",
                     'name = "sqlite_first_agent"',
                     'description = "TOML 版本"',
                     'system_prompt = "toml prompt"',
@@ -344,11 +344,14 @@ class TestSubagentCatalog:
             workspace_id="workspace_a",
         )
         assert any(item["name"] == "coder" for item in catalog["global"])
-        assert is_subagent_dispatch_enabled(
-            user_id="user1",
-            role_id="coder",
-            workspace_id="workspace_a",
-        ) is True
+        assert (
+            is_subagent_dispatch_enabled(
+                user_id="user1",
+                role_id="coder",
+                workspace_id="workspace_a",
+            )
+            is True
+        )
 
     def test_delete_default_builtin_experts_does_not_reinstall(self, temp_workspace):
         """用户移出默认内置专家后，不会被下一次目录加载重新安装。"""
@@ -363,37 +366,52 @@ class TestSubagentCatalog:
 
         assert ensure_default_builtin_experts_installed("user1") == []
         for name in ("data_analyst", "researcher", "reviewer"):
-            assert is_subagent_installed_to_scope(
-                user_id="user1",
-                name=name,
-                scope="global",
-            ) is False
+            assert (
+                is_subagent_installed_to_scope(
+                    user_id="user1",
+                    name=name,
+                    scope="global",
+                )
+                is False
+            )
 
     def test_default_builtin_experts_install_core_set_only(self, temp_workspace):
         """用户默认层首次初始化只安装核心内置专家。"""
         installed = ensure_default_builtin_experts_installed("user1")
 
         assert installed == ["data_analyst", "researcher", "reviewer"]
-        assert is_subagent_installed_to_scope(
-            user_id="user1",
-            name="data_analyst",
-            scope="global",
-        ) is True
-        assert is_subagent_installed_to_scope(
-            user_id="user1",
-            name="researcher",
-            scope="global",
-        ) is True
-        assert is_subagent_installed_to_scope(
-            user_id="user1",
-            name="reviewer",
-            scope="global",
-        ) is True
-        assert is_subagent_installed_to_scope(
-            user_id="user1",
-            name="coder",
-            scope="global",
-        ) is False
+        assert (
+            is_subagent_installed_to_scope(
+                user_id="user1",
+                name="data_analyst",
+                scope="global",
+            )
+            is True
+        )
+        assert (
+            is_subagent_installed_to_scope(
+                user_id="user1",
+                name="researcher",
+                scope="global",
+            )
+            is True
+        )
+        assert (
+            is_subagent_installed_to_scope(
+                user_id="user1",
+                name="reviewer",
+                scope="global",
+            )
+            is True
+        )
+        assert (
+            is_subagent_installed_to_scope(
+                user_id="user1",
+                name="coder",
+                scope="global",
+            )
+            is False
+        )
 
         assert ensure_default_builtin_experts_installed("user1") == []
 
@@ -405,11 +423,14 @@ class TestSubagentCatalog:
             default_enabled=True,
         )
         # 内置角色在 global 策略显式启用后即可派发，不需要实际安装文件
-        assert is_subagent_dispatch_enabled(
-            user_id="user1",
-            role_id="coder",
-            workspace_id="workspace_a",
-        ) is True
+        assert (
+            is_subagent_dispatch_enabled(
+                user_id="user1",
+                role_id="coder",
+                workspace_id="workspace_a",
+            )
+            is True
+        )
 
         save_subagent_visibility_policy(
             user_id="user1",
@@ -420,25 +441,34 @@ class TestSubagentCatalog:
             default_enabled=False,
         )
         # workspace 策略显式禁用后，内置角色也不可派发
-        assert is_subagent_dispatch_enabled(
-            user_id="user1",
-            role_id="coder",
-            workspace_id="workspace_a",
-        ) is False
+        assert (
+            is_subagent_dispatch_enabled(
+                user_id="user1",
+                role_id="coder",
+                workspace_id="workspace_a",
+            )
+            is False
+        )
 
     def test_builtin_role_dispatch_no_installation_required(self, temp_workspace):
         """系统内置角色即使未安装到任何作用域，也应默认可派发。"""
         for name in ("coder", "data_analyst", "researcher", "reviewer"):
-            assert is_subagent_installed_to_scope(
-                user_id="user_no_install",
-                name=name,
-                scope="global",
-            ) is False
-            assert is_subagent_dispatch_enabled(
-                user_id="user_no_install",
-                role_id=name,
-                workspace_id="workspace_a",
-            ) is True, f"{name} 应默认可派发"
+            assert (
+                is_subagent_installed_to_scope(
+                    user_id="user_no_install",
+                    name=name,
+                    scope="global",
+                )
+                is False
+            )
+            assert (
+                is_subagent_dispatch_enabled(
+                    user_id="user_no_install",
+                    role_id=name,
+                    workspace_id="workspace_a",
+                )
+                is True
+            ), f"{name} 应默认可派发"
 
     def test_builtin_role_can_be_explicitly_disabled(self, temp_workspace):
         """系统内置角色可以通过显式策略禁用。"""
@@ -450,11 +480,14 @@ class TestSubagentCatalog:
             host_selectable=True,
             default_enabled=False,
         )
-        assert is_subagent_dispatch_enabled(
-            user_id="user_disabled",
-            role_id="coder",
-            workspace_id="workspace_a",
-        ) is False
+        assert (
+            is_subagent_dispatch_enabled(
+                user_id="user_disabled",
+                role_id="coder",
+                workspace_id="workspace_a",
+            )
+            is False
+        )
 
         save_subagent_visibility_policy(
             user_id="user_disabled2",
@@ -464,11 +497,14 @@ class TestSubagentCatalog:
             host_selectable=False,
             default_enabled=True,
         )
-        assert is_subagent_dispatch_enabled(
-            user_id="user_disabled2",
-            role_id="coder",
-            workspace_id="workspace_a",
-        ) is False
+        assert (
+            is_subagent_dispatch_enabled(
+                user_id="user_disabled2",
+                role_id="coder",
+                workspace_id="workspace_a",
+            )
+            is False
+        )
 
     def test_load_subagent_for_runtime_fallback_to_builtin_seed(self, temp_workspace):
         """未安装的内置角色运行时查找应 fallback 到代码预设 seed。"""

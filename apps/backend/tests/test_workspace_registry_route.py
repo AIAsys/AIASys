@@ -106,7 +106,9 @@ async def test_workspace_route_creates_workspace_with_initial_conversation(
     assert response.current_conversation.title == "起始对话"
     assert response.runtime_binding.sandbox_mode is None
     assert response.runtime_binding.env_id is None
-    assert (tmp_path / "local_default" / "task-alpha" / ".aiasys" / "workspace" / "workspace.json").exists()
+    assert (
+        tmp_path / "local_default" / "task-alpha" / ".aiasys" / "workspace" / "workspace.json"
+    ).exists()
     assert not (tmp_path / "local_default" / "task-alpha" / "env" / "environments.json").exists()
 
     metadata = service.session_manager.get_session(
@@ -118,12 +120,7 @@ async def test_workspace_route_creates_workspace_with_initial_conversation(
     assert metadata.env_id is None
     workspace_root = tmp_path / "local_default" / "task-alpha"
     user_soul = (
-        tmp_path
-        / "local_default"
-        / "global_workspace"
-        / ".aiasys"
-        / "agent_config"
-        / "soul.md"
+        tmp_path / "local_default" / "global_workspace" / ".aiasys" / "agent_config" / "soul.md"
     )
     project_profile = workspace_root / ".aiasys" / "project_profile.md"
     workspace_memory = workspace_root / ".aiasys" / "memory" / "workspace_memory.md"
@@ -337,9 +334,9 @@ async def test_workspace_route_forks_conversation_history(
     forked = await workspace_route.create_workspace_conversation(
         "task-fork",
         workspace_route.CreateConversationRequest(
-          conversation_id="fork-conversation-001",
-          title="Fork 对话",
-          branched_from_conversation_id=source.conversation_id,
+            conversation_id="fork-conversation-001",
+            title="Fork 对话",
+            branched_from_conversation_id=source.conversation_id,
         ),
         current_user=_build_user(),
     )
@@ -464,9 +461,9 @@ async def test_workspace_route_updates_workspace_policy_without_rewriting_existi
     assert updated.execution_policy.mode == ExecutionPolicyMode.AUTO_EXPLORE
     assert updated.runtime_binding.sandbox_mode == "local"
     assert updated.runtime_binding.env_id == "python-research"
-    assert {
-        item.execution_policy.mode for item in conversations.conversations
-    } == {ExecutionPolicyMode.CHAT_ASSIST}
+    assert {item.execution_policy.mode for item in conversations.conversations} == {
+        ExecutionPolicyMode.CHAT_ASSIST
+    }
 
     source_meta = service.session_manager.get_session(source.session_id, "local_default")
     sibling_meta = service.session_manager.get_session(sibling.session_id, "local_default")
@@ -590,21 +587,12 @@ async def test_workspace_route_creates_workspace_with_explicit_execution_policy_
     assert created.execution_policy.mode == ExecutionPolicyMode.AUTO_EXPLORE
     assert created.runtime_binding.sandbox_mode == "local"
     assert created.runtime_binding.env_id == "workspace-default"
-    registry_path = (
-        tmp_path
-        / "local_default"
-        / "task-auto-explore"
-        / ".env"
-        / "environments.json"
-    )
+    registry_path = tmp_path / "local_default" / "task-auto-explore" / ".env" / "environments.json"
     registry = json.loads(registry_path.read_text(encoding="utf-8"))
     assert registry["active_env_id"] == "workspace-default"
     assert registry["envs"][0]["active"] is True
     assert created.current_conversation is not None
-    assert (
-        created.current_conversation.execution_policy.mode
-        == ExecutionPolicyMode.AUTO_EXPLORE
-    )
+    assert created.current_conversation.execution_policy.mode == ExecutionPolicyMode.AUTO_EXPLORE
 
     metadata = service.session_manager.get_session(
         "auto-explore-branch-001",

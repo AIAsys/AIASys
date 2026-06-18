@@ -64,13 +64,9 @@ def improve_description(
     mock: bool = False,
 ) -> str:
     """基于 eval 结果调用 LLM 改进 description。"""
-    failed_triggers = [
-        r for r in eval_results["results"]
-        if r["should_trigger"] and not r["pass"]
-    ]
+    failed_triggers = [r for r in eval_results["results"] if r["should_trigger"] and not r["pass"]]
     false_triggers = [
-        r for r in eval_results["results"]
-        if not r["should_trigger"] and not r["pass"]
+        r for r in eval_results["results"] if not r["should_trigger"] and not r["pass"]
     ]
 
     train_score = f"{eval_results['summary']['passed']}/{eval_results['summary']['total']}"
@@ -99,13 +95,15 @@ Current score: {train_score}
             prompt += f'  - "{r["query"]}" (triggered {r["triggers"]}/{r["runs"]} times)\n'
 
     if history:
-        prompt += "\nPREVIOUS ATTEMPTS (do NOT repeat these — try something structurally different):\n\n"
+        prompt += (
+            "\nPREVIOUS ATTEMPTS (do NOT repeat these — try something structurally different):\n\n"
+        )
         for h in history:
             score_str = f"{h.get('passed', 0)}/{h.get('total', 0)}"
-            prompt += f'<attempt score={score_str}>\n'
+            prompt += f"<attempt score={score_str}>\n"
             prompt += f'Description: "{h["description"]}"\n'
             if h.get("note"):
-                prompt += f'Note: {h["note"]}\n'
+                prompt += f"Note: {h['note']}\n"
             prompt += "</attempt>\n\n"
 
     prompt += f"""
@@ -169,8 +167,12 @@ Please respond with ONLY the new description text in <new_description> tags, not
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Improve a skill description based on eval results")
-    parser.add_argument("--eval-results", required=True, help="Path to eval results JSON (from trigger_test.py)")
+    parser = argparse.ArgumentParser(
+        description="Improve a skill description based on eval results"
+    )
+    parser.add_argument(
+        "--eval-results", required=True, help="Path to eval results JSON (from trigger_test.py)"
+    )
     parser.add_argument("--skill-path", required=True, help="Path to skill directory")
     parser.add_argument("--history", default=None, help="Path to history JSON (previous attempts)")
     parser.add_argument("--verbose", action="store_true", help="Print thinking to stderr")
@@ -192,7 +194,10 @@ def main():
 
     if args.verbose:
         print(f"Current: {current_description}", file=sys.stderr)
-        print(f"Score: {eval_results['summary']['passed']}/{eval_results['summary']['total']}", file=sys.stderr)
+        print(
+            f"Score: {eval_results['summary']['passed']}/{eval_results['summary']['total']}",
+            file=sys.stderr,
+        )
 
     new_description = improve_description(
         skill_name=name,
@@ -208,13 +213,16 @@ def main():
 
     output = {
         "description": new_description,
-        "history": history + [{
-            "description": current_description,
-            "passed": eval_results["summary"]["passed"],
-            "failed": eval_results["summary"]["failed"],
-            "total": eval_results["summary"]["total"],
-            "results": eval_results["results"],
-        }],
+        "history": history
+        + [
+            {
+                "description": current_description,
+                "passed": eval_results["summary"]["passed"],
+                "failed": eval_results["summary"]["failed"],
+                "total": eval_results["summary"]["total"],
+                "results": eval_results["results"],
+            }
+        ],
     }
     print(json.dumps(output, indent=2, ensure_ascii=False))
 

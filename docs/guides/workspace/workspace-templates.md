@@ -4,12 +4,13 @@
 
 ## 内置模板
 
-系统预置 6 种模板：
+系统预置 7 种模板：
 
 | 模板 | 说明 |
 |------|------|
+| 官方默认 | 通用工作模板，预装平台、Canvas、UV 运行环境等基础 Skill |
 | 空白工作区 | 从零开始，只预置通用 AGENTS.md 协作指南和基础目录结构 |
-| 代码开发 | 预置 Python 项目骨架（src/、tests/、docs/）、示例代码、pytest 测试和开发流程引导 |
+| PDF 翻译 | 一键翻译外文 PDF，预装 pdf2zh 翻译引擎，支持 Google 免费翻译和 OpenAI/Gemini 高质量翻译，输出单语版和双语对照版 |
 | 数据分析 | 预置 data/、notebooks/、figures/、reports/ 目录，附带示例分析脚本和 pandas/matplotlib 依赖声明 |
 | 论文精读 | 预置 papers/、notes/、synthesis/ 目录，附带结构化笔记模板和系统阅读方法论 |
 | 知识管理 | 预置 sources/、wiki/、docs/ 目录，基于 LLM Wiki 模式的知识管理工作流 |

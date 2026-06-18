@@ -65,7 +65,9 @@ def test_delete_session_detaches_directory_before_background_cleanup(monkeypatch
         assert len(detached_dirs) == 1
         assert detached_dirs[0].exists()
 
-        sessions = sessions_module.session_manager.list_user_sessions(TEST_USER_ID, include_drafts=True)
+        sessions = sessions_module.session_manager.list_user_sessions(
+            TEST_USER_ID, include_drafts=True
+        )
         assert all(item["session_id"] != TEST_SESSION_ID for item in sessions)
 
         assert len(background_tasks.tasks) == 1

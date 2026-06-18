@@ -20,7 +20,9 @@ def test_filter_supported_tools_canonicalizes_and_filters(monkeypatch) -> None:
         return RuntimeToolAvailability(
             tool_name=tool_name,
             available=tool_name != "app.agents.tools.unknown:Missing",
-            reason="available" if tool_name != "app.agents.tools.unknown:Missing" else "module_import_error",
+            reason="available"
+            if tool_name != "app.agents.tools.unknown:Missing"
+            else "module_import_error",
         )
 
     monkeypatch.setattr(service_module, "probe_runtime_tool", fake_probe)
@@ -85,4 +87,3 @@ def _write_legacy_tools_config(tmp_path: Path) -> None:
         ),
         encoding="utf-8",
     )
-

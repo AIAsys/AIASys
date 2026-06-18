@@ -176,11 +176,14 @@ export const knowledgeApi = {
 
   /**
    * 批量上传文档
+   *
+   * 通过 signal 支持取消正在进行的上传请求。
    */
   async uploadDocuments(
     kbId: string,
     files: File[],
     options: UploadDocumentOptions = {},
+    signal?: AbortSignal,
   ): Promise<BatchUploadDocumentResponse> {
     const formData = new FormData();
     files.forEach((file) => formData.append("files", file));
@@ -191,6 +194,7 @@ export const knowledgeApi = {
       {
         method: "POST",
         body: formData,
+        signal,
       },
     );
   },

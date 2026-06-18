@@ -177,7 +177,14 @@ export function renderAssetResourcePreview({
   if (kind === "database") {
     return (
       <Suspense fallback={<AssetResourcePreviewFallback />}>
-        <Component node={node} sessionId={sessionId} />
+        <Component
+          node={node}
+          sessionId={sessionId}
+          onClose={onClose}
+          closeLabel={closeLabel}
+          onSplitRight={onSplitRight}
+          onSplitDown={onSplitDown}
+        />
       </Suspense>
     );
   }

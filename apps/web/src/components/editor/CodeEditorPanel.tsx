@@ -19,6 +19,7 @@ import { CodeMirrorEditor } from "./CodeMirrorEditor";
 import { useEditableFile } from "@/hooks/useEditableFile";
 import { getWorkspaceEditorLanguage } from "@/utils/workspaceFileEditing";
 import { cn } from "@/lib/utils";
+import { FileUploadToast, useFileUploadToast } from "@/components/file/FileUploadToast";
 import type { PreviewFile } from "@/components/layout/WorkspaceSidebar/preview";
 
 interface CodeEditorPanelProps {
@@ -58,6 +59,18 @@ export function CodeEditorPanel({
     onDirtyChange,
     onRefreshWorkspace,
   });
+  const { toasts, showSuccess, showError } = useFileUploadToast();
+
+  // 保存文件并显示 toast 反馈
+  const handleSave = useCallback(async () => {
+    if (!editable || !dirty || isSaving) return;
+    const ok = await save();
+    if (ok) {
+      showSuccess("保存成功");
+    } else {
+      showError("保存失败，请重试");
+    }
+  }, [editable, dirty, isSaving, save, showSuccess, showError]);
 
   // 键盘快捷键
   useEffect(() => {
@@ -65,13 +78,13 @@ export function CodeEditorPanel({
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") {
         event.preventDefault();
         if (editable && dirty && !isSaving) {
-          void save();
+          void handleSave();
         }
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [editable, dirty, isSaving, save]);
+  }, [editable, dirty, isSaving, handleSave]);
 
   const [resetDialogOpen, setResetDialogOpen] = useState(false);
 
@@ -139,7 +152,7 @@ export function CodeEditorPanel({
               </button>
               <button
                 type="button"
-                onClick={() => void save()}
+                onClick={() => void handleSave()}
                 disabled={!editable || !dirty || isSaving}
                 className="inline-flex h-7 items-center gap-1 rounded-md bg-primary px-2.5 text-[11px] text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-40"
               >
@@ -203,6 +216,14 @@ export function CodeEditorPanel({
           <span>{dirty ? "未保存" : "已同步"}</span>
         </div>
       </div>
+      {/* 保存操作 toast 反馈 */}
+      {toasts.map((toast) => (
+        <FileUploadToast
+          key={toast.id}
+          message={toast.message}
+          type={toast.type}
+        />
+      ))}
     </div>
   );
 }

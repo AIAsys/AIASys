@@ -82,7 +82,9 @@ def test_sqlite_graph_store_persists_graph_metadata(
 ) -> None:
     from app.graphrag.core import sqlite_graph_store as graph_store_module
 
-    monkeypatch.setattr(graph_store_module, "get_user_global_resources_dir", lambda user_id: tmp_path)
+    monkeypatch.setattr(
+        graph_store_module, "get_user_global_resources_dir", lambda user_id: tmp_path
+    )
     # list_graphs 自动扫描用的是 WORKSPACE_DIR / user_id，mock 到 tmp_path 避免读到真实项目目录
     monkeypatch.setattr("app.core.config.WORKSPACE_DIR", tmp_path)
 

@@ -124,9 +124,7 @@ async def test_retry_subagent_route_passes_prompt_and_output_excerpt(
     monkeypatch.setattr(
         sessions_module,
         "_read_subagent_control_excerpt",
-        lambda *args, **kwargs: "excerpt-prompt"
-        if args[3] == "prompt.txt"
-        else "excerpt-output",
+        lambda *args, **kwargs: "excerpt-prompt" if args[3] == "prompt.txt" else "excerpt-output",
     )
 
     result = await sessions_module.retry_subagent(

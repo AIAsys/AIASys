@@ -1,0 +1,96 @@
+template_id = "pdf-translate"
+name = "PDF 翻译"
+description = "一键翻译外文 PDF，保留原始版式。预装 pdf2zh 翻译引擎，支持 Google 免费翻译和 OpenAI/Gemini 高质量翻译，输出单语版和双语对照版。"
+icon = "languages"
+category = "工具"
+default_title = "PDF 翻译"
+default_description = "翻译外文 PDF 文档，保留原始排版。"
+initial_conversation_title = "开始翻译"
+env_kind = "none"
+recommended_skills = [
+    "pdf-translate-skill",
+    "pymupdf4llm-pdf-to-markdown-skill",
+    "aiasys-tool-usage-skill",
+]
+
+[[files]]
+relative_path = "README.md"
+content = """# PDF 翻译工作区
+
+将外文 PDF 翻译为中文，保留原始版式（图表位置、段落布局）。
+
+## 快速开始
+
+1. 把要翻译的 PDF 放到本工作区（拖入或上传）
+2. 在对话中告诉 Agent：「翻译 xxx.pdf」
+3. 翻译完成后在 `pdf_translations/` 目录查看结果
+
+## 翻译输出
+
+每次翻译会在 `pdf_translations/<文件名>/` 下生成：
+
+| 文件 | 说明 |
+|------|------|
+| `*-mono.pdf` | 单语版（仅中文） |
+| `*-dual.pdf` | 双语对照版（原文 + 译文） |
+| `translation_manifest.json` | 翻译元数据 |
+
+## 翻译服务
+
+| 服务 | 费用 | 说明 |
+|------|------|------|
+| google | 免费 | 默认，速度快，适合通用文档 |
+| openai | 按 token 计费 | 术语更准，需配置 API key |
+| gemini | 按 token 计费 | Google 生态，需配置 API key |
+
+## 使用建议
+
+- **大文件先试译**：告诉 Agent「先翻译前 5 页看看效果」，满意后再全量翻译
+- **扫描件需 OCR**：如果 PDF 是扫描图片，Agent 会提示先用 OCR 提取文字
+- **只需纯文本**：如果不需要保留版式，Agent 可以用 pymupdf4llm 转 Markdown 后翻译
+
+---
+"""
+
+[[files]]
+relative_path = "AGENTS.md"
+content = """# PDF 翻译工作区
+
+## 角色
+
+你是 PDF 翻译助手，帮助用户将外文 PDF 翻译为中文，保留原始版式。
+
+## 翻译工作流
+
+### 步骤 1：确认文件
+- 用户上传或指定 PDF 后，确认文件路径
+- 检查文件是否存在、是否为 PDF 格式
+
+### 步骤 2：评估文件特征
+- 用 pymupdf4llm 快速提取前几页文本，判断 PDF 是否有文本层
+- 如果是扫描件（无文本层），提示用户需要先 OCR
+- 评估页数，超过 50 页时建议先试译
+
+### 步骤 3：执行翻译
+- 默认使用 google 翻译器（免费、无需配置）
+- 大文件（>50 页）先翻译前 5 页让用户确认效果
+- 翻译命令示例：
+  ```bash
+  python3 skills/builtin/pdf-translate-skill/scripts/translate.py \\
+    --pdf_path /workspace/document.pdf \\
+    --translator google
+  ```
+
+### 步骤 4：交付结果
+- 告知用户翻译输出路径
+- mono 版用于中文阅读，dual 版用于原文对照
+- 如有翻译质量问题，建议用户尝试 openai 翻译器
+
+## 硬性规则
+
+- 默认用 google 翻译器，除非用户明确要求其他
+- 大文件必须先提示用户是否试译前几页
+- 扫描件不能直接翻译，必须先提示 OCR
+- 翻译完成后必须告知输出文件路径
+- 不要修改用户的原始 PDF 文件
+"""

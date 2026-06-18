@@ -22,16 +22,16 @@ class TestMemoryToolAdd:
         tool = MemoryTool()
         ctx = {"user_id": "user1"}
 
-        result = await tool.invoke(ctx=ctx, scope="global", action="add", content="User prefers dark mode.")
+        result = await tool.invoke(
+            ctx=ctx, scope="global", action="add", content="User prefers dark mode."
+        )
         assert isinstance(result, ToolResult)
         assert result.is_error is False
         assert "Memory updated" in result.content
         assert "Current size" in result.content
 
         # 验证文件内容
-        memory_dir = (
-            tmp_workspace / "user1" / "global_workspace" / ".aiasys" / ".memory"
-        )
+        memory_dir = tmp_workspace / "user1" / "global_workspace" / ".aiasys" / ".memory"
         memory_file = memory_dir / "MEMORY.md"
         assert memory_file.exists()
         assert "User prefers dark mode." in memory_file.read_text(encoding="utf-8")
@@ -134,7 +134,12 @@ class TestMemoryToolReplace:
         assert "Memory updated" in result.content
 
         memory_file = (
-            tmp_workspace / "user_replace1" / "global_workspace" / ".aiasys" / ".memory" / "MEMORY.md"
+            tmp_workspace
+            / "user_replace1"
+            / "global_workspace"
+            / ".aiasys"
+            / ".memory"
+            / "MEMORY.md"
         )
         text = memory_file.read_text(encoding="utf-8")
         assert "User prefers light mode." in text
@@ -248,7 +253,12 @@ class TestMemoryToolRemove:
         assert "Memory updated" in result.content
 
         memory_file = (
-            tmp_workspace / "user_remove1" / "global_workspace" / ".aiasys" / ".memory" / "MEMORY.md"
+            tmp_workspace
+            / "user_remove1"
+            / "global_workspace"
+            / ".aiasys"
+            / ".memory"
+            / "MEMORY.md"
         )
         text = memory_file.read_text(encoding="utf-8")
         assert "First important fact." not in text
@@ -301,7 +311,12 @@ class TestMemoryToolRemove:
         assert result.is_error is False
 
         memory_file = (
-            tmp_workspace / "user_remove4" / "global_workspace" / ".aiasys" / ".memory" / "MEMORY.md"
+            tmp_workspace
+            / "user_remove4"
+            / "global_workspace"
+            / ".aiasys"
+            / ".memory"
+            / "MEMORY.md"
         )
         text = memory_file.read_text(encoding="utf-8").strip()
         assert "Only entry." not in text

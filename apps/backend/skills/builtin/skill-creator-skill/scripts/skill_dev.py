@@ -77,7 +77,7 @@ def init_skill_dev(skill_name: str, workspace: Path) -> Path:
                 "files": [],
                 "assertions": [],
             }
-        ]
+        ],
     }
     (dev_root / "evals" / "task-eval.json").write_text(
         json.dumps(task_eval_example, indent=2, ensure_ascii=False),
@@ -120,9 +120,11 @@ def version_save(dev_root: Path, skill_path: Path, label: str | None = None) -> 
     # 复制 skill 目录内容
     if version_dir.exists():
         shutil.rmtree(version_dir)
-    shutil.copytree(skill_path, version_dir, ignore=shutil.ignore_patterns(
-        "__pycache__", "*.pyc", ".DS_Store", "node_modules"
-    ))
+    shutil.copytree(
+        skill_path,
+        version_dir,
+        ignore=shutil.ignore_patterns("__pycache__", "*.pyc", ".DS_Store", "node_modules"),
+    )
 
     state = load_state(dev_root)
     state["current_version"] = label
@@ -157,9 +159,13 @@ def run_trigger_test(skill_path: Path, eval_path: Path, args: list[str]) -> dict
     """调用 trigger_test.py 运行触发测试。"""
     script_dir = Path(__file__).parent
     cmd = [
-        sys.executable, "-m", "scripts.trigger_test",
-        "--eval-set", str(eval_path),
-        "--skill-path", str(skill_path),
+        sys.executable,
+        "-m",
+        "scripts.trigger_test",
+        "--eval-set",
+        str(eval_path),
+        "--skill-path",
+        str(skill_path),
     ] + args
     result = subprocess.run(cmd, capture_output=True, text=True, cwd=script_dir.parent)
     if result.returncode != 0:
@@ -168,13 +174,19 @@ def run_trigger_test(skill_path: Path, eval_path: Path, args: list[str]) -> dict
     return json.loads(result.stdout)
 
 
-def run_improve(skill_path: Path, eval_results_path: Path, history_path: Path | None, mock: bool = False) -> dict:
+def run_improve(
+    skill_path: Path, eval_results_path: Path, history_path: Path | None, mock: bool = False
+) -> dict:
     """调用 improve_desc.py 改进 description。"""
     script_dir = Path(__file__).parent
     cmd = [
-        sys.executable, "-m", "scripts.improve_desc",
-        "--eval-results", str(eval_results_path),
-        "--skill-path", str(skill_path),
+        sys.executable,
+        "-m",
+        "scripts.improve_desc",
+        "--eval-results",
+        str(eval_results_path),
+        "--skill-path",
+        str(skill_path),
     ]
     if history_path:
         cmd += ["--history", str(history_path)]
@@ -197,7 +209,9 @@ def cmd_init(args: argparse.Namespace) -> None:
     print(f"\nNext steps:")
     print(f"  1. Write your SKILL.md in the skill directory")
     print(f"  2. Edit {dev_root}/evals/trigger-eval.json with realistic test queries")
-    print(f"  3. Run: python3 scripts/skill_dev.py test trigger --skill-path <path> --workspace {args.workspace}")
+    print(
+        f"  3. Run: python3 scripts/skill_dev.py test trigger --skill-path <path> --workspace {args.workspace}"
+    )
 
 
 def cmd_version(args: argparse.Namespace) -> None:
@@ -250,7 +264,10 @@ def cmd_test(args: argparse.Namespace) -> None:
         # 保存结果
         iterations_dir = dev_root / "iterations"
         iterations_dir.mkdir(parents=True, exist_ok=True)
-        result_file = iterations_dir / f"trigger-test-{datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')}.json"
+        result_file = (
+            iterations_dir
+            / f"trigger-test-{datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')}.json"
+        )
         result_file.write_text(json.dumps(result, indent=2, ensure_ascii=False), encoding="utf-8")
         print(f"\nResults saved to: {result_file}")
         print(f"Passed: {result['summary']['passed']}/{result['summary']['total']}")
@@ -273,9 +290,9 @@ def cmd_improve(args: argparse.Namespace) -> None:
         history = json.loads(history_file.read_text(encoding="utf-8"))
 
     for iteration in range(1, args.max_iterations + 1):
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print(f"Iteration {iteration}/{args.max_iterations}")
-        print(f"{'='*60}")
+        print(f"{'=' * 60}")
 
         # 1. 运行触发测试
         print("Running trigger test...")
@@ -294,7 +311,9 @@ def cmd_improve(args: argparse.Namespace) -> None:
 
         # 2. 改进 description
         print("Improving description...")
-        improve_result = run_improve(skill_path, eval_results_file, history_file if history else None, args.mock)
+        improve_result = run_improve(
+            skill_path, eval_results_file, history_file if history else None, args.mock
+        )
         new_description = improve_result["description"]
         print(f"New description: {new_description}")
 
@@ -303,9 +322,10 @@ def cmd_improve(args: argparse.Namespace) -> None:
         content = skill_md.read_text(encoding="utf-8")
         # 替换 frontmatter 中的 description
         import re
+
         new_content = re.sub(
             r"(description:\s*)(.*?)(?=\n\w+:|\n---|\Z)",
-            lambda m: f'description: {new_description}',
+            lambda m: f"description: {new_description}",
             content,
             count=1,
             flags=re.DOTALL,

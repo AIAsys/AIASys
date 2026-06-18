@@ -104,9 +104,7 @@ def test_should_consolidate_on_capacity_warning(service_with_layout):
         "workspace": {"percentage": 0.0},
     }
     records = []
-    assert service._should_consolidate(
-        records=records, capacity_info=capacity_info
-    )
+    assert service._should_consolidate(records=records, capacity_info=capacity_info)
 
 
 def test_should_consolidate_on_many_records(service_with_layout):
@@ -135,9 +133,7 @@ def test_should_consolidate_on_many_records(service_with_layout):
         "summary": {"percentage": 10.0},
         "workspace": {"percentage": 0.0},
     }
-    assert service._should_consolidate(
-        records=records, capacity_info=capacity_info
-    )
+    assert service._should_consolidate(records=records, capacity_info=capacity_info)
 
 
 def test_should_not_consolidate_when_healthy(service_with_layout):
@@ -165,9 +161,7 @@ def test_should_not_consolidate_when_healthy(service_with_layout):
         "summary": {"percentage": 10.0},
         "workspace": {"percentage": 0.0},
     }
-    assert not service._should_consolidate(
-        records=records, capacity_info=capacity_info
-    )
+    assert not service._should_consolidate(records=records, capacity_info=capacity_info)
 
 
 def test_memory_store_rejects_oversized_content(tmp_path):
@@ -210,6 +204,4 @@ def test_pipeline_rejects_append_when_over_limit(service_with_layout):
     ]
 
     with pytest.raises(MemoryCapacityError):
-        service._append_stage2_records_to_markdown(
-            user_id="local_default", records=records
-        )
+        service._append_stage2_records_to_markdown(user_id="local_default", records=records)

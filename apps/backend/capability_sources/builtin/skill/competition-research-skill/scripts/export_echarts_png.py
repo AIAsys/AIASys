@@ -42,10 +42,16 @@ def find_node_script() -> Path:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Export ECharts configs to PNG")
-    parser.add_argument("--input", "-i", required=True, help="Input .echarts.json file or directory")
+    parser.add_argument(
+        "--input", "-i", required=True, help="Input .echarts.json file or directory"
+    )
     parser.add_argument("--output", "-o", required=True, help="Output PNG file or directory")
-    parser.add_argument("--width", "-w", type=int, default=1200, help="Screenshot width (default: 1200)")
-    parser.add_argument("--height", "-H", type=int, default=600, help="Screenshot height (default: 600)")
+    parser.add_argument(
+        "--width", "-w", type=int, default=1200, help="Screenshot width (default: 1200)"
+    )
+    parser.add_argument(
+        "--height", "-H", type=int, default=600, help="Screenshot height (default: 600)"
+    )
     args = parser.parse_args()
 
     workspace = get_workspace_root()
@@ -58,11 +64,16 @@ def main() -> None:
         sys.exit(1)
 
     cmd = [
-        "node", str(node_script),
-        "--input", str(input_path),
-        "--output", str(output_path),
-        "--width", str(args.width),
-        "--height", str(args.height),
+        "node",
+        str(node_script),
+        "--input",
+        str(input_path),
+        "--output",
+        str(output_path),
+        "--width",
+        str(args.width),
+        "--height",
+        str(args.height),
     ]
 
     env = os.environ.copy()

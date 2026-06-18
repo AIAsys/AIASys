@@ -16,8 +16,7 @@ if str(BACKEND_ROOT) not in sys.path:
     sys.path.insert(0, str(BACKEND_ROOT))
 
 # 测试不应走外部代理。清除代理环境变量，避免 httpx 因缺少 socksio 而崩溃。
-for _key in ("HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY",
-             "http_proxy", "https_proxy", "all_proxy"):
+for _key in ("HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "all_proxy"):
     os.environ.pop(_key, None)
 
 
@@ -32,9 +31,7 @@ def _is_safe_test_database_url(database_url: str) -> bool:
 
 def _default_test_database_url() -> str:
     worker_id = os.environ.get("PYTEST_XDIST_WORKER", "main")
-    db_path = Path(tempfile.gettempdir()) / (
-        f"aiasys-pytest-{worker_id}-{os.getpid()}.db"
-    )
+    db_path = Path(tempfile.gettempdir()) / (f"aiasys-pytest-{worker_id}-{os.getpid()}.db")
     return f"sqlite:///{db_path}"
 
 
@@ -42,8 +39,7 @@ _DATABASE_URL = os.getenv("DATABASE_URL", "")
 if _DATABASE_URL:
     if not _is_safe_test_database_url(_DATABASE_URL):
         raise RuntimeError(
-            "后端测试必须使用隔离 SQLite DATABASE_URL，"
-            f"当前值会污染开发或生产数据: {_DATABASE_URL}"
+            f"后端测试必须使用隔离 SQLite DATABASE_URL，当前值会污染开发或生产数据: {_DATABASE_URL}"
         )
 else:
     os.environ["DATABASE_URL"] = _default_test_database_url()
@@ -88,10 +84,7 @@ def _clean_connector_tables():
 
     database_url = os.getenv("DATABASE_URL", "")
     if not _is_safe_test_database_url(database_url):
-        raise RuntimeError(
-            "后端测试正在使用非隔离数据库，已停止以避免污染运行态: "
-            f"{database_url}"
-        )
+        raise RuntimeError(f"后端测试正在使用非隔离数据库，已停止以避免污染运行态: {database_url}")
 
     def _truncate():
         Base.metadata.create_all(bind=engine)
@@ -146,9 +139,7 @@ def isolated_llm_config(monkeypatch, tmp_path):
     def fake_get_user_global_config_dir(uid: str) -> Path:
         return tmp_path / str(uid) / ".aiasys"
 
-    monkeypatch.setattr(
-        core_config, "get_user_global_config_dir", fake_get_user_global_config_dir
-    )
+    monkeypatch.setattr(core_config, "get_user_global_config_dir", fake_get_user_global_config_dir)
     monkeypatch.setattr(
         llm_storage_module, "get_user_global_config_dir", fake_get_user_global_config_dir
     )

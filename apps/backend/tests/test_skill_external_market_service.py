@@ -71,11 +71,13 @@ async def test_skillhub_list_items_returns_items_from_api(
     adapter = SkillHubExternalSkillAdapter()
 
     async def fake_fetch_api_page(**kwargs: Any) -> dict[str, Any]:
-        return _api_response([
-            _api_item("github", name="GitHub", description="index github", score=99),
-            _api_item("browser-use", name="Browser Use", description="browser", score=88),
-            _api_item("local-tool", name="Local Tool", description="local", score=77),
-        ])
+        return _api_response(
+            [
+                _api_item("github", name="GitHub", description="index github", score=99),
+                _api_item("browser-use", name="Browser Use", description="browser", score=88),
+                _api_item("local-tool", name="Local Tool", description="local", score=77),
+            ]
+        )
 
     monkeypatch.setattr(adapter, "_fetch_api_page", fake_fetch_api_page)
 
@@ -103,9 +105,11 @@ async def test_skillhub_list_items_passes_search_keyword(
     async def fake_fetch_api_page(*, keyword: str | None = None, **kwargs: Any) -> dict[str, Any]:
         nonlocal captured_keyword
         captured_keyword = keyword
-        return _api_response([
-            _api_item("python-helper", name="Python Helper", score=95),
-        ])
+        return _api_response(
+            [
+                _api_item("python-helper", name="Python Helper", score=95),
+            ]
+        )
 
     monkeypatch.setattr(adapter, "_fetch_api_page", fake_fetch_api_page)
 
@@ -127,11 +131,13 @@ async def test_skillhub_list_items_filters_by_category_locally(
     adapter = SkillHubExternalSkillAdapter()
 
     async def fake_fetch_api_page(**kwargs: Any) -> dict[str, Any]:
-        return _api_response([
-            _api_item("skill-a", name="Skill A", category="ai", score=90),
-            _api_item("skill-b", name="Skill B", category="tools", score=80),
-            _api_item("skill-c", name="Skill C", category="ai", score=70),
-        ])
+        return _api_response(
+            [
+                _api_item("skill-a", name="Skill A", category="ai", score=90),
+                _api_item("skill-b", name="Skill B", category="tools", score=80),
+                _api_item("skill-c", name="Skill C", category="ai", score=70),
+            ]
+        )
 
     monkeypatch.setattr(adapter, "_fetch_api_page", fake_fetch_api_page)
 
@@ -179,7 +185,9 @@ async def test_skillhub_list_items_paginates_correctly(
     captured_page: int | None = None
     captured_page_size: int | None = None
 
-    async def fake_fetch_api_page(*, page_number: int = 1, page_size: int = 24, **kwargs: Any) -> dict[str, Any]:
+    async def fake_fetch_api_page(
+        *, page_number: int = 1, page_size: int = 24, **kwargs: Any
+    ) -> dict[str, Any]:
         nonlocal captured_page, captured_page_size
         captured_page = page_number
         captured_page_size = page_size
@@ -232,24 +240,26 @@ async def test_skillhub_list_items_builds_items_with_new_fields(
     adapter = SkillHubExternalSkillAdapter()
 
     async def fake_fetch_api_page(**kwargs: Any) -> dict[str, Any]:
-        return _api_response([
-            _api_item(
-                "cool-skill",
-                name="Cool Skill",
-                description="A very cool skill",
-                description_zh="很酷的技能",
-                category="ai",
-                version="1.2.0",
-                downloads=1000,
-                installs=500,
-                stars=200,
-                score=95.5,
-                owner_name="devuser",
-                source="clawhub",
-                icon_url="https://example.com/icon.png",
-                labels={"requires_api_key": "false"},
-            ),
-        ])
+        return _api_response(
+            [
+                _api_item(
+                    "cool-skill",
+                    name="Cool Skill",
+                    description="A very cool skill",
+                    description_zh="很酷的技能",
+                    category="ai",
+                    version="1.2.0",
+                    downloads=1000,
+                    installs=500,
+                    stars=200,
+                    score=95.5,
+                    owner_name="devuser",
+                    source="clawhub",
+                    icon_url="https://example.com/icon.png",
+                    labels={"requires_api_key": "false"},
+                ),
+            ]
+        )
 
     monkeypatch.setattr(adapter, "_fetch_api_page", fake_fetch_api_page)
 
@@ -321,7 +331,6 @@ async def test_aiasys_builtin_market_lists_runtime_environment_skill() -> None:
     assert "AIASys Platform Guide" in detail.readme_excerpt
 
 
-
 def _skillsmp_api_item(
     *,
     id: str = "item-1",
@@ -367,20 +376,23 @@ async def test_skillsmp_list_items_returns_items_from_api(
     adapter = SkillsMPExternalSkillAdapter()
 
     async def fake_fetch_api_page(**kwargs: Any) -> dict[str, Any]:
-        return _skillsmp_api_response([
-            _skillsmp_api_item(
-                id="s1",
-                name="Skill One",
-                github_url="https://github.com/owner/repo/tree/main/skills/skill-one",
-                stars=100,
-            ),
-            _skillsmp_api_item(
-                id="s2",
-                name="Skill Two",
-                github_url="https://github.com/owner/repo/tree/main/skills/skill-two",
-                stars=50,
-            ),
-        ], total=2)["data"]
+        return _skillsmp_api_response(
+            [
+                _skillsmp_api_item(
+                    id="s1",
+                    name="Skill One",
+                    github_url="https://github.com/owner/repo/tree/main/skills/skill-one",
+                    stars=100,
+                ),
+                _skillsmp_api_item(
+                    id="s2",
+                    name="Skill Two",
+                    github_url="https://github.com/owner/repo/tree/main/skills/skill-two",
+                    stars=50,
+                ),
+            ],
+            total=2,
+        )["data"]
 
     monkeypatch.setattr(adapter, "_fetch_api_page", fake_fetch_api_page)
 
@@ -527,11 +539,13 @@ async def test_skillsmp_build_item_skips_missing_github_url() -> None:
 async def test_skillsmp_build_item_skips_invalid_github_url() -> None:
     adapter = SkillsMPExternalSkillAdapter()
 
-    item = adapter._build_item({
-        "id": "x",
-        "name": "Bad URL",
-        "githubUrl": "not-a-url",
-    })
+    item = adapter._build_item(
+        {
+            "id": "x",
+            "name": "Bad URL",
+            "githubUrl": "not-a-url",
+        }
+    )
     assert item is None
 
 
@@ -602,12 +616,14 @@ async def test_skillsmp_install_item_downloads_and_installs(
         workspace_path: Path,
         force: bool,
     ) -> None:
-        installed_calls.append({
-            "skill_name": skill_name,
-            "source_dir": str(source_dir),
-            "workspace_path": str(workspace_path),
-            "force": force,
-        })
+        installed_calls.append(
+            {
+                "skill_name": skill_name,
+                "source_dir": str(source_dir),
+                "workspace_path": str(workspace_path),
+                "force": force,
+            }
+        )
 
     monkeypatch.setattr(adapter, "_download_github_skill_dir", fake_download_github_skill_dir)
     monkeypatch.setattr(

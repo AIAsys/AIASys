@@ -68,16 +68,22 @@ def test_get_graphrag_service_uses_db_path_directly(
     workspace_root = service.get_workspace_root("local_default", "task-graph-bind")
     (workspace_root / "analysis-note.graph.db").touch()
 
-    request = SimpleNamespace(state=SimpleNamespace(user=UserInfo(
-        user_id="local_default",
-        role="admin",
-        auth_provider="local",
-    )))
+    request = SimpleNamespace(
+        state=SimpleNamespace(
+            user=UserInfo(
+                user_id="local_default",
+                role="admin",
+                auth_provider="local",
+            )
+        )
+    )
 
     created = []
 
     class FakeGraphRAGService:
-        def __init__(self, kb_id: str, auto_init_llm: bool, user_id: str | None = None, graph_store=None):
+        def __init__(
+            self, kb_id: str, auto_init_llm: bool, user_id: str | None = None, graph_store=None
+        ):
             created.append(
                 {
                     "kb_id": kb_id,
@@ -135,11 +141,15 @@ def test_get_graphrag_service_defaults_to_system_db(
     graph_dir.mkdir(parents=True, exist_ok=True)
     (graph_dir / "system.db").touch()
 
-    request = SimpleNamespace(state=SimpleNamespace(user=UserInfo(
-        user_id="local_default",
-        role="admin",
-        auth_provider="local",
-    )))
+    request = SimpleNamespace(
+        state=SimpleNamespace(
+            user=UserInfo(
+                user_id="local_default",
+                role="admin",
+                auth_provider="local",
+            )
+        )
+    )
 
     monkeypatch.setattr(
         "app.services.workspace_registry.get_workspace_registry_service",
@@ -167,11 +177,15 @@ def test_get_graphrag_service_rejects_missing_db_path(
         initial_conversation_title="当前对话",
     )
 
-    request = SimpleNamespace(state=SimpleNamespace(user=UserInfo(
-        user_id="local_default",
-        role="admin",
-        auth_provider="local",
-    )))
+    request = SimpleNamespace(
+        state=SimpleNamespace(
+            user=UserInfo(
+                user_id="local_default",
+                role="admin",
+                auth_provider="local",
+            )
+        )
+    )
 
     monkeypatch.setattr(
         "app.services.workspace_registry.get_workspace_registry_service",
@@ -201,16 +215,22 @@ def test_get_graphrag_service_uses_global_db_path(
     graph_dir.mkdir(parents=True, exist_ok=True)
     (graph_dir / "project-b.db").touch()
 
-    request = SimpleNamespace(state=SimpleNamespace(user=UserInfo(
-        user_id="local_default",
-        role="admin",
-        auth_provider="local",
-    )))
+    request = SimpleNamespace(
+        state=SimpleNamespace(
+            user=UserInfo(
+                user_id="local_default",
+                role="admin",
+                auth_provider="local",
+            )
+        )
+    )
 
     created = []
 
     class FakeGraphRAGService:
-        def __init__(self, kb_id: str, auto_init_llm: bool, user_id: str | None = None, graph_store=None):
+        def __init__(
+            self, kb_id: str, auto_init_llm: bool, user_id: str | None = None, graph_store=None
+        ):
             created.append(kb_id)
 
     monkeypatch.setattr(graph_routes, "_workspace_graphrag_services", {})
@@ -258,7 +278,12 @@ async def test_graphrag_service_refreshes_cached_graph_when_data_changes(
             Entity(entity_id="e-b", name="初始节点B", entity_type="concept", description="B"),
         ],
         relations=[
-            Relation(relation_id="r-ab", source_entity="初始节点A", target_entity="初始节点B", description="A->B"),
+            Relation(
+                relation_id="r-ab",
+                source_entity="初始节点A",
+                target_entity="初始节点B",
+                description="A->B",
+            ),
         ],
     )
 
@@ -275,8 +300,18 @@ async def test_graphrag_service_refreshes_cached_graph_when_data_changes(
             Entity(entity_id="e-c", name="更新节点C", entity_type="concept", description="C2"),
         ],
         relations=[
-            Relation(relation_id="r-ab", source_entity="更新节点A", target_entity="更新节点B", description="A2->B2"),
-            Relation(relation_id="r-bc", source_entity="更新节点B", target_entity="更新节点C", description="B2->C2"),
+            Relation(
+                relation_id="r-ab",
+                source_entity="更新节点A",
+                target_entity="更新节点B",
+                description="A2->B2",
+            ),
+            Relation(
+                relation_id="r-bc",
+                source_entity="更新节点B",
+                target_entity="更新节点C",
+                description="B2->C2",
+            ),
         ],
     )
 

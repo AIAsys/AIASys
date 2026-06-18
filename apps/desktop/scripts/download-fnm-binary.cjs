@@ -1,5 +1,6 @@
 const fs = require("fs");
 const path = require("path");
+const crypto = require("crypto");
 const { spawnSync } = require("child_process");
 
 const FNM_VERSION = "1.39.0";
@@ -65,12 +66,15 @@ function curlDownload(url, dest) {
 }
 
 function verifySha256(filePath, expectedHash) {
-  const result = spawnSync("sha256sum", [filePath], { encoding: "utf-8", stdio: "pipe" });
-  if (result.status !== 0) {
-    console.warn("[download-fnm] sha256sum 不可用，跳过校验");
+  // 使用 Node.js 内置 crypto 计算 SHA256，避免依赖外部命令 sha256sum（Windows 无此命令）
+  let buf;
+  try {
+    buf = fs.readFileSync(filePath);
+  } catch (err) {
+    console.warn(`[download-fnm] 读取文件失败，跳过校验: ${err.message}`);
     return true;
   }
-  const actualHash = (result.stdout || "").trim().split(/\s+/)[0];
+  const actualHash = crypto.createHash("sha256").update(buf).digest("hex");
   if (actualHash !== expectedHash) {
     throw new Error(
       `SHA256 校验失败: 期望 ${expectedHash}, 实际 ${actualHash}`

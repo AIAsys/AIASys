@@ -413,11 +413,7 @@ async def test_workspace_and_global_csv_preview_routes_page_and_update(
     workspace_csv = workspace_root / "tables" / "local.csv"
     workspace_csv.parent.mkdir(parents=True, exist_ok=True)
     workspace_csv.write_text(
-        "a,b,c\n"
-        "1,2,3\n"
-        "4,5,6\n"
-        "7,8,9\n"
-        "10,11,12\n",
+        "a,b,c\n1,2,3\n4,5,6\n7,8,9\n10,11,12\n",
         encoding="utf-8",
     )
 
@@ -448,11 +444,7 @@ async def test_workspace_and_global_csv_preview_routes_page_and_update(
     )
     assert workspace_update["updated_rows"] == 2
     assert workspace_csv.read_text(encoding="utf-8") == (
-        "a,b,c\n"
-        "1,20,30\n"
-        "4,50,60\n"
-        "7,8,9\n"
-        "10,11,12\n"
+        "a,b,c\n1,20,30\n4,50,60\n7,8,9\n10,11,12\n"
     )
 
     workspace_page_two = await files_route_module.get_workspace_csv_preview(
@@ -657,7 +649,9 @@ async def test_global_workspace_tree_preserves_folder_markers_and_resource_metad
     assert _find_node(nodes, "reports/2026/__aiasys_folder__.md") == {}
 
     table_node = _find_node(nodes, "resources/shared.table.db")
-    assert table_node["absolute_path"] == str((global_root / "resources/shared.table.db").absolute())
+    assert table_node["absolute_path"] == str(
+        (global_root / "resources/shared.table.db").absolute()
+    )
     assert table_node["resource_type"] == "data_table"
     assert table_node["meta"]["id"] == "shared-table"
     assert table_node["meta"]["db_path"] == "/global/resources/shared.table.db"
@@ -698,20 +692,8 @@ async def test_global_workspace_data_table_routes_use_global_root(
         current_user=_build_user(),
     )
 
-    global_table = (
-        tmp_path
-        / "local_default"
-        / "global_workspace"
-        / "resources"
-        / "共享表.table.db"
-    )
-    workspace_table = (
-        tmp_path
-        / "local_default"
-        / "workspace-e"
-        / "resources"
-        / "共享表.table.db"
-    )
+    global_table = tmp_path / "local_default" / "global_workspace" / "resources" / "共享表.table.db"
+    workspace_table = tmp_path / "local_default" / "workspace-e" / "resources" / "共享表.table.db"
     assert created.relative_path == "resources/共享表.table.db"
     assert global_table.exists()
     assert not workspace_table.exists()

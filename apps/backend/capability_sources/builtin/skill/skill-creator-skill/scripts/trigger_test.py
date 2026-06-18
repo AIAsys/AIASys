@@ -42,7 +42,9 @@ def get_model() -> str:
     return os.environ.get("AIASYS_LLM_MODEL", "deepseek-chat")
 
 
-def build_trigger_prompt(skill_name: str, skill_desc: str, query: str, other_skills: list[dict] | None = None) -> str:
+def build_trigger_prompt(
+    skill_name: str, skill_desc: str, query: str, other_skills: list[dict] | None = None
+) -> str:
     """构造触发判断 prompt。
 
     模拟 AIASys 中 skill 常驻注入 system prompt 的方式，让模型判断
@@ -56,18 +58,20 @@ def build_trigger_prompt(skill_name: str, skill_desc: str, query: str, other_ski
         for s in other_skills:
             lines.append(f"- {s['name']}: {s['description']}")
     lines.append(f"- {skill_name}: {skill_desc}")
-    lines.extend([
-        "",
-        "When a user sends a query, you decide whether to use a skill based on its name and description.",
-        "You only consult skills for tasks you can't easily handle on your own.",
-        "Simple, one-step queries usually don't need a skill.",
-        "Complex, multi-step, or specialized queries reliably trigger skills when the description matches.",
-        "",
-        f"User query: {query}",
-        "",
-        "Should the skill '{skill_name}' be triggered for this query?",
-        "Answer with ONLY a JSON object: {\"triggered\": true/false, \"reasoning\": \"brief explanation\"}",
-    ])
+    lines.extend(
+        [
+            "",
+            "When a user sends a query, you decide whether to use a skill based on its name and description.",
+            "You only consult skills for tasks you can't easily handle on your own.",
+            "Simple, one-step queries usually don't need a skill.",
+            "Complex, multi-step, or specialized queries reliably trigger skills when the description matches.",
+            "",
+            f"User query: {query}",
+            "",
+            "Should the skill '{skill_name}' be triggered for this query?",
+            'Answer with ONLY a JSON object: {"triggered": true/false, "reasoning": "brief explanation"}',
+        ]
+    )
     return "\n".join(lines)
 
 
@@ -94,11 +98,11 @@ def run_single_query_mock(
         # 尝试从响应中提取 JSON
         content = content.strip()
         if content.startswith("```json"):
-            content = content[len("```json"):]
+            content = content[len("```json") :]
         if content.startswith("```"):
-            content = content[len("```"):]
+            content = content[len("```") :]
         if content.endswith("```"):
-            content = content[:-len("```")]
+            content = content[: -len("```")]
         content = content.strip()
 
         result = json.loads(content)
@@ -153,8 +157,12 @@ def run_eval(
         query = item["query"]
         if mode == "api":
             return run_single_query_api(
-                query, skill_name, skill_path,
-                backend_url or "", workspace_id or "", user_id or "",
+                query,
+                skill_name,
+                skill_path,
+                backend_url or "",
+                workspace_id or "",
+                user_id or "",
                 timeout,
             )
         return run_single_query_mock(query, skill_name, skill_desc, timeout, other_skills)
@@ -188,14 +196,16 @@ def run_eval(
             did_pass = trigger_rate >= trigger_threshold
         else:
             did_pass = trigger_rate < trigger_threshold
-        results.append({
-            "query": query,
-            "should_trigger": should_trigger,
-            "trigger_rate": trigger_rate,
-            "triggers": sum(triggers),
-            "runs": len(triggers),
-            "pass": did_pass,
-        })
+        results.append(
+            {
+                "query": query,
+                "should_trigger": should_trigger,
+                "trigger_rate": trigger_rate,
+                "triggers": sum(triggers),
+                "runs": len(triggers),
+                "pass": did_pass,
+            }
+        )
 
     passed = sum(1 for r in results if r["pass"])
     total = len(results)
@@ -219,14 +229,24 @@ def main():
     parser.add_argument("--description", default=None, help="Override description to test")
     parser.add_argument("--num-workers", type=int, default=5, help="并行 workers (默认 5)")
     parser.add_argument("--timeout", type=int, default=60, help="单个 query 超时秒数 (默认 60)")
-    parser.add_argument("--runs-per-query", type=int, default=3, help="每个 query 运行次数 (默认 3)")
-    parser.add_argument("--trigger-threshold", type=float, default=0.5, help="触发率阈值 (默认 0.5)")
-    parser.add_argument("--mode", choices=["mock", "api"], default="mock",
-                        help="测试模式：mock=直接调用LLM (默认), api=调用backend API")
+    parser.add_argument(
+        "--runs-per-query", type=int, default=3, help="每个 query 运行次数 (默认 3)"
+    )
+    parser.add_argument(
+        "--trigger-threshold", type=float, default=0.5, help="触发率阈值 (默认 0.5)"
+    )
+    parser.add_argument(
+        "--mode",
+        choices=["mock", "api"],
+        default="mock",
+        help="测试模式：mock=直接调用LLM (默认), api=调用backend API",
+    )
     parser.add_argument("--backend-url", default=None, help="Backend API URL (api 模式)")
     parser.add_argument("--workspace-id", default=None, help="Workspace ID (api 模式)")
     parser.add_argument("--user-id", default=None, help="User ID (api 模式)")
-    parser.add_argument("--other-skills", default=None, help="其他 skill JSON 文件路径，用于模拟竞争环境")
+    parser.add_argument(
+        "--other-skills", default=None, help="其他 skill JSON 文件路径，用于模拟竞争环境"
+    )
     parser.add_argument("--verbose", action="store_true", help="打印进度")
     args = parser.parse_args()
 
@@ -270,7 +290,10 @@ def main():
         for r in output["results"]:
             status = "PASS" if r["pass"] else "FAIL"
             rate_str = f"{r['triggers']}/{r['runs']}"
-            print(f"  [{status}] rate={rate_str} expected={r['should_trigger']}: {r['query'][:70]}", file=sys.stderr)
+            print(
+                f"  [{status}] rate={rate_str} expected={r['should_trigger']}: {r['query'][:70]}",
+                file=sys.stderr,
+            )
 
     print(json.dumps(output, indent=2, ensure_ascii=False))
 

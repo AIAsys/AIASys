@@ -108,9 +108,7 @@ async def test_workspace_knowledge_base_mount_routes_put_no_longer_rejects(
     # PUT 不再 reject unknown IDs，而是返回全部可用知识库
     updated = await workspace_route.update_workspace_knowledge_base_mounts(
         "task-kb-invalid",
-        workspace_route.WorkspaceKnowledgeBaseMountRequest(
-            knowledge_base_ids=["kb-missing"]
-        ),
+        workspace_route.WorkspaceKnowledgeBaseMountRequest(knowledge_base_ids=["kb-missing"]),
         current_user=_build_user(),
     )
     assert updated.knowledge_base_ids == ["kb-a", "kb-b"]

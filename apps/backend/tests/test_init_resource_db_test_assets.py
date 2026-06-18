@@ -66,9 +66,7 @@ async def _list_workspace_files(
 def _read_metadata(db_path: Path) -> dict[str, object]:
     conn = sqlite3.connect(db_path)
     try:
-        rows = conn.execute(
-            "SELECT key, value FROM _aiasys_metadata ORDER BY key"
-        ).fetchall()
+        rows = conn.execute("SELECT key, value FROM _aiasys_metadata ORDER BY key").fetchall()
     finally:
         conn.close()
 
@@ -164,19 +162,19 @@ def test_seed_resource_db_assets_binds_requested_session_to_workspace(
 
     assert result["workspace_id"] == "resource-db-existing"
     assert result["session_id"] == "resource-db-requested-session"
-    assert service.find_workspace_id_by_session_id(
-        "local_default",
-        "resource-db-requested-session",
-    ) == "resource-db-existing"
+    assert (
+        service.find_workspace_id_by_session_id(
+            "local_default",
+            "resource-db-requested-session",
+        )
+        == "resource-db-existing"
+    )
     assert Path(result["workspace_root"]) == service.get_workspace_root(
         "local_default",
         "resource-db-existing",
     )
     assert (
-        tmp_path
-        / "local_default"
-        / "resource-db-existing"
-        / "knowledge/product-docs.knowledge.db"
+        tmp_path / "local_default" / "resource-db-existing" / "knowledge/product-docs.knowledge.db"
     ).exists()
 
 
@@ -212,9 +210,7 @@ async def test_seed_resource_db_assets_are_visible_through_file_list_route(
     assert knowledge["renderer_hint"] == "knowledge_base_preview"
     assert knowledge["meta"]["id"] == "kb-product-docs"
     assert knowledge["meta"]["document_count"] == 3
-    assert knowledge["meta"]["db_path"] == (
-        "/workspace/knowledge/product-docs.knowledge.db"
-    )
+    assert knowledge["meta"]["db_path"] == ("/workspace/knowledge/product-docs.knowledge.db")
 
     graph = files_by_name["graphs/project.graph.db"]
     assert graph["resource_type"] == "graph"

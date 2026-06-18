@@ -26,6 +26,7 @@ interface KnowledgeDialogScaffoldProps<TTab extends string> {
   onTabChange: (tab: TTab) => void;
   children: ReactNode;
   testIdPrefix: string;
+  sidebarFooter?: ReactNode;
 }
 
 export function KnowledgeDialogScaffold<TTab extends string>({
@@ -39,6 +40,7 @@ export function KnowledgeDialogScaffold<TTab extends string>({
   onTabChange,
   children,
   testIdPrefix,
+  sidebarFooter,
 }: KnowledgeDialogScaffoldProps<TTab>) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -82,6 +84,10 @@ export function KnowledgeDialogScaffold<TTab extends string>({
               );
             })}
           </div>
+
+          {sidebarFooter ? (
+            <div className="border-t p-3">{sidebarFooter}</div>
+          ) : null}
         </aside>
 
         <div className="min-h-0 overflow-hidden bg-background">{children}</div>

@@ -112,6 +112,7 @@ function ChatAreaRoot({
   children,
 }: ChatAreaProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const contentWrapperRef = useRef<HTMLDivElement | null>(null);
   const [containerWidth, setContainerWidth] = useState<number | null>(null);
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
   const [hasNewContent, setHasNewContent] = useState(false);
@@ -300,14 +301,17 @@ function ChatAreaRoot({
     }
   }, [items, scrollToBottom, sessionId]);
 
-  // 监听内容高度变化（如思考过程展开/折叠），若当前在跟随底部则保持滚动到底
+  // 监听内容高度变化（如思考过程展开/折叠），若当前在跟随底部则保持滚动到底。
+  // 使用 ResizeObserver 观察内容容器自身尺寸变化，比 MutationObserver(subtree)
+  // 精准得多：流式 token 插入、虚拟列表挂载等 DOM 变更不会触发回调，只有实际
+  // 高度变化时才回调。
   useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
+    const wrapper = contentWrapperRef.current;
+    if (!wrapper) return;
 
     let rafId: number | null = null;
     let debounceTimer: number | null = null;
-    const observer = new MutationObserver(() => {
+    const observer = new ResizeObserver(() => {
       if (!isFollowingBottomRef.current) return;
       if (debounceTimer) {
         window.clearTimeout(debounceTimer);
@@ -322,10 +326,7 @@ function ChatAreaRoot({
       }, 100);
     });
 
-    observer.observe(container, {
-      childList: true,
-      subtree: true,
-    });
+    observer.observe(wrapper);
 
     return () => {
       observer.disconnect();
@@ -365,6 +366,7 @@ function ChatAreaRoot({
         )}
       >
         <div
+          ref={contentWrapperRef}
           aria-live="polite"
           aria-relevant="additions"
           className={cn(

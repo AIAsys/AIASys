@@ -42,9 +42,7 @@ def test_create_session_initializes_execution_layout_and_preserves_workspace_fil
     )
 
     assert (session_dir / "analysis.md").exists()
-    active_history = json.loads(
-        (active_state_dir / "history.json").read_text(encoding="utf-8")
-    )
+    active_history = json.loads((active_state_dir / "history.json").read_text(encoding="utf-8"))
     assert active_history["_schema_version"] == 1
     assert active_history["messages"] == []
     assert not (session_dir / "file_snapshots.json").exists()
@@ -127,10 +125,7 @@ def test_append_record_persists_agent_config_snapshot_to_record_and_summary(
 
     persisted_record = journal.list_records(limit=1)[0]
     assert persisted_record.agent_config_snapshot is not None
-    assert (
-        persisted_record.agent_config_snapshot["prompt_source"]
-        == "session_override"
-    )
+    assert persisted_record.agent_config_snapshot["prompt_source"] == "session_override"
 
     summary = journal.get_summary()
     assert summary["last_execution_record_id"] == record.record_id
@@ -188,8 +183,10 @@ def test_append_replay_run_does_not_change_execution_record_count(
     assert replay_run["replay_run_id"].startswith("replay_")
 
     replay_lines = (
-        session_dir / ".aiasys" / "session" / "execution" / "replay-runs.jsonl"
-    ).read_text(encoding="utf-8").splitlines()
+        (session_dir / ".aiasys" / "session" / "execution" / "replay-runs.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
+    )
     assert len(replay_lines) == 1
     payload = json.loads(replay_lines[0])
     assert payload["source_sequences"] == [1]
@@ -328,9 +325,7 @@ async def test_local_ipythonbox_appends_execution_record_on_success(
     env_token = current_env_id.set(env_id)
     try:
         box = LocalIPythonBox()
-        result = await box.invoke(
-            **LocalIPythonBoxParams(code="print('hello')").model_dump()
-        )
+        result = await box.invoke(**LocalIPythonBoxParams(code="print('hello')").model_dump())
     finally:
         current_env_id.reset(env_token)
         current_user_id.reset(user_token)
@@ -499,9 +494,7 @@ async def test_local_ipythonbox_rewrites_workspace_literals_for_local_mode(
                 [
                     {
                         "msg_type": "stream",
-                        "content": {
-                            "text": f"{workspace_path}/sales_preview.csv\n"
-                        },
+                        "content": {"text": f"{workspace_path}/sales_preview.csv\n"},
                         "parent_header": {"msg_id": msg_id},
                     },
                     {

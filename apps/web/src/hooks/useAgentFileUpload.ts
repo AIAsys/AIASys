@@ -29,6 +29,16 @@ export interface UploadedFile {
   progress?: number;
 }
 
+/** 失败的上传记录（保留原始 File 对象用于重试） */
+export interface FailedUpload {
+  id: string;
+  file: File;
+  filename: string;
+  error: string;
+  sessionId: string;
+  workspaceId?: string | null;
+}
+
 /** 上传状态 */
 export interface UploadState {
   isUploading: boolean;
@@ -36,6 +46,8 @@ export interface UploadState {
   error?: string;
   /** 当前上传进度 0-100，null 表示不在上传中 */
   uploadProgress: number | null;
+  /** 当前 session 的失败上传列表 */
+  failedUploads: FailedUpload[];
 }
 
 /** Hook 配置选项 */
@@ -141,17 +153,25 @@ export function useAgentFileUpload(options: UseAgentFileUploadOptions = {}) {
     isUploading: false,
     files: [],
     uploadProgress: null,
+    failedUploads: [],
   });
 
   // Per-session 文件附件 Map
   const filesMapRef = useRef<Map<string, UploadedFile[]>>(new Map());
+  // Per-session 失败上传 Map
+  const failedUploadsMapRef = useRef<Map<string, FailedUpload[]>>(new Map());
   const activeSessionIdRef = useRef<string>("");
   const filesRef = useRef<UploadedFile[]>([]);
+  const failedUploadsRef = useRef<FailedUpload[]>([]);
 
-  // Keep filesRef in sync with state.files to avoid stale closure in switchSession
+  // Keep refs in sync with state to avoid stale closure in switchSession
   useEffect(() => {
     filesRef.current = state.files;
   }, [state.files]);
+
+  useEffect(() => {
+    failedUploadsRef.current = state.failedUploads;
+  }, [state.failedUploads]);
 
   const invalidateFileListCache = useCallback((workspaceId: string) => {
     const endpointPrefix =
@@ -181,11 +201,17 @@ export function useAgentFileUpload(options: UseAgentFileUploadOptions = {}) {
       // 保存当前 session 的 pending files
       if (fromId) {
         filesMapRef.current.set(fromId, [...filesRef.current]);
+        failedUploadsMapRef.current.set(fromId, [...failedUploadsRef.current]);
       }
 
       // 加载目标 session 的 pending files
       const targetFiles = filesMapRef.current.get(toId) || [];
-      setState((prev) => ({ ...prev, files: targetFiles }));
+      const targetFailed = failedUploadsMapRef.current.get(toId) || [];
+      setState((prev) => ({
+        ...prev,
+        files: targetFiles,
+        failedUploads: targetFailed,
+      }));
       activeSessionIdRef.current = toId;
     },
     [],
@@ -194,6 +220,7 @@ export function useAgentFileUpload(options: UseAgentFileUploadOptions = {}) {
   /** 移除 session 的文件数据 */
   const removeSession = useCallback((sessionId: string) => {
     filesMapRef.current.delete(sessionId);
+    failedUploadsMapRef.current.delete(sessionId);
   }, []);
 
   /**
@@ -384,14 +411,41 @@ export function useAgentFileUpload(options: UseAgentFileUploadOptions = {}) {
         return uploadedFile;
       } catch (err) {
         const errorMsg = err instanceof Error ? err.message : "未知错误";
-        setState((prev) => ({
-          ...prev,
-          isUploading: false,
-          uploadProgress: null,
-          error: errorMsg,
-        }));
         if (errorMsg.includes("404")) {
+          // 工作区不存在，不可重试
+          setState((prev) => ({
+            ...prev,
+            isUploading: false,
+            uploadProgress: null,
+          }));
           return null;
+        }
+
+        // 记录失败上传，保留原始 File 对象供重试
+        const failedEntry: FailedUpload = {
+          id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          file,
+          filename: file.name,
+          error: errorMsg,
+          sessionId,
+          workspaceId,
+        };
+        if (sessionId === activeSessionIdRef.current) {
+          setState((prev) => ({
+            ...prev,
+            isUploading: false,
+            uploadProgress: null,
+            error: errorMsg,
+            failedUploads: [...prev.failedUploads, failedEntry],
+          }));
+        } else {
+          const current = failedUploadsMapRef.current.get(sessionId) || [];
+          failedUploadsMapRef.current.set(sessionId, [...current, failedEntry]);
+          setState((prev) => ({
+            ...prev,
+            isUploading: false,
+            uploadProgress: null,
+          }));
         }
         onUploadError?.(errorMsg);
         return null;
@@ -496,10 +550,48 @@ export function useAgentFileUpload(options: UseAgentFileUploadOptions = {}) {
   );
 
   /**
-   * 清空所有文件（活跃 session）
+   * 清空所有文件和失败上传（活跃 session）
    */
   const clearFiles = useCallback(() => {
-    setState((prev) => ({ ...prev, files: [] }));
+    setState((prev) => ({ ...prev, files: [], failedUploads: [] }));
+  }, []);
+
+  /**
+   * 重试某个失败的上传
+   */
+  const retryUpload = useCallback(
+    async (id: string): Promise<void> => {
+      const failed = failedUploadsRef.current.find((f) => f.id === id);
+      if (!failed) return;
+
+      // 先从失败列表移除（乐观更新）
+      if (failed.sessionId === activeSessionIdRef.current) {
+        setState((prev) => ({
+          ...prev,
+          failedUploads: prev.failedUploads.filter((f) => f.id !== id),
+        }));
+      } else {
+        const current = failedUploadsMapRef.current.get(failed.sessionId) || [];
+        failedUploadsMapRef.current.set(
+          failed.sessionId,
+          current.filter((f) => f.id !== id),
+        );
+      }
+
+      // 重新上传，成功/失败由 uploadFile 内部处理
+      await uploadFile(failed.file, failed.sessionId, failed.workspaceId);
+    },
+    [uploadFile],
+  );
+
+  /**
+   * 移除某个失败的上传记录
+   */
+  const removeFailedUpload = useCallback((id: string) => {
+    setState((prev) => ({
+      ...prev,
+      failedUploads: prev.failedUploads.filter((f) => f.id !== id),
+    }));
   }, []);
 
   /**
@@ -600,6 +692,7 @@ export function useAgentFileUpload(options: UseAgentFileUploadOptions = {}) {
   return {
     state,
     uploadProgress: state.uploadProgress,
+    failedUploads: state.failedUploads,
     listFiles,
     reloadWorkspaceFiles,
     uploadFile,
@@ -614,5 +707,7 @@ export function useAgentFileUpload(options: UseAgentFileUploadOptions = {}) {
     switchSession,
     setActiveSessionId,
     removeSession,
+    retryUpload,
+    removeFailedUpload,
   };
 }

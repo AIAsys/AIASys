@@ -100,9 +100,7 @@ async def test_file_routes_use_workspace_root_for_bound_conversations(
     )
 
     workspace_root_file = tmp_path / "local_default" / "task-files" / "uploads" / "notes.txt"
-    legacy_session_file = (
-        tmp_path / "local_default" / conversation.session_id / "notes.txt"
-    )
+    legacy_session_file = tmp_path / "local_default" / conversation.session_id / "notes.txt"
     assert result["success"] is True
     assert workspace_root_file.exists()
     assert workspace_root_file.read_text(encoding="utf-8") == "hello workspace"
@@ -113,7 +111,8 @@ async def test_file_routes_use_workspace_root_for_bound_conversations(
         recursive=True,
     )
     listed_note = next(
-        item for item in listing["files"]
+        item
+        for item in listing["files"]
         if item["name"] == "notes.txt" or item["name"] == "uploads/notes.txt"
     )
     assert listed_note["size"] == len(b"hello workspace")
@@ -161,11 +160,7 @@ async def test_create_file_writes_nested_text_file_to_workspace_root(
     )
 
     workspace_file = (
-        tmp_path
-        / "local_default"
-        / "task-create-file"
-        / "reports"
-        / "analysis-note.md"
+        tmp_path / "local_default" / "task-create-file" / "reports" / "analysis-note.md"
     )
     assert response.success is True
     assert response.filename == "reports/analysis-note.md"
@@ -202,11 +197,7 @@ async def test_csv_preview_pages_and_updates_visible_slice(
     csv_path = workspace_dir / "data" / "large.csv"
     csv_path.parent.mkdir(parents=True, exist_ok=True)
     csv_path.write_text(
-        "a,b,c\n"
-        "1,2,3\n"
-        "4,5,6\n"
-        "7,8,9\n"
-        "10,11,12\n",
+        "a,b,c\n1,2,3\n4,5,6\n7,8,9\n10,11,12\n",
         encoding="utf-8",
     )
 
@@ -246,13 +237,7 @@ async def test_csv_preview_pages_and_updates_visible_slice(
 
     assert update["success"] is True
     assert update["updated_rows"] == 2
-    assert csv_path.read_text(encoding="utf-8") == (
-        "a,b,c\n"
-        "1,2,3\n"
-        "4,5,6\n"
-        "7,50,9\n"
-        "10,80,12\n"
-    )
+    assert csv_path.read_text(encoding="utf-8") == ("a,b,c\n1,2,3\n4,5,6\n7,50,9\n10,80,12\n")
 
 
 @pytest.mark.asyncio
@@ -572,8 +557,7 @@ async def test_admin_list_all_files_returns_absolute_paths(
     target_file = next(
         item
         for item in payload["files"]
-        if item["session_id"] == "task-admin-list-all"
-        and item["name"] == "reports/summary.md"
+        if item["session_id"] == "task-admin-list-all" and item["name"] == "reports/summary.md"
     )
     assert target_file == {
         "user_id": "local_default",
@@ -631,9 +615,7 @@ async def test_list_files_returns_sqlite_resource_metadata(
     )
 
     db_file = next(
-        item
-        for item in listing["files"]
-        if item["name"] == "knowledge/product-docs.knowledge.db"
+        item for item in listing["files"] if item["name"] == "knowledge/product-docs.knowledge.db"
     )
     assert db_file["resource_type"] == "knowledge"
     assert db_file["schema_kind"] == "aiasys.knowledge_base.sqlite.v1"

@@ -58,9 +58,7 @@ def test_build_expert_catalog_uses_preset_store_for_local_profile(
 
     roles = expert_roles_module.build_expert_catalog_from_profile(profile_path)
 
-    assert SYSTEM_ROLE_IDS == {
-        role.role_id for role in roles
-    }
+    assert SYSTEM_ROLE_IDS == {role.role_id for role in roles}
 
 
 def test_preset_expert_catalog_exposes_notebook_read_only_tools() -> None:
@@ -658,9 +656,7 @@ async def test_execution_role_summary_uses_effective_role_tool_subset(
         session_id="session-execution-role-summary",
     )
     # 使用 allowlist 角色（coder）测试有效工具子集摘要
-    coder_role = next(
-        role for role in initial_policy.available_roles if role.role_id == "coder"
-    )
+    coder_role = next(role for role in initial_policy.available_roles if role.role_id == "coder")
     selected_tool_ids = coder_role.tool_ids[:2]
 
     session_manager.update_session_expert_policy(

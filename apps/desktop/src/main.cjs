@@ -40,6 +40,33 @@ if (process.platform === "win32") {
   app.setAppUserModelId("com.aiasys.desktop");
 }
 
+// 单实例锁：确保同一时间只有一个 AIASys 桌面端进程在运行。
+// 不加锁时，Windows 上双击图标或通过开始菜单再次启动会拉起第二个实例，
+// 第二个实例会尝试占用同一后端端口导致冲突，并创建重复窗口。
+// requestSingleInstanceLock 必须在 app.whenReady() 之前尽早调用，
+// 返回 false 表示已有实例在运行，当前进程应立即退出。
+const gotTheLock = app.requestSingleInstanceLock();
+if (!gotTheLock) {
+  // 已有实例持有锁，当前进程无需继续初始化，直接退出。
+  // 注意不要调用 shutdownApp()，否则会错误地停止主实例的后端进程。
+  app.quit();
+} else {
+  // 收到第二个实例启动请求时，恢复并聚焦主窗口。
+  app.on("second-instance", () => {
+    if (!mainWindow || mainWindow.isDestroyed()) {
+      // 主窗口尚未创建或已销毁（例如被最小化到托盘后关闭），无需处理
+      return;
+    }
+    if (mainWindow.isMinimized()) {
+      mainWindow.restore();
+    }
+    if (!mainWindow.isVisible()) {
+      mainWindow.show();
+    }
+    mainWindow.focus();
+  });
+}
+
 function logError(message, error) {
   console.error(`[aiasys-desktop] ${message}:`, error);
   try {
@@ -346,6 +373,11 @@ ipcMain.handle("aiasys:select-folder", async (_event, options = {}) => {
 });
 
 app.whenReady().then(() => {
+  // 第二实例已在 requestSingleInstanceLock 后退出，不会走到这里；
+  // 此处仅作为防御性检查，确保非主实例不执行 bootstrap。
+  if (!gotTheLock) {
+    return;
+  }
   void bootstrap().catch(async (error) => {
     logError("bootstrap failed", error);
 

@@ -11,7 +11,12 @@ import pytest
 from app.agents.tools import env_vars_tool as env_vars_tool_module
 from app.agents.tools.env_vars_tool import DeleteEnvVar, SetEnvVar
 from app.services.global_env_vars import set_global_env_vars
-from app.services.history import current_runtime_env_vars, current_session_id, current_user_id, current_workspace
+from app.services.history import (
+    current_runtime_env_vars,
+    current_session_id,
+    current_user_id,
+    current_workspace,
+)
 from app.services.session import SessionManager
 from app.services.workspace_registry import WorkspaceRegistryService
 from app.services import workspace_registry as workspace_registry_module
@@ -131,7 +136,15 @@ def test_aiasys_env_skill_reads_and_writes_workspace_registry_file(tmp_path: Pat
     env = {**os.environ, "AIASYS_WORKSPACE_ROOT": str(workspace_root)}
 
     set_result = subprocess.run(
-        [sys.executable, str(script), "set", "--name", "AIASYS_SKILL_TOKEN", "--value", "secret-value"],
+        [
+            sys.executable,
+            str(script),
+            "set",
+            "--name",
+            "AIASYS_SKILL_TOKEN",
+            "--value",
+            "secret-value",
+        ],
         env=env,
         text=True,
         capture_output=True,

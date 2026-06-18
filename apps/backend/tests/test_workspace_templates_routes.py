@@ -20,13 +20,13 @@ def _build_client(monkeypatch, tmp_path: Path) -> TestClient:
     import importlib
 
     import app.core.config as config_mod
+
     monkeypatch.setattr(config_mod, "WORKSPACE_DIR", tmp_path / "workspaces")
 
     import app.core.templates as tmpl_mod
+
     monkeypatch.setattr(tmpl_mod, "_TEMPLATES_DIR", tmp_path / "builtin")
-    monkeypatch.setattr(
-        tmpl_mod, "_get_user_templates_dir", lambda _uid: tmp_path / "user"
-    )
+    monkeypatch.setattr(tmpl_mod, "_get_user_templates_dir", lambda _uid: tmp_path / "user")
 
     # 重新加载路由模块，使 WORKSPACE_DIR 使用新值
     importlib.reload(route_module)

@@ -26,6 +26,10 @@ import { LoadingPlaceholder } from "./LoadingPlaceholder";
 import { StoppedIndicator } from "./StoppedIndicator";
 import { WorkerIndicators } from "./WorkerIndicators";
 import { ToolBlock } from "./ToolBlock";
+import {
+  FileOperationNotice,
+  extractFilePathFromToolParams,
+} from "./FileOperationNotice";
 import { StreamingThoughtBlock } from "../StreamingThoughtBlock";
 import { ChartAwareMarkdown } from "../ChartAwareMarkdown";
 
@@ -34,6 +38,7 @@ export { AiMessageContext, useAiMessageContext } from "./context";
 export { LoadingPlaceholder } from "./LoadingPlaceholder";
 export { StoppedIndicator } from "./StoppedIndicator";
 export { ToolBlock } from "./ToolBlock";
+export { FileOperationNotice } from "./FileOperationNotice";
 export { FinalAnswerBlock } from "./FinalAnswerBlock";
 export { WorkerIndicators } from "./WorkerIndicators";
 
@@ -230,7 +235,8 @@ export const AiMessageContent = memo(function AiMessageContent({
 
   // 按顺序渲染 segments，保持 segments 原始到达/恢复顺序
   // 不再按类型排序，避免 multi-turn 场景下 turn 标记与对应内容被拆散堆叠
-  const renderSegments = () => {
+  // 使用 useMemo 缓存渲染结果，避免每次重渲染都重新合并和构建 JSX
+  const renderSegments = useMemo(() => {
     if (!segments || segments.length === 0) {
       return null;
     }
@@ -249,6 +255,14 @@ export const AiMessageContent = memo(function AiMessageContent({
         lastSeg.content += seg.content;
       } else {
         mergedSegments.push({ ...seg });
+      }
+    }
+
+    // 构建 toolCallId → toolParams 映射，用于 tool_output 渲染时提取文件路径
+    const toolParamsByCallId = new Map<string, string>();
+    for (const seg of mergedSegments) {
+      if (seg.type === "tool_call" && seg.toolCallId && seg.toolParams) {
+        toolParamsByCallId.set(seg.toolCallId, seg.toolParams);
       }
     }
 
@@ -349,16 +363,39 @@ export const AiMessageContent = memo(function AiMessageContent({
       }
 
       if (seg.type === "tool_output") {
-        if (!showToolOutputs) return null;
-        const hasContent = seg.content && seg.content.trim().length > 0;
+        // 检测文件写入类工具操作，成功时显示内联文件通知
+        const toolParams = seg.toolCallId
+          ? toolParamsByCallId.get(seg.toolCallId)
+          : undefined;
+        const filePath = extractFilePathFromToolParams(
+          seg.toolName,
+          toolParams,
+        );
+        const showFileNotice = filePath && !seg.isError;
+
+        if (!showToolOutputs && !showFileNotice) return null;
+
         return (
-          <ToolBlock
-            key={`seg-tool-output-${idx}`}
-            title={`${seg.toolName || "工具"} ${seg.isError ? "错误" : "执行结果"}`}
-            content={hasContent ? seg.content : "（无输出）"}
-            defaultOpen={seg.isError || false}
-            isError={seg.isError}
-          />
+          <div key={`seg-tool-output-${idx}`}>
+            {showFileNotice && (
+              <FileOperationNotice
+                toolName={seg.toolName || ""}
+                filePath={filePath}
+              />
+            )}
+            {showToolOutputs && (
+              <ToolBlock
+                title={`${seg.toolName || "工具"} ${seg.isError ? "错误" : "执行结果"}`}
+                content={
+                  seg.content && seg.content.trim().length > 0
+                    ? seg.content
+                    : "（无输出）"
+                }
+                defaultOpen={seg.isError || false}
+                isError={seg.isError}
+              />
+            )}
+          </div>
         );
       }
 
@@ -437,7 +474,17 @@ export const AiMessageContent = memo(function AiMessageContent({
 
       return null;
     });
-  };
+  }, [
+    segments,
+    isStreaming,
+    onOpenWorkspaceArtifact,
+    onOpenInBrowserTab,
+    sessionId,
+    onRetryLastSubmit,
+    onViewToolDetails,
+    taskId,
+    showToolOutputs,
+  ]);
 
   return (
     <AiMessageProvider state={state} actions={actions} meta={meta}>
@@ -462,7 +509,7 @@ export const AiMessageContent = memo(function AiMessageContent({
         )}
 
         {/* 按顺序渲染的内容 */}
-        {renderSegments()}
+        {renderSegments}
 
         {/* Worker 状态指示器 */}
         <WorkerIndicators />

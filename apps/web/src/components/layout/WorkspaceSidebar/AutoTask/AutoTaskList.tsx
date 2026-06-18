@@ -5,6 +5,7 @@ import {
   Plus,
   Trash2,
 } from "lucide-react";
+import { useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -170,9 +171,7 @@ export function AutoTaskList({
                     ) : null}
 
                     {task.last_error ? (
-                      <div className="mt-2 truncate text-[11px] leading-5 text-error">
-                        最近错误：{task.last_error}
-                      </div>
+                      <AutoTaskLastError error={task.last_error} />
                     ) : null}
                   </div>
 
@@ -269,6 +268,34 @@ function AutoTaskMetaRow({
       <span className="min-w-0 truncate font-medium text-foreground/80">
         {value}
       </span>
+    </div>
+  );
+}
+
+function AutoTaskLastError({ error }: { error: string }) {
+  const [expanded, setExpanded] = useState(false);
+  const isLong = error.length > 80 || error.includes("\n");
+
+  return (
+    <div className="mt-2 text-[11px] leading-5 text-error">
+      <div
+        className={
+          expanded
+            ? "whitespace-pre-wrap break-words"
+            : "line-clamp-2 break-words"
+        }
+      >
+        最近错误：{error}
+      </div>
+      {isLong ? (
+        <button
+          type="button"
+          className="mt-0.5 text-[11px] underline hover:text-error/80"
+          onClick={() => setExpanded((v) => !v)}
+        >
+          {expanded ? "收起" : "展开"}
+        </button>
+      ) : null}
     </div>
   );
 }

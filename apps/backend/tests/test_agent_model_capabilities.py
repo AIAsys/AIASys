@@ -18,9 +18,7 @@ def test_isolated_fixture_creates_text_and_multimodal_models(isolated_llm_config
     user_id = isolated_llm_config["user_id"]
 
     text_model = service.get_model(user_id, isolated_llm_config["text_model_id"])
-    multimodal_model = service.get_model(
-        user_id, isolated_llm_config["multimodal_model_id"]
-    )
+    multimodal_model = service.get_model(user_id, isolated_llm_config["multimodal_model_id"])
 
     assert text_model is not None
     assert text_model.capabilities == set()

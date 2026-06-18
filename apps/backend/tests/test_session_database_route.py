@@ -22,11 +22,7 @@ from app.services.connector import (
 
 class _Request:
     def __init__(self, token: str | None = None) -> None:
-        self.headers = (
-            {"authorization": f"Bearer {token}"}
-            if token is not None
-            else {}
-        )
+        self.headers = {"authorization": f"Bearer {token}"} if token is not None else {}
 
 
 class _FakeBroker:

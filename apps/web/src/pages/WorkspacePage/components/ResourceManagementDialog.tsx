@@ -3,13 +3,15 @@ import {
   LibraryBig,
   Network,
   Sparkles,
+  Upload,
   type LucideIcon,
 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { KnowledgeBaseMarket } from "@/components/KnowledgeBaseMarket";
 import {
   useWorkspaceKnowledgeBaseContext,
-} from "@/pages/Knowledge/hooks/useKnowledgeWorkspaceContext";
-import { GraphWorkbench } from "@/pages/Knowledge/GraphPage/components/GraphWorkbench";
+} from "@/components/KnowledgeGraphDialog/hooks/useKnowledgeWorkspaceContext";
+import { GraphWorkbench } from "@/components/KnowledgeGraphDialog/components/GraphWorkbench";
 import { CommunityAnalysisPanel } from "@/components/KnowledgeGraphDialog/CommunityAnalysisPanel";
 import { EntityBrowserPanel } from "@/components/KnowledgeGraphDialog/EntityBrowserPanel";
 import type {
@@ -21,6 +23,7 @@ import {
   KnowledgeDialogScaffold,
   type KnowledgeDialogNavItem,
 } from "./KnowledgeDialogScaffold";
+import { UnifiedDocumentUploadDialog } from "./UnifiedDocumentUploadDialog";
 
 type WorkspaceKnowledgeBaseContextValue = ReturnType<
   typeof useWorkspaceKnowledgeBaseContext
@@ -187,6 +190,7 @@ export function ResourceManagementDialog({
   const knowledgeBaseId = routeParams.get("kb_id");
   const [activeSection, setActiveSection] =
     useState<ResourceManagementSection>(defaultSection);
+  const [isUnifiedUploadOpen, setIsUnifiedUploadOpen] = useState(false);
 
   const knowledgeBaseContext = useWorkspaceKnowledgeBaseContext(workspaceId, {
     enabled: open && activeSection === "knowledge_base",
@@ -217,33 +221,54 @@ export function ResourceManagementDialog({
     workspaceId,
   ]);
 
-  return (
-    <KnowledgeDialogScaffold
-      open={open}
-      onOpenChange={onOpenChange}
-      title="资源管理"
-      description="在分析页内统一管理知识库与知识图谱。"
-      sidebarSummary={sidebarSummary}
-      activeTab={activeSection}
-      navItems={RESOURCE_NAV_ITEMS}
-      onTabChange={setActiveSection}
-      testIdPrefix="resource-management-dialog"
+  const sidebarFooter = (
+    <Button
+      className="w-full gap-2"
+      onClick={() => setIsUnifiedUploadOpen(true)}
+      data-testid="resource-management-unified-upload-button"
     >
-      {activeSection === "knowledge_base" ? (
-        <KnowledgeBaseResourceSection
-          workspaceId={workspaceId}
-          knowledgeBaseId={knowledgeBaseId}
-          knowledgeBaseContext={knowledgeBaseContext}
-        />
-      ) : null}
+      <Upload className="h-4 w-4" />
+      导入文档
+    </Button>
+  );
 
-      {activeSection === "knowledge_graph" ? (
-        <KnowledgeGraphResourceSection
-          workspaceId={workspaceId}
-          graphId={graphId}
-          defaultTab={defaultKnowledgeGraphTab}
-        />
-      ) : null}
-    </KnowledgeDialogScaffold>
+  return (
+    <>
+      <KnowledgeDialogScaffold
+        open={open}
+        onOpenChange={onOpenChange}
+        title="资源管理"
+        description="在分析页内统一管理知识库与知识图谱。"
+        sidebarSummary={sidebarSummary}
+        activeTab={activeSection}
+        navItems={RESOURCE_NAV_ITEMS}
+        onTabChange={setActiveSection}
+        testIdPrefix="resource-management-dialog"
+        sidebarFooter={sidebarFooter}
+      >
+        {activeSection === "knowledge_base" ? (
+          <KnowledgeBaseResourceSection
+            workspaceId={workspaceId}
+            knowledgeBaseId={knowledgeBaseId}
+            knowledgeBaseContext={knowledgeBaseContext}
+          />
+        ) : null}
+
+        {activeSection === "knowledge_graph" ? (
+          <KnowledgeGraphResourceSection
+            workspaceId={workspaceId}
+            graphId={graphId}
+            defaultTab={defaultKnowledgeGraphTab}
+          />
+        ) : null}
+      </KnowledgeDialogScaffold>
+
+      <UnifiedDocumentUploadDialog
+        open={isUnifiedUploadOpen}
+        onOpenChange={setIsUnifiedUploadOpen}
+        workspaceId={workspaceId}
+        graphId={graphId}
+      />
+    </>
   );
 }

@@ -17,7 +17,6 @@ import { API_ENDPOINTS } from "@/config/api";
 import { apiRequest } from "@/lib/api/httpClient";
 import { CodeMirrorEditor } from "@/components/editor/CodeMirrorEditor";
 import { useWorkspaceMarkdownComponents } from "@/components/markdown/WorkspaceMarkdownComponents";
-import { CanvasActionMenu } from "@/components/workspace/CanvasActionMenu";
 import {
   getWorkspaceEditorLanguage,
   isGenericallyEditable,
@@ -162,6 +161,85 @@ function appendMarkdownReferenceSuffix(url: string, suffix?: string): string {
   }
 
   return `${url}${suffix}`;
+}
+
+interface FileEditToolbarProps {
+  hasUnsavedChanges: boolean;
+  isSaving: boolean;
+  sourceViewMode: "source" | "reading";
+  onToggleMode: () => void;
+  onSave: () => void;
+  onOpenHistory?: () => void;
+  readingIcon?: React.ReactNode;
+}
+
+/** Shared edit toolbar for markdown / html / code preview types */
+function FileEditToolbar({
+  hasUnsavedChanges,
+  isSaving,
+  sourceViewMode,
+  onToggleMode,
+  onSave,
+  onOpenHistory,
+  readingIcon,
+}: FileEditToolbarProps) {
+  return (
+    <>
+      <div className="flex items-center gap-2">
+        <div
+          className={`w-2 h-2 rounded-full ${
+            hasUnsavedChanges ? "bg-warning" : "bg-success"
+          }`}
+        />
+        <span className="text-[11px] text-muted-foreground">
+          {hasUnsavedChanges ? "未保存" : "已保存"}
+        </span>
+      </div>
+      <button
+        onClick={onToggleMode}
+        className="flex items-center gap-1 px-2.5 py-0.5 text-[11px] border border-border bg-white hover:bg-muted/50 rounded text-foreground transition-colors"
+      >
+        {sourceViewMode === "source" ? (
+          <>
+            {readingIcon ?? <BookOpen className="w-3 h-3" />}
+            阅读
+          </>
+        ) : (
+          <>
+            <Pencil className="w-3 h-3" />
+            编辑
+          </>
+        )}
+      </button>
+      <button
+        onClick={onSave}
+        disabled={isSaving || !hasUnsavedChanges}
+        className="flex items-center gap-1 px-2.5 py-0.5 text-[11px] bg-primary hover:bg-primary/90 disabled:bg-muted disabled:opacity-50 disabled:cursor-not-allowed rounded text-primary-foreground transition-colors"
+      >
+        {isSaving ? (
+          <>
+            <Loader2 className="w-3 h-3 animate-spin" />
+            保存中
+          </>
+        ) : (
+          <>
+            <Save className="w-3 h-3" />
+            保存
+          </>
+        )}
+      </button>
+      {onOpenHistory ? (
+        <button
+          onClick={onOpenHistory}
+          className="flex items-center gap-1 px-2.5 py-0.5 text-[11px] border border-border bg-white hover:bg-muted/50 rounded text-foreground transition-colors"
+          title="文件历史"
+        >
+          <History className="w-3 h-3" />
+          历史
+        </button>
+      ) : null}
+    </>
+  );
 }
 
 const FilePreviewPanelComponent: React.FC<FilePreviewPanelProps> = ({
@@ -652,84 +730,31 @@ const FilePreviewPanelComponent: React.FC<FilePreviewPanelProps> = ({
         (isGlobalResource ? canEditGlobalFile : canEditCurrentFile);
 
       const markdownToolbarCore = canEditMarkdown ? (
-        <>
-          <div className="flex items-center gap-2">
-            <div
-              className={`w-2 h-2 rounded-full ${
-                hasUnsavedChanges ? "bg-warning" : "bg-success"
-              }`}
-            />
-            <span className="text-[11px] text-muted-foreground">
-              {hasUnsavedChanges ? "未保存" : "已保存"}
-            </span>
-          </div>
-          <button
-            onClick={() => {
-              const nextMode = sourceViewMode === "source" ? "reading" : "source";
-              setSourceViewMode(nextMode);
-              setIsHtmlPreviewRendering(
-                nextMode === "reading" && content !== null,
-              );
-            }}
-            className="flex items-center gap-1 px-2.5 py-0.5 text-[11px] border border-border bg-white hover:bg-muted/50 rounded text-foreground transition-colors"
-          >
-            {sourceViewMode === "source" ? (
-              <>
-                <BookOpen className="w-3 h-3" />
-                阅读
-              </>
-            ) : (
-              <>
-                <Pencil className="w-3 h-3" />
-                编辑
-              </>
-            )}
-          </button>
-          <button
-            onClick={handleSave}
-            disabled={isSaving || !hasUnsavedChanges}
-            className="flex items-center gap-1 px-2.5 py-0.5 text-[11px] bg-primary hover:bg-primary/90 disabled:bg-muted disabled:opacity-50 disabled:cursor-not-allowed rounded text-primary-foreground transition-colors"
-          >
-            {isSaving ? (
-              <>
-                <Loader2 className="w-3 h-3 animate-spin" />
-                保存中
-              </>
-            ) : (
-              <>
-                <Save className="w-3 h-3" />
-                保存
-              </>
-            )}
-          </button>
-          {onOpenFileHistory ? (
-            <button
-              onClick={() => onOpenFileHistory(file.name)}
-              className="flex items-center gap-1 px-2.5 py-0.5 text-[11px] border border-border bg-white hover:bg-muted/50 rounded text-foreground transition-colors"
-              title="文件历史"
-            >
-              <History className="w-3 h-3" />
-              历史
-            </button>
-          ) : null}
-        </>
-      ) : null;
-
-      const markdownToolbar = canEditMarkdown ? (
-        <>
-          {markdownToolbarCore}
-          <CanvasActionMenu
-            onClose={() => {}}
-            closeLabel="关闭预览"
-          />
-        </>
+        <FileEditToolbar
+          hasUnsavedChanges={hasUnsavedChanges}
+          isSaving={isSaving}
+          sourceViewMode={sourceViewMode}
+          onToggleMode={() => {
+            const nextMode = sourceViewMode === "source" ? "reading" : "source";
+            setSourceViewMode(nextMode);
+            setIsHtmlPreviewRendering(
+              nextMode === "reading" && content !== null,
+            );
+          }}
+          onSave={handleSave}
+          onOpenHistory={
+            onOpenFileHistory
+              ? () => onOpenFileHistory(file.name)
+              : undefined
+          }
+        />
       ) : null;
 
       return (
         <div className="flex flex-col h-full bg-white overflow-hidden">
           {canEditMarkdown && !toolbarContainer && (
             <div className="flex items-center justify-between px-3 py-1.5 bg-white border-b border-border shrink-0">
-              {markdownToolbar}
+              {markdownToolbarCore}
             </div>
           )}
           {canEditMarkdown && toolbarContainer && createPortal(
@@ -785,82 +810,30 @@ const FilePreviewPanelComponent: React.FC<FilePreviewPanelProps> = ({
         (isGlobalResource ? canEditGlobalFile : canEditCurrentFile);
 
       const htmlToolbarCore = canEditHtml ? (
-        <>
-          <div className="flex items-center gap-2">
-            <div
-              className={`w-2 h-2 rounded-full ${
-                hasUnsavedChanges ? "bg-warning" : "bg-success"
-              }`}
-            />
-            <span className="text-[11px] text-muted-foreground">
-              {hasUnsavedChanges ? "未保存" : "已保存"}
-            </span>
-          </div>
-          <button
-            onClick={() =>
-              setSourceViewMode((prev) =>
-                prev === "source" ? "reading" : "source"
-              )
-            }
-            className="flex items-center gap-1 px-2.5 py-0.5 text-[11px] border border-border bg-white hover:bg-muted/50 rounded text-foreground transition-colors"
-          >
-            {sourceViewMode === "source" ? (
-              <>
-                <Eye className="w-3 h-3" />
-                阅读
-              </>
-            ) : (
-              <>
-                <Pencil className="w-3 h-3" />
-                编辑
-              </>
-            )}
-          </button>
-          <button
-            onClick={handleSave}
-            disabled={isSaving || !hasUnsavedChanges}
-            className="flex items-center gap-1 px-2.5 py-0.5 text-[11px] bg-primary hover:bg-primary/90 disabled:bg-muted disabled:opacity-50 disabled:cursor-not-allowed rounded text-primary-foreground transition-colors"
-          >
-            {isSaving ? (
-              <>
-                <Loader2 className="w-3 h-3 animate-spin" />
-                保存中
-              </>
-            ) : (
-              <>
-                <Save className="w-3 h-3" />
-                保存
-              </>
-            )}
-          </button>
-          {onOpenFileHistory ? (
-            <button
-              onClick={() => onOpenFileHistory(file.name)}
-              className="flex items-center gap-1 px-2.5 py-0.5 text-[11px] border border-border bg-white hover:bg-muted/50 rounded text-foreground transition-colors"
-              title="文件历史"
-            >
-              <History className="w-3 h-3" />
-              历史
-            </button>
-          ) : null}
-        </>
-      ) : null;
-
-      const htmlToolbar = canEditHtml ? (
-        <>
-          {htmlToolbarCore}
-          <CanvasActionMenu
-            onClose={() => {}}
-            closeLabel="关闭预览"
-          />
-        </>
+        <FileEditToolbar
+          hasUnsavedChanges={hasUnsavedChanges}
+          isSaving={isSaving}
+          sourceViewMode={sourceViewMode}
+          onToggleMode={() =>
+            setSourceViewMode((prev) =>
+              prev === "source" ? "reading" : "source"
+            )
+          }
+          onSave={handleSave}
+          onOpenHistory={
+            onOpenFileHistory
+              ? () => onOpenFileHistory(file.name)
+              : undefined
+          }
+          readingIcon={<Eye className="w-3 h-3" />}
+        />
       ) : null;
 
       return (
         <div className="flex flex-col h-full bg-white overflow-hidden">
           {canEditHtml && !toolbarContainer && (
             <div className="flex items-center justify-between px-3 py-1.5 bg-white border-b border-border shrink-0">
-              {htmlToolbar}
+              {htmlToolbarCore}
             </div>
           )}
           {canEditHtml && toolbarContainer && createPortal(
@@ -933,11 +906,8 @@ const FilePreviewPanelComponent: React.FC<FilePreviewPanelProps> = ({
       return (
         <div className="flex flex-col h-full overflow-hidden">
           {Boolean(onEditFile) && !toolbarContainer && (
-            <div className="flex items-center justify-between px-3 py-1.5 bg-white border-b border-border shrink-0">
-              <div className="flex items-center gap-2">
-                {notebookEditButton}
-              </div>
-              <CanvasActionMenu onClose={() => {}} closeLabel="关闭预览" />
+            <div className="flex items-center px-3 py-1.5 bg-white border-b border-border shrink-0">
+              {notebookEditButton}
             </div>
           )}
           {Boolean(onEditFile) && toolbarContainer && createPortal(
@@ -1076,72 +1046,24 @@ const FilePreviewPanelComponent: React.FC<FilePreviewPanelProps> = ({
       const isEditingCode = canEdit && sourceViewMode === "source";
 
       const codeToolbarCore = canEdit ? (
-        <>
-          <div className="flex items-center gap-2">
-            <div
-              className={`w-2 h-2 rounded-full ${
-                hasUnsavedChanges ? "bg-warning" : "bg-success"
-              }`}
-            />
-            <span className="text-[11px] text-muted-foreground">
-              {hasUnsavedChanges ? "未保存" : "已保存"}
-            </span>
-          </div>
-          <button
-            onClick={() =>
-              setSourceViewMode((prev) =>
-                prev === "source" ? "reading" : "source"
-              )
-            }
-            className="flex items-center gap-1 px-2.5 py-0.5 text-[11px] border border-border bg-white hover:bg-muted/50 rounded text-foreground transition-colors"
-          >
-            {sourceViewMode === "source" ? (
-              <>
-                <BookOpen className="w-3 h-3" />
-                阅读
-              </>
-            ) : (
-              <>
-                <Pencil className="w-3 h-3" />
-                编辑
-              </>
-            )}
-          </button>
-          <button
-            onClick={handleSave}
-            disabled={isSaving || !hasUnsavedChanges}
-            className="flex items-center gap-1 px-2.5 py-0.5 text-[11px] bg-primary hover:bg-primary/90 disabled:bg-muted disabled:opacity-50 disabled:cursor-not-allowed rounded text-primary-foreground transition-colors"
-          >
-            {isSaving ? (
-              <>
-                <Loader2 className="w-3 h-3 animate-spin" />
-                保存中
-              </>
-            ) : (
-              <>
-                <Save className="w-3 h-3" />
-                保存
-              </>
-            )}
-          </button>
-        </>
-      ) : null;
-
-      const codeToolbar = canEdit ? (
-        <>
-          {codeToolbarCore}
-          <CanvasActionMenu
-            onClose={() => {}}
-            closeLabel="关闭预览"
-          />
-        </>
+        <FileEditToolbar
+          hasUnsavedChanges={hasUnsavedChanges}
+          isSaving={isSaving}
+          sourceViewMode={sourceViewMode}
+          onToggleMode={() =>
+            setSourceViewMode((prev) =>
+              prev === "source" ? "reading" : "source"
+            )
+          }
+          onSave={handleSave}
+        />
       ) : null;
 
       return (
         <div className="flex flex-col h-full bg-white text-foreground overflow-hidden">
           {canEdit && !toolbarContainer && (
             <div className="flex items-center justify-between px-3 py-1.5 bg-white border-b border-border shrink-0">
-              {codeToolbar}
+              {codeToolbarCore}
             </div>
           )}
           {canEdit && toolbarContainer && createPortal(

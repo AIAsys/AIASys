@@ -105,17 +105,19 @@ def search_arxiv(query: str, max_results: int) -> list[dict]:
 
         pdf_url = f"https://arxiv.org/pdf/{paper_id}.pdf"
 
-        entries.append({
-            "id": paper_id,
-            "title": title,
-            "authors": authors,
-            "summary": summary,
-            "published": published,
-            "updated": updated,
-            "categories": categories,
-            "pdf_url": pdf_url,
-            "entry_id": entry_id,
-        })
+        entries.append(
+            {
+                "id": paper_id,
+                "title": title,
+                "authors": authors,
+                "summary": summary,
+                "published": published,
+                "updated": updated,
+                "categories": categories,
+                "pdf_url": pdf_url,
+                "entry_id": entry_id,
+            }
+        )
 
     return entries
 

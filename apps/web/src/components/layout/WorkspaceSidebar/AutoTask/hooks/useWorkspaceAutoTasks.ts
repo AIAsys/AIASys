@@ -16,6 +16,7 @@ import {
   runWorkspaceAutoTaskNow,
   updateWorkspaceAutoTask,
 } from "@/lib/api/workspaces";
+import { usePolling } from "@/hooks/usePolling";
 import type {
   TriggerEventDocument,
   WorkspaceAutoTask,
@@ -106,8 +107,10 @@ export function useWorkspaceAutoTasks({
   draftRef.current = draft;
   const isSavingRef = useRef(isSaving);
   isSavingRef.current = isSaving;
+  const isEditorOpenRef = useRef(isEditorOpen);
+  isEditorOpenRef.current = isEditorOpen;
 
-  const loadAutoTasks = useCallback(async () => {
+  const loadAutoTasks = useCallback(async (silent = false) => {
     if (!workspaceId) {
       setAutoTasks([]);
       setScheduleEvents([]);
@@ -128,7 +131,9 @@ export function useWorkspaceAutoTasks({
       }
     }
 
-    setIsLoading(true);
+    if (!silent) {
+      setIsLoading(true);
+    }
     setLoadError(null);
 
     const [tasksResponse, triggerResponse] = await Promise.all([
@@ -152,12 +157,27 @@ export function useWorkspaceAutoTasks({
       setLoadError(null);
     }
 
-    setIsLoading(false);
+    if (!silent) {
+      setIsLoading(false);
+    }
   }, [workspaceId]);
 
   useEffect(() => {
     void loadAutoTasks();
   }, [loadAutoTasks]);
+
+  // 工作区面板打开期间定时静默刷新，保证任务状态、下次运行时间、错误信息不过期。
+  // 标签页隐藏时自动暂停，重新可见时立即刷新一次。
+  // 编辑器打开或正在保存时暂停轮询，避免覆盖用户正在编辑的草稿状态。
+  const pollingCallback = useCallback(async () => {
+    if (isEditorOpenRef.current || isSavingRef.current) {
+      return;
+    }
+    // 静默刷新，不触发 loading 指示器闪烁
+    await loadAutoTasks(true);
+  }, [loadAutoTasks]);
+
+  usePolling(pollingCallback, 30_000, Boolean(workspaceId));
 
   useEffect(() => {
     setFeedback(null);

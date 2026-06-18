@@ -391,7 +391,7 @@ export function useWorkspaceLifecycleActions({
         }
       })();
     },
-    [currentWorkspaceId, executor, loadWorkspaces],
+    [currentWorkspaceId, executor, loadWorkspaces, showError],
   );
 
   const handleRenameConversation = useCallback(

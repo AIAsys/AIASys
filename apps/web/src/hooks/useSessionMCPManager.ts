@@ -98,6 +98,7 @@ interface UseSessionMCPManagerReturn {
   refreshWorkspace: () => Promise<void>;
   refreshWorkspaceOnly: () => Promise<void>;
   addStoreServer: (server: Omit<MCPServerConfig, "is_system_default">) => Promise<boolean>;
+  updateStoreServer: (server: Omit<MCPServerConfig, "is_system_default">) => Promise<boolean>;
   removeStoreServer: (name: string) => Promise<boolean>;
   addWorkspaceServer: (name: string) => Promise<boolean>;
   removeWorkspaceServer: (name: string) => Promise<boolean>;
@@ -215,6 +216,21 @@ export function useSessionMCPManager(
     } catch (err) {
       console.error("添加 MCP server 失败:", err);
       safeSet(setError, err instanceof Error ? err.message : "添加失败");
+      return false;
+    }
+  };
+
+  // 更新全局 server（同一 upsert 接口，语义区分以便审计）
+  const updateStoreServer = async (
+    server: Omit<MCPServerConfig, "is_system_default">
+  ): Promise<boolean> => {
+    try {
+      await saveMCPStoreServer(server as MCPServerConfig);
+      await loadStore();
+      return true;
+    } catch (err) {
+      console.error("更新 MCP server 失败:", err);
+      safeSet(setError, err instanceof Error ? err.message : "更新失败");
       return false;
     }
   };
@@ -355,6 +371,7 @@ export function useSessionMCPManager(
     refreshWorkspace: loadWorkspace,
     refreshWorkspaceOnly: loadWorkspaceOnly,
     addStoreServer,
+    updateStoreServer,
     removeStoreServer,
     addWorkspaceServer,
     removeWorkspaceServer,

@@ -31,7 +31,9 @@ def get_workspace_root() -> Path:
 def resolve_path(raw: str, workspace_root: Path) -> Path:
     p = Path(raw)
     if p.is_absolute():
-        rel = Path(*p.parts[2:]) if str(p) == "/workspace" or str(p).startswith("/workspace/") else p
+        rel = (
+            Path(*p.parts[2:]) if str(p) == "/workspace" or str(p).startswith("/workspace/") else p
+        )
     else:
         rel = p
     host = (workspace_root / rel).resolve()
@@ -91,7 +93,7 @@ def _ensure_graph_db(graph_db_path: Path) -> None:
     """确保知识图谱数据库存在且有基本表结构。"""
     graph_db_path.parent.mkdir(parents=True, exist_ok=True)
     with sqlite3.connect(str(graph_db_path)) as conn:
-        conn.execute('''
+        conn.execute("""
             CREATE TABLE IF NOT EXISTS entities (
                 entity_id TEXT PRIMARY KEY,
                 name TEXT NOT NULL,
@@ -101,8 +103,8 @@ def _ensure_graph_db(graph_db_path: Path) -> None:
                 source_doc_id TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
-        ''')
-        conn.execute('''
+        """)
+        conn.execute("""
             CREATE TABLE IF NOT EXISTS relations (
                 relation_id TEXT PRIMARY KEY,
                 source_entity_id TEXT NOT NULL,
@@ -114,13 +116,13 @@ def _ensure_graph_db(graph_db_path: Path) -> None:
                 source_doc_id TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
-        ''')
-        conn.execute('''
+        """)
+        conn.execute("""
             CREATE TABLE IF NOT EXISTS graph_metadata (
                 key TEXT PRIMARY KEY,
                 value TEXT
             )
-        ''')
+        """)
 
 
 def _insert_or_update_entity(
@@ -135,7 +137,7 @@ def _insert_or_update_entity(
     """插入或更新实体。"""
     props_json = json.dumps(properties, ensure_ascii=False) if properties else "{}"
     conn.execute(
-        '''
+        """
         INSERT INTO entities (entity_id, name, entity_type, description, properties, source_doc_id, created_at)
         VALUES (?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(entity_id) DO UPDATE SET
@@ -145,8 +147,16 @@ def _insert_or_update_entity(
             properties=excluded.properties,
             source_doc_id=excluded.source_doc_id,
             created_at=excluded.created_at
-        ''',
-        (entity_id, name, entity_type, description, props_json, source_doc_id, datetime.now(timezone.utc).isoformat()),
+        """,
+        (
+            entity_id,
+            name,
+            entity_type,
+            description,
+            props_json,
+            source_doc_id,
+            datetime.now(timezone.utc).isoformat(),
+        ),
     )
 
 
@@ -164,7 +174,7 @@ def _insert_or_update_relation(
     """插入或更新关系。"""
     props_json = json.dumps(properties, ensure_ascii=False) if properties else "{}"
     conn.execute(
-        '''
+        """
         INSERT INTO relations (relation_id, source_entity_id, target_entity_id, relation_type, description, strength, properties, source_doc_id, created_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(relation_id) DO UPDATE SET
@@ -176,13 +186,25 @@ def _insert_or_update_relation(
             properties=excluded.properties,
             source_doc_id=excluded.source_doc_id,
             created_at=excluded.created_at
-        ''',
-        (relation_id, source_entity_id, target_entity_id, relation_type, description, strength, props_json, source_doc_id, datetime.now(timezone.utc).isoformat()),
+        """,
+        (
+            relation_id,
+            source_entity_id,
+            target_entity_id,
+            relation_type,
+            description,
+            strength,
+            props_json,
+            source_doc_id,
+            datetime.now(timezone.utc).isoformat(),
+        ),
     )
 
 
 def _entity_exists(conn: sqlite3.Connection, entity_id: str) -> bool:
-    row = conn.execute("SELECT 1 FROM entities WHERE entity_id = ? LIMIT 1", (entity_id,)).fetchone()
+    row = conn.execute(
+        "SELECT 1 FROM entities WHERE entity_id = ? LIMIT 1", (entity_id,)
+    ).fetchone()
     return row is not None
 
 
@@ -385,7 +407,9 @@ def ingest_single_paper(
             "year": year,
             "has_markdown": bool(paper_md_content),
         },
-        "references_index": str(references_index_path.relative_to(workspace_root)).replace("\\", "/"),
+        "references_index": str(references_index_path.relative_to(workspace_root)).replace(
+            "\\", "/"
+        ),
         "experiments_index": str(experiments_path.relative_to(workspace_root)).replace("\\", "/"),
         "graph_status": graph_status,
         "graph_result": graph_result,

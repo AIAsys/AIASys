@@ -14,7 +14,7 @@ import {
   formatGraphNumber,
   getEntityTypeLabel,
   normalizeDisplayText,
-} from "@/pages/Knowledge/GraphPage/shared";
+} from "./shared";
 
 interface CommunityAnalysisPanelProps {
   workspaceId?: string | null;

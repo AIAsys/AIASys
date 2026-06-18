@@ -42,14 +42,14 @@ def config_service(temp_workspace):
 async def test_ensure_config_dir_exists(config_service, temp_workspace):
     """测试配置目录自动创建"""
     user_id = "test_user"
-    
+
     # 确保目录不存在
     config_dir = temp_workspace / user_id / "global_workspace" / ".aiasys" / "agent_config"
     assert not config_dir.exists()
-    
+
     # 调用 ensure 方法
     result = config_service._ensure_config_dir_exists(user_id)
-    
+
     # 验证目录已创建
     assert result.exists()
     assert result.is_dir()
@@ -62,7 +62,7 @@ async def test_save_and_load_prompt_override(config_service):
     user_id = "test_user"
     mode = AgentMode.ANALYSIS
     content = "# 自定义提示词\n\n这是测试内容"
-    
+
     # 保存提示词
     success = await config_service.save_prompt_override(
         mode=mode,
@@ -70,7 +70,7 @@ async def test_save_and_load_prompt_override(config_service):
         content=content,
     )
     assert success is True
-    
+
     # 读取用户配置
     user_config = await config_service.get_user_config(user_id)
     assert user_config is not None
@@ -89,7 +89,7 @@ async def test_save_and_load_tools_config(config_service):
         "app.agents.tools.local_ipython_box:LocalIPythonBox",
         "app.agents.tools.knowledge_tool:KnowledgeBaseQuery",
     ]
-    
+
     # 保存工具配置
     success = await config_service.save_tools_config(
         mode=mode,
@@ -97,7 +97,7 @@ async def test_save_and_load_tools_config(config_service):
         disabled_tools=disabled_tools,
     )
     assert success is True
-    
+
     # 读取用户配置
     user_config = await config_service.get_user_config(user_id)
     assert user_config is not None
@@ -151,20 +151,20 @@ async def test_merge_config_with_user_override(config_service):
     """测试用户覆盖配置的合并"""
     user_id = "test_user"
     mode = AgentMode.ANALYSIS
-    
+
     # 先保存用户配置
     await config_service.save_prompt_override(
         mode=mode,
         user_id=user_id,
         content="# 用户自定义提示词",
     )
-    
+
     # 获取合并后的配置
     merged_config = await config_service.get_merged_config(
         mode=mode,
         user_id=user_id,
     )
-    
+
     # 验证合并结果
     assert merged_config.is_customized is True
     assert merged_config.prompt_source == "user_default"
@@ -223,13 +223,13 @@ async def test_merge_config_without_user_override(config_service):
     """测试无用户覆盖时的系统默认配置"""
     user_id = "test_user_no_config"
     mode = AgentMode.ANALYSIS
-    
+
     # 直接获取合并配置（用户未设置）
     merged_config = await config_service.get_merged_config(
         mode=mode,
         user_id=user_id,
     )
-    
+
     # 验证使用系统默认
     assert merged_config.is_customized is False
     assert merged_config.prompt_source == "system_default"
@@ -240,12 +240,12 @@ async def test_system_prompt_matches_baseline(config_service):
     """确认系统默认提示词来自配置文件且当无覆盖时生效"""
     user_id = "baseline_user"
     mode = AgentMode.ANALYSIS
-    
+
     merged_config = await config_service.get_merged_config(
         mode=mode,
         user_id=user_id,
     )
-    
+
     assert merged_config.prompt_source == "system_default"
 
     config_path = get_system_default_config_path(mode)
@@ -289,22 +289,22 @@ async def test_reset_to_default(config_service):
     """测试重置为系统默认"""
     user_id = "test_user"
     mode = AgentMode.ANALYSIS
-    
+
     # 先保存配置
     await config_service.save_prompt_override(
         mode=mode,
         user_id=user_id,
         content="# 自定义提示词",
     )
-    
+
     # 验证配置存在
     user_config = await config_service.get_user_config(user_id)
     assert user_config.analysis.enabled is True
-    
+
     # 重置配置
     success = await config_service.reset_to_default(mode, user_id)
     assert success is True
-    
+
     # 验证配置已删除
     user_config = await config_service.get_user_config(user_id)
     assert user_config is None or user_config.analysis is None
@@ -315,16 +315,16 @@ async def test_validate_config_valid(config_service):
     """测试配置验证 - 有效配置"""
     user_id = "test_user"
     mode = AgentMode.ANALYSIS
-    
+
     # 保存有效配置
     await config_service.save_prompt_override(
         mode=mode,
         user_id=user_id,
         content="# 有效提示词",
     )
-    
+
     is_valid, errors = await config_service.validate_config(mode, user_id)
-    
+
     assert is_valid is True
     assert len(errors) == 0
 
@@ -352,9 +352,9 @@ async def test_tools_merge_logic(config_service, monkeypatch):
         "tool:b",
         "tool:c",
     ]
-    
+
     from app.services.agent_config.models import ModeOverrides, ToolsConfig
-    
+
     mode_overrides = ModeOverrides(
         enabled=True,
         tools=ToolsConfig(
@@ -373,12 +373,12 @@ async def test_tools_merge_logic(config_service, monkeypatch):
         "_is_supported_tool",
         lambda tool_name: True,
     )
-    
+
     enabled, disabled, overrides, strategy = config_service._merge_tools(
         {"agent": {"tools": system_tools}},
         [mode_overrides],
     )
-    
+
     assert "tool:a" in enabled
     assert "tool:b" not in enabled
     assert "tool:b" in disabled
@@ -531,22 +531,11 @@ async def test_merged_prompt_includes_soul_and_project_profile(
     )
 
     soul_path = (
-        temp_workspace
-        / user_id
-        / "global_workspace"
-        / ".aiasys"
-        / "agent_config"
-        / "soul.md"
+        temp_workspace / user_id / "global_workspace" / ".aiasys" / "agent_config" / "soul.md"
     )
     soul_path.write_text("# Soul\n\n- 稳定协作方式。", encoding="utf-8")
 
-    profile_path = (
-        temp_workspace
-        / user_id
-        / workspace_id
-        / ".aiasys"
-        / "project_profile.md"
-    )
+    profile_path = temp_workspace / user_id / workspace_id / ".aiasys" / "project_profile.md"
     profile_path.write_text("# Profile\n\n- 项目画像内容。", encoding="utf-8")
 
     await config_service.save_prompt_override(
@@ -609,4 +598,7 @@ async def test_session_tools_override_applies_after_user_default(config_service)
     )
 
     assert "app.agents.tools.read_media_tool:ReadMediaFile" in merged_config.enabled_tools
-    assert "app.agents.tools.notebook_session_tool:ListSessionNotebooks" not in merged_config.enabled_tools
+    assert (
+        "app.agents.tools.notebook_session_tool:ListSessionNotebooks"
+        not in merged_config.enabled_tools
+    )

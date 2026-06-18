@@ -617,11 +617,11 @@ export function WorkspaceContextPanel({
     searchContent,
     selectedDatabaseHandle,
     sessionId,
-    workspaceId,
     fileChangesContent,
     resourcesContent,
     onManageDatabaseConnections,
     onCreateDatabaseConnection,
+    onOpenWorkspaceSettings,
   ]);
 
   // keep-alive 只保留高频切换的 tab，减少重建开销同时控制内存增长

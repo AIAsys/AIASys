@@ -5,16 +5,19 @@ import {
   FileText,
   FlaskConical,
   Hash,
+  RefreshCw,
   SlidersHorizontal,
   StopCircle,
   Upload,
   X,
+  AlertCircle,
 } from "lucide-react";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import {
   type ChangeEvent,
   type KeyboardEvent,
   type RefObject,
+  memo,
   useCallback,
   useEffect,
   useMemo,
@@ -31,6 +34,7 @@ import {
   type WorkspaceFileReferenceDragPayload,
 } from "@/utils/workspaceFileDrag";
 import { cn } from "@/lib/utils";
+import type { FailedUpload } from "@/hooks/useAgentFileUpload";
 import { ModelSelector } from "./ModelSelector";
 import { FileMentionPicker, type FileMentionPickerRef } from "./FileMentionPicker";
 
@@ -72,6 +76,12 @@ interface InputAreaProps {
   isRunning: boolean;
   onStop: () => void;
   uploadedFiles: UploadedFile[];
+  /** 上传失败的文件列表 */
+  failedUploads?: FailedUpload[];
+  /** 重试某个失败的上传 */
+  onRetryUpload?: (id: string) => void;
+  /** 移除某个失败的上传记录 */
+  onRemoveFailedUpload?: (id: string) => void;
   onRemoveFile: (index: number) => void;
   onAddFileClick: () => void;
   fileInputRef: RefObject<HTMLInputElement | null>;
@@ -120,7 +130,7 @@ interface InputAreaProps {
   workspaceId?: string;
 }
 
-export function InputArea({
+export const InputArea = memo(function InputArea({
   inputValue,
   onInputChange,
   onSubmit,
@@ -128,6 +138,9 @@ export function InputArea({
   isRunning,
   onStop,
   uploadedFiles,
+  failedUploads,
+  onRetryUpload,
+  onRemoveFailedUpload,
   onRemoveFile,
   onAddFileClick,
   fileInputRef,
@@ -435,6 +448,47 @@ export function InputArea({
           </div>
         )}
 
+        {/* 上传失败的附件 — 显示错误状态和重试按钮 */}
+        {failedUploads && failedUploads.length > 0 && (
+          <div className="flex flex-wrap gap-2 mb-2">
+            {failedUploads.map((failed) => (
+              <div
+                key={failed.id}
+                className="group relative flex items-center gap-2 pl-2 pr-1 py-1 text-sm border border-destructive/40 rounded-lg bg-destructive/5 transition-colors"
+                title={failed.error}
+              >
+                <AlertCircle size={14} className="text-destructive flex-shrink-0" />
+                <span className="truncate max-w-[100px] text-xs text-destructive">
+                  {failed.filename}
+                </span>
+                {onRetryUpload && (
+                  <button
+                    type="button"
+                    className="ml-1 p-0.5 rounded-full text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-50"
+                    onClick={() => void onRetryUpload(failed.id)}
+                    disabled={isUploading}
+                    title="重试上传"
+                    aria-label="重试上传"
+                  >
+                    <RefreshCw size={12} className={isUploading ? "animate-spin" : ""} />
+                  </button>
+                )}
+                {onRemoveFailedUpload && (
+                  <button
+                    type="button"
+                    className="p-0.5 rounded-full text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                    onClick={() => onRemoveFailedUpload(failed.id)}
+                    title="移除"
+                    aria-label="移除"
+                  >
+                    <X size={12} />
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
         {/* 上传进度条 */}
         {isUploading && uploadProgress !== null && (
           <div className="mb-2 flex items-center gap-2">
@@ -739,4 +793,4 @@ export function InputArea({
       </div>
     </div>
   );
-}
+});

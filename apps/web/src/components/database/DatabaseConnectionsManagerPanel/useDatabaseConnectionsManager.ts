@@ -85,7 +85,7 @@ export function useDatabaseConnectionsManager({ sessionId, workspaceId }: UseDat
     return () => {
       cancelled = true;
     };
-  }, [reloadToken, sessionId]);
+  }, [reloadToken, sessionId, workspaceId]);
 
   // 订阅同步事件
   useEffect(() => {
@@ -139,7 +139,7 @@ export function useDatabaseConnectionsManager({ sessionId, workspaceId }: UseDat
         setIsSaving(false);
       }
     },
-    [editingConnector],
+    [editingConnector, workspaceId],
   );
 
   const handleSave = useCallback(

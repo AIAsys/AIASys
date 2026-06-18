@@ -1,10 +1,11 @@
 import {
   AlertCircle,
+  AlertTriangle,
   Plus,
   RefreshCw,
   Zap,
 } from "lucide-react";
-import { useMemo, useState, lazy, Suspense } from "react";
+import { useMemo, useState, useCallback, useEffect, lazy, Suspense } from "react";
 
 import {
   AlertDialog,
@@ -20,7 +21,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { LLMModelConfig } from "@/lib/api/llm";
-import type { TaskExecutionPolicySummary } from "@/types/autoTask";
+import type {
+  TaskExecutionPolicySummary,
+  WorkspaceAutoTask,
+} from "@/types/autoTask";
 import type { WorkspaceConversationSummary } from "@/pages/WorkspacePage/types";
 
 import {
@@ -120,6 +124,29 @@ export function WorkspaceAutoTaskPanel({
       "",
   });
   const [categorySelectorOpen, setCategorySelectorOpen] = useState(false);
+  const [failureBannerDismissed, setFailureBannerDismissed] = useState(false);
+
+  const autoTaskErrorTasks = useMemo(
+    () =>
+      autoTask.sortedTasks.filter(
+        (task) =>
+          task.consecutive_errors > 0 || Boolean(task.last_error),
+      ),
+    [autoTask.sortedTasks],
+  );
+
+  const handleDismissFailureBanner = useCallback(() => {
+    setFailureBannerDismissed(true);
+  }, []);
+
+  // 当异常任务数量变化时重置 dismissed 状态，确保新异常能再次展示
+  useEffect(() => {
+    setFailureBannerDismissed(false);
+  }, [autoTaskErrorTasks.length]);
+
+  const visibleFailureTasks = failureBannerDismissed
+    ? []
+    : autoTaskErrorTasks;
 
   if (!workspaceId) {
     return (
@@ -222,6 +249,13 @@ export function WorkspaceAutoTaskPanel({
             >
               {autoTask.feedback.message}
             </div>
+          ) : null}
+
+          {visibleFailureTasks.length > 0 ? (
+            <AutoTaskFailureBanner
+              tasks={visibleFailureTasks}
+              onDismiss={handleDismissFailureBanner}
+            />
           ) : null}
 
           {autoTask.loadError ? (
@@ -337,3 +371,61 @@ export function WorkspaceAutoTaskPanel({
 }
 
 export default WorkspaceAutoTaskPanel;
+
+interface AutoTaskFailureBannerProps {
+  tasks: WorkspaceAutoTask[];
+  onDismiss: () => void;
+}
+
+function AutoTaskFailureBanner({
+  tasks,
+  onDismiss,
+}: AutoTaskFailureBannerProps) {
+  const hasDisabled = tasks.some((task) => task.status === "disabled");
+  const tone = hasDisabled ? "error" : "warning";
+
+  return (
+    <div
+      className={cn(
+        "rounded-2xl border px-4 py-3 text-sm",
+        tone === "error"
+          ? "border-error/30 bg-error-container/60 text-error"
+          : "border-warning/20 bg-warning-container/70 text-warning",
+      )}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 font-semibold">
+            <AlertTriangle className="h-4 w-4 shrink-0" />
+            {hasDisabled
+              ? `${tasks.length} 个自动化任务出现异常`
+              : `${tasks.length} 个自动化任务连续出错`}
+          </div>
+          <div className="mt-1 space-y-0.5">
+            {tasks.slice(0, 3).map((task) => (
+              <div key={task.task_id} className="truncate text-[12px] leading-5">
+                {getAutoTaskTitle(task)}
+                {task.consecutive_errors > 0
+                  ? ` · 连续 ${task.consecutive_errors} 次异常`
+                  : ""}
+                {task.status === "disabled" ? " · 已自动禁用" : ""}
+              </div>
+            ))}
+            {tasks.length > 3 ? (
+              <div className="text-[11px] opacity-70">
+                还有 {tasks.length - 3} 个任务…
+              </div>
+            ) : null}
+          </div>
+        </div>
+        <button
+          type="button"
+          className="shrink-0 text-[11px] underline hover:opacity-70"
+          onClick={onDismiss}
+        >
+          忽略
+        </button>
+      </div>
+    </div>
+  );
+}

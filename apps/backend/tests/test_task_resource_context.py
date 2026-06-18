@@ -127,7 +127,7 @@ def test_task_resource_context_formats_mounted_resources_and_attachments(
             "relative_path": "shared.md",
             "display_path": "/global/shared.md",
             "size_bytes": 6,
-        }
+        },
     ]
     assert "工作区挂载摘要：数据库 2 个、知识库 2 个、知识图谱 2 个" in prompt_context
     assert "当前会话资源摘要：数据库句柄 2 个、当前轮附件 2 个" in prompt_context
@@ -135,8 +135,14 @@ def test_task_resource_context_formats_mounted_resources_and_attachments(
     assert "/global/shared.md" in prompt_context
     assert "可直接引用资源对象数：13" in prompt_context
     assert "财报库(kb-a, 3 篇文档)" in prompt_context
-    assert "当前任务工作区挂载了 2 个数据库连接：订单库(dbc-a, postgres)；dbc-missing(dbc-missing)" in prompt_context
-    assert "当前会话已挂载 2 个数据库资源：订单库[connector:dbc-a, postgres]；日志库[connector:dbc-b, mysql]" in prompt_context
+    assert (
+        "当前任务工作区挂载了 2 个数据库连接：订单库(dbc-a, postgres)；dbc-missing(dbc-missing)"
+        in prompt_context
+    )
+    assert (
+        "当前会话已挂载 2 个数据库资源：订单库[connector:dbc-a, postgres]；日志库[connector:dbc-b, mysql]"
+        in prompt_context
+    )
     # 主图谱概念已取消
     assert "当前任务主知识图谱" not in prompt_context
     assert "/workspace/report.pdf" in prompt_context
@@ -179,7 +185,9 @@ async def test_knowledge_query_tool_prefers_mounted_knowledge_bases(
         query=fake_query,
     )
     monkeypatch.setattr(knowledge_tool, "_resolve_current_user_id", lambda: "local_default")
-    monkeypatch.setattr(knowledge_tool, "_resolve_workspace_root", lambda scope: Path("/tmp/workspace"))
+    monkeypatch.setattr(
+        knowledge_tool, "_resolve_workspace_root", lambda scope: Path("/tmp/workspace")
+    )
     monkeypatch.setattr(
         knowledge_tool,
         "resolve_mounted_knowledge_base_summaries",
@@ -268,9 +276,7 @@ async def test_update_knowledge_base_tool_wraps_service(
                 chunk_size=request.chunk_size or 512,
                 chunk_overlap=request.chunk_overlap or 50,
                 default_search_mode=(
-                    request.default_search_mode.value
-                    if request.default_search_mode
-                    else "hybrid"
+                    request.default_search_mode.value if request.default_search_mode else "hybrid"
                 ),
                 default_extraction_mode=request.default_extraction_mode,
                 requires_reindex=False,
@@ -439,10 +445,9 @@ async def test_delete_documents_from_knowledge_base_tool_batches_doc_ids(
     tool = knowledge_tool.DeleteDocumentsFromKnowledgeBase()
     tool._kb_service = SimpleNamespace(
         get_knowledge_base=lambda user_id, kb_id: SimpleNamespace(id=kb_id, name="项目资料库"),
-        delete_document=lambda user_id, kb_id, doc_id: deleted.append(
-            (user_id, kb_id, doc_id)
-        )
-        or doc_id != "missing-doc",
+        delete_document=lambda user_id, kb_id, doc_id: (
+            deleted.append((user_id, kb_id, doc_id)) or doc_id != "missing-doc"
+        ),
     )
     monkeypatch.setattr(knowledge_tool, "_resolve_current_user_id", lambda: "local_default")
 
@@ -467,8 +472,7 @@ async def test_delete_knowledge_base_tool_wraps_service(
     deleted = []
     tool = knowledge_tool.DeleteKnowledgeBase()
     tool._kb_service = SimpleNamespace(
-        delete_knowledge_base=lambda user_id, kb_id: deleted.append((user_id, kb_id))
-        or True
+        delete_knowledge_base=lambda user_id, kb_id: deleted.append((user_id, kb_id)) or True
     )
     monkeypatch.setattr(knowledge_tool, "_resolve_current_user_id", lambda: "local_default")
 
@@ -483,7 +487,9 @@ async def test_delete_knowledge_base_tool_wraps_service(
 async def test_graph_entity_search_tool_uses_all_mounted_graphs(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(graphrag_tool, "resolve_mounted_knowledge_graph_ids", lambda: ["graph-a", "graph-b"])
+    monkeypatch.setattr(
+        graphrag_tool, "resolve_mounted_knowledge_graph_ids", lambda: ["graph-a", "graph-b"]
+    )
 
     services = {
         "graph-a": SimpleNamespace(
@@ -600,9 +606,7 @@ async def test_create_and_delete_knowledge_graph_tools_manage_global_graph(
             ).model_dump()
         )
         # 图谱应该创建在 tmp_path 下的某个工作区里，通过 scan 找到
-        db_files = sqlite_graph_store.SQLiteGraphStore._scan_graph_dirs(
-            "user-graph-crud"
-        )
+        db_files = sqlite_graph_store.SQLiteGraphStore._scan_graph_dirs("user-graph-crud")
         graph_path = db_files[0] if db_files else tmp_path / "__nonexistent__"
     finally:
         graphrag_tool.current_user_id.reset(token_uid)

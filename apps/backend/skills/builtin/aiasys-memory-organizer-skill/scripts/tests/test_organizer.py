@@ -17,7 +17,10 @@ from utils import (
 
 def test_resolve_memory_paths(tmp_path: Path):
     paths = resolve_memory_paths(tmp_path)
-    assert paths["memory"] == tmp_path.parent / "global_workspace" / ".aiasys" / ".memory" / "MEMORY.md"
+    assert (
+        paths["memory"]
+        == tmp_path.parent / "global_workspace" / ".aiasys" / ".memory" / "MEMORY.md"
+    )
     assert paths["workspace"] == tmp_path / ".aiasys" / "memory" / "workspace_memory.md"
 
 

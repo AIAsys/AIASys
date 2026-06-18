@@ -49,13 +49,15 @@ def test_workspace_runtime_binding_docker_derived() -> None:
 
 
 def test_normalize_workspace_runtime_binding_with_resources() -> None:
-    binding = _normalize_workspace_runtime_binding({
-        "resources": {
-            "python_env_id": "workspace-default",
-            "node_env_id": "node-default",
-        },
-        "env_vars": {"FOO": "bar"},
-    })
+    binding = _normalize_workspace_runtime_binding(
+        {
+            "resources": {
+                "python_env_id": "workspace-default",
+                "node_env_id": "node-default",
+            },
+            "env_vars": {"FOO": "bar"},
+        }
+    )
     assert binding.resources.python_env_id == "workspace-default"
     assert binding.resources.node_env_id == "node-default"
     assert binding.env_id == "workspace-default"
@@ -64,18 +66,22 @@ def test_normalize_workspace_runtime_binding_with_resources() -> None:
 
 def test_normalize_workspace_runtime_binding_legacy_env_id_migrated() -> None:
     """旧数据只有 env_id/sandbox_mode，normalize 时迁移到 resources。"""
-    binding = _normalize_workspace_runtime_binding({
-        "env_id": "legacy-python",
-        "sandbox_mode": "local",
-    })
+    binding = _normalize_workspace_runtime_binding(
+        {
+            "env_id": "legacy-python",
+            "sandbox_mode": "local",
+        }
+    )
     assert binding.resources.python_env_id == "legacy-python"
     assert binding.env_id == "legacy-python"
 
 
 def test_merge_workspace_runtime_binding_updates_resources() -> None:
-    base = _normalize_workspace_runtime_binding({
-        "resources": {"python_env_id": "py1"},
-    })
+    base = _normalize_workspace_runtime_binding(
+        {
+            "resources": {"python_env_id": "py1"},
+        }
+    )
     merged = _merge_workspace_runtime_binding(
         base,
         {"resources": {"node_env_id": "node1"}},
@@ -86,9 +92,11 @@ def test_merge_workspace_runtime_binding_updates_resources() -> None:
 
 def test_merge_workspace_runtime_binding_legacy_patch() -> None:
     """旧 patch 直接传 sandbox_mode=docker 也能正确合并。"""
-    base = _normalize_workspace_runtime_binding({
-        "resources": {"python_env_id": "py1"},
-    })
+    base = _normalize_workspace_runtime_binding(
+        {
+            "resources": {"python_env_id": "py1"},
+        }
+    )
     merged = _merge_workspace_runtime_binding(
         base,
         {"sandbox_mode": "docker"},
@@ -98,12 +106,14 @@ def test_merge_workspace_runtime_binding_legacy_patch() -> None:
 
 
 def test_parse_runtime_resources_from_contract() -> None:
-    resources = _parse_runtime_resources({
-        "resources": {
-            "python_env_id": "workspace-default",
-            "node_env_id": "node-default",
+    resources = _parse_runtime_resources(
+        {
+            "resources": {
+                "python_env_id": "workspace-default",
+                "node_env_id": "node-default",
+            }
         }
-    })
+    )
     assert resources.python_env_id == "workspace-default"
     assert resources.node_env_id == "node-default"
 
@@ -114,12 +124,14 @@ def test_parse_runtime_resources_legacy_env_id() -> None:
 
 
 def test_create_workspace_docker_clears_local_envs() -> None:
-    binding = _normalize_workspace_runtime_binding({
-        "resources": {
-            "python_env_id": "workspace-default",
-            "docker_resource_id": "docker-1",
+    binding = _normalize_workspace_runtime_binding(
+        {
+            "resources": {
+                "python_env_id": "workspace-default",
+                "docker_resource_id": "docker-1",
+            }
         }
-    })
+    )
     assert binding.sandbox_mode == "docker"
     assert binding.resources.python_env_id is None
     assert binding.resources.docker_resource_id == "docker-1"

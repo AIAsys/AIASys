@@ -16,11 +16,14 @@ def test_build_session_runtime_summary_reports_not_started_uv_env(
     monkeypatch.setattr(
         runtime_state_module,
         "_resolve_workspace_runtime_env",
-        lambda **kwargs: ("ws-1", {
-            "kind": "uv",
-            "status": "registered",
-            "display_name": "Workspace UV",
-        }),
+        lambda **kwargs: (
+            "ws-1",
+            {
+                "kind": "uv",
+                "status": "registered",
+                "display_name": "Workspace UV",
+            },
+        ),
     )
 
     summary = runtime_state_module.build_session_runtime_summary(
@@ -46,11 +49,14 @@ def test_runtime_prompt_context_explains_uv_environment(
     monkeypatch.setattr(
         runtime_state_module,
         "_resolve_workspace_runtime_env",
-        lambda **kwargs: ("ws-1", {
-            "kind": "uv",
-            "status": "ready",
-            "display_name": "Workspace UV",
-        }),
+        lambda **kwargs: (
+            "ws-1",
+            {
+                "kind": "uv",
+                "status": "ready",
+                "display_name": "Workspace UV",
+            },
+        ),
     )
 
     summary = runtime_state_module.build_session_runtime_summary(
@@ -198,7 +204,9 @@ def test_reset_session_context_ignores_cross_context_value_error(
                 raise ValueError(f"{self.name} reset in different Context")
             calls.append((self.name, "reset"))
 
-    monkeypatch.setattr(context_module, "current_code_timeout", FakeContextVar("code_timeout", should_raise=True))
+    monkeypatch.setattr(
+        context_module, "current_code_timeout", FakeContextVar("code_timeout", should_raise=True)
+    )
     monkeypatch.setattr(context_module, "current_env_id", FakeContextVar("env_id"))
     monkeypatch.setattr(context_module, "current_session_root", FakeContextVar("session_root"))
     monkeypatch.setattr(context_module, "current_workspace", FakeContextVar("workspace"))

@@ -58,9 +58,7 @@ def test_builtin_skill_references_from_prompts_and_presets_are_loadable() -> Non
     referenced_names: set[str] = set()
     for prompt_path in prompt_paths:
         prompt_text = prompt_path.read_text(encoding="utf-8")
-        referenced_names.update(
-            re.findall(r"LoadSkill\(name=[\"']([^\"']+)[\"']\)", prompt_text)
-        )
+        referenced_names.update(re.findall(r"LoadSkill\(name=[\"']([^\"']+)[\"']\)", prompt_text))
     referenced_names.update(DATA_ANALYSIS_BASELINE.skills)
     referenced_names.update(DATA_ANALYST_BASELINE.skills)
 

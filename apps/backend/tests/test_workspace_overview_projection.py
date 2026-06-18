@@ -195,15 +195,17 @@ async def test_workspace_overview_returns_backend_projection(
     )
     monkeypatch.setattr(
         "app.graphrag.core.SQLiteGraphStore.list_graphs",
-        classmethod(lambda cls, user_id: [
-            {
-                "kg_id": "graph-overview",
-                "name": "概览图谱",
-                "entity_count": 3,
-                "relation_count": 2,
-                "document_count": 1,
-            }
-        ]),
+        classmethod(
+            lambda cls, user_id: [
+                {
+                    "kg_id": "graph-overview",
+                    "name": "概览图谱",
+                    "entity_count": 3,
+                    "relation_count": 2,
+                    "document_count": 1,
+                }
+            ]
+        ),
     )
     monkeypatch.setattr(
         config_projection_module,

@@ -74,9 +74,7 @@ def test_skill_manager_config_example_stays_in_runtime_skill_dir(tmp_path: Path)
     enabled = manager.enable_skill("demo-skill", workspace_path)
 
     assert enabled.success is True
-    assert (
-        workspace_path / ".aiasys" / "skills" / "demo-skill" / "config.json"
-    ).exists()
+    assert (workspace_path / ".aiasys" / "skills" / "demo-skill" / "config.json").exists()
     assert not (workspace_path / ".agents" / "skills" / "demo-skill").exists()
 
 

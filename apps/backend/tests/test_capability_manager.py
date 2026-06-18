@@ -55,7 +55,7 @@ def _write_manifest(source_dir: Path, capability_id: str) -> None:
 def _write_skill_source(source_dir: Path, skill_name: str) -> None:
     source_dir.mkdir(parents=True, exist_ok=True)
     (source_dir / "SKILL.md").write_text(
-        f"+++\nname = \"{skill_name}\"\ndescription = \"Demo\"\n+++\n\n# Demo\n",
+        f'+++\nname = "{skill_name}"\ndescription = "Demo"\n+++\n\n# Demo\n',
         encoding="utf-8",
     )
 
@@ -114,6 +114,4 @@ def test_deactivate_stale_subagent_declaration_cleans_without_policy_write(
 
     assert deactivated.success is True
     assert "coder" not in manager._read_declarations(workspace_path)
-    assert not (
-        workspace_path / ".aiasys" / "agent_config" / "collaboration_roles.json"
-    ).exists()
+    assert not (workspace_path / ".aiasys" / "agent_config" / "collaboration_roles.json").exists()

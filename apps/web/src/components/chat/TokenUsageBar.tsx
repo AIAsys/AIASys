@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { BarChart3, Gauge, Loader2, Minimize2, Settings, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -11,12 +11,11 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import { getCurrentUserId } from "@/config/api";
-import type { TokenStats } from "@/types/sessionBudget";
 import {
-  getSessionTokenStats,
   setSessionBudget,
   clearSessionBudget,
 } from "@/lib/api/sessionBudget";
+import { useTokenUsageStats } from "@/hooks/useTokenUsageStats";
 
 interface TokenUsageBarProps {
   sessionId?: string | null;
@@ -65,41 +64,29 @@ export function TokenUsageBar({
   compactionState,
   variant = "bar",
 }: TokenUsageBarProps) {
-  const [stats, setStats] = useState<TokenStats | null>(null);
   const [budgetEnabled, setBudgetEnabled] = useState(false);
   const [tokenBudget, setTokenBudget] = useState("50000");
   const [isSaving, setIsSaving] = useState(false);
   const [popoverOpen, setPopoverOpen] = useState(false);
   const [budgetError, setBudgetError] = useState<string | null>(null);
-  const requestSeqRef = useRef(0);
   const editingRef = useRef(false);
 
   const userId = getCurrentUserId();
 
-  const loadStats = useCallback(async () => {
-    const requestSeq = requestSeqRef.current + 1;
-    requestSeqRef.current = requestSeq;
-    if (!userId || !sessionId) {
-      setStats(null);
-      return;
-    }
-    try {
-      const data = await getSessionTokenStats(userId, sessionId);
-      if (requestSeqRef.current !== requestSeq) return;
-      setStats(data);
-      setBudgetEnabled(data.token_budget != null);
-      // 只在 Popover 关闭时才同步后端值到输入框，避免覆盖用户正在编辑的内容
-      if (data.token_budget && !editingRef.current) {
-        setTokenBudget(String(data.token_budget));
-      }
-    } catch {
-      // 保持已有 stats，避免预算条突然消失
-    }
-  }, [userId, sessionId]);
+  const { stats, loadStats } = useTokenUsageStats({
+    sessionId,
+    refreshSignal,
+    isRunning,
+  });
 
+  // stats 更新后同步预算开关与输入框；输入框只在非编辑态同步，避免覆盖用户输入
   useEffect(() => {
-    void loadStats();
-  }, [loadStats, refreshSignal]);
+    if (!stats) return;
+    setBudgetEnabled(stats.token_budget != null);
+    if (stats.token_budget && !editingRef.current) {
+      setTokenBudget(String(stats.token_budget));
+    }
+  }, [stats]);
 
   if (!sessionId || !stats) return null;
 

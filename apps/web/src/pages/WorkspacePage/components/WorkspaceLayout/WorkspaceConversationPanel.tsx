@@ -1,12 +1,15 @@
 import {
+  AlertTriangle,
   Download,
   GitBranchPlus,
+  Loader2,
   MessageSquare,
   MessageSquarePlus,
   MoreHorizontal,
   PanelLeftClose,
   PanelLeftOpen,
   PenSquare,
+  Search,
   Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -80,7 +83,7 @@ interface ConversationItemProps {
   switchSucceededSessionId?: string | null;
   onSelectConversation: (sessionId: string) => void;
   onForkConversation: (sessionId: string) => void;
-  onDeleteConversation?: (sessionId: string) => Promise<void>;
+  onRequestDelete?: (sessionId: string, title: string) => void;
   onExportConversation: (
     event: React.MouseEvent,
     sessionId: string,
@@ -99,7 +102,7 @@ const ConversationItem = React.memo(function ConversationItem({
   switchSucceededSessionId,
   onSelectConversation,
   onForkConversation,
-  onDeleteConversation,
+  onRequestDelete,
   onExportConversation,
   onStartRename,
   currentUserId,
@@ -141,7 +144,11 @@ const ConversationItem = React.memo(function ConversationItem({
 
   const handleDeleteClick = (event: React.MouseEvent) => {
     event.stopPropagation();
-    void onDeleteConversation?.(conversation.session_id);
+    // 不直接删除，先弹出确认对话框
+    onRequestDelete?.(
+      conversation.session_id,
+      conversation.title || "未命名对话",
+    );
   };
 
   return (
@@ -242,7 +249,7 @@ const ConversationItem = React.memo(function ConversationItem({
                 导出对话
               </DropdownMenuItem>
             ) : null}
-            {onDeleteConversation ? (
+            {onRequestDelete ? (
               <DropdownMenuItem
                 onClick={handleDeleteClick}
                 className="text-error focus:text-error"
@@ -272,6 +279,7 @@ export function WorkspaceConversationPanel({
   onDeleteConversation,
 }: WorkspaceConversationPanelProps) {
   const [collapsed, setCollapsed] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
   const [pendingSwitchSessionId, setPendingSwitchSessionId] = useState<
     string | null
   >(null);
@@ -284,6 +292,12 @@ export function WorkspaceConversationPanel({
     title: string;
   } | null>(null);
   const [renameValue, setRenameValue] = useState("");
+  // 待删除确认的对话，存在即弹出确认框
+  const [pendingDeletion, setPendingDeletion] = useState<{
+    sessionId: string;
+    title: string;
+  } | null>(null);
+  const [isDeletingConversation, setIsDeletingConversation] = useState(false);
   const { user } = useAuthContext();
   const currentUserId = user?.id;
   const isCollapsed = embedded ? false : collapsed;
@@ -336,40 +350,42 @@ export function WorkspaceConversationPanel({
     };
   }, [pendingSwitchSessionId]);
 
-  const handleSelectConversation = (sessionId: string) => {
-    if (sessionId === currentSessionId) {
-      return;
-    }
+  const handleSelectConversation = useCallback(
+    (sessionId: string) => {
+      if (sessionId === currentSessionId) {
+        return;
+      }
 
-    setSwitchSucceededSessionId(null);
-    setPendingSwitchSessionId(sessionId);
-    onSelectConversation(sessionId);
-  };
+      setSwitchSucceededSessionId(null);
+      setPendingSwitchSessionId(sessionId);
+      onSelectConversation(sessionId);
+    },
+    [currentSessionId, onSelectConversation],
+  );
 
-  const handleExportConversation = async (
-    event: React.MouseEvent,
-    sessionId: string,
-    title: string,
-  ) => {
-    event.stopPropagation();
-    if (!currentUserId) return;
-    try {
-      const blob = await exportConversation(currentUserId, sessionId);
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      const safeTitle = (title || "conversation")
-        .replace(/[^\w\-\u4e00-\u9fa5]/g, "_")
-        .slice(0, 50);
-      link.download = `${safeTitle}_${sessionId}.json`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
-    } catch {
-      // 静默失败，不打扰用户
-    }
-  };
+  const handleExportConversation = useCallback(
+    async (event: React.MouseEvent, sessionId: string, title: string) => {
+      event.stopPropagation();
+      if (!currentUserId) return;
+      try {
+        const blob = await exportConversation(currentUserId, sessionId);
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        const safeTitle = (title || "conversation")
+          .replace(/[^\w\-\u4e00-\u9fa5]/g, "_")
+          .slice(0, 50);
+        link.download = `${safeTitle}_${sessionId}.json`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+      } catch {
+        // 静默失败，不打扰用户
+      }
+    },
+    [currentUserId],
+  );
 
   const conversations = useMemo(
     () => workspace?.conversations ?? [],
@@ -387,6 +403,18 @@ export function WorkspaceConversationPanel({
       }),
     [conversations],
   );
+  const trimmedSearchQuery = searchQuery.trim().toLowerCase();
+  const filteredConversations = useMemo(
+    () =>
+      trimmedSearchQuery
+        ? sortedConversations.filter((conversation) =>
+            (conversation.title || "未命名对话")
+              .toLowerCase()
+              .includes(trimmedSearchQuery),
+          )
+        : sortedConversations,
+    [sortedConversations, trimmedSearchQuery],
+  );
   const isSyncingConversations = Boolean(
     workspace &&
       workspace.conversation_count > 0 &&
@@ -395,7 +423,7 @@ export function WorkspaceConversationPanel({
 
   const listRef = useRef<HTMLDivElement>(null);
   const rowVirtualizer = useVirtualizer({
-    count: sortedConversations.length,
+    count: filteredConversations.length,
     getScrollElement: () => listRef.current,
     estimateSize: () => 88,
     measureElement:
@@ -413,6 +441,40 @@ export function WorkspaceConversationPanel({
       setShowRenameDialog(true);
     },
     [],
+  );
+
+  // 请求删除：先弹出确认对话框，确认后再执行实际删除
+  const handleRequestDelete = useCallback(
+    (sessionId: string, title: string) => {
+      setPendingDeletion({ sessionId, title });
+    },
+    [],
+  );
+
+  const handleConfirmDelete = useCallback(() => {
+    if (!pendingDeletion || !onDeleteConversation) {
+      return;
+    }
+    const { sessionId } = pendingDeletion;
+    void (async () => {
+      try {
+        setIsDeletingConversation(true);
+        await onDeleteConversation(sessionId);
+      } finally {
+        setIsDeletingConversation(false);
+        setPendingDeletion(null);
+      }
+    })();
+  }, [onDeleteConversation, pendingDeletion]);
+
+  const handleDeleteDialogOpenChange = useCallback(
+    (open: boolean) => {
+      if (open || isDeletingConversation) {
+        return;
+      }
+      setPendingDeletion(null);
+    },
+    [isDeletingConversation],
   );
 
   if (!workspace) {
@@ -519,57 +581,85 @@ export function WorkspaceConversationPanel({
       {isCollapsed ? (
         <div className="flex-1" />
       ) : (
-        <div
-          ref={listRef}
-          className={cn(
-            "min-h-0 flex-1 overflow-y-auto",
-            hideHeader ? "px-2 py-2" : "px-3 py-3",
-          )}
-        >
-          {conversations.length === 0 ? (
-            <div className="rounded-lg border border-dashed border-border/80 bg-background/70 px-3 py-3 text-xs text-muted-foreground">
-              {isSyncingConversations
-                ? "正在同步当前工作区的对话列表..."
-                : "当前工作区还没有对话。你可以直接新建对话开始，或从左侧切到别的工作区。"}
-            </div>
-          ) : (
+        <>
+          {conversations.length > 0 ? (
             <div
-              style={{
-                height: `${rowVirtualizer.getTotalSize()}px`,
-                width: "100%",
-                position: "relative",
-              }}
+              className={cn(
+                "shrink-0 border-b border-border/60",
+                hideHeader ? "px-2 pt-2 pb-2" : "px-3 pt-2 pb-2",
+              )}
             >
-              {rowVirtualizer.getVirtualItems().map((virtualItem) => {
-                const conversation = sortedConversations[virtualItem.index];
-                return (
-                  <ConversationItem
-                    key={conversation.conversation_id}
-                    conversation={conversation}
-                    currentSessionId={currentSessionId}
-                    pendingSwitchSessionId={pendingSwitchSessionId}
-                    switchSucceededSessionId={switchSucceededSessionId}
-                    onSelectConversation={handleSelectConversation}
-                    onForkConversation={onForkConversation}
-                    onDeleteConversation={onDeleteConversation}
-                    onExportConversation={handleExportConversation}
-                    onStartRename={handleStartRename}
-                    currentUserId={currentUserId}
-                    measureRef={rowVirtualizer.measureElement}
-                    style={{
-                      position: "absolute",
-                      top: 0,
-                      left: 0,
-                      width: "100%",
-                      transform: `translateY(${virtualItem.start}px)`,
-                      paddingBottom: "4px",
-                    }}
-                  />
-                );
-              })}
+              <div className="relative">
+                <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                <input
+                  type="search"
+                  value={searchQuery}
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                  placeholder="搜索对话..."
+                  className="h-8 w-full rounded-lg border border-input bg-muted/50 pl-8 pr-3 text-xs outline-none transition-colors placeholder:text-muted-foreground/60 focus:bg-background focus:ring-1 focus:ring-ring"
+                />
+              </div>
             </div>
-          )}
-        </div>
+          ) : null}
+
+          <div
+            ref={listRef}
+            className={cn(
+              "min-h-0 flex-1 overflow-y-auto",
+              hideHeader ? "px-2 py-2" : "px-3 py-3",
+            )}
+          >
+            {conversations.length === 0 ? (
+              <div className="rounded-lg border border-dashed border-border/80 bg-background/70 px-3 py-3 text-xs text-muted-foreground">
+                {isSyncingConversations
+                  ? "正在同步当前工作区的对话列表..."
+                  : "当前工作区还没有对话。你可以直接新建对话开始，或从左侧切到别的工作区。"}
+              </div>
+            ) : filteredConversations.length === 0 ? (
+              <div className="rounded-lg border border-dashed border-border/80 bg-background/70 px-3 py-3 text-xs text-muted-foreground">
+                没有匹配「{searchQuery.trim()}」的对话。
+              </div>
+            ) : (
+              <div
+                style={{
+                  height: `${rowVirtualizer.getTotalSize()}px`,
+                  width: "100%",
+                  position: "relative",
+                }}
+              >
+                {rowVirtualizer.getVirtualItems().map((virtualItem) => {
+                  const conversation = filteredConversations[virtualItem.index];
+                  return (
+                    <ConversationItem
+                      key={conversation.conversation_id}
+                      conversation={conversation}
+                      currentSessionId={currentSessionId}
+                      pendingSwitchSessionId={pendingSwitchSessionId}
+                      switchSucceededSessionId={switchSucceededSessionId}
+                      onSelectConversation={handleSelectConversation}
+                      onForkConversation={onForkConversation}
+                      onRequestDelete={
+                        onDeleteConversation ? handleRequestDelete : undefined
+                      }
+                      onExportConversation={handleExportConversation}
+                      onStartRename={handleStartRename}
+                      currentUserId={currentUserId}
+                      measureRef={rowVirtualizer.measureElement}
+                      style={{
+                        position: "absolute",
+                        top: 0,
+                        left: 0,
+                        width: "100%",
+                        transform: `translateY(${virtualItem.start}px)`,
+                        paddingBottom: "4px",
+                      }}
+                    />
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </>
       )}
     <Dialog open={showRenameDialog} onOpenChange={setShowRenameDialog}>
       <DialogContent>
@@ -607,6 +697,57 @@ export function WorkspaceConversationPanel({
             }}
           >
             确认
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+    <Dialog
+      open={pendingDeletion !== null}
+      onOpenChange={handleDeleteDialogOpenChange}
+    >
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader className="sr-only">
+          <DialogTitle>删除对话</DialogTitle>
+          <DialogDescription>
+            确认删除该对话，此操作不可恢复。
+          </DialogDescription>
+        </DialogHeader>
+        <div className="flex items-start gap-4 py-4">
+          <div className="rounded-full bg-error-container p-2 text-error">
+            <AlertTriangle className="h-6 w-6" />
+          </div>
+          <div className="flex-1">
+            <h3 className="mb-1 text-lg font-semibold text-foreground">
+              删除对话
+            </h3>
+            <p className="text-sm leading-6 text-muted-foreground">
+              确定要删除 “{pendingDeletion?.title || "未命名对话"}” 吗？
+              <br />
+              该对话的所有消息和执行记录都会被删除，此操作不可恢复。
+            </p>
+          </div>
+        </div>
+        <DialogFooter className="gap-2 sm:gap-0">
+          <Button
+            variant="outline"
+            onClick={() => handleDeleteDialogOpenChange(false)}
+            disabled={isDeletingConversation}
+          >
+            取消
+          </Button>
+          <Button
+            variant="destructive"
+            onClick={handleConfirmDelete}
+            disabled={isDeletingConversation}
+          >
+            {isDeletingConversation ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                删除中...
+              </>
+            ) : (
+              "删除对话"
+            )}
           </Button>
         </DialogFooter>
       </DialogContent>

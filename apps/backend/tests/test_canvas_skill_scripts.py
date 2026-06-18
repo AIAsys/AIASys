@@ -6,12 +6,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-SKILL_ROOT = (
-    Path(__file__).resolve().parents[1]
-    / "skills"
-    / "builtin"
-    / "aiasys-canvas-skill"
-)
+SKILL_ROOT = Path(__file__).resolve().parents[1] / "skills" / "builtin" / "aiasys-canvas-skill"
 SCRIPTS = SKILL_ROOT / "scripts"
 
 

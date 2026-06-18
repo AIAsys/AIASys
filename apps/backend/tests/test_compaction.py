@@ -69,7 +69,9 @@ class FakeFailingLlmClient(BaseLlmClient):
 class FakeUsageLlmClient(BaseLlmClient):
     """Mock LLM client that returns usage info."""
 
-    def __init__(self, response_text: str = "Summary.", usage: dict[str, Any] | None = None) -> None:
+    def __init__(
+        self, response_text: str = "Summary.", usage: dict[str, Any] | None = None
+    ) -> None:
         self.response_text = response_text
         self.usage = usage
 
@@ -708,13 +710,8 @@ class TestSessionCompactionMixin:
         # history snapshot 应包含压缩后的 user/assistant/tool 消息
         assert session._history_snapshot is not None
         snapshot = session._history_snapshot
-        assert any(
-            msg.get("origin") == "compaction_summary" for msg in snapshot
-        )
-        assert any(
-            msg.get("role") == "assistant" and msg.get("turn_n") == 2
-            for msg in snapshot
-        )
+        assert any(msg.get("origin") == "compaction_summary" for msg in snapshot)
+        assert any(msg.get("role") == "assistant" and msg.get("turn_n") == 2 for msg in snapshot)
 
 
 # ---------------------------------------------------------------------------

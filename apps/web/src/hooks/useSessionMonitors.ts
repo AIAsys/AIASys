@@ -14,6 +14,7 @@ import {
   deleteMonitor,
   updateMonitorMode,
 } from "@/lib/api/monitors";
+import { useDocumentVisibility } from "./useDocumentVisibility";
 
 const POLL_INTERVAL_MS = 1500;
 
@@ -43,11 +44,15 @@ export function useSessionMonitors(
   const [monitors, setMonitors] = useState<MonitorWithSegments[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const segmentIndexesRef = useRef<Map<string, number>>(new Map());
   const loadingSegmentsRef = useRef<Set<string>>(new Set());
+  // 防止轮询周期重叠：上一轮 loadList + pollSegments 还在运行时跳过本轮
+  const isPollingRef = useRef(false);
   const monitorsRef = useRef(monitors);
   monitorsRef.current = monitors;
+
+  // 页面不可见时暂停轮询，恢复可见时立即追赶
+  const isVisible = useDocumentVisibility();
 
   const loadList = useCallback(async (silent = false) => {
     if (!userId || !sessionId) return;
@@ -63,8 +68,18 @@ export function useSessionMonitors(
             ? { ...existing, info }
             : { info, segments: [], isExpanded: false };
         });
+        // 同步更新 ref，确保同一轮 pollSegments 能读到最新 monitor 列表
+        monitorsRef.current = next;
         return next;
       });
+      // 清理已不存在的 monitor 的 segment index 和 loading 锁
+      const activeIds = new Set(data.monitors.map((m) => m.id));
+      for (const key of segmentIndexesRef.current.keys()) {
+        if (!activeIds.has(key)) {
+          segmentIndexesRef.current.delete(key);
+          loadingSegmentsRef.current.delete(key);
+        }
+      }
       // 初始化 segment index 追踪
       data.monitors.forEach((m) => {
         if (!segmentIndexesRef.current.has(m.id)) {
@@ -121,21 +136,33 @@ export function useSessionMonitors(
   }, [loadList]);
 
   useEffect(() => {
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-    }
-    intervalRef.current = setInterval(() => {
-      // 静默刷新列表（捕获 LLM 通过 tool 调用启动的新 monitor）
-      void loadList(true);
-      // 轮询 running monitor 的增量 segments
-      void pollSegments();
-    }, POLL_INTERVAL_MS);
-    return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
+    // 页面不可见时暂停轮询，恢复可见时立即追赶一次
+    if (!isVisible) return;
+
+    // 串行执行一次 loadList + pollSegments，防止两者并发导致 setMonitors 互相踩踏
+    const runPollCycle = async () => {
+      // 上一轮还在运行时跳过，避免周期重叠竞态
+      if (isPollingRef.current) return;
+      isPollingRef.current = true;
+      try {
+        // 先静默刷新列表（捕获 LLM 通过 tool 调用启动的新 monitor）
+        // 再轮询 running monitor 的增量 segments
+        // 串行化确保 pollSegments 读到的是 loadList 更新后的最新 monitor 列表
+        await loadList(true);
+        await pollSegments();
+      } finally {
+        isPollingRef.current = false;
       }
     };
-  }, [pollSegments, loadList]);
+
+    void runPollCycle();
+    const interval = setInterval(() => {
+      void runPollCycle();
+    }, POLL_INTERVAL_MS);
+    return () => {
+      clearInterval(interval);
+    };
+  }, [isVisible, pollSegments, loadList]);
 
   const loadSegmentsFor = useCallback(
     async (monitorId: string) => {
@@ -175,16 +202,16 @@ export function useSessionMonitors(
 
   const toggleExpand = useCallback(
     (monitorId: string) => {
-      let shouldLoad = false;
-      setMonitors((prev) => {
-        const target = prev.find((m) => m.info.id === monitorId);
-        if (target && !target.isExpanded && target.segments.length === 0) {
-          shouldLoad = true;
-        }
-        return prev.map((m) =>
+      // 从 ref 读取当前状态，避免在 setMonitors updater 内部产生副作用
+      // （React StrictMode 下 updater 会被调用两次，副作用不可靠）
+      const target = monitorsRef.current.find((m) => m.info.id === monitorId);
+      const shouldLoad =
+        target && !target.isExpanded && target.segments.length === 0;
+      setMonitors((prev) =>
+        prev.map((m) =>
           m.info.id === monitorId ? { ...m, isExpanded: !m.isExpanded } : m,
-        );
-      });
+        ),
+      );
       if (shouldLoad) {
         void loadSegmentsFor(monitorId);
       }

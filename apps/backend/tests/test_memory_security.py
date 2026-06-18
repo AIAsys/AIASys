@@ -8,17 +8,17 @@ from app.services.memory.store import MemorySecurityError, MemoryStore
 
 class TestInvisibleUnicode:
     def test_detects_zero_width_space(self):
-        result = scan_memory_content("hello\u200Bworld")
+        result = scan_memory_content("hello\u200bworld")
         assert not result.clean
         assert any(t["type"] == "invisible_unicode" for t in result.threats)
 
     def test_detects_zero_width_non_joiner(self):
-        result = scan_memory_content("test\u200Ctext")
+        result = scan_memory_content("test\u200ctext")
         assert not result.clean
         assert any(t["codepoint"] == "U+200C" for t in result.threats)
 
     def test_detects_bidi_override(self):
-        result = scan_memory_content("normal\u202Ereversed")
+        result = scan_memory_content("normal\u202ereversed")
         assert not result.clean
         assert any(t["codepoint"] == "U+202E" for t in result.threats)
 
@@ -58,7 +58,7 @@ class TestCredentialExfiltration:
         assert any(t["type"] == "credential_exfiltration" for t in result.threats)
 
     def test_detects_wget_with_token(self):
-        result = scan_memory_content("wget --header=\"Auth: $TOKEN\"")
+        result = scan_memory_content('wget --header="Auth: $TOKEN"')
         assert not result.clean
 
     def test_detects_cat_env_file(self):

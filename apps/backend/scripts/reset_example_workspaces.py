@@ -358,7 +358,9 @@ def generate_example_mount_config(workspace_id: str) -> dict[str, dict[str, Any]
     }
 
 
-def build_workspace_seeds(preserved: dict[str, dict[str, Any]], timestamp: str) -> list[WorkspaceSeed]:
+def build_workspace_seeds(
+    preserved: dict[str, dict[str, Any]], timestamp: str
+) -> list[WorkspaceSeed]:
     return [
         WorkspaceSeed(
             workspace_id="example-code-refactor",
@@ -789,12 +791,14 @@ def reset_example_knowledge_bases(user_id: str) -> None:
             file_size = len(document_seed.content.encode("utf-8"))
             chunk_id = f"{document_seed.document_id}-chunk-1"
             chunk_row_id = f"chunk-{document_seed.document_id}"
-            meta_json = json.dumps({
-                "doc_id": document_seed.document_id,
-                "filename": document_seed.filename,
-                "kb_id": seed.knowledge_base_id,
-                "example": True,
-            })
+            meta_json = json.dumps(
+                {
+                    "doc_id": document_seed.document_id,
+                    "filename": document_seed.filename,
+                    "kb_id": seed.knowledge_base_id,
+                    "example": True,
+                }
+            )
 
             # kb_documents
             conn.execute(
@@ -805,9 +809,15 @@ def reset_example_knowledge_bases(user_id: str) -> None:
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 [
-                    document_seed.document_id, seed.knowledge_base_id,
-                    document_seed.filename, file_type, file_size,
-                    "completed", 1, timestamp, timestamp,
+                    document_seed.document_id,
+                    seed.knowledge_base_id,
+                    document_seed.filename,
+                    file_type,
+                    file_size,
+                    "completed",
+                    1,
+                    timestamp,
+                    timestamp,
                 ],
             )
 
@@ -817,7 +827,14 @@ def reset_example_knowledge_bases(user_id: str) -> None:
                 INSERT INTO kb_chunks(id, document_id, chunk_index, content, meta_json, chunk_id)
                 VALUES (?, ?, ?, ?, ?, ?)
                 """,
-                [chunk_row_id, document_seed.document_id, 0, document_seed.content, meta_json, chunk_id],
+                [
+                    chunk_row_id,
+                    document_seed.document_id,
+                    0,
+                    document_seed.content,
+                    meta_json,
+                    chunk_id,
+                ],
             )
 
             # vec0 + FTS5
@@ -917,7 +934,9 @@ def reset_example_workspaces(workspaces_root: Path, user_id: str) -> None:
                 "current_conversation_id": seed.current_session_id,
             },
         )
-        write_json(workspace_dir / ".aiasys" / "workspace" / "conversations.json", seed.conversations)
+        write_json(
+            workspace_dir / ".aiasys" / "workspace" / "conversations.json", seed.conversations
+        )
 
         for relative_path, content in seed.files.items():
             write_text(workspace_dir / relative_path, content)

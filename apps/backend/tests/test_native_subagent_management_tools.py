@@ -83,8 +83,7 @@ class TestListSubagentsTool:
         assert "expert_a" not in result.content
         assert "expert_b" not in result.content
         assert any(
-            name in result.content
-            for name in ("coder", "data_analyst", "researcher", "reviewer")
+            name in result.content for name in ("coder", "data_analyst", "researcher", "reviewer")
         )
 
         save_subagent_visibility_policy(

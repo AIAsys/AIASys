@@ -197,7 +197,9 @@ def test_canvas_preserves_unknown_fields_and_subpath(tmp_path: Path) -> None:
     canvas = service.read_canvas(tmp_path, "external.canvas")
     service.write_canvas(tmp_path, "external.canvas", canvas)
 
-    saved = service.read_canvas(tmp_path, "external.canvas").model_dump(mode="json", exclude_none=True)
+    saved = service.read_canvas(tmp_path, "external.canvas").model_dump(
+        mode="json", exclude_none=True
+    )
     assert saved["foreignDocumentField"] == {"keep": True}
     assert saved["custom"] == {"source": "external-tool"}
     assert saved["nodes"][0]["subpath"] == "#结论"
@@ -226,9 +228,15 @@ def test_batch_operations_read_once_write_once(tmp_path: Path) -> None:
 
     operations = [
         CanvasBatchOperation(type="add_node", node=CanvasNode(id="node-3", type="text", text="C")),
-        CanvasBatchOperation(type="update_node", node_id="node-1", node=CanvasNode(id="node-1", type="text", text="A updated")),
+        CanvasBatchOperation(
+            type="update_node",
+            node_id="node-1",
+            node=CanvasNode(id="node-1", type="text", text="A updated"),
+        ),
         CanvasBatchOperation(type="remove_node", node_id="node-2"),
-        CanvasBatchOperation(type="add_edge", edge=CanvasEdge(id="edge-2", fromNode="node-1", toNode="node-3")),
+        CanvasBatchOperation(
+            type="add_edge", edge=CanvasEdge(id="edge-2", fromNode="node-1", toNode="node-3")
+        ),
         CanvasBatchOperation(type="remove_edge", edge_id="edge-1"),
     ]
 
@@ -470,7 +478,9 @@ def test_single_methods_delegate_to_batch(tmp_path: Path) -> None:
     assert len(canvas.nodes) == 1
 
     # update_node
-    service.update_node(tmp_path, "test.canvas", "node-1", CanvasNode(id="node-1", text="A updated"))
+    service.update_node(
+        tmp_path, "test.canvas", "node-1", CanvasNode(id="node-1", text="A updated")
+    )
     canvas = service.read_canvas(tmp_path, "test.canvas")
     assert canvas.nodes[0].text == "A updated"
 
@@ -487,7 +497,12 @@ def test_single_methods_delegate_to_batch(tmp_path: Path) -> None:
     assert len(canvas.edges) == 1
 
     # update_edge
-    service.update_edge(tmp_path, "test.canvas", "e1", CanvasEdge(id="e1", fromNode="n1", toNode="n2", label="updated"))
+    service.update_edge(
+        tmp_path,
+        "test.canvas",
+        "e1",
+        CanvasEdge(id="e1", fromNode="n1", toNode="n2", label="updated"),
+    )
     canvas = service.read_canvas(tmp_path, "test.canvas")
     assert canvas.edges[0].label == "updated"
 

@@ -20,6 +20,8 @@ const child = spawn(electronBinary, [mainEntry, ...extraArgs], {
   cwd: desktopRoot,
   detached: process.platform !== "win32",
   stdio: ["inherit", "inherit", "inherit", "ipc"],
+  // Windows 上隐藏子进程控制台黑窗
+  windowsHide: process.platform === "win32",
   env: {
     ...process.env,
     AIASYS_DESKTOP_MODE: mode,
@@ -38,8 +40,10 @@ function stopChild(reason = "SIGTERM") {
   requestedExitCode = reason === "SIGINT" ? 130 : 0;
 
   if (process.platform === "win32") {
+    // taskkill 是 Windows 控制台命令，必须隐藏黑窗
     const killer = spawn("taskkill", ["/pid", String(child.pid), "/t", "/f"], {
       stdio: "ignore",
+      windowsHide: true,
     });
     killer.once("exit", () => process.exit(requestedExitCode ?? 0));
     killer.once("error", () => process.exit(requestedExitCode ?? 0));

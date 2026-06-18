@@ -154,7 +154,6 @@ def test_connector_credentials_path_uses_runtime_data_dir() -> None:
     assert "/tmp/aiasys/connectors" not in path.as_posix()
 
 
-
 def test_query_connector_handle_requires_non_empty_connector_id(
     tmp_path: Path,
 ) -> None:

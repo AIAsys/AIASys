@@ -36,6 +36,12 @@ import type { Document, KnowledgeBaseExtractionMode, KnowledgeBaseSearchMode, Up
 import { formatEmbeddingModel, getFileIcon, formatFileSize } from "./utils";
 import { SEARCH_MODE_OPTIONS, EXTRACTION_MODE_OPTIONS } from "./constants";
 
+const SEARCH_MODE_DESCRIPTIONS: Record<KnowledgeBaseSearchMode, string> = {
+  fulltext: "基于关键词的精确匹配，速度快",
+  vector: "基于语义相似度搜索，能理解同义词",
+  hybrid: "同时使用全文和向量检索，效果最好",
+};
+
 interface CreateDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -127,12 +133,15 @@ export function CreateDialog({
                 </SelectContent>
               </Select>
               <p className="text-xs leading-5 text-muted-foreground">
-                {isLoadingModels
-                  ? "正在读取模型配置。"
-                  : embeddingModels.length > 0
-                    ? "创建后入库文档会使用该模型建立向量索引。"
-                    : "未配置 embedding 模型时，需要先到设置里完成配置。"}
+                Embedding 模型将文档转换为向量，用于语义检索。不配置则只能使用全文搜索。
               </p>
+              {isLoadingModels ? (
+                <p className="text-xs leading-5 text-muted-foreground">正在读取模型配置…</p>
+              ) : embeddingModels.length === 0 ? (
+                <p className="text-xs leading-5 text-muted-foreground">
+                  当前未配置 embedding 模型，可先到设置中完成配置。
+                </p>
+              ) : null}
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">默认检索策略</label>
@@ -151,6 +160,9 @@ export function CreateDialog({
                   ))}
                 </SelectContent>
               </Select>
+              <p className="text-xs leading-5 text-muted-foreground">
+                {SEARCH_MODE_DESCRIPTIONS[createSearchMode]}
+              </p>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
@@ -162,6 +174,9 @@ export function CreateDialog({
                   value={createChunkSize}
                   onChange={(event) => onCreateChunkSizeChange(event.target.value)}
                 />
+                <p className="text-xs leading-5 text-muted-foreground">
+                  文档切分成片段的大小，默认 512 适合大多数场景
+                </p>
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-medium">重叠</label>
@@ -172,6 +187,9 @@ export function CreateDialog({
                   value={createChunkOverlap}
                   onChange={(event) => onCreateChunkOverlapChange(event.target.value)}
                 />
+                <p className="text-xs leading-5 text-muted-foreground">
+                  相邻片段重叠字数，避免内容截断，默认 50
+                </p>
               </div>
             </div>
           </div>
@@ -212,6 +230,7 @@ interface UploadDialogProps {
   onFileSelect: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onRemoveFile: (fileName: string) => void;
   onUpload: () => void;
+  onCancelUpload: () => void;
   onClearFiles: () => void;
 }
 
@@ -237,6 +256,7 @@ export function UploadDialog({
   onFileSelect,
   onRemoveFile,
   onUpload,
+  onCancelUpload,
   onClearFiles,
 }: UploadDialogProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -427,8 +447,11 @@ export function UploadDialog({
           )}
         </div>
         <DialogFooter className="shrink-0 px-6 py-4">
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isUploading}>
-            取消
+          <Button
+            variant="outline"
+            onClick={isUploading ? onCancelUpload : () => onOpenChange(false)}
+          >
+            {isUploading ? "取消上传" : "取消"}
           </Button>
           <Button onClick={onUpload} disabled={uploadFiles.length === 0 || isUploading}>
             {isUploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}

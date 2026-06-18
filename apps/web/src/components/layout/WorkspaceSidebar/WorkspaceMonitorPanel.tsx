@@ -33,6 +33,8 @@ import {
 import { useSessionMonitors } from "@/hooks/useSessionMonitors";
 import { parseAnsiToElements } from "@/lib/ansi";
 import { cn } from "@/lib/utils";
+import { FileUploadToast, useFileUploadToast } from "@/components/file/FileUploadToast";
+import { writeTextToClipboard } from "@/utils/clipboardText";
 
 interface WorkspaceMonitorPanelProps {
   userId?: string;
@@ -74,6 +76,7 @@ function useLiveTick(active: boolean) {
 export function WorkspaceMonitorPanel({ userId, sessionId }: WorkspaceMonitorPanelProps) {
   const { monitors, loading, error, refresh, toggleExpand, doKill, doSpawn, doRestart, doDelete, doUpdateMode } =
     useSessionMonitors(userId, sessionId);
+  const { toasts, showSuccess, showError } = useFileUploadToast();
   const [killingId, setKillingId] = useState<string | null>(null);
   const [restartingId, setRestartingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -119,6 +122,19 @@ export function WorkspaceMonitorPanel({ userId, sessionId }: WorkspaceMonitorPan
       }
     },
     [doKill],
+  );
+
+  // 复制监控输出到剪贴板，带成功/失败 toast 反馈
+  const handleCopyOutput = useCallback(
+    async (text: string) => {
+      const result = await writeTextToClipboard(text);
+      if (result.ok) {
+        showSuccess("已复制输出");
+      } else {
+        showError("复制失败，请手动选中文本复制");
+      }
+    },
+    [showSuccess, showError],
   );
 
   const handleRestart = useCallback(
@@ -453,7 +469,7 @@ export function WorkspaceMonitorPanel({ userId, sessionId }: WorkspaceMonitorPan
                         className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
                         onClick={() => {
                           const text = m.segments.map((s) => s.content).join("\n");
-                          void navigator.clipboard.writeText(text);
+                          void handleCopyOutput(text);
                         }}
                         title="复制输出"
                       >
@@ -556,7 +572,7 @@ export function WorkspaceMonitorPanel({ userId, sessionId }: WorkspaceMonitorPan
                             className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground"
                             onClick={() => {
                               const text = m.segments.map((s) => s.content).join("\n");
-                              void navigator.clipboard.writeText(text);
+                              void handleCopyOutput(text);
                             }}
                             title="复制全部输出"
                           >
@@ -599,6 +615,14 @@ export function WorkspaceMonitorPanel({ userId, sessionId }: WorkspaceMonitorPan
           )}
         </div>
       </ScrollArea>
+      {/* 复制操作 toast 反馈 */}
+      {toasts.map((toast) => (
+        <FileUploadToast
+          key={toast.id}
+          message={toast.message}
+          type={toast.type}
+        />
+      ))}
     </div>
   );
 }
