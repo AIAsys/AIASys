@@ -13,6 +13,7 @@ from __future__ import annotations
 import logging
 import platform
 import subprocess
+import sys
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -120,11 +121,12 @@ def ensure_vendor_binaries() -> None:
     script = _repo_root() / "apps" / "backend" / "scripts" / "download_vendor_binaries.py"
     try:
         result = subprocess.run(
-            ["python3", str(script)],
+            [sys.executable, str(script)],
             cwd=_repo_root(),
             text=True,
             capture_output=True,
             check=False,
+            timeout=60,
         )
         if result.returncode != 0:
             logger.warning(

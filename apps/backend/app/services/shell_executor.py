@@ -11,8 +11,10 @@ import asyncio
 import logging
 import os
 import re
+import shlex
 import shutil
 import subprocess
+import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -97,13 +99,27 @@ class ShellExecutor:
         return aliases.get(name.lower(), name)
 
     @staticmethod
+    def _is_wsl_bash_path(path: str) -> bool:
+        """判断给定路径是否为 Windows 内置 WSL bash 启动器。"""
+        if os.name != "nt" or not path:
+            return False
+        lower = path.lower()
+        return (
+            "windows\\system32\\bash" in lower
+            or "windows\\syswow64\\bash" in lower
+        )
+
+    @staticmethod
     def _detect_family_from_name(name: str) -> str | None:
-        """根据可执行文件名猜测 shell family。"""
+        """根据可执行文件名或路径猜测 shell family。"""
         lower = name.lower()
         if "wsl" in lower:
             return "wsl"
         if lower.endswith("bash.exe") or lower.endswith("bash") or lower.endswith("sh"):
-            # busybox 也包含 sh，但前面已特判；这里把 bash/sh 归为 posix
+            # busybox 也包含 sh，但前面已特判
+            # Windows 内置 WSL bash 按 wsl family 处理
+            if ShellExecutor._is_wsl_bash_path(name):
+                return "wsl"
             return "posix"
         if "busybox" in lower:
             return "busybox"
@@ -125,8 +141,7 @@ class ShellExecutor:
                 return None
 
         path = str(candidate)
-        name = candidate.name
-        family = self._detect_family_from_name(name) or "custom"
+        family = self._detect_family_from_name(path) or "custom"
 
         if family == "powershell":
             return (path, ["-NoProfile", "-Command"], family)
@@ -275,7 +290,15 @@ class ShellExecutor:
         return None
 
     def _find_bash(self) -> str | None:
-        return shutil.which("bash")
+        r"""查找非 WSL 的 bash（如 Git Bash、MSYS2 bash）。
+
+        Windows 上 `C:\Windows\System32\bash.exe` 是 WSL 启动器，会被识别为
+        wsl family，因此这里不直接返回它。
+        """
+        path = shutil.which("bash")
+        if path and self._is_wsl_bash_path(path):
+            return None
+        return path
 
     def _find_git_bash(self) -> str | None:
         """在 Windows 上查找 Git Bash。
@@ -489,36 +512,49 @@ class ShellExecutor:
         options = options or ShellOptions()
         shell_path, shell_args, shell_family = self.detect_interpreter(interpreter)
 
+        # Windows 上 create_subprocess_exec 最终调用 CreateProcessW，cwd 必须是
+        # 原生 Windows 路径。对于 POSIX shell，我们通过在命令前加 cd 来切换目录。
+        host_cwd: str | None = None
         cwd = options.cwd
         if cwd is not None:
-            cwd = str(cwd)
-            if self._is_windows and shell_family == "posix":
-                cwd = self.win_path_to_posix(cwd)
-            elif shell_family == "wsl":
-                wsl_cwd = self.win_path_to_wsl(cwd)
-                if wsl_cwd:
-                    cwd = wsl_cwd
-            elif self._is_windows and shell_family == "busybox":
-                # busybox-w32 接受 C:/foo/bar 风格，保留驱动器字母
-                cwd = cwd.replace("\\", "/")
-            elif self.is_wsl():
-                wsl_cwd = self.win_path_to_wsl(cwd)
-                if wsl_cwd:
-                    cwd = wsl_cwd
+            host_cwd = str(cwd)
+            if self._is_windows and shell_family in ("posix", "busybox"):
+                # Git Bash / MSYS / busybox-w32：把 cwd 转成 POSIX/正斜杠风格，
+                # 通过 cd 前缀让 shell 自己切换，而不是把 POSIX 路径传给 Windows API。
+                if shell_family == "posix":
+                    shell_cwd = self.win_path_to_posix(host_cwd)
+                else:
+                    shell_cwd = host_cwd.replace("\\", "/")
+                command = f"cd {shlex.quote(shell_cwd)} && {command}"
+            # wsl：wsl.exe 启动时会自动把 Windows cwd 映射到 /mnt/c/...，无需处理。
+            # cmd：直接使用 Windows cwd。
 
         if self._is_windows and shell_family in ("posix", "wsl", "busybox"):
             command = self.rewrite_windows_null_redirect(command)
 
+        # Windows cmd /c 对命令字符串中的双引号解析非常敏感，尤其是带反斜杠
+        # 的路径被双引号包裹时，容易产生 os error 123 等路径错误。对包含双
+        # 引号的命令，写入临时 .cmd 脚本再执行，可绕过 cmd /c 的引号解析。
+        cmd_script_path: Path | None = None
+        if shell_family == "cmd" and '"' in command:
+            cmd_script_path = self._write_cmd_script(command)
+            command = str(cmd_script_path)
+
         argv = [shell_path, *shell_args, command]
         env = self._build_env(options.env, shell_family)
 
-        logger.debug("ShellExecutor.spawn argv=%s cwd=%s family=%s", argv, cwd, shell_family)
+        logger.debug(
+            "ShellExecutor.spawn argv=%s cwd=%s family=%s",
+            argv,
+            host_cwd,
+            shell_family,
+        )
 
         spawn_kwargs: dict[str, Any] = {
             "stdin": options.stdin,
             "stdout": options.stdout,
             "stderr": options.stderr,
-            "cwd": cwd,
+            "cwd": host_cwd,
             "env": env,
         }
         if self._is_windows:
@@ -527,7 +563,43 @@ class ShellExecutor:
             # POSIX 上新建会话/进程组，避免 killpg 误伤父进程
             spawn_kwargs["start_new_session"] = True
 
-        return await asyncio.create_subprocess_exec(*argv, **spawn_kwargs)
+        proc = await asyncio.create_subprocess_exec(*argv, **spawn_kwargs)
+        if cmd_script_path is not None:
+            asyncio.create_task(
+                self._cleanup_cmd_script(proc, cmd_script_path),
+                name=f"cleanup-cmd-script-{cmd_script_path.name}",
+            )
+        return proc
+
+    @staticmethod
+    def _write_cmd_script(command: str) -> Path:
+        """把命令写入临时 .cmd 脚本，避免 cmd /c 直接解析双引号。
+
+        Batch 文件中单个 % 会被当作变量引用，因此把 % 替换成 %% 表示
+        字面量百分号。环境变量展开 semantics 与直接 cmd /c 不完全一致，
+        但这是保证带引号命令能稳定执行的最小代价。
+        """
+        script = Path(tempfile.gettempdir()) / (
+            f"aiasys_cmd_{os.getpid()}_{id(command)}.cmd"
+        )
+        # 在 batch 文件中 % 需要写成 %% 才能输出字面量 %
+        bat_command = command.replace("%", "%%")
+        script.write_text("@echo off\n" + bat_command + "\n", encoding="utf-8")
+        return script
+
+    @staticmethod
+    async def _cleanup_cmd_script(
+        proc: asyncio.subprocess.Process, path: Path
+    ) -> None:
+        """等子进程结束后删除临时 cmd 脚本。"""
+        try:
+            await proc.wait()
+        except Exception:
+            pass
+        try:
+            path.unlink(missing_ok=True)
+        except Exception:
+            pass
 
     async def execute(
         self,
@@ -564,8 +636,13 @@ class ShellExecutor:
         env["GIT_TERMINAL_PROMPT"] = env.get("GIT_TERMINAL_PROMPT", "0")
         if self._is_windows:
             env.setdefault("PYTHONIOENCODING", "utf-8")
-            env.setdefault("LC_ALL", "C.UTF-8")
-            env.setdefault("LANG", "C.UTF-8")
+            # LC_ALL/LANG 仅对 POSIX shell 有意义；对 cmd 设置反而会在 WSL
+            # 或中文环境下造成 stderr 乱码。
+            if shell_family in ("posix", "wsl", "busybox"):
+                env.setdefault("LC_ALL", "C.UTF-8")
+                env.setdefault("LANG", "C.UTF-8")
+            # WSL 默认使用 ANSI 代码页输出，设置 UTF-8 可减少中文/路径乱码
+            env.setdefault("WSL_UTF8", "1")
         if override:
             env.update(override)
         return env

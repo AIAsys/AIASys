@@ -6,7 +6,7 @@ import { defineConfig, loadEnv } from "vite";
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
-  const DEFAULT_API_TARGET = 'http://localhost:13006';
+  const DEFAULT_API_TARGET = 'http://localhost:13001';
   const apiTarget = env.VITE_API_TARGET || DEFAULT_API_TARGET;
 
   return {

@@ -204,6 +204,23 @@ class Shell(AiasysTool):
             )
 
         executor = get_shell_executor()
+        interpreter = params.interpreter
+        # Windows UV 环境绑定的是 Windows 宿主路径与 uv 可执行文件，
+        # WSL bash 无法直接访问。若解释器被探测为 wsl，自动回退到 cmd，
+        # 避免报 "uv: command not found" 等错误。
+        if (
+            os.name == "nt"
+            and not params.container
+            and plan.env is not None
+            and plan.env.kind == "uv"
+        ):
+            _, _, family = executor.detect_interpreter(interpreter)
+            if family == "wsl":
+                logger.warning(
+                    "UV runtime with WSL interpreter detected, falling back to cmd"
+                )
+                interpreter = "cmd"
+
         options = ShellOptions(
             cwd=str(cwd),
             env=env,
@@ -212,7 +229,7 @@ class Shell(AiasysTool):
 
         try:
             result = await executor.execute(
-                command, options=options, interpreter=params.interpreter
+                command, options=options, interpreter=interpreter
             )
         except TimeoutError:
             return ToolResult(

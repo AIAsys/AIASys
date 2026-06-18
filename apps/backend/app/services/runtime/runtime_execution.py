@@ -32,11 +32,15 @@ logger = logging.getLogger(__name__)
 def _shell_quote(arg: str) -> str:
     """跨平台 shell 参数引用。
 
-    Windows cmd 不识别 POSIX 单引号，需要用双引号包裹并转义内部双引号；
+    Windows cmd 不识别 POSIX 单引号，需要用双引号包裹参数，内部双
+    引号用 `""` 转义（batch/cmd 语法）。ShellExecutor 会进一步把包含
+    双引号的命令写入临时 .cmd 脚本执行，避免 `cmd /c` 直接解析引号
+    时产生 os error 123 等路径错误。
     POSIX 平台沿用 shlex.quote。
     """
     if os.name == "nt":
-        return '"' + arg.replace('"', '\\"') + '"'
+        escaped = arg.replace('"', '""')
+        return '"' + escaped + '"'
     return shlex.quote(arg)
 
 
@@ -234,6 +238,17 @@ def wrap_shell_command_for_runtime(
     if plan.env.kind == "uv":
         project_dir = plan.uv_project_dir
         if project_dir is None:
+            return command, plan.workspace
+        # 兼容性与稳定性兜底：若 UV 项目目录已被删除或缺少 pyproject.toml，
+        # 不要强制生成指向不存在目录的 uv run 命令，避免在 Windows 上触发
+        # os error 123 等底层路径错误。回退到 plain shell，让调用方看到更
+        # 清晰的环境不可用提示。
+        if not project_dir.exists() or not (project_dir / "pyproject.toml").exists():
+            logger.warning(
+                "UV project directory %s does not exist or missing pyproject.toml; "
+                "falling back to plain shell",
+                project_dir,
+            )
             return command, plan.workspace
         # Windows 没有 sh，uv run 会因此失败；改用 cmd /c。
         if os.name == "nt":

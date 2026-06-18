@@ -261,6 +261,7 @@ class MonitorService:
         env: dict[str, str] | None = None,
         timeout_seconds: int | None = None,
         mode: str = "notify",
+        interpreter: str = "auto",
     ) -> MonitorSession:
         """在后台启动一个 shell 命令，返回 MonitorSession（status=running）。
 
@@ -342,7 +343,7 @@ class MonitorService:
                 stderr=stderr_f,
                 windows_hide=True,
             )
-            process = await executor.spawn(command, options=options, interpreter="auto")
+            process = await executor.spawn(command, options=options, interpreter=interpreter)
             session.process = process
             session.stdout_f = stdout_f
             session.stderr_f = stderr_f
@@ -1081,6 +1082,18 @@ class SpawnMonitorTool(AiasysTool):
             plan=plan,
         )
 
+        # Windows UV 环境绑定的是 Windows 宿主路径与 uv 可执行文件，
+        # WSL bash 无法直接访问。若解释器被探测为 wsl，自动回退到 cmd。
+        interpreter = "auto"
+        if os.name == "nt" and plan.env is not None and plan.env.kind == "uv":
+            executor = get_shell_executor()
+            _, _, family = executor.detect_interpreter(interpreter)
+            if family == "wsl":
+                logger.warning(
+                    "UV runtime with WSL interpreter detected, falling back to cmd"
+                )
+                interpreter = "cmd"
+
         service = get_monitor_service()
         session = await service.spawn(
             command=command,
@@ -1089,6 +1102,7 @@ class SpawnMonitorTool(AiasysTool):
             env=runtime_env,
             timeout_seconds=timeout,
             mode=mode,
+            interpreter=interpreter,
         )
 
         if mode == "silent":

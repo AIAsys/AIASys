@@ -25,7 +25,8 @@ def test_normalize_interpreter_aliases():
 def test_keyword_case_insensitive():
     ex = ShellExecutor()
     path, args, family = ex.detect_interpreter("Bash")
-    assert family == "posix"
+    # 若系统只有 WSL bash（无 Git Bash），则回退到 wsl family
+    assert family in ("posix", "wsl")
 
 
 @pytest.mark.skipif(__import__("os").name != "nt", reason="Windows-only")
@@ -45,30 +46,34 @@ def test_detect_family_from_name():
     assert ex._detect_family_from_name("powershell.exe") == "powershell"
     assert ex._detect_family_from_name("cmd.exe") == "cmd"
     assert ex._detect_family_from_name("unknown") is None
+    # Windows 内置 WSL bash 路径应识别为 wsl
+    assert ex._detect_family_from_name(r"C:\Windows\system32\bash.exe") == "wsl"
 
 
 def test_bash_keyword_resolves():
     ex = ShellExecutor()
     path, args, family = ex.detect_interpreter("bash")
-    assert family == "posix"
-    assert args == ["-c"]
+    # 优先 Git Bash（posix），没有则回退 WSL bash
+    assert family in ("posix", "wsl")
     assert path
 
 
 def test_sh_alias_resolves_to_bash():
     ex = ShellExecutor()
     path, args, family = ex.detect_interpreter("sh")
-    assert family == "posix"
-    assert args == ["-c"]
+    assert family in ("posix", "wsl")
+    assert path
 
 
 def test_custom_path_resolves():
-    sh_path = shutil.which("sh") or "/bin/sh"
+    sh_path = shutil.which("sh")
+    if sh_path is None:
+        pytest.skip("系统中未找到 sh")
     ex = ShellExecutor()
     path, args, family = ex.detect_interpreter(sh_path)
     assert path == sh_path
-    assert family == "posix"
-    assert args == ["-c"]
+    # sh 可能是 Git Bash / MSYS sh（posix），也可能是 WSL bash 启动器
+    assert family in ("posix", "wsl")
 
 
 def test_unknown_interpreter_raises():

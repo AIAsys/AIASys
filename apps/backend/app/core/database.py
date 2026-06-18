@@ -180,9 +180,28 @@ class WorkspaceResourceDefaultORM(Base):
     updated_at = Column(DateTime, default=utc_now_naive, onupdate=utc_now_naive)
 
 
+def _ensure_column(table_name: str, column_name: str, column_def: str, *, index_name: str | None = None) -> None:
+    """对已有 SQLite 表安全地添加缺失列（用于旧 DB 兼容）。"""
+    from sqlalchemy import text
+
+    with engine.connect() as conn:
+        columns = {r[1] for r in conn.execute(text(f"PRAGMA table_info({table_name})")).fetchall()}
+        if column_name not in columns:
+            conn.execute(text(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_def}"))
+            if index_name:
+                conn.execute(text(f"CREATE INDEX IF NOT EXISTS {index_name} ON {table_name}({column_name})"))
+            conn.commit()
+
+
 def init_db():
-    """初始化数据库表"""
+    """初始化数据库表，并对旧 schema 做兼容性补丁。"""
     Base.metadata.create_all(bind=engine)
+    _ensure_column(
+        "database_connectors",
+        "workspace_id",
+        "VARCHAR",
+        index_name="ix_database_connectors_workspace_id",
+    )
 
 
 @contextmanager
