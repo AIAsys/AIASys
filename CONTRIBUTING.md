@@ -7,6 +7,8 @@
 - **代码优先**：文档和规则必须跟随已验证的实现，而不是反过来替代码做假设。
 - **验证后回写**：先完成实现与验证，再同步更新 `docs/`、需求台账和 changelog。
 - **入口收口**：本地开发优先使用根目录统一入口 `./dev.sh`，不要默认各自进入前后端目录手工拼命令。
+- **流程高于便利**：所有改动（包括维护者/管理员自己的改动）必须走 PR 流程，禁止直接 push `main` 或 `dev`。规范是给所有人遵守的，不是用来约束外部贡献者的。
+- **原子变更**：一个 commit 只做一件事，不要把不相关的改动塞进同一个 commit。
 
 ## 2. 快速上手
 
@@ -229,7 +231,15 @@ AIASys/
 └── DESIGN.md             # 视觉设计基线
 ```
 
-## 6. 获取帮助
+## 7. 相关规范索引
+
+- 仓库权威规范：`AGENTS.md`（同时存在于 `.kimi-code/AGENTS.md` 供 Kimi Code 读取）
+- Git 工作流 Skill：`.team-skills/aiasys-git-workflow/SKILL.md`
+- 维护者发版流程：`docs/guides/maintainers/RELEASE_PROCESS.md`
+- Changelog 编写规范：`docs/changelog/README.md`
+- PR 提交前检查：`.team-skills/pr-check/SKILL.md`
+
+## 8. 获取帮助
 
 如果你在开发中遇到任何困惑，欢迎：
 - 在 [Issues](https://github.com/AIAsys/AIASys/issues) 中提问。
