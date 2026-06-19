@@ -62,14 +62,14 @@ git push upstream vX.Y.Z-beta.N
 
 1. 等待 `.github/workflows/ci-desktop.yml` 完成
 2. 检查 release 产物：
-   ```bash
-   gh release view vX.Y.Z-beta.N --json assets
-   ```
+  ```bash
+  gh release view vX.Y.Z-beta.N --json assets
+  ```
 3. 确认产物包含：
-   - `AIASys_Desktop-X.Y.Z-beta.N.AppImage`
-   - `AIASys_Desktop-X.Y.Z-beta.N-arm64.dmg`
-   - `AIASys_Desktop-X.Y.Z-beta.N-arm64-mac.zip`
-   - `AIASys_Desktop.Setup.X.Y.Z-beta.N.exe`
+  - `AIASys_Desktop-X.Y.Z-beta.N.AppImage`
+  - `AIASys_Desktop-X.Y.Z-beta.N-arm64.dmg`
+  - `AIASys_Desktop-X.Y.Z-beta.N-arm64-mac.zip`
+  - `AIASys_Desktop.Setup.X.Y.Z-beta.N.exe`
 
 ## 发布纪律
 

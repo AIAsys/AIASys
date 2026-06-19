@@ -378,21 +378,21 @@ gh release create v0.0.0-beta.1 --prerelease --title "Beta v0.0.0-beta.1"
 
 1. **合并主线**：feature → dev → main（均通过 PR，不要直接 push）。
 2. **同步版本号**：修改以下三处为同一版本：
-   - `apps/web/package.json`
-   - `apps/desktop/package.json`
-   - `apps/backend/pyproject.toml`
+  - `apps/web/package.json`
+  - `apps/desktop/package.json`
+  - `apps/backend/pyproject.toml`
 3. **更新 changelog**：在 `docs/changelog/` 新建 `v{version}_{YYYY-MM-DD}.md`，记录主要变更。
 4. **提交版本号变更**：
-   ```bash
-   git add apps/web/package.json apps/desktop/package.json apps/backend/pyproject.toml
-   git commit -m "chore(release): bump version to X.Y.Z-beta.N"
-   ```
+  ```bash
+  git add apps/web/package.json apps/desktop/package.json apps/backend/pyproject.toml
+  git commit -m "chore(release): bump version to X.Y.Z-beta.N"
+  ```
 5. **打 tag 并推送**：
-   ```bash
-   git tag vX.Y.Z-beta.N
-   git push upstream main
-   git push upstream vX.Y.Z-beta.N
-   ```
+  ```bash
+  git tag vX.Y.Z-beta.N
+  git push upstream main
+  git push upstream vX.Y.Z-beta.N
+  ```
 6. **等待 CI 构建**：`v*` tag 会触发 `.github/workflows/ci-desktop.yml`，在 Linux / Windows / macOS 三端构建桌面安装包并上传到 release。
 7. **验证产物**：通过 `gh release view vX.Y.Z-beta.N --json assets` 确认 AppImage / exe / dmg / zip 已上传。
 
