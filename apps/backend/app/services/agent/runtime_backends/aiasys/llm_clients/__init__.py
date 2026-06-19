@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from app.services.agent.models.llm_config import LlmProviderConfig
+from app.services.agent.models.llm_config import LlmModelConfig, LlmProviderConfig
 
 from .anthropic_client import AnthropicChatClient
 from .base import BaseLlmClient, LlmChunk, LlmDelta, LlmRequestOptions
@@ -34,6 +34,7 @@ def create_llm_client(
     model: str,
     *,
     api_key_override: str | None = None,
+    model_config: LlmModelConfig | dict[str, Any] | None = None,
 ) -> BaseLlmClient:
     """根据 provider 配置创建对应协议的 LLM Client。
 
@@ -41,6 +42,7 @@ def create_llm_client(
         provider: LLM provider 配置（含 protocol, base_url, api_key, region 等）
         model: 模型名称
         api_key_override: 可选，覆盖 provider.api_key 的 API key（用于 credential pool 轮换）
+        model_config: 可选，模型级别配置；其中的 reasoning_key 会覆盖 provider 级别的配置。
 
     Returns:
         对应协议的 BaseLlmClient 实例
@@ -61,8 +63,12 @@ def create_llm_client(
     )
     base_url = str(_get_provider_attr(provider, "base_url") or "").strip() or None
     _region = str(_get_provider_attr(provider, "region") or "").strip() or None
-    reasoning_key = _get_provider_attr(provider, "reasoning_key")
     reasoning_format = _get_provider_attr(provider, "reasoning_format")
+
+    # 模型级别的 reasoning_key 优先级高于 provider 级别，与 kimi-code 的 alias.reasoningKey 语义对齐
+    reasoning_key = _get_provider_attr(model_config, "reasoning_key")
+    if reasoning_key is None:
+        reasoning_key = _get_provider_attr(provider, "reasoning_key")
 
     if protocol == "openai_chat_completions":
         return OpenAIChatClient(

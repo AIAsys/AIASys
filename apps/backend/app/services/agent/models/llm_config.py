@@ -96,6 +96,11 @@ class LlmModelConfig(BaseModel):
     max_tokens: int | None = None
     top_p: float | None = None
     thinking_effort: str | None = None
+    reasoning_key: str | None = Field(
+        default=None,
+        description="模型级别的 reasoning 字段名，覆盖 provider 级别的同名配置。"
+        "用于兼容不同厂商在 delta/message 中对 reasoning 内容的不同字段命名。",
+    )
 
 
 class AiasysLlmConfig(BaseModel):

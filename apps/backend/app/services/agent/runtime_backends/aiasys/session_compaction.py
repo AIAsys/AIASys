@@ -130,7 +130,9 @@ class SessionCompactionMixin:
                     if provider_cfg:
                         try:
                             compaction_client = create_llm_client(
-                                provider_cfg, model_cfg.model or compaction_model_id
+                                provider_cfg,
+                                model_cfg.model or compaction_model_id,
+                                model_config=model_cfg,
                             )
                             logger.info(
                                 "压缩使用专用模型: %s (%s)",

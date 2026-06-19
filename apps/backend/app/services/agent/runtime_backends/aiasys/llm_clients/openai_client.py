@@ -16,6 +16,12 @@ from .message_protocol import InternalMessage, to_openai_chat_messages
 
 logger = logging.getLogger(__name__)
 
+# OpenAI-compatible 厂商在 delta/message 中使用的 reasoning 字段名并不统一。
+# 优先扫描这些已知字段，允许用户通过 reasoning_key 显式覆盖。
+# 顺序参考 kimi-code 的 OpenAILegacy provider 与业界 de facto 约定。
+KNOWN_REASONING_KEYS = ("reasoning_content", "reasoning", "reasoning_details")
+
+
 # Kimi Coding API 要求的设备标识 header（参考 kimi-cli）
 _KIMI_CODING_HEADERS = {
     "User-Agent": "KimiCLI/1.16.0",
@@ -223,13 +229,14 @@ class OpenAIChatClient(BaseLlmClient):
                 )
 
         reasoning_content: str | None = None
-        reasoning_key = getattr(self, "_reasoning_key", None)
-        if reasoning_key is None:
-            reasoning_key = "reasoning_content"
-        if reasoning_key and hasattr(delta, reasoning_key):
-            val = getattr(delta, reasoning_key, None)
-            if val:
-                reasoning_content = val
+        explicit_key = getattr(self, "_reasoning_key", None)
+        keys = (explicit_key,) if explicit_key else KNOWN_REASONING_KEYS
+        for key in keys:
+            if hasattr(delta, key):
+                val = getattr(delta, key, None)
+                if isinstance(val, str) and val:
+                    reasoning_content = val
+                    break
 
         return LlmChunk(
             delta=LlmDelta(

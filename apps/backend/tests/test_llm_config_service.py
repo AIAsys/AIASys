@@ -150,11 +150,14 @@ def test_update_model_defaults_rejects_wrong_model_type():
 def temp_user_config_dir(monkeypatch, tmp_path):
     """把用户全局配置目录重定向到临时目录，避免污染真实数据。"""
     from app.core import config as core_config
+    from app.storage import llm_provider_storage as llm_storage_module
 
     def fake_dir(user_id: str) -> __import__("pathlib").Path:
         return tmp_path / str(user_id) / ".aiasys"
 
     monkeypatch.setattr(core_config, "get_user_global_config_dir", fake_dir)
+    # LLMProviderStorage 在模块导入时持有该函数的本地引用，必须同时 patch。
+    monkeypatch.setattr(llm_storage_module, "get_user_global_config_dir", fake_dir)
     return tmp_path
 
 
@@ -232,3 +235,34 @@ def test_sync_config_json_to_user_with_string_models_fallback(temp_user_config_d
     assert models["stepfun-step-router-v1"]["max_context_size"] == 128000
     assert set(models["stepfun-step-router-v1"]["capabilities"]) == {"thinking", "image_in"}
     assert full["default_model"] == "stepfun-step-3.7-flash"
+
+
+def test_sync_config_json_to_user_preserves_model_level_reasoning_key(
+    temp_user_config_dir, monkeypatch
+):
+    """验证 TOML 中模型级别的 reasoning_key 会同步到运行时配置。"""
+    monkeypatch.setattr(
+        "app.services.llm.llm_config_service.LLM_CONFIG",
+        {"default_provider": "stepfun", "default_model": "step-3.7-flash"},
+    )
+    monkeypatch.setattr(
+        "app.services.llm.llm_config_service.LLM_PROVIDERS",
+        {
+            "stepfun": {
+                "type": "openai_chat_completions",
+                "base_url": "https://api.stepfun.com/step_plan/v1",
+                "api_key": "test-key",
+                "reasoning_key": "reasoning_content",
+                "models": [
+                    {"name": "step-3.7-flash", "reasoning_key": "reasoning"},
+                ],
+            }
+        },
+    )
+
+    service = LLMConfigService(storage=LLMProviderStorage())
+    service.sync_config_json_to_user("user3")
+
+    full = service.get_full_config("user3")
+    model = full["models"]["stepfun-step-3.7-flash"]
+    assert model["reasoning_key"] == "reasoning"

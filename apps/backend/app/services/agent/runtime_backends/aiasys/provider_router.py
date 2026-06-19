@@ -5,7 +5,7 @@ import logging
 from collections.abc import AsyncGenerator
 from typing import Any
 
-from app.services.agent.models.llm_config import LlmProviderConfig
+from app.services.agent.models.llm_config import LlmModelConfig, LlmProviderConfig
 
 from .llm_clients import create_llm_client
 from .llm_clients.base import BaseLlmClient, LlmChunk, LlmRequestOptions
@@ -24,16 +24,11 @@ class ProviderRouter(BaseLlmClient):
     对外暴露与 BaseLlmClient 相同的 chat_stream / aclose 接口。
 
     降级策略：
-      - 同一 provider 内：如果配置了多个 api_key（CredentialPool），
-        优先在 pool 内轮换凭证，耗尽后再跨 provider fallback。
-      - billing (402) / auth (401/403) / model_not_found (404)
-        → 立即切换凭证或 provider
-      - rate_limit (429) / server_error (500/502) / overloaded (503/529)
-        → 在当前 provider 上带 jittered backoff 重试，重试耗尽后再 fallback
-      - timeout / connection error
-        → 重试一次，然后 fallback
-      - context_overflow / payload_too_large
-        → 记录但不上抛到上层（由 session 层的 context compressor 处理）
+    - 同一 provider 内：如果配置了多个 api_key（CredentialPool），优先在 pool 内轮换凭证，耗尽后再跨 provider fallback。
+    - billing (402) / auth (401/403) / model_not_found (404) → 立即切换凭证或 provider。
+    - rate_limit (429) / server_error (500/502) / overloaded (503/529) → 在当前 provider 上带 jittered backoff 重试，重试耗尽后再 fallback。
+    - timeout / connection error → 重试一次，然后 fallback。
+    - context_overflow / payload_too_large → 记录但不上抛到上层（由 session 层的 context compressor 处理）。
     """
 
     def __init__(
@@ -43,9 +38,11 @@ class ProviderRouter(BaseLlmClient):
         model: str,
         *,
         max_retries_per_provider: int = 2,
+        model_config: LlmModelConfig | dict[str, Any] | None = None,
     ):
         self._providers = [primary] + list(fallbacks)
         self._model = model
+        self._model_config = model_config
         self._max_retries = max(1, max_retries_per_provider)
         self._current_client: Any | None = None
 
@@ -84,7 +81,10 @@ class ProviderRouter(BaseLlmClient):
                 client: Any | None = None
                 try:
                     client = create_llm_client(
-                        provider, self._model, api_key_override=api_key_for_this_attempt
+                        provider,
+                        self._model,
+                        api_key_override=api_key_for_this_attempt,
+                        model_config=self._model_config,
                     )
                     self._current_client = client
                     async for chunk in client.chat_stream(

@@ -112,6 +112,7 @@ class LLMConfigService:
             "dimension": config.dimension,
             "max_context_size": config.max_context_size,
             "capabilities": config.capabilities,
+            "reasoning_key": config.reasoning_key,
             "enabled": config.enabled,
             "is_default": config.is_default,
             "description": config.description,
@@ -396,6 +397,8 @@ class LLMConfigService:
                 "max_context_size": model.get("max_context_size", 128000),
                 "capabilities": capabilities,
             }
+            if model.get("reasoning_key") is not None:
+                models_config[model_id]["reasoning_key"] = model.get("reasoning_key")
 
         return {
             "providers": providers_config,
@@ -499,6 +502,8 @@ class LLMConfigService:
                 elif not isinstance(capabilities, list):
                     capabilities = []
 
+                reasoning_key = model_cfg.get("reasoning_key")
+
                 model_data = LLMModelConfig(
                     id=model_id,
                     name=f"{model_name} ({provider_id})",
@@ -506,6 +511,7 @@ class LLMConfigService:
                     model=model_name,
                     max_context_size=max_context_size,
                     capabilities=set(capabilities) if capabilities else None,
+                    reasoning_key=reasoning_key if reasoning_key is not None else None,
                     enabled=True,
                     is_default=(model_name == default_model_name),
                 )
@@ -1005,6 +1011,7 @@ class LLMConfigService:
             "dimension": data.get("dimension"),
             "max_context_size": data.get("max_context_size", 128000),
             "capabilities": capabilities,
+            "reasoning_key": data.get("reasoning_key"),
             "enabled": data.get("enabled", True),
             "is_default": data.get("is_default", False),
             "description": data.get("description"),

@@ -6,6 +6,7 @@ from types import SimpleNamespace
 from typing import Any
 
 import pytest
+from openai.types.chat import ChatCompletionChunk
 
 from app.services.agent.runtime_backends.aiasys.llm_clients import create_llm_client
 from app.services.agent.runtime_backends.aiasys.llm_clients.anthropic_client import (
@@ -214,7 +215,7 @@ def test_jittered_backoff_decorrelation():
 
 # ── Provider Router Tests ───────────────────────────────────────────────
 
-from app.services.agent.models.llm_config import LlmProviderConfig
+from app.services.agent.models.llm_config import LlmModelConfig, LlmProviderConfig
 from app.services.agent.runtime_backends.aiasys.provider_router import ProviderRouter
 
 
@@ -906,6 +907,42 @@ def test_create_llm_client_returns_openai_client_for_chat_completions_protocol()
     asyncio.run(client.aclose())
 
 
+def test_create_llm_client_model_reasoning_key_overrides_provider():
+    """模型级别的 reasoning_key 应覆盖 provider 级别的配置。"""
+    provider = LlmProviderConfig(
+        api_key="test-key",
+        base_url="https://api.stepfun.com/step_plan/v1",
+        type="openai_chat_completions",
+        reasoning_key="reasoning_content",
+    )
+    model = LlmModelConfig(
+        model="step-3.7-flash",
+        reasoning_key="reasoning",
+    )
+
+    client = create_llm_client(provider, "step-3.7-flash", model_config=model)
+
+    assert isinstance(client, OpenAIChatClient)
+    assert client._reasoning_key == "reasoning"
+    asyncio.run(client.aclose())
+
+
+def test_create_llm_client_falls_back_to_provider_reasoning_key():
+    """模型未配置 reasoning_key 时，回退到 provider 级别。"""
+    provider = LlmProviderConfig(
+        api_key="test-key",
+        base_url="https://api.stepfun.com/step_plan/v1",
+        type="openai_chat_completions",
+        reasoning_key="reasoning_details",
+    )
+
+    client = create_llm_client(provider, "step-3.7-flash")
+
+    assert isinstance(client, OpenAIChatClient)
+    assert client._reasoning_key == "reasoning_details"
+    asyncio.run(client.aclose())
+
+
 # ── OpenAIChatClient thinking 优化测试 ──────────────────────────────────
 
 
@@ -943,6 +980,104 @@ def test_openai_client_does_not_add_reasoning_effort_when_thinking_disabled() ->
     )
 
     assert "reasoning_effort" not in kwargs
+
+
+# ── OpenAIChatClient StepFun / reasoning 字段兼容测试 ───────────────────
+
+
+def _make_openai_chunk(
+    delta: dict[str, Any], usage: dict[str, int] | None = None
+) -> ChatCompletionChunk:
+    """用原始 dict 构造 ChatCompletionChunk，模拟 Step Plan 等厂商的非标准字段。"""
+    return ChatCompletionChunk.model_validate(
+        {
+            "id": "test-chunk",
+            "object": "chat.completion.chunk",
+            "created": 1,
+            "model": "step-3.7-flash",
+            "choices": [{"index": 0, "delta": delta, "finish_reason": None}],
+            "usage": usage,
+        }
+    )
+
+
+def test_openai_client_extracts_reasoning_from_step_plan_stream() -> None:
+    """Step Plan 流式 delta 同时携带 reasoning 和 reasoning_content 时应正确提取。"""
+    client = OpenAIChatClient.__new__(OpenAIChatClient)
+    client._reasoning_key = None
+
+    chunks = [
+        client._normalize_chunk(_make_openai_chunk({"role": "assistant", "content": ""})),
+        client._normalize_chunk(
+            _make_openai_chunk(
+                {
+                    "role": "assistant",
+                    "content": "",
+                    "reasoning": "用户",
+                    "reasoning_content": "用户",
+                }
+            )
+        ),
+        client._normalize_chunk(
+            _make_openai_chunk(
+                {
+                    "role": "assistant",
+                    "content": "",
+                    "reasoning": "现在说",
+                    "reasoning_content": "现在说",
+                }
+            )
+        ),
+        client._normalize_chunk(_make_openai_chunk({"role": "assistant", "content": "好"})),
+    ]
+
+    assert chunks[0] is not None
+    assert chunks[0].delta.content == ""
+    assert chunks[0].delta.reasoning_content is None
+
+    assert chunks[1] is not None
+    assert chunks[1].delta.content == ""
+    assert chunks[1].delta.reasoning_content == "用户"
+
+    assert chunks[2] is not None
+    assert chunks[2].delta.reasoning_content == "现在说"
+
+    assert chunks[3] is not None
+    assert chunks[3].delta.content == "好"
+    assert chunks[3].delta.reasoning_content is None
+
+
+def test_openai_client_extracts_reasoning_from_alternate_keys() -> None:
+    """当 provider 只返回 reasoning（没有 reasoning_content）时也应识别。"""
+    client = OpenAIChatClient.__new__(OpenAIChatClient)
+    client._reasoning_key = None
+
+    chunk = client._normalize_chunk(
+        _make_openai_chunk({"role": "assistant", "content": "", "reasoning": "内部推理"})
+    )
+
+    assert chunk is not None
+    assert chunk.delta.reasoning_content == "内部推理"
+
+
+def test_openai_client_prefers_explicit_reasoning_key() -> None:
+    """显式配置 reasoning_key 时，优先从该字段读取。"""
+    client = OpenAIChatClient.__new__(OpenAIChatClient)
+    client._reasoning_key = "reasoning"
+
+    chunk = client._normalize_chunk(
+        _make_openai_chunk(
+            {
+                "role": "assistant",
+                "content": "",
+                "reasoning_content": "不应被选中",
+                "reasoning": "应被选中",
+            }
+        )
+    )
+
+    assert chunk is not None
+    assert chunk.delta.reasoning_content == "应被选中"
 
 
 # ── AnthropicChatClient adaptive thinking 优化测试 ─────────────────────

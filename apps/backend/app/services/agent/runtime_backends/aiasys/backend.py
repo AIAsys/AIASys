@@ -269,11 +269,13 @@ class AiasysRuntimeBackend:
                 primary=provider_entry,
                 fallbacks=fallback_providers,
                 model=str(resolved_model_name),
+                model_config=model_entry,
             )
         else:
             client = create_llm_client(
                 provider_entry,
                 model=str(resolved_model_name),
+                model_config=model_entry,
             )
 
         registry = ToolRegistry()

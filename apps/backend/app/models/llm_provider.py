@@ -152,6 +152,12 @@ class LLMModelConfig(BaseModel):
 
     capabilities: Optional[Set[ModelCapability]] = Field(default=None, description="模型能力集合")
 
+    reasoning_key: Optional[str] = Field(
+        default=None,
+        description="模型级别的 reasoning 字段名，覆盖服务商级别的同名配置。"
+        "用于兼容不同厂商对 reasoning 内容的不同字段命名。",
+    )
+
     enabled: bool = Field(default=True, description="是否启用")
 
     is_default: bool = Field(default=False, description="是否为默认模型")
@@ -189,6 +195,8 @@ class LLMModelConfig(BaseModel):
         }
         if self.capabilities:
             config["capabilities"] = list(self.capabilities)
+        if self.reasoning_key is not None:
+            config["reasoning_key"] = self.reasoning_key
         return config
 
     def model_to_sdk_config(self) -> Dict[str, Any]:
