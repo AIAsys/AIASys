@@ -94,11 +94,12 @@ git ls-files .agents/task-sessions/ 2>/dev/null
 
 ### 5. Commit Message 规范检查
 
-AIASys 项目的 commit message 约定：
+AIASys 项目的 commit message 约定（见 `CONTRIBUTING.md` 与 `.team-skills/aiasys-git-workflow/SKILL.md`）：
 
-- 使用中文描述
-- 格式：`<type>: <简短描述>`
-- 常用 type：`feat`、`fix`、`refactor`、`chore`、`docs`、`test`
+- 采用 Conventional Commits 格式：`type(scope): subject`
+- 中英文均可，但避免无意义占位符
+- 常用 type：`feat`、`fix`、`refactor`、`chore`、`docs`、`test`、`style`、`perf`
+- 一个 commit 只做一个逻辑单元，禁止把前端 UI、后端 API、bugfix、文档混在一个 commit
 
 ```bash
 # 检查当前分支待合并的 commit message
@@ -109,6 +110,7 @@ git log origin/dev..HEAD --oneline
 - 包含英文占位符（`update code`、`fix bug`、`WIP`）→ 建议修改
 - 包含 `TODO`、`FIXME` 作为主要描述 → 建议修改
 - 无 type 前缀 → 建议补上
+- 一个 commit 涉及多个不相关领域 → 建议拆分
 
 ---
 
@@ -160,7 +162,39 @@ done
 
 ---
 
-### 9. Skill 注册完整性检查
+### 9. Changelog 与版本号检查
+
+#### Changelog 检查
+
+任何用户可感知的功能新增、bug 修复、性能优化、接口不兼容修改，必须随 PR 同步更新 `docs/changelog/`。
+
+```bash
+# 检查本次 PR 是否涉及用户 facing 改动（示例：新增/修改 app/、web/src/ 下代码）
+git diff --name-only origin/dev...HEAD | grep -E '^(apps/backend/app/|apps/web/src/|apps/desktop/src/)'
+
+# 如涉及用户 facing 改动，检查是否同步了 changelog
+git diff --name-only origin/dev...HEAD | grep '^docs/changelog/'
+```
+
+**判定**：
+- 有代码改动但无对应 changelog 更新 → 建议补充（release PR 必须）
+- 纯文档/格式/配置改动 → 可跳过
+
+#### 版本号检查（release PR）
+
+若本次 PR 是 release PR（`dev` → `main`），必须确认三端版本号一致：
+
+```bash
+grep '"version":' apps/web/package.json | head -1
+grep '"version":' apps/desktop/package.json | head -1
+grep '^version = ' apps/backend/pyproject.toml
+```
+
+**判定**：三处版本号不一致 → 阻断，必须同步。
+
+---
+
+### 10. Skill 注册完整性检查
 
 新增或修改 Skill 时，需确认相关注册文件同步更新。
 
