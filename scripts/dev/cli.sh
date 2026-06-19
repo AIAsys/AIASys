@@ -33,6 +33,30 @@ check_url_ready() {
   curl -fsS "$url" >/dev/null 2>&1
 }
 
+# 端口探测：返回 0 表示空闲，1 表示被占用
+probe_port() {
+  local host="$1" port="$2"
+  # 使用 bash 内置 /dev/tcp 探测（需要编译时启用 --enable-net-redirections）
+  # 如果 bash 不支持，回退到 python
+  if (echo >/dev/tcp/${host}/${port}) 2>/dev/null; then
+    return 1  # 端口可达 = 被占用
+  else
+    return 0  # 端口不可达 = 空闲
+  fi
+}
+
+# 查找可用端口
+find_available_port() {
+  local host="$1" start="$2" max="${3:-200}"
+  for ((p = start; p < start + max; p++)); do
+    if probe_port "$host" "$p"; then
+      echo "$p"
+      return 0
+    fi
+  done
+  return 1
+}
+
 status_command() {
   local frontend_status="down"
   local backend_status="down"
@@ -91,6 +115,47 @@ cleanup_children() {
 case "${command_name}" in
   start)
     trap cleanup_children EXIT INT TERM
+
+    # 检查后端端口
+    BACKEND_LOCKED=false
+    if [[ -n "${AIASYS_BACKEND_PORT:-}" ]]; then
+      BACKEND_LOCKED=true
+    fi
+    if ! probe_port "127.0.0.1" "${BACKEND_PORT}"; then
+      if ${BACKEND_LOCKED}; then
+        echo "❌ 后端端口 ${BACKEND_PORT} 已被占用，且 AIASYS_BACKEND_PORT 已锁定" >&2
+        exit 1
+      fi
+      NEW_BACKEND_PORT=$(find_available_port "127.0.0.1" "$((BACKEND_PORT + 1))")
+      if [[ -z "${NEW_BACKEND_PORT}" ]]; then
+        echo "❌ 无法为后端找到可用端口（起始: ${BACKEND_PORT}）" >&2
+        exit 1
+      fi
+      echo "⚠ 后端端口 ${BACKEND_PORT} 被占用，自动切换到 ${NEW_BACKEND_PORT}"
+      BACKEND_PORT="${NEW_BACKEND_PORT}"
+      BACKEND_URL="http://127.0.0.1:${BACKEND_PORT}"
+    fi
+
+    # 检查前端端口
+    FRONTEND_LOCKED=false
+    if [[ -n "${AIASYS_FRONTEND_PORT:-}" ]]; then
+      FRONTEND_LOCKED=true
+    fi
+    if ! probe_port "127.0.0.1" "${FRONTEND_PORT}"; then
+      if ${FRONTEND_LOCKED}; then
+        echo "❌ 前端端口 ${FRONTEND_PORT} 已被占用，且 AIASYS_FRONTEND_PORT 已锁定" >&2
+        exit 1
+      fi
+      NEW_FRONTEND_PORT=$(find_available_port "127.0.0.1" "$((FRONTEND_PORT + 1))")
+      if [[ -z "${NEW_FRONTEND_PORT}" ]]; then
+        echo "❌ 无法为前端找到可用端口（起始: ${FRONTEND_PORT}）" >&2
+        exit 1
+      fi
+      echo "⚠ 前端端口 ${FRONTEND_PORT} 被占用，自动切换到 ${NEW_FRONTEND_PORT}"
+      FRONTEND_PORT="${NEW_FRONTEND_PORT}"
+      FRONTEND_URL="http://127.0.0.1:${FRONTEND_PORT}"
+    fi
+
     start_backend
     start_frontend
     wait -n "${BACKEND_PID}" "${FRONTEND_PID}"

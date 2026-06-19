@@ -394,13 +394,20 @@ async def auth_health_check():
 
 
 if __name__ == "__main__":
+    import os
+
     import uvicorn
 
     from app.core.config import PORT
+    from app.core.port_utils import resolve_port
+
+    host = "0.0.0.0"
+    locked = "AIASYS_BACKEND_PORT" in os.environ
+    actual_port, _ = resolve_port(host, PORT, locked=locked, label="backend")
 
     uvicorn.run(
         "app.main:app",
-        host="0.0.0.0",
-        port=PORT,
+        host=host,
+        port=actual_port,
         reload=DEBUG,
     )
