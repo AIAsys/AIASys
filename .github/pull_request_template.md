@@ -29,8 +29,10 @@ Resolve #(issue_number)
 ## Checklist
 
 - [ ] 我已阅读 CONTRIBUTING.md 和项目编码规范
-- [ ] PR 目标分支为 `dev`（而非 `main`）
+- [ ] PR 目标分支为 `dev`（而非 `main`）；release PR 目标分支为 `main`
 - [ ] 已关联相关 Issue（如有）
 - [ ] 代码已在本地通过测试
 - [ ] commit message 符合 Conventional Commits 格式
-- [ ] 涉及用户 facing 功能时已同步更新 docs/ 文档
+- [ ] 本次 PR 的 commit 已按逻辑原子拆分（一个 commit 只做一件事）
+- [ ] 涉及用户可感知的功能/修复/优化时，已同步更新 `docs/changelog/`
+- [ ] 如为 release PR，三端版本号已同步（web/desktop/backend）

@@ -62,6 +62,41 @@ type(scope): 简短说明
 - `fix(ui): move attachment menu inside container`
 - `docs: refresh contributing and startup docs`
 
+### 3.2 Commit 拆分原则
+
+**每个 commit 只做一个逻辑单元。** 不要把前端 UI、后端 API、bugfix、文档、截图混在一个 commit 里。
+
+**不好的示例（不要这样做）：**
+
+```text
+feat: @ 文件引用功能 + Windows Shell/桌面打包修复
+```
+
+这个 commit 同时包含：
+- 前端文件引用 UI
+- 后端 Shell 执行逻辑
+- 桌面打包脚本
+
+review 和回滚都很困难。
+
+**好的示例（拆分后）：**
+
+```text
+feat(web): 添加 @ 文件选择器与引用标签
+feat(web): 消息气泡中美化显示 @/workspace/ 文件引用
+fix(backend): Windows 下 uv/fnm 路径与 .exe 后缀匹配
+fix(backend): 彻底移除 cmd.exe 支持
+chore(desktop): 优化 prepare-runtime 打包前清理逻辑
+```
+
+拆分原则：
+- 前端组件改动一个 commit
+- 后端 API/服务改动一个 commit
+- bug 修复一个 commit
+- 文档/截图一个 commit
+- 版本号/changelog 一个 commit
+- 纯格式化（`style:`）单独一个 commit，不与其他改动混合
+
 ## 4. PR / 推送前检查
 
 ### 4.1 分支策略
@@ -85,8 +120,9 @@ git merge upstream/dev
 git push origin dev
 ```
 
-- 任何改动都不要直接 push 到 `main` 或 `dev`，走 PR 流程。
+- **任何改动都不要直接 push 到 `main` 或 `dev`，必须走 PR 流程**。维护者/管理员自己的改动也不例外，至少在 GitHub 上留下 PR 记录和 review 痕迹。
 - CODEOWNERS（`.github/CODEOWNERS`）定义了各路径的默认审查人，PR 会自动请求对应 Owner 审查。
+- 若只有一位维护者，可启用 self-review，但仍需通过 PR 合并，不能直接 push。
 
 ### 4.2 Pre-commit Hooks
 
@@ -109,14 +145,67 @@ pre-commit 阶段会自动运行：
   - 改了什么
   - 为什么改
   - 如何验证
-- 影响主链路或完成口径的改动，必须同步更新：
-  - `docs/changelog/`
+- **Changelog 强制规则**：任何用户可感知的功能新增、bug 修复、性能优化、接口不兼容修改，必须随 PR 同步更新 `docs/changelog/`。详见 `docs/changelog/README.md`。
+- **版本号同步规则**：如果是 release PR，必须确认三端版本号一致：
+  - `apps/web/package.json`
+  - `apps/desktop/package.json`
+  - `apps/backend/pyproject.toml`
 
 ### 4.4 编辑器配置
 
 仓库根目录有 `.editorconfig`，大多数编辑器安装对应插件后会自动读取。它统一了缩进风格（Python 4 空格，前端 2 空格）、换行符（LF）、文件编码（UTF-8）等基础格式规则，避免因编辑器差异产生不必要的 diff。
 
-## 5. 项目结构
+## 5. 发布流程（维护者专用）
+
+### 5.1 分支流程
+
+发布必须严格遵循 `dev` → `main` 的合并路径：
+
+1. 所有功能/修复先合并到 `dev`
+2. 准备发版时，从 `dev` 向 `main` 创建 PR
+3. PR 通过 CI 和 review 后合并到 `main`
+4. 在 `main` 上执行发布脚本
+
+禁止直接在 `main` 上开发并打 tag。
+
+### 5.2 发布脚本
+
+使用项目提供的发布辅助脚本：
+
+```bash
+./scripts/dev/release.sh 0.4.17
+```
+
+脚本会：
+- 检查当前分支为 `main` 且工作区干净
+- 检查 `docs/changelog/v0.4.17_YYYY-MM-DD.md` 已存在
+- 同步三端版本号
+- 提交版本号变更
+- 打 tag `v0.4.17`
+
+演练模式（不实际提交/tag）：
+
+```bash
+./scripts/dev/release.sh --dry-run 0.4.17
+```
+
+### 5.3 发版检查清单
+
+- [ ] `dev` 已合并到 `main`
+- [ ] `docs/changelog/vX.Y.Z_YYYY-MM-DD.md` 已按规范编写
+- [ ] 三端版本号已同步
+- [ ] CI 在 `main` 上通过
+- [ ] 已打 tag `vX.Y.Z` 并推送到 `upstream`
+- [ ] Desktop Build & Pre-release CI 成功完成
+- [ ] Release 产物（AppImage / exe / dmg / zip）已上传
+
+### 5.4 版本号规则
+
+- 采用语义化版本（SemVer）：`MAJOR.MINOR.PATCH`
+- 预发布版本：`X.Y.Z-beta.N`（如 `0.4.17-beta.1`）
+- 当前阶段以 beta 预发布为主，release 标记 `prerelease=true`
+
+## 6. 项目结构
 
 ```text
 AIASys/
