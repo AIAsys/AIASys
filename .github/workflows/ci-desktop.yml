@@ -61,7 +61,7 @@ jobs:
         run: |
           TAG="${{ steps.resolve_tag.outputs.tag }}"
           # 从 tag (如 v0.4.9) 提取版本号 (0.4.9)
-          VERSION="${TAG#v}"
+          export VERSION="${TAG#v}"
           echo "Syncing version to $VERSION"
           # 更新 desktop package.json
           cd apps/desktop
@@ -71,10 +71,11 @@ jobs:
           cd ../backend
           # 用 Python 替换 pyproject.toml 中的 version，避免 sed 跨平台差异
           python3 -c "
-          import re
+          import os, re
+          version = os.environ['VERSION']
           with open('pyproject.toml', 'r') as f:
               content = f.read()
-          content = re.sub(r'^version = \".*?\"', 'version = \"$VERSION\"', content, count=1, flags=re.MULTILINE)
+          content = re.sub(r'^version = \".*?\"', f'version = \"{version}\"', content, count=1, flags=re.MULTILINE)
           with open('pyproject.toml', 'w') as f:
               f.write(content)
           "
