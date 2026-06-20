@@ -1,7 +1,7 @@
 {
   "name": "aiasys-desktop",
   "private": true,
-  "version": "0.4.17",
+  "version": "0.4.18",
   "description": "Electron desktop shell for AIASys",
   "homepage": "https://aiasys.ai",
   "author": "AIASys <contact@aiasys.ai>",
