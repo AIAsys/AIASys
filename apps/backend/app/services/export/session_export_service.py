@@ -8,6 +8,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Literal, Optional
 
 from app.models.session import SessionMetadata
+from app.services.history.session_execution_journal import SessionExecutionJournal
+from app.services.history.session_history_projection import unwrap_user_prompt
 
 if TYPE_CHECKING:
     from app.services.session import SessionManager
@@ -65,10 +67,13 @@ class SessionExportService:
         *,
         user_id: str,
         session_id: str,
-        conversation_messages: List[Dict[str, Any]],
         exported_by: Optional[str] = None,
     ) -> tuple[bytes, str]:
-        _session_dir, metadata = self._get_session_context(session_id, user_id)
+        """导出完整会话对话，直接读取 history.json 原始消息并回填 tool 结果。"""
+        session_dir, metadata = self._get_session_context(session_id, user_id)
+        conversation_messages = self._load_exportable_messages(session_dir)
+        conversation_messages = self._backfill_tool_results(conversation_messages, session_dir)
+        conversation_messages = self._attach_display_content(conversation_messages)
 
         payload = {
             "feature": "session_conversation_export",
@@ -125,11 +130,14 @@ class SessionExportService:
         *,
         user_id: str,
         session_id: str,
-        conversation_messages: List[Dict[str, Any]],
         exported_by: Optional[str] = None,
     ) -> tuple[io.BytesIO, str]:
         session_dir, metadata = self._get_session_context(session_id, user_id)
         workspace_files, skipped_sensitive_files = self._scan_workspace_files(session_dir)
+
+        conversation_messages = self._load_exportable_messages(session_dir)
+        conversation_messages = self._backfill_tool_results(conversation_messages, session_dir)
+        conversation_messages = self._attach_display_content(conversation_messages)
 
         manifest = self._build_manifest(
             scope="bundle",
@@ -246,6 +254,156 @@ class SessionExportService:
             "env_id": metadata.env_id if metadata else None,
             "sandbox_mode": metadata.sandbox_mode if metadata else None,
         }
+
+    def _load_exportable_messages(self, session_dir: Path) -> List[Dict[str, Any]]:
+        """直接读取 history.json 原始消息，过滤内部角色与 system-reminder。"""
+        from app.services.session.constants import (
+            ACTIVE_SESSION_STATE_DIR_NAME,
+            HISTORY_SNAPSHOT_FILE_NAME,
+        )
+
+        history_path = (
+            session_dir
+            / ".aiasys"
+            / "session"
+            / ACTIVE_SESSION_STATE_DIR_NAME
+            / HISTORY_SNAPSHOT_FILE_NAME
+        )
+        messages: List[Dict[str, Any]] = []
+        if history_path.exists():
+            try:
+                data = json.loads(history_path.read_text(encoding="utf-8"))
+                if isinstance(data, dict):
+                    raw_messages = data.get("messages") or []
+                    if isinstance(raw_messages, list):
+                        messages = raw_messages
+            except Exception:
+                pass
+
+        return [
+            dict(msg)
+            for msg in messages
+            if isinstance(msg, dict)
+            and msg.get("role") not in ("_checkpoint", "_usage", "_system_prompt", "system")
+            and not self._is_system_reminder_message(msg)
+        ]
+
+    def _backfill_tool_results(
+        self,
+        messages: List[Dict[str, Any]],
+        session_dir: Path,
+    ) -> List[Dict[str, Any]]:
+        """从 execution journal 回填被压缩清理的 tool 结果，便于调试。"""
+        if not messages:
+            return messages
+
+        tool_call_ids = {
+            str(msg.get("tool_call_id") or "")
+            for msg in messages
+            if msg.get("role") == "tool" and self._is_cleared_tool_result(msg)
+        }
+        if not tool_call_ids:
+            return messages
+
+        tool_call_ids.discard("")
+        journal = SessionExecutionJournal(session_dir, session_dir.name)
+        stdout_map: Dict[str, str] = {}
+        stderr_map: Dict[str, str] = {}
+
+        # 读取全部 records（不限制 50 条）
+        records_path = journal.records_path
+        if records_path.exists():
+            try:
+                with open(records_path, "r", encoding="utf-8") as f:
+                    for line in f:
+                        line = line.strip()
+                        if not line:
+                            continue
+                        try:
+                            record = json.loads(line)
+                        except json.JSONDecodeError:
+                            continue
+                        if not isinstance(record, dict):
+                            continue
+                        request_id = str(record.get("origin", {}).get("request_id") or "")
+                        if request_id not in tool_call_ids:
+                            continue
+                        stdout_ref = record.get("stdout_ref")
+                        stderr_ref = record.get("stderr_ref")
+                        stdout_text = ""
+                        stderr_text = ""
+                        if stdout_ref:
+                            stdout_path = session_dir / stdout_ref
+                            if stdout_path.exists():
+                                try:
+                                    stdout_text = stdout_path.read_text(encoding="utf-8")
+                                except Exception:
+                                    pass
+                        if stderr_ref:
+                            stderr_path = session_dir / stderr_ref
+                            if stderr_path.exists():
+                                try:
+                                    stderr_text = stderr_path.read_text(encoding="utf-8")
+                                except Exception:
+                                    pass
+                        if stdout_text:
+                            stdout_map[request_id] = stdout_text
+                        if stderr_text:
+                            stderr_map[request_id] = stderr_text
+            except Exception:
+                pass
+
+        if not stdout_map and not stderr_map:
+            return messages
+
+        backfilled: List[Dict[str, Any]] = []
+        for msg in messages:
+            if msg.get("role") != "tool" or not self._is_cleared_tool_result(msg):
+                backfilled.append(msg)
+                continue
+
+            tool_call_id = str(msg.get("tool_call_id") or "")
+            new_msg = dict(msg)
+            parts: List[str] = []
+            if tool_call_id in stdout_map:
+                parts.append(stdout_map[tool_call_id])
+            if tool_call_id in stderr_map:
+                if parts:
+                    parts.append("\n")
+                parts.append("[stderr]\n")
+                parts.append(stderr_map[tool_call_id])
+            if parts:
+                new_msg["content"] = "".join(parts)
+                # 保留清理标记作为追溯信息
+                new_msg["_tool_result_backfilled"] = True
+            backfilled.append(new_msg)
+
+        return backfilled
+
+    def _is_cleared_tool_result(self, msg: Dict[str, Any]) -> bool:
+        content = msg.get("content")
+        return isinstance(content, str) and content.startswith("[已清理: tool 结果")
+
+    def _is_system_reminder_message(self, msg: Dict[str, Any]) -> bool:
+        if msg.get("role") != "user":
+            return False
+        content = msg.get("content")
+        if not isinstance(content, str):
+            return False
+        return content.strip().startswith("<system-reminder>")
+
+    def _attach_display_content(self, messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """为 user 消息附加 display_content，用于导入后前端展示。"""
+        result: List[Dict[str, Any]] = []
+        for msg in messages:
+            new_msg = dict(msg)
+            if new_msg.get("role") == "user":
+                content = new_msg.get("content")
+                display = unwrap_user_prompt(content)
+                if display is not None:
+                    new_msg["display_content"] = display
+            result.append(new_msg)
+        return result
 
     def _build_workspace_manifest(
         self,

@@ -14,6 +14,10 @@ from app.services.export.session_export_service import (
     SessionExportScope,
     SessionExportService,
 )
+from app.services.export.session_import_service import (
+    SessionImportError,
+    SessionImportService,
+)
 from app.services.export.workspace_export_service import WorkspaceExportService
 from app.services.export.workspace_import_service import (
     WorkspaceImportError,
@@ -28,6 +32,8 @@ __all__ = [
     "SessionExportService",
     "SessionExportNotFoundError",
     "SessionExportScope",
+    "SessionImportService",
+    "SessionImportError",
     "WorkspaceExportService",
     "WorkspaceImportService",
     "WorkspaceImportError",

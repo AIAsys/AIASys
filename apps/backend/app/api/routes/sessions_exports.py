@@ -1,25 +1,31 @@
 import io
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from fastapi.responses import StreamingResponse
 
 from app.core.auth import require_auth
 from app.core.config import WORKSPACE_DIR
 from app.models.user import UserInfo
-from app.services.agent import agent_service
 from app.services.export import (
     SessionExportNotFoundError,
     SessionExportScope,
     SessionExportService,
+    SessionImportError,
+    SessionImportService,
 )
 from app.services.session import SessionManager
-
-from .sessions_helpers import _is_system_reminder_message
+from app.services.workspace_registry import WorkspaceRegistryService
 
 logger = logging.getLogger(__name__)
 session_manager = SessionManager(WORKSPACE_DIR)
+workspace_registry = WorkspaceRegistryService(WORKSPACE_DIR, session_manager=session_manager)
 session_export_service = SessionExportService(session_manager)
+session_import_service = SessionImportService(
+    workspace_root=WORKSPACE_DIR,
+    session_manager=session_manager,
+    registry=workspace_registry,
+)
 
 router = APIRouter(prefix="/sessions", tags=["sessions"])
 
@@ -39,16 +45,6 @@ async def export_session_artifact(
         raise HTTPException(status_code=403, detail="You can only export your own sessions")
 
     try:
-        conversation_messages = []
-        if scope in {"bundle", "conversation"}:
-            conversation_messages = await agent_service.get_session_history(user_id, session_id)
-            conversation_messages = [
-                msg
-                for msg in conversation_messages
-                if msg.get("role") not in ("_checkpoint", "_usage", "_system_prompt", "system")
-                and not _is_system_reminder_message(msg)
-            ]
-
         logger.info(
             "会话导出: %s/%s scope=%s by %s",
             user_id,
@@ -61,7 +57,6 @@ async def export_session_artifact(
             payload, download_filename = session_export_service.build_conversation_export(
                 user_id=user_id,
                 session_id=session_id,
-                conversation_messages=conversation_messages,
                 exported_by=current_user.user_id,
             )
             return StreamingResponse(
@@ -80,7 +75,6 @@ async def export_session_artifact(
             zip_buffer, download_filename = session_export_service.build_bundle_archive(
                 user_id=user_id,
                 session_id=session_id,
-                conversation_messages=conversation_messages,
                 exported_by=current_user.user_id,
             )
 
@@ -96,3 +90,31 @@ async def export_session_artifact(
     except Exception as e:
         logger.error("会话导出失败: %s", e)
         raise HTTPException(status_code=500, detail="Export failed")
+
+
+@router.post("/{user_id}/import")
+async def import_session_conversation(
+    user_id: str,
+    workspace_id: str = Query(..., description="导入目标工作区 ID"),
+    file: UploadFile = File(..., description="session_conversation_export JSON 文件"),
+    current_user: UserInfo = Depends(require_auth()),
+):
+    """导入 session_conversation_export JSON，作为新会话追加到指定工作区。"""
+    if not current_user.can_access_user_data(user_id):
+        raise HTTPException(status_code=403, detail="You can only import into your own workspaces")
+
+    try:
+        content = await file.read()
+        summary = session_import_service.import_conversation(
+            user_id=user_id,
+            workspace_id=workspace_id,
+            json_bytes=content,
+        )
+        return summary
+    except SessionImportError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("会话导入失败: %s", exc)
+        raise HTTPException(status_code=500, detail="Import failed")
