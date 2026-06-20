@@ -1,6 +1,10 @@
 import { API_ENDPOINTS } from "@/config/api";
 import { apiRequest } from "@/lib/api/httpClient";
-import type { SessionHistoryMessage, SessionStatusInfo } from "@/pages/WorkspacePage/types";
+import type {
+  SessionHistoryMessage,
+  SessionStatusInfo,
+  WorkspaceConversationSummary,
+} from "@/pages/WorkspacePage/types";
 
 export interface RewriteSessionMessageResponse {
   success: boolean;
@@ -56,4 +60,26 @@ export async function exportConversation(
     throw new Error(detail);
   }
   return response.blob();
+}
+
+export async function importConversation(
+  userId: string,
+  workspaceId: string,
+  file: File,
+): Promise<WorkspaceConversationSummary> {
+  const formData = new FormData();
+  formData.append("file", file);
+  const response = await fetch(
+    API_ENDPOINTS.SESSION_IMPORT(userId) + `?workspace_id=${encodeURIComponent(workspaceId)}`,
+    {
+      method: "POST",
+      body: formData,
+      credentials: "include",
+    },
+  );
+  if (!response.ok) {
+    const detail = await response.text().catch(() => "导入失败");
+    throw new Error(detail);
+  }
+  return response.json();
 }

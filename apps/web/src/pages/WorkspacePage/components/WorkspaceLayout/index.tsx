@@ -203,7 +203,9 @@ export function WorkspaceLayout({
     [loadWorkspaces],
   );
 
-
+  const handleImportConversation = useCallback(async () => {
+    await loadWorkspaces();
+  }, [loadWorkspaces]);
 
   const sessionTitle =
     sessionLifecycle.effectiveSessionStatus?.title ||
@@ -299,6 +301,7 @@ export function WorkspaceLayout({
         onForkConversation={handleForkConversation}
         onRenameConversation={handleRenameConversation}
         onDeleteConversation={handleDeleteConversation}
+        onImportConversation={handleImportConversation}
         activeTabRequest={activeTabRequest}
         requestSidebarTab={requestSidebarTab}
       />

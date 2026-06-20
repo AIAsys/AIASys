@@ -57,6 +57,7 @@ export function MainContent({
   onForkConversation,
   onRenameConversation,
   onDeleteConversation,
+  onImportConversation,
   activeTabRequest,
   requestSidebarTab,
 }: MainContentProps) {
@@ -386,6 +387,7 @@ export function MainContent({
               onForkConversation={onForkConversation}
               onRenameConversation={onRenameConversation}
               onDeleteConversation={onDeleteConversation}
+              onImportConversation={onImportConversation}
               onWorkerClick={(workerName) => {
                 executor.handleWorkerClick(workerName);
               }}

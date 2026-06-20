@@ -86,6 +86,8 @@ export interface MainContentProps {
   onForkConversation: (conversationId: string) => void;
   onRenameConversation: (sessionId: string, title: string) => Promise<void>;
   onDeleteConversation?: (sessionId: string) => Promise<void>;
+  /** 导入成功后回调，由父组件刷新工作区列表 */
+  onImportConversation?: () => void;
   activeTabRequest: {
     tab: WorkspaceSidebarTab;
     key: number;
