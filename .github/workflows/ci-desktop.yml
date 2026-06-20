@@ -61,8 +61,10 @@ jobs:
         run: |
           TAG="${{ steps.resolve_tag.outputs.tag }}"
           # 从 tag (如 v0.4.9) 提取版本号 (0.4.9)
-          VERSION="${TAG#v}"
-          echo "Syncing version to $VERSION"
+          export VERSION="${TAG#v}"
+          # pyproject.toml 版本必须是 PEP 440，fork-test/beta 后缀只能给 package.json
+          export BASE_VERSION="${VERSION%%-*}"
+          echo "Syncing version to $VERSION (package.json) / $BASE_VERSION (pyproject.toml)"
           # 更新 desktop package.json
           cd apps/desktop
           node -e "const fs=require('fs'); const p=require('./package.json'); p.version='$VERSION'; fs.writeFileSync('./package.json', JSON.stringify(p, null, 2) + '\n')"
@@ -71,10 +73,11 @@ jobs:
           cd ../backend
           # 用 Python 替换 pyproject.toml 中的 version，避免 sed 跨平台差异
           python3 -c "
-          import re
+          import os, re
+          version = os.environ['BASE_VERSION']
           with open('pyproject.toml', 'r') as f:
               content = f.read()
-          content = re.sub(r'^version = \".*?\"', 'version = \"$VERSION\"', content, count=1, flags=re.MULTILINE)
+          content = re.sub(r'^version = \".*?\"', f'version = \"{version}\"', content, count=1, flags=re.MULTILINE)
           with open('pyproject.toml', 'w') as f:
               f.write(content)
           "
