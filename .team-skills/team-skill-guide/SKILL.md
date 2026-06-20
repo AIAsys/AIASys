@@ -33,6 +33,7 @@ AIASys/
 │   ├── api-dev/
 │   ├── commit-history-audit/
 │   ├── frontend-pattern/
+│   ├── open-source-contribution/
 │   ├── pr-check/
 │   ├── sop-workflow/
 │   ├── state-flow/
@@ -51,6 +52,7 @@ AIASys/
 | 任务执行、判断诊断、交接闭环 | `task-protocol` | 任务执行协议 |
 | Git 提交、分支、PR、合并、冲突、fork CI | `aiasys-git-workflow` | Git 工作流 |
 | Commit 历史审计、重复提交、stale 分支清理 | `commit-history-audit` | 历史审计与清理 |
+| 开源贡献、Issue 认领、PR 提交 | `open-source-contribution` | 开源贡献规范 |
 | PR 检查、提交前审查、合并前验证、fork CI 预检查 | `pr-check` | PR 质量检查 |
 | React 19、Tailwind 4、前端组件、UI 设计 | `aiasys-frontend-architecture` | 前端架构规范 |
 | 系统架构设计、服务拆分、模块边界 | `aiasys-system-design` | 系统架构规范 |
@@ -77,6 +79,7 @@ AIASys/
 **任务执行时**：
 - 涉及 Git、fork CI 验证 → 读 `aiasys-git-workflow`
 - 涉及 Commit 历史审计、清理 → 读 `commit-history-audit`
+- 涉及开源贡献、Issue 认领、PR 提交 → 读 `open-source-contribution`
 - 涉及代码变更后同步更新 Skill → 读 `aiasys-skill-maintenance`
 - 涉及前端开发 → 读 `aiasys-frontend-architecture`
 - 涉及系统架构 → 读 `aiasys-system-design`

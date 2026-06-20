@@ -42,6 +42,29 @@
 7. 推送到你的 fork：`git push origin feature/your-feature-name`
 8. 从你的 fork 向 `AIAsys/AIASys` 的 `dev` 分支提交 PR
 
+### 2.3 Issue 认领制度
+
+为避免多人重复劳动、明确责任边界，所有非 trivial 改动（包括维护者自己的改动）都应先通过 Issue 认领。
+
+1. **先搜索**：在 Issues 中搜索相关关键词，确认没有重复或已被认领的 Issue。
+2. **明确认领**：在目标 Issue 下评论认领，格式示例：
+    ```text
+    I'd like to work on this. I plan to ...
+    /assign @your-username
+    ```
+    或用中文：
+    ```text
+    我想认领这个 Issue，计划修改 ...，预计 X 天内提交 PR。
+    ```
+3. **等待确认**：若 24 小时内无维护者反对即可开工；维护者可能调整 assignee 或要求补充信息。
+4. **关联 PR**：PR 描述中必须关联 Issue（`Closes #XXX`、`Fixes #XXX` 或 `Refs #XXX`）。
+5. **取消认领**：如果中途无法继续，在 Issue 下说明并取消 assignee，让其他人接手。
+
+注意：
+
+- 不要未经认领就直接提交 PR（除非是明确的 typo、文档笔误等 trivial 修复）。
+- 维护者/管理员自己的改动也要遵守此规则，在 GitHub 上留下认领和 PR 记录。
+
 ## 3. 提交规范
 
 当前仓库以 **Conventional Commits 风格** 为主，允许可选 scope：
@@ -208,6 +231,7 @@ pre-commit 阶段会自动运行：
   - 改了什么
   - 为什么改
   - 如何验证
+- **关联 Issue**：PR 描述中必须关联相关 Issue（`Closes #XXX`、`Fixes #XXX` 或 `Refs #XXX`）。详见「Issue 认领制度」。
 - **Changelog 强制规则**：任何用户可感知的功能新增、bug 修复、性能优化、接口不兼容修改，必须随 PR 同步更新 `docs/changelog/`。详见 `docs/changelog/README.md`。
 - **版本号同步规则**：如果是 release PR，必须确认三端版本号一致：
   - `apps/web/package.json`
@@ -304,6 +328,7 @@ AIASys/
   - 系统设计：`.team-skills/aiasys-system-design/SKILL.md`
   - 工具开发：`.team-skills/aiasys-tool-dev/SKILL.md`
   - Commit 历史审计：`.team-skills/commit-history-audit/SKILL.md`
+  - 开源贡献与 Issue 认领：`.team-skills/open-source-contribution/SKILL.md`
   - 跨平台兼容：`.team-skills/aiasys-cross-platform/SKILL.md`
 - 维护者发版流程：`docs/guides/maintainers/RELEASE_PROCESS.md`
 - Changelog 编写规范：`docs/changelog/README.md`
