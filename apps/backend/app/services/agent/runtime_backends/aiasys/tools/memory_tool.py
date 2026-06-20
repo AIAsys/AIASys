@@ -26,9 +26,11 @@ class MemoryTool(AiasysTool):
     name = "Memory"
     description = (
         "Manage persistent memory entries across sessions. "
-        "IMPORTANT: Always use this tool to read, add, update, or delete memory entries. "
+        "IMPORTANT: Only use this tool for add, replace, or remove operations on memory. "
         "Do NOT use ReadFile, WriteFile, or StrReplaceFile to edit the memory file directly "
-        "— those bypass security scanning, capacity checks, and proper memory indexing.\n\n"
+        "— those bypass security scanning, capacity checks, and proper memory indexing. "
+        "To check existing memory, use ReadFile with the appropriate memory path "
+        "(e.g., /global/.aiasys/.memory/MEMORY.md for the user default global memory).\n\n"
         "Use cases:\n"
         "- add: append a new durable fact, preference, or rule\n"
         "- replace: update an existing entry by matching a unique substring (old_text)\n"
@@ -41,7 +43,7 @@ class MemoryTool(AiasysTool):
             "action": {
                 "type": "string",
                 "enum": ["add", "replace", "remove"],
-                "description": "The action to perform.",
+                "description": "The action to perform. Must be one of: add, replace, remove.",
             },
             "content": {
                 "type": "string",

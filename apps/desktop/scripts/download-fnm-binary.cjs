@@ -55,7 +55,7 @@ function curlDownload(url, dest) {
   const result = spawnSync(
     "curl",
     ["-L", "-f", "--connect-timeout", "15", "--max-time", "300", "-o", dest, url],
-    { encoding: "utf-8", stdio: "pipe" }
+    { encoding: "utf-8", stdio: "pipe", windowsHide: true }
   );
   if (result.status !== 0) {
     const detail = result.stderr || result.error || `curl exit ${result.status}`;
@@ -87,7 +87,7 @@ function verifySha256(filePath, expectedHash) {
 function resolvePython() {
   const candidates = [process.env.PYTHON, process.env.PYTHON3, "py", "python3", "python"].filter(Boolean);
   for (const cmd of candidates) {
-    const result = spawnSync(cmd, ["--version"], { encoding: "utf-8", stdio: "pipe" });
+    const result = spawnSync(cmd, ["--version"], { encoding: "utf-8", stdio: "pipe", windowsHide: true });
     if (result.status === 0) return cmd;
   }
   return null;
@@ -96,7 +96,7 @@ function resolvePython() {
 function unzip(zipPath, targetDir) {
   console.log(`[download-fnm] 解压: ${zipPath}`);
   const result = spawnSync("unzip", ["-q", "-o", zipPath, "-d", targetDir], {
-    encoding: "utf-8", stdio: "pipe",
+    encoding: "utf-8", stdio: "pipe", windowsHide: true,
   });
   if (result.status === 0) return;
   if (result.error && result.error.code === "ENOENT") {
@@ -108,7 +108,7 @@ function unzip(zipPath, targetDir) {
     const pyResult = spawnSync(
       pyCmd,
       ["-m", "zipfile", "-e", zipPath, targetDir],
-      { encoding: "utf-8", stdio: "pipe" }
+      { encoding: "utf-8", stdio: "pipe", windowsHide: true }
     );
     if (pyResult.status !== 0) {
       throw new Error(`${pyCmd} zipfile 解压失败: ${pyResult.stderr || pyResult.error}`);

@@ -20,6 +20,7 @@ from typing import Any
 
 from app.core.config import DATA_DIR
 from app.core.encoding_utils import smart_decode
+from app.core.subprocess_utils import subprocess_kwargs
 
 logger = logging.getLogger(__name__)
 
@@ -66,7 +67,7 @@ class ShellExecutor:
 
     设计原则：
     1. 上层只传命令字符串，执行器负责解释器选择、路径转换、环境合并。
-    2. POSIX 优先用 bash/sh；Windows 优先用 Git Bash，其次 WSL，再其次 PowerShell/Cmd。
+    2. POSIX 优先用 bash/sh；Windows 优先用 Git Bash，其次 WSL，再其次 PowerShell（cmd.exe 已禁用）。
     3. 超时后执行两阶段 kill：SIGTERM -> grace -> SIGKILL；Windows 用 taskkill /T。
     4. 子进程默认关闭 stdin，避免交互式命令挂起。
     """
@@ -342,12 +343,13 @@ class ShellExecutor:
 
             # 通过 git --exec-path 推断（Kimi Code 策略）
             try:
-                exec_path = subprocess.check_output(
+                exec_path_bytes = subprocess.check_output(
                     [git_exe, "--exec-path"],
-                    text=True,
                     timeout=5,
                     stderr=subprocess.DEVNULL,
-                ).strip()
+                    **subprocess_kwargs(),
+                )
+                exec_path = smart_decode(exec_path_bytes).strip()
                 # exec_path 类似 C:\Program Files\Git\mingw64\libexec\git-core
                 parts = Path(exec_path).parts
                 for i, part in enumerate(parts):
@@ -419,6 +421,7 @@ class ShellExecutor:
                 stderr=subprocess.DEVNULL,
                 timeout=5,
                 check=True,
+                **subprocess_kwargs(),
             )
             self._wsl_path = wsl_exe
             return wsl_exe

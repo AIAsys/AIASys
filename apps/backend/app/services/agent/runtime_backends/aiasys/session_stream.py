@@ -835,6 +835,32 @@ class SessionStreamMixin:
                 ),
             )
 
+    @staticmethod
+    def _is_memory_only_request(text: str) -> bool:
+        """检测用户是否明确要求基于记忆/历史回复，不调用工具。"""
+        lowered = text.lower()
+        keywords = [
+            "不要调用工具",
+            "不要调工具",
+            "不要调用任何工具",
+            "不要调任何工具",
+            "只用记忆",
+            "仅凭记忆",
+            "从记忆",
+            "凭记忆",
+            "根据对话历史",
+            "基于对话历史",
+            "answer from memory",
+            "from memory",
+            "do not call any tools",
+            "don't call any tools",
+            "do not use tools",
+            "don't use tools",
+            "without calling tools",
+            "no tools",
+        ]
+        return any(kw in lowered for kw in keywords)
+
     def _maybe_auto_nudge(
         self,
         user_message: str,
@@ -849,6 +875,8 @@ class SessionStreamMixin:
         if not getattr(self, "_auto_nudge_enabled", True):
             return None
         if has_tool_calls:
+            return None
+        if self._is_memory_only_request(user_message):
             return None
         if not self._looks_like_actionable(user_message):
             return None
@@ -946,6 +974,10 @@ class SessionStreamMixin:
     def _looks_like_actionable(text: str) -> bool:
         """检测是否为可执行任务。"""
         import re
+
+        # 用户明确要求基于记忆回复，不按可执行任务处理
+        if SessionStreamMixin._is_memory_only_request(text):
+            return False
 
         # 剥离 URL
         stripped = re.sub(r"https?://\S+", "", text)

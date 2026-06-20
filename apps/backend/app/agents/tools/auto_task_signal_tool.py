@@ -10,7 +10,7 @@ from typing import Any
 
 from app.core.agent_tool import AiasysTool
 from app.core.tool_result import ToolResult
-from app.models.session import SessionMetadata
+from app.models.session import SessionMetadata, AutoTaskSignal as AutoTaskSignalModel
 
 logger = logging.getLogger(__name__)
 
@@ -100,7 +100,7 @@ class AutoTaskSignal(AiasysTool):
             )
 
         next_status = "completed" if action == "complete" else "paused"
-        metadata.auto_task_signal = AutoTaskSignal(
+        metadata.auto_task_signal = AutoTaskSignalModel(
             auto_task_id=signal.auto_task_id,
             status=next_status,
             reason=str(kwargs.get("reason") or "").strip() or None,

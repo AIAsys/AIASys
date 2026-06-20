@@ -1246,7 +1246,14 @@ class WeixinAdapter(BasePlatformAdapter):
                     _save_sync_buf(self._hermes_home, self._account_id, sync_buf)
 
                 for message in response.get("msgs") or []:
-                    asyncio.create_task(self._process_message_safe(message))
+                    task = asyncio.create_task(self._process_message_safe(message))
+                    task.add_done_callback(
+                        lambda t: logger.error(
+                            "weixin: message processing failed", exc_info=t.exception()
+                        )
+                        if t.exception()
+                        else None
+                    )
             except asyncio.CancelledError:
                 break
             except Exception as exc:
@@ -1305,7 +1312,16 @@ class WeixinAdapter(BasePlatformAdapter):
         context_token = str(message.get("context_token") or "").strip()
         if context_token:
             self._token_store.set(self._account_id, sender_id, context_token)
-        asyncio.create_task(self._maybe_fetch_typing_ticket(sender_id, context_token or None))
+        task = asyncio.create_task(
+            self._maybe_fetch_typing_ticket(sender_id, context_token or None)
+        )
+        task.add_done_callback(
+            lambda t: logger.error(
+                "weixin: typing ticket fetch failed", exc_info=t.exception()
+            )
+            if t.exception()
+            else None
+        )
 
         item_list = message.get("item_list") or []
         text = _extract_text(item_list)

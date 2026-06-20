@@ -35,9 +35,7 @@ jobs:
           - os: windows-latest
             target: win
             script: dist:ci:win
-            files: |
-              apps/desktop/dist/*.exe
-              apps/desktop/dist/*.zip
+            files: apps/desktop/dist/*.exe
     runs-on: ${{ matrix.os }}
 
     steps:

@@ -8,14 +8,18 @@ from __future__ import annotations
 import json
 import os
 import shutil
+import subprocess
 import sys
 import tempfile
 from typing import Any
+
+from app.utils.path_utils import as_system_path
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from app.core.auth import require_auth
+from app.core.subprocess_utils import subprocess_kwargs
 from app.models.user import UserInfo
 
 router = APIRouter(prefix="/kernel-envs", tags=["kernel-envs"])
@@ -134,14 +138,13 @@ async def register_kernel_env(
         raise HTTPException(status_code=400, detail=f"Python 可执行文件不存在: {python_path}")
 
     # 校验 ipykernel 是否已安装
-    import subprocess
 
     try:
         result = subprocess.run(
             [python_path, "-m", "ipykernel", "--version"],
             capture_output=True,
-            text=True,
             timeout=10,
+            **subprocess_kwargs(),
         )
         if result.returncode != 0:
             raise HTTPException(
@@ -159,7 +162,7 @@ async def register_kernel_env(
     # 检查是否已存在
     existing = _find_kernel_spec_dir(name)
     if existing is not None:
-        shutil.rmtree(existing)
+        shutil.rmtree(as_system_path(str(existing)))
 
     # 创建临时 kernel.json
     kernel_json = {
@@ -177,7 +180,7 @@ async def register_kernel_env(
         ksm = KernelSpecManager()
         dest = ksm.install_kernel_spec(tmp_dir, kernel_name=name, user=True)
     finally:
-        shutil.rmtree(tmp_dir)
+        shutil.rmtree(as_system_path(str(tmp_dir)))
 
     return {
         "status": "success",

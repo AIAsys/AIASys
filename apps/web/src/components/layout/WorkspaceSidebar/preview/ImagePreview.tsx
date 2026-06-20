@@ -33,6 +33,7 @@ export const ImagePreview: React.FC<ImagePreviewProps> = ({
         </span>
         <div className="flex items-center gap-1">
           <button
+            type="button"
             onClick={handleZoomOut}
             className="p-1.5 hover:bg-muted rounded-md text-muted-foreground hover:text-foreground transition-colors"
             title="缩小"
@@ -43,6 +44,7 @@ export const ImagePreview: React.FC<ImagePreviewProps> = ({
             {Math.round(scale * 100)}%
           </span>
           <button
+            type="button"
             onClick={handleZoomIn}
             className="p-1.5 hover:bg-muted rounded-md text-muted-foreground hover:text-foreground transition-colors"
             title="放大"
@@ -50,6 +52,7 @@ export const ImagePreview: React.FC<ImagePreviewProps> = ({
             <ZoomIn className="w-3.5 h-3.5" />
           </button>
           <button
+            type="button"
             onClick={handleReset}
             className="p-1.5 hover:bg-muted rounded-md text-muted-foreground hover:text-foreground transition-colors"
             title="重置"

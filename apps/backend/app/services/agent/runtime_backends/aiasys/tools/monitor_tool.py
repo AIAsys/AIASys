@@ -36,6 +36,7 @@ from app.services.runtime.runtime_execution import (
 )
 from app.services.shell_executor import ShellOptions, get_shell_executor
 from app.services.workspace_registry import get_workspace_registry_service
+from app.utils.path_utils import as_system_path
 
 logger = logging.getLogger(__name__)
 
@@ -332,8 +333,8 @@ class MonitorService:
         stderr_f = None
         try:
             merged_env = dict(env) if env is not None else os.environ.copy()
-            stdout_f = open(stdout_path, "wb")
-            stderr_f = open(stderr_path, "wb")
+            stdout_f = open(as_system_path(str(stdout_path)), "wb")
+            stderr_f = open(as_system_path(str(stderr_path)), "wb")
             executor = get_shell_executor()
             options = ShellOptions(
                 cwd=cwd or os.getcwd(),
@@ -472,7 +473,7 @@ class MonitorService:
 
         offset = session._stderr_offset if is_stderr else session._stdout_offset
         try:
-            with open(path, "rb") as f:
+            with open(as_system_path(str(path)), "rb") as f:
                 f.seek(offset)
                 raw = f.read()
         except Exception as exc:

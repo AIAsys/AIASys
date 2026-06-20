@@ -383,15 +383,17 @@ class ControlMixin:
                     self._active_sessions[session_key] = session
 
                 # 直接触发上下文压缩（强制模式，不依赖阈值）
-                # 自定义指令通过 compaction 的 instruction 参数透传（当前仅记录，
-                # 不影响 LLM-based compaction 的执行流程）。
+                # 自定义指令通过 compaction 的 custom_instruction 参数透传给 LLM。
                 if instruction and instruction.strip():
                     logger.info(
                         "手动压缩收到自定义指令: session=%s instruction=%s",
                         session_id,
                         instruction.strip(),
                     )
-                async for _ in session._maybe_compact_context(force=True):
+                async for _ in session._maybe_compact_context(
+                    force=True,
+                    custom_instruction=instruction.strip(),
+                ):
                     pass
         finally:
             self._reset_session_context(tokens)

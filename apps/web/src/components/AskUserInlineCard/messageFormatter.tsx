@@ -15,6 +15,7 @@ export function formatMessage(message: string): React.ReactNode {
 
     return (
       <div className="space-y-2">
+        {/* key={index} is safe — static text transform, paragraphs never reorder */}
         {paragraphs.map((paragraph, index) => (
           <p key={index} className="mb-2">
             {paragraph}
@@ -40,6 +41,7 @@ export function formatMessage(message: string): React.ReactNode {
 
     elements.push(
       <ListTag key={`list-${elements.length}`} className={listClass}>
+        {/* key={index} is safe — static text transform, list items never reorder */}
         {currentList.map((item, index) => (
           <li key={index} className="text-sm text-muted-foreground">
             {item}

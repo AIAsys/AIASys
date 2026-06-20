@@ -409,5 +409,5 @@ if __name__ == "__main__":
         "app.main:app",
         host=host,
         port=actual_port,
-        reload=DEBUG,
+        reload=os.environ.get("AIASYS_RELOAD", str(DEBUG)).lower() == "true",
     )

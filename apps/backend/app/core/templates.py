@@ -18,6 +18,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from app.utils.path_utils import as_system_path
+
 try:
     import tomllib
 except ImportError:  # pragma: no cover
@@ -648,7 +650,7 @@ def delete_user_template(template_id: str, user_id: str) -> bool:
     target_dir = user_dir / template_id
     if target_dir.exists() and target_dir.is_dir():
         try:
-            shutil.rmtree(target_dir)
+            shutil.rmtree(as_system_path(str(target_dir)))
             return True
         except OSError as exc:
             logger.warning("删除用户模板失败 %s: %s", target_dir, exc)
@@ -833,7 +835,7 @@ def export_workspace_as_template(
     # 复制 workspace_memory.md
     memory_src = workspace_dir / ".aiasys" / "memory" / "workspace_memory.md"
     if memory_src.exists():
-        shutil.copy2(memory_src, target_dir / "workspace_memory.md")
+        shutil.copy2(as_system_path(str(memory_src)), as_system_path(str(target_dir / "workspace_memory.md")))
 
     return WorkspaceTemplate(
         template_id=resolved_id,

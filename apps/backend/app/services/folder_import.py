@@ -15,6 +15,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Optional
 
+from app.utils.path_utils import as_system_path
+
 logger = logging.getLogger(__name__)
 
 MAX_SCAN_DEPTH = 8
@@ -307,7 +309,7 @@ def copy_selected_files(
         dst_file.parent.mkdir(parents=True, exist_ok=True)
         try:
             size = src_file.stat().st_size
-            shutil.copy2(src_file, dst_file)
+            shutil.copy2(as_system_path(str(src_file)), as_system_path(str(dst_file)))
             copied_files += 1
             copied_bytes += size
         except OSError as exc:
@@ -350,7 +352,7 @@ def remove_import_upload_dir(upload_id: str) -> bool:
     path = _import_upload_dirs.pop(upload_id, None)
     if path and path.exists():
         try:
-            shutil.rmtree(path, ignore_errors=True)
+            shutil.rmtree(as_system_path(str(path)), ignore_errors=True)
             return True
         except OSError:
             logger.warning("清理临时上传目录失败: %s", path, exc_info=True)

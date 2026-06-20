@@ -14,6 +14,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
 
+from app.utils.path_utils import as_system_path
+
 from app.services.memory.constants import (
     USER_DEFAULT_GLOBAL_WORKSPACE_SCOPE,
     is_user_default_global_workspace_scope,
@@ -59,7 +61,7 @@ class MemoryStateRuntime:
 
     def _connect(self) -> sqlite3.Connection:
         connection = sqlite3.connect(
-            self.db_path,
+            as_system_path(str(self.db_path)),
             timeout=30,
             isolation_level=None,
         )
@@ -799,6 +801,7 @@ class MemoryStateRuntime:
                 SELECT * FROM memory_stage1_outputs
                 WHERE user_id = ? AND COALESCE(usage_count, 0) >= ?
                 ORDER BY usage_count DESC, created_at DESC
+                LIMIT 500
                 """,
                 (user_id, max(min_usage_count, 0)),
             ).fetchall()

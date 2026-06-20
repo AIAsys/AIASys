@@ -238,8 +238,8 @@ async def list_kb_tables(
     try:
         tables = service.list_tables(user.user_id, kb_id)
         return [TableInfoResponse(**t) for t in tables]
-    except Exception:
-        raise HTTPException(status_code=500, detail="Failed to list tables")
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail="Failed to list tables") from exc
 
 
 @router.post("/bases/{kb_id}/raw-query", response_model=RawQueryResponse)
@@ -258,8 +258,8 @@ async def execute_kb_raw_query(
         return RawQueryResponse(**result)
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid SQL query")
-    except Exception:
-        raise HTTPException(status_code=500, detail="Query execution failed")
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail="Query execution failed") from exc
 
 
 # ==================== 健康检查 ====================

@@ -22,7 +22,7 @@ from app.services.session.constants import (
     HISTORY_SNAPSHOT_FILE_NAME,
 )
 from app.services.shell_executor import get_shell_executor
-from app.utils.path_utils import atomic_write_text
+from app.utils.path_utils import as_system_path, atomic_write_text
 
 from ..base import RuntimeSessionCreateSpec
 from .capability_confirmation import CapabilityConfirmationManager
@@ -284,7 +284,7 @@ class AiasysRuntimeSession(
         return None
 
     def _load_agent_config(self, agent_file: Path) -> dict[str, Any]:
-        with open(agent_file, "rb") as file:
+        with open(as_system_path(str(agent_file)), "rb") as file:
             data = tomllib.load(file) or {}
         agent = data.get("agent")
         if not isinstance(agent, dict):

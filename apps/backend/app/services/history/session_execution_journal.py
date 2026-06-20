@@ -145,7 +145,7 @@ class SessionExecutionJournal:
                 legacy_display_history_path.unlink()
 
         if self.execution_dir.exists():
-            shutil.rmtree(self.execution_dir)
+            shutil.rmtree(as_system_path(str(self.execution_dir)))
 
         self.initialize_structure()
 

@@ -314,7 +314,6 @@ export function useTerminal(options: UseTerminalOptions): UseTerminalReturn {
     ws.onerror = () => {
       // 忽略来自旧 socket 的回调
       if (ws !== wsRef.current) return;
-      wsRef.current = null;
       setState((prev) => ({
         ...prev,
         status: "error",

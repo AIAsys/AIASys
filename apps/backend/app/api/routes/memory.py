@@ -11,6 +11,7 @@ from app.api.routes.memory_schemas import (
     MemoryPipelineStatusResponse,
     MemoryRetentionRequest,
     MemoryRetentionResponse,
+    MemorySummaryResponse,
     MemoryVersionDetailResponse,
     MemoryVersionItem,
     MemoryVersionListResponse,
@@ -171,7 +172,7 @@ async def resolve_memory(
     )
 
 
-@router.post("/summary/refresh")
+@router.post("/summary/refresh", response_model=MemorySummaryResponse)
 async def refresh_memory_summary(
     request: RegenerateMemorySummaryRequest,
     current_user: UserInfo = Depends(require_auth()),

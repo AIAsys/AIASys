@@ -6,6 +6,7 @@ import asyncio
 import hashlib
 import json
 import logging
+import os
 import re
 import time
 from collections.abc import Callable
@@ -39,6 +40,7 @@ from app.services.memory.state_runtime import (
     Stage1OutputRecord,
 )
 from app.services.memory.store import MemoryCapacityError, MemorySecurityError, MemoryStore
+from app.utils.path_utils import as_system_path
 
 logger = logging.getLogger(__name__)
 
@@ -316,10 +318,10 @@ class MemoryPipelineService:
         try:
             layout = ensure_memory_layout(get_user_global_memory_dir(user_id))
             memory_text = (
-                layout.memory.read_text(encoding="utf-8") if layout.memory.exists() else ""
+                Path(as_system_path(layout.memory)).read_text(encoding="utf-8") if os.path.exists(as_system_path(layout.memory)) else ""
             )
             summary_text = (
-                layout.summary.read_text(encoding="utf-8") if layout.summary.exists() else ""
+                Path(as_system_path(layout.summary)).read_text(encoding="utf-8") if os.path.exists(as_system_path(layout.summary)) else ""
             )
 
             workspace_root = (
@@ -449,12 +451,12 @@ class MemoryPipelineService:
     ) -> str:
         scope_key = normalize_memory_scope_key(scope_key)
         if is_user_default_global_workspace_scope(scope_key):
-            return layout.memory.read_text(encoding="utf-8") if layout.memory.exists() else ""
+            return Path(as_system_path(layout.memory)).read_text(encoding="utf-8") if os.path.exists(as_system_path(layout.memory)) else ""
         workspace_root = self._resolve_workspace_root(user_id, scope_key)
         if workspace_root is None:
             return ""
         path = get_workspace_memory_file_path(workspace_root)
-        return path.read_text(encoding="utf-8") if path.exists() else ""
+        return Path(as_system_path(path)).read_text(encoding="utf-8") if os.path.exists(as_system_path(path)) else ""
 
     def _read_scope_summary_text(
         self,
@@ -465,12 +467,12 @@ class MemoryPipelineService:
     ) -> str:
         scope_key = normalize_memory_scope_key(scope_key)
         if is_user_default_global_workspace_scope(scope_key):
-            return layout.summary.read_text(encoding="utf-8") if layout.summary.exists() else ""
+            return Path(as_system_path(layout.summary)).read_text(encoding="utf-8") if os.path.exists(as_system_path(layout.summary)) else ""
         workspace_root = self._resolve_workspace_root(user_id, scope_key)
         if workspace_root is None:
             return ""
         path = get_workspace_memory_summary_file_path(workspace_root)
-        return path.read_text(encoding="utf-8") if path.exists() else ""
+        return Path(as_system_path(path)).read_text(encoding="utf-8") if os.path.exists(as_system_path(path)) else ""
 
     def check_capacity(
         self,
@@ -485,10 +487,10 @@ class MemoryPipelineService:
             layout = ensure_memory_layout(get_user_global_memory_dir(user_id))
 
         memory_size = (
-            len(layout.memory.read_text(encoding="utf-8")) if layout.memory.exists() else 0
+            len(Path(as_system_path(layout.memory)).read_text(encoding="utf-8")) if os.path.exists(as_system_path(layout.memory)) else 0
         )
         summary_size = (
-            len(layout.summary.read_text(encoding="utf-8")) if layout.summary.exists() else 0
+            len(Path(as_system_path(layout.summary)).read_text(encoding="utf-8")) if os.path.exists(as_system_path(layout.summary)) else 0
         )
 
         memory_pct = memory_size / MAX_MEMORY_SIZE if MAX_MEMORY_SIZE > 0 else 0
@@ -498,8 +500,8 @@ class MemoryPipelineService:
         workspace_pct = 0.0
         if workspace_root is not None:
             ws_path = get_workspace_memory_file_path(workspace_root)
-            if ws_path.exists():
-                workspace_size = len(ws_path.read_text(encoding="utf-8"))
+            if os.path.exists(as_system_path(ws_path)):
+                workspace_size = len(Path(as_system_path(ws_path)).read_text(encoding="utf-8"))
             workspace_pct = (
                 workspace_size / MAX_WORKSPACE_MEMORY_SIZE if MAX_WORKSPACE_MEMORY_SIZE > 0 else 0
             )
@@ -564,7 +566,7 @@ class MemoryPipelineService:
         if is_user_default_global_workspace_scope(scope_key):
             layout = ensure_memory_layout(get_user_global_memory_dir(user_id))
             existing = (
-                layout.memory.read_text(encoding="utf-8").strip() if layout.memory.exists() else ""
+                Path(as_system_path(layout.memory)).read_text(encoding="utf-8").strip() if os.path.exists(as_system_path(layout.memory)) else ""
             )
             blocks = [_format_stage2_append_block(record) for record in records]
             projected_text = (
@@ -587,7 +589,7 @@ class MemoryPipelineService:
             existing = ""
             if workspace_root is not None:
                 ws_path = get_workspace_memory_file_path(workspace_root)
-                existing = ws_path.read_text(encoding="utf-8").strip() if ws_path.exists() else ""
+                existing = Path(as_system_path(ws_path)).read_text(encoding="utf-8").strip() if os.path.exists(as_system_path(ws_path)) else ""
             blocks = [
                 _format_stage2_append_block(record)
                 for record in records
@@ -652,21 +654,21 @@ class MemoryPipelineService:
 
         # 读取输入
         current_memory = (
-            target_memory_path.read_text(encoding="utf-8") if target_memory_path.exists() else ""
+            Path(as_system_path(target_memory_path)).read_text(encoding="utf-8") if os.path.exists(as_system_path(target_memory_path)) else ""
         )
         current_summary = (
-            target_summary_path.read_text(encoding="utf-8") if target_summary_path.exists() else ""
+            Path(as_system_path(target_summary_path)).read_text(encoding="utf-8") if os.path.exists(as_system_path(target_summary_path)) else ""
         )
         raw_memories = (
-            layout.raw_memories.read_text(encoding="utf-8") if layout.raw_memories.exists() else ""
+            Path(as_system_path(layout.raw_memories)).read_text(encoding="utf-8") if os.path.exists(as_system_path(layout.raw_memories)) else ""
         )
 
         # 收集 rollout summaries
         rollout_texts: list[str] = []
         for record in records:
             rollout_path = layout.rollout_summaries / f"{record.rollout_slug}.md"
-            if rollout_path.exists():
-                rollout_texts.append(rollout_path.read_text(encoding="utf-8"))
+            if os.path.exists(as_system_path(rollout_path)):
+                rollout_texts.append(Path(as_system_path(rollout_path)).read_text(encoding="utf-8"))
 
         config = _get_memory_config(user_id)
         prompt = _build_consolidation_prompt(
@@ -967,7 +969,7 @@ class MemoryPipelineService:
         for path in layout.rollout_summaries.glob("*.md"):
             if path.name not in keep_files:
                 try:
-                    path.unlink()
+                    os.unlink(as_system_path(path))
                 except OSError:
                     logger.warning("删除过期 rollout summary 失败: %s", path, exc_info=True)
 

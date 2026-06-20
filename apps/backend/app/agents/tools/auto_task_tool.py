@@ -112,7 +112,9 @@ class CreateAutoTask(AiasysTool):
     description = (
         "在当前工作区创建一个新的自动任务。"
         "支持 continuous（连续执行）、once（单次执行）、interval（按秒间隔）、cron（cron 表达式）四种触发类型。"
-        "支持 bind_session_id 将任务绑定到已有 session（同一上下文累积）。"
+        "bind_session_id 用于把任务绑定到指定 session，使每次触发都在同一 session 上下文执行；"
+        "不设置 bind_session_id 时，每次触发会新建独立 session。"
+        "注意：绑定到当前活跃对话 session 时，任务执行可能与会话锁产生竞争，导致轻微延迟。"
     )
     parameters = {
         "type": "object",
@@ -136,7 +138,7 @@ class CreateAutoTask(AiasysTool):
             },
             "bind_session_id": {
                 "type": "string",
-                "description": "绑定的 session ID（可选）。设置后每次触发在同一 session 上下文中执行，不设置则每次新建 session",
+                "description": "绑定的 session ID（可选）。continuous 任务可绑定以复用上下文；once/interval/cron 等定时任务建议留空，避免与当前活跃会话冲突。不设置则每次触发新建 session",
             },
             "continuation_prompt": {
                 "type": "string",

@@ -454,7 +454,9 @@ def _ensure_path_within_root(root: Path, relative_path: Path) -> Path:
     root.mkdir(parents=True, exist_ok=True)
     file_path = (root / relative_path).resolve()
     root_resolved = root.resolve()
-    if not str(file_path).startswith(str(root_resolved)):
+    try:
+        file_path.relative_to(root_resolved)
+    except ValueError:
         raise HTTPException(status_code=403, detail="Access denied")
     return file_path
 

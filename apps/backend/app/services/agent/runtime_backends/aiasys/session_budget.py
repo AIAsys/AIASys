@@ -8,6 +8,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from app.utils.path_utils import as_system_path
+
 logger = logging.getLogger(__name__)
 
 
@@ -71,7 +73,7 @@ class SessionBudgetMixin:
 
             record_path = Path(str(self._spec.work_dir)) / ".aiasys" / "session" / "usage.jsonl"
             record_path.parent.mkdir(parents=True, exist_ok=True)
-            with open(record_path, "a", encoding="utf-8") as f:
+            with open(as_system_path(str(record_path)), "a", encoding="utf-8") as f:
                 f.write(json.dumps(record, ensure_ascii=False) + "\n")
         except Exception:
             logger.debug("追加 usage record 失败", exc_info=True)

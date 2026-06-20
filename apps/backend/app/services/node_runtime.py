@@ -13,6 +13,9 @@ from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from app.core.subprocess_utils import subprocess_kwargs
+from app.utils.path_utils import as_system_path
+
 if TYPE_CHECKING:
     from app.services.workspace_registry import WorkspaceRegistryService
 
@@ -61,7 +64,7 @@ def _safe_tail(text: str, limit: int = 8000) -> str:
 def resolve_workspace_runtime_dir(workspace_dir: Path, *, create: bool = False) -> Path:
     runtime_dir = workspace_dir / WORKSPACE_RUNTIME_DIR_NAME
     if create:
-        runtime_dir.mkdir(parents=True, exist_ok=True)
+        os.makedirs(as_system_path(runtime_dir), exist_ok=True)
     return runtime_dir
 
 
@@ -329,7 +332,7 @@ class NodeRuntimeService:
 
         # 尝试从 .node-version 文件读取
         node_version_file = resolve_workspace_runtime_dir(workspace_dir) / ".node-version"
-        source = "file" if node_version_file.exists() else "fnm-default"
+        source = "file" if os.path.exists(as_system_path(node_version_file)) else "fnm-default"
 
         return {
             "version": version,
@@ -514,7 +517,7 @@ class NodeRuntimeService:
         env_dir = resolve_workspace_runtime_dir(workspace_dir, create=True)
 
         version_file = env_dir / ".node-version"
-        version_file.write_text(f"{normalized_version}\n", encoding="utf-8")
+        Path(as_system_path(version_file)).write_text(f"{normalized_version}\n", encoding="utf-8")
 
         # 更新注册表
         registry = self._read_registry(workspace_dir)
@@ -555,14 +558,14 @@ class NodeRuntimeService:
         env_id = _normalize_env_id(env_id, DEFAULT_NODE_ENV_ID)
         workspace_dir = self._workspace_dir(user_id, workspace_id)
         env_dir = self._env_dir(workspace_dir)
-        env_dir.mkdir(parents=True, exist_ok=True)
+        os.makedirs(as_system_path(env_dir), exist_ok=True)
         now = _now_iso()
 
         # 写入 package.json（如果不存在）
         package_json = env_dir / "package.json"
-        if not package_json.exists():
+        if not os.path.exists(as_system_path(package_json)):
             project_name = f"aiasys-workspace-{workspace_id}"
-            package_json.write_text(
+            Path(as_system_path(package_json)).write_text(
                 json.dumps(
                     {
                         "name": project_name,
@@ -582,7 +585,7 @@ class NodeRuntimeService:
         if node_version:
             normalized = _normalize_node_version(node_version)
             version_file = env_dir / ".node-version"
-            version_file.write_text(f"{normalized}\n", encoding="utf-8")
+            Path(as_system_path(version_file)).write_text(f"{normalized}\n", encoding="utf-8")
 
         # 安装 npm 包
         result: RuntimeEnvCommandResult | None = None
@@ -652,9 +655,9 @@ class NodeRuntimeService:
     def _read_node_version(self, env_dir: Path) -> str | None:
         """从 .node-version 文件读取版本。"""
         version_file = env_dir / ".node-version"
-        if not version_file.exists():
+        if not os.path.exists(as_system_path(version_file)):
             return None
-        text = version_file.read_text(encoding="utf-8").strip()
+        text = Path(as_system_path(version_file)).read_text(encoding="utf-8").strip()
         return text or None
 
     def _read_npm_version(self) -> str | None:
@@ -667,6 +670,7 @@ class NodeRuntimeService:
                 [fnm_bin, "env", "--json"],
                 capture_output=True,
                 timeout=10,
+                **subprocess_kwargs(),
             )
             if completed.returncode == 0:
                 import json as _json
@@ -759,6 +763,7 @@ class NodeRuntimeService:
                 capture_output=True,
                 timeout=300,
                 check=False,
+                **subprocess_kwargs(),
             )
         except Exception as exc:
             return RuntimeEnvCommandResult(
@@ -795,7 +800,7 @@ class NodeRuntimeService:
 
     def _read_registry(self, workspace_dir: Path) -> dict[str, Any]:
         path = self._registry_path(workspace_dir)
-        if not path.exists():
+        if not os.path.exists(as_system_path(path)):
             return {
                 "_schema_version": 1,
                 "default_env_id": DEFAULT_NODE_ENV_ID,
@@ -804,7 +809,7 @@ class NodeRuntimeService:
                 "updated_at": None,
             }
         try:
-            data = json.loads(path.read_text(encoding="utf-8"))
+            data = json.loads(Path(as_system_path(path)).read_text(encoding="utf-8"))
         except Exception:
             data = {}
         if not isinstance(data, dict):
@@ -820,8 +825,8 @@ class NodeRuntimeService:
 
     def _write_registry(self, workspace_dir: Path, data: dict[str, Any]) -> None:
         path = self._registry_path(workspace_dir)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(
+        os.makedirs(as_system_path(path.parent), exist_ok=True)
+        Path(as_system_path(path)).write_text(
             json.dumps(data, indent=2, ensure_ascii=False),
             encoding="utf-8",
         )
@@ -937,7 +942,7 @@ class NodeRuntimeService:
 
     def _read_package_version(self, package_json: Path) -> str | None:
         try:
-            data = json.loads(package_json.read_text(encoding="utf-8"))
+            data = json.loads(Path(as_system_path(package_json)).read_text(encoding="utf-8"))
             version = str(data.get("version") or "").strip()
             return version or None
         except Exception:

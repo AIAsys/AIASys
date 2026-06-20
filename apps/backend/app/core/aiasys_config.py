@@ -16,6 +16,7 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 from app.core.config import get_user_global_config_dir
+from app.utils.path_utils import as_system_path
 
 logger = logging.getLogger(__name__)
 
@@ -110,7 +111,7 @@ def load_aiasys_config(user_id: str | None = None) -> AiasysTomlConfig:
             config_path.write_text(template, encoding="utf-8")
             logger.info("为用户 %s 自动创建默认 config.toml", user_id)
         try:
-            with config_path.open("rb") as f:
+            with open(as_system_path(str(config_path)), "rb") as f:
                 raw: dict[str, Any] = tomllib.load(f)
             return AiasysTomlConfig.model_validate(raw)
         except Exception as exc:
@@ -118,7 +119,7 @@ def load_aiasys_config(user_id: str | None = None) -> AiasysTomlConfig:
             return AiasysTomlConfig()
 
     try:
-        with config_path.open("rb") as f:
+        with open(as_system_path(str(config_path)), "rb") as f:
             raw: dict[str, Any] = tomllib.load(f)
         return AiasysTomlConfig.model_validate(raw)
     except Exception as exc:

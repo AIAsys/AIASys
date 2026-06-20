@@ -60,7 +60,7 @@ class SessionCompactionMixin:
         return cleared_count, saved_chars
 
     async def _maybe_compact_context(
-        self, *, force: bool = False
+        self, *, force: bool = False, custom_instruction: str = ""
     ) -> AsyncGenerator[AgentRuntimeEvent, None]:
         loop_control = self._spec.config.loop_control
         max_context_size = self._resolve_max_context_size()
@@ -106,8 +106,12 @@ class SessionCompactionMixin:
         start_time = time.perf_counter()
 
         # Tier 2+3: LLM-based compaction
+        # 手动触发强制压缩时，把保留消息数降到 0，确保即使只有 1-2 轮对话也能产生摘要。
+        max_preserved_messages = (
+            0 if force else loop_control.max_preserved_messages
+        )
         compactor = SimpleCompaction(
-            max_preserved_messages=loop_control.max_preserved_messages,
+            max_preserved_messages=max_preserved_messages,
             max_preserved_tokens=loop_control.max_preserved_tokens,
             max_summary_tokens=loop_control.max_summary_tokens,
             max_snip_chars=loop_control.tool_snip_max_chars,
@@ -153,6 +157,7 @@ class SessionCompactionMixin:
             result = await compactor.compact(
                 chat_messages,
                 compaction_client,
+                custom_instruction=custom_instruction,
                 enable_verification=loop_control.enable_compaction_verification,
             )
             # 压缩未产生任何结果且当前已非常接近上限，尝试兜底裁剪后再压一次
@@ -165,6 +170,7 @@ class SessionCompactionMixin:
                     result = await compactor.compact(
                         trimmed,
                         compaction_client,
+                        custom_instruction=custom_instruction,
                         enable_verification=loop_control.enable_compaction_verification,
                     )
         except Exception as exc:
@@ -179,6 +185,7 @@ class SessionCompactionMixin:
                     result = await compactor.compact(
                         trimmed,
                         compaction_client,
+                        custom_instruction=custom_instruction,
                         enable_verification=loop_control.enable_compaction_verification,
                     )
                 except Exception as exc2:

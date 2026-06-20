@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 set -euo pipefail
 
@@ -267,11 +267,17 @@ scp_base_cmd() {
 
 run_remote_script() {
   local script_content="$1"
-  local ssh_cmd
-  ssh_cmd="$(ssh_base_cmd)"
-  eval "${ssh_cmd}" <<EOF
+  if [ -n "${SSH_KEY_PATH:-}" ]; then
+    ssh -i "${SSH_KEY_PATH}" -p "${SERVER_PORT}" -o StrictHostKeyChecking=no \
+      "${SERVER_USER}@${SERVER_IP}" <<EOF
 ${script_content}
 EOF
+  else
+    sshpass -p "${SERVER_PASS}" ssh -p "${SERVER_PORT}" -o StrictHostKeyChecking=no \
+      "${SERVER_USER}@${SERVER_IP}" <<EOF
+${script_content}
+EOF
+  fi
 }
 
 run_remote_command() {
@@ -287,17 +293,27 @@ EOF
 }
 
 open_remote_shell() {
-  local ssh_cmd
-  ssh_cmd="$(ssh_base_cmd)"
-  eval "${ssh_cmd}" -t "export PATH=\$HOME/.local/bin:\$PATH && cd ${REMOTE_DIR} && exec \${SHELL:-/bin/bash} -l"
+  if [ -n "${SSH_KEY_PATH:-}" ]; then
+    ssh -i "${SSH_KEY_PATH}" -p "${SERVER_PORT}" -o StrictHostKeyChecking=no \
+      -t "${SERVER_USER}@${SERVER_IP}" \
+      "export PATH=\$HOME/.local/bin:\$PATH && cd ${REMOTE_DIR} && exec \${SHELL:-/bin/bash} -l"
+  else
+    sshpass -p "${SERVER_PASS}" ssh -p "${SERVER_PORT}" -o StrictHostKeyChecking=no \
+      -t "${SERVER_USER}@${SERVER_IP}" \
+      "export PATH=\$HOME/.local/bin:\$PATH && cd ${REMOTE_DIR} && exec \${SHELL:-/bin/bash} -l"
+  fi
 }
 
 copy_to_remote() {
   local local_path="$1"
   local remote_path="$2"
-  local scp_cmd
-  scp_cmd="$(scp_base_cmd)"
-  eval "${scp_cmd}" "${local_path}" "${SERVER_USER}@${SERVER_IP}:${remote_path}"
+  if [ -n "${SSH_KEY_PATH:-}" ]; then
+    scp -i "${SSH_KEY_PATH}" -P "${SERVER_PORT}" -o StrictHostKeyChecking=no \
+      "${local_path}" "${SERVER_USER}@${SERVER_IP}:${remote_path}"
+  else
+    sshpass -p "${SERVER_PASS}" scp -P "${SERVER_PORT}" -o StrictHostKeyChecking=no \
+      "${local_path}" "${SERVER_USER}@${SERVER_IP}:${remote_path}"
+  fi
 }
 
 prepare_frontend_dist() {

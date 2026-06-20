@@ -68,7 +68,7 @@ function SubagentMetricBar({
   return (
     <div className="flex items-center gap-1 flex-wrap">
       {items.map((item, i) => (
-        <div key={i} className="flex items-center gap-1 text-[11px]">
+        <div key={item.label} className="flex items-center gap-1 text-[11px]">
           {i > 0 && <span className="text-muted-foreground/30 mx-1">|</span>}
           <span className="text-muted-foreground/60">{item.label}</span>
           <span className={cn("font-semibold tabular-nums", item.color || "text-foreground")}>{item.value}</span>

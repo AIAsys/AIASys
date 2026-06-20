@@ -24,6 +24,7 @@ from app.capabilities.providers.base import CapabilityProvider, CapabilityProvid
 from app.skills import get_skill_manager
 from app.skills.models import SkillMetaInfo
 from app.skills.skill_fingerprint import META_FILE_NAME, compute_directory_fingerprint
+from app.utils.path_utils import as_system_path
 
 logger = logging.getLogger(__name__)
 
@@ -99,18 +100,18 @@ class SkillProvider(CapabilityProvider):
 
         tmp_path = dest.parent / f".{dest.name}.install.{uuid.uuid4().hex[:8]}"
         if tmp_path.exists():
-            shutil.rmtree(tmp_path, ignore_errors=True)
+            shutil.rmtree(as_system_path(str(tmp_path)), ignore_errors=True)
 
         try:
             dest.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copytree(source_dir.resolve(), tmp_path)
+            shutil.copytree(as_system_path(str(source_dir.resolve())), as_system_path(str(tmp_path)))
             if config:
                 self._write_skill_config(cap_id, tmp_path, config)
             else:
                 self._init_config_from_example(tmp_path)
         except Exception as exc:
             if tmp_path.exists():
-                shutil.rmtree(tmp_path, ignore_errors=True)
+                shutil.rmtree(as_system_path(str(tmp_path)), ignore_errors=True)
             return InstallResult(
                 success=False,
                 capability_id=cap_id,
@@ -121,7 +122,7 @@ class SkillProvider(CapabilityProvider):
         if dest.is_symlink():
             dest.unlink()
         elif dest.is_dir():
-            shutil.rmtree(dest)
+            shutil.rmtree(as_system_path(str(dest)))
         elif dest.exists():
             dest.unlink()
         tmp_path.rename(dest)
@@ -261,19 +262,19 @@ class SkillProvider(CapabilityProvider):
         json_example = skill_dir / "config.example.json"
         json_config = skill_dir / "config.json"
         if json_example.exists() and not json_config.exists():
-            shutil.copy(json_example, json_config)
+            shutil.copy(as_system_path(str(json_example)), as_system_path(str(json_config)))
             return
 
         toml_example = skill_dir / "config.example.toml"
         toml_config = skill_dir / "config.toml"
         if toml_example.exists() and not toml_config.exists():
-            shutil.copy(toml_example, toml_config)
+            shutil.copy(as_system_path(str(toml_example)), as_system_path(str(toml_config)))
             return
 
         yaml_example = skill_dir / "config.example.yaml"
         yaml_config = skill_dir / "config.yaml"
         if yaml_example.exists() and not yaml_config.exists():
-            shutil.copy(yaml_example, yaml_config)
+            shutil.copy(as_system_path(str(yaml_example)), as_system_path(str(yaml_config)))
 
     def _write_skill_meta(
         self,

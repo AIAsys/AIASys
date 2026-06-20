@@ -2,8 +2,9 @@
 # 运行方式（管理员非必须）：
 #   powershell -ExecutionPolicy Bypass -File verify-windows-shell-env.ps1
 #
-# 作用：检测当前 Windows 上 Git Bash / WSL / busybox-w32 / PowerShell / CMD / Git 的可用性，
+# 作用：检测当前 Windows 上 Git Bash / WSL / busybox-w32 / PowerShell / Git 的可用性，
 #       并尝试运行 busybox-w32 的一个简单命令，验证 fallback 是否可行。
+# 注意：AGENTS.md 已明确禁用 cmd.exe 作为 ShellExecutor 解释器，因此本脚本不再检测或推荐 CMD。
 
 param(
     [string]$BusyboxPath = "$env:LOCALAPPDATA\aiasys\tools\busybox-w32\busybox.exe"
@@ -49,7 +50,6 @@ $results = [ordered]@{
     git      = (Test-CommandAvailable git)
     pwsh     = (Test-CommandAvailable pwsh)
     powershell = (Test-CommandAvailable powershell)
-    cmd      = (Test-CommandAvailable cmd)
 }
 
 Write-Host "=== AIASys Windows Shell 环境检测结果 ===" -ForegroundColor Cyan
@@ -64,7 +64,7 @@ foreach ($name in $results.Keys) {
     }
 }
 
-# 推荐层级（与 ShellExecutor 一致）：Git Bash -> WSL -> busybox -> PowerShell -> CMD
+# 推荐层级（与 ShellExecutor 一致）：Git Bash -> WSL -> busybox -> PowerShell；禁用 CMD 兜底。
 $recommended = $null
 if ($results.git_bash.available) {
     $recommended = "Git Bash (posix)"
@@ -77,9 +77,10 @@ if ($results.git_bash.available) {
 } elseif ($results.powershell.available) {
     $recommended = "PowerShell"
 } else {
-    $recommended = "CMD"
+    $recommended = "无（请安装 Git for Windows、WSL、busybox-w32 或确保 PowerShell 在 PATH 中）"
 }
-Write-Host "`n推荐 Shell: $recommended" -ForegroundColor Green
+$recColor = if ($recommended -like "无*") { "Red" } else { "Green" }
+Write-Host "`n推荐 Shell: $recommended" -ForegroundColor $recColor
 
 if (Test-Path $BusyboxPath) {
     Write-Host "`n正在测试 busybox-w32 ($BusyboxPath) ..." -ForegroundColor Cyan

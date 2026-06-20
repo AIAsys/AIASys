@@ -61,7 +61,7 @@ class QueryEntityRelations(AiasysTool):
             from .graphrag_tool import get_graphrag_service_for_tools
 
             service = get_graphrag_service_for_tools(base_id)
-            entity, relations = service.graph_store.get_entity_relations(
+            entity, relations = await service.graph_store.get_entity_relations(
                 entity_name=params.entity_name.strip(),
                 relation_type=params.relation_type,
                 direction=params.direction,

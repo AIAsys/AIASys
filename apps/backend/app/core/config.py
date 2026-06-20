@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 from app.core.runtime_storage_config import read_runtime_storage_paths
+from app.utils.path_utils import as_system_path
 
 # 项目根目录
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
@@ -43,7 +44,7 @@ def _load_config() -> Dict[str, Any]:
             f"配置文件不存在: {toml_path}\n请复制 config.example.toml 为 config.toml 并填写配置"
         )
 
-    with open(toml_path, "rb") as f:
+    with open(as_system_path(str(toml_path)), "rb") as f:
         return tomllib.load(f)
 
 
@@ -198,7 +199,7 @@ def _load_app_version() -> str:
     frontend_package_path = BASE_DIR.parent / "web" / "package.json"
     if frontend_package_path.exists():
         try:
-            with open(frontend_package_path, "r", encoding="utf-8") as f:
+            with open(as_system_path(str(frontend_package_path)), "r", encoding="utf-8") as f:
                 data = json.load(f)
             version = data.get("version")
             if isinstance(version, str) and version.strip():
@@ -209,7 +210,7 @@ def _load_app_version() -> str:
     pyproject_path = BASE_DIR / "pyproject.toml"
     if pyproject_path.exists():
         try:
-            with open(pyproject_path, "rb") as f:
+            with open(as_system_path(str(pyproject_path)), "rb") as f:
                 data = tomllib.load(f)
             version = data.get("project", {}).get("version")
             if isinstance(version, str) and version.strip():
@@ -229,8 +230,8 @@ LOG_LEVEL = _get_config("server.log_level", "info")
 
 # LLM 配置
 LLM_CONFIG = _get_config("llm", {})
-DEFAULT_MODEL = _get_config("llm.default_model", "kimi-for-coding")
-DEFAULT_PROVIDER = _get_config("llm.default_provider", "kimi")
+DEFAULT_MODEL = _get_config("llm.default_model", "step-3.7-flash")
+DEFAULT_PROVIDER = _get_config("llm.default_provider", "stepfun")
 LLM_PROVIDERS = _get_config("llm.providers", {})
 
 # 文档提取配置
@@ -326,10 +327,17 @@ def is_sandbox_mode_enabled(mode: str) -> bool:
 AUTH_CONFIG_DATA = _get_config("auth", {})
 AUTH_MODE = AUTH_CONFIG_DATA.get("mode", "local")
 JWT_SECRET = AUTH_CONFIG_DATA.get("jwt_secret")
+_DEFAULT_JWT_PLACEHOLDERS = {"your-secret-key-change-in-production", "your-secret-key"}
 if not JWT_SECRET:
     raise RuntimeError(
         "auth.jwt_secret 未配置。"
         "生产环境请在 config.toml 中设置 jwt_secret 或使用 AIASYS_AUTH_JWT_SECRET 环境变量覆盖。"
+    )
+if JWT_SECRET in _DEFAULT_JWT_PLACEHOLDERS:
+    raise RuntimeError(
+        f"auth.jwt_secret 使用了不安全的默认占位值。"
+        f"请生成一个安全的随机密钥，例如：python3 -c \"import secrets; print(secrets.token_hex(32))\"，"
+        f"并在 config.toml 中设置 jwt_secret 或使用 AIASYS_AUTH_JWT_SECRET 环境变量覆盖。"
     )
 CORS_ORIGINS = _get_config("server.cors_origins", [])
 

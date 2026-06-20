@@ -38,6 +38,7 @@ from app.models.workspace import (
     CreateConversationRequest,
     CreateWorkspaceRequest,
     DeleteWorkspaceResponse,
+    FolderImportPreviewRequest,
     FolderImportPreviewResponse,
     FolderImportTreeItem,
     OrphanConversationCleanupResponse,
@@ -559,11 +560,11 @@ async def upload_import_folder(
 
 @router.post("/import-folder-preview", response_model=FolderImportPreviewResponse)
 async def preview_import_folder(
-    request: dict[str, Any],
+    request: FolderImportPreviewRequest,
     current_user: UserInfo = Depends(require_auth()),
 ):
     """扫描本地文件夹并返回文件树，用于导入前预览。"""
-    source_path_str = request.get("source_path")
+    source_path_str = request.source_path
     if not source_path_str:
         raise HTTPException(status_code=400, detail="缺少 source_path")
 

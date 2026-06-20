@@ -34,6 +34,10 @@ class RegenerateMemorySummaryRequest(BaseModel):
     workspace_id: str | None = None
 
 
+class MemorySummaryResponse(BaseModel):
+    content: str
+
+
 class MemoryPipelineJobStatus(BaseModel):
     kind: str
     job_key: str

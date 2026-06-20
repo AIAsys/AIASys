@@ -11,6 +11,8 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any
 
+from app.utils.path_utils import as_system_path
+
 from app.core.templates import (
     _get_user_templates_dir,
     _is_safe_template_id,
@@ -197,9 +199,9 @@ class AIASysBuiltinTemplateAdapter(ExternalTemplateMarketAdapter):
 
         if target_dir.exists():
             # 已存在则覆盖（先删除旧目录再复制）
-            shutil.rmtree(target_dir)
+            shutil.rmtree(as_system_path(str(target_dir)))
 
-        shutil.copytree(source_dir, target_dir)
+        shutil.copytree(as_system_path(str(source_dir)), as_system_path(str(target_dir)))
         logger.info("内置模板已安装到用户目录: %s -> %s", source_dir, target_dir)
 
         return {"installed": True, "template_id": item_id}

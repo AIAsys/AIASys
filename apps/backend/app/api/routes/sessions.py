@@ -31,6 +31,7 @@ from app.services.workspace_registry import get_workspace_registry_service
 from .sessions_models import (
     BudgetResponse,
     SetSessionBudgetRequest,
+    SuccessResponse,
     TokenStatsResponse,
 )
 
@@ -283,7 +284,7 @@ router = APIRouter(tags=["sessions"])
 router.include_router(sessions_monitor_router)
 
 
-@router.put("/{user_id}/{session_id}/budget")
+@router.put("/{user_id}/{session_id}/budget", response_model=SuccessResponse)
 async def set_session_budget(
     user_id: str,
     session_id: str,
@@ -291,6 +292,8 @@ async def set_session_budget(
     user: UserInfo = Depends(require_auth()),
 ):
     """设置 session 级独立预算。"""
+    if not user.can_access_user_data(user_id):
+        raise HTTPException(status_code=403, detail="Access denied")
     metadata_obj = session_manager.get_session(session_id, user_id)
     if metadata_obj is None:
         raise HTTPException(status_code=404, detail="会话不存在")
@@ -318,13 +321,15 @@ async def set_session_budget(
     return {"success": True}
 
 
-@router.delete("/{user_id}/{session_id}/budget")
+@router.delete("/{user_id}/{session_id}/budget", response_model=SuccessResponse)
 async def clear_session_budget(
     user_id: str,
     session_id: str,
     user: UserInfo = Depends(require_auth()),
 ):
     """关闭 session 级预算控制。"""
+    if not user.can_access_user_data(user_id):
+        raise HTTPException(status_code=403, detail="Access denied")
     metadata_obj = session_manager.get_session(session_id, user_id)
     if metadata_obj is None:
         raise HTTPException(status_code=404, detail="会话不存在")
@@ -348,6 +353,8 @@ async def get_session_budget(
     user: UserInfo = Depends(require_auth()),
 ):
     """查询 session 级预算状态。"""
+    if not user.can_access_user_data(user_id):
+        raise HTTPException(status_code=403, detail="Access denied")
     metadata_obj = session_manager.get_session(session_id, user_id)
     if metadata_obj is None:
         raise HTTPException(status_code=404, detail="会话不存在")
@@ -372,6 +379,8 @@ async def get_session_token_stats(
     user: UserInfo = Depends(require_auth()),
 ):
     """查询 session 级 Token 监控数据（上下文占用/预算/上轮消耗）。"""
+    if not user.can_access_user_data(user_id):
+        raise HTTPException(status_code=403, detail="Access denied")
     metadata_obj = session_manager.get_session(session_id, user_id)
     if metadata_obj is None:
         raise HTTPException(status_code=404, detail="会话不存在")

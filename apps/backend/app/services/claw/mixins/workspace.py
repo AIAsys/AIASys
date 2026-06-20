@@ -8,6 +8,8 @@ import re
 import shutil
 from pathlib import Path
 
+from app.utils.path_utils import as_system_path
+
 from app.models.claw import ClawAttachmentSummary
 
 from ._common import (
@@ -50,7 +52,7 @@ class ClawWorkspaceMixin:
         message_token = re.sub(r"[^\w.-]+", "_", message_id or "message") or "message"
         target_name = f"{message_token}-{index + 1:02d}-{safe_name}"
         target_path = target_dir / target_name
-        shutil.copy2(source, target_path)
+        shutil.copy2(as_system_path(str(source)), as_system_path(str(target_path)))
         relative_path = target_path.relative_to(
             self._get_effective_workspace_root(user_id, session_id)
         ).as_posix()

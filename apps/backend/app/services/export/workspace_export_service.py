@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import io
 import json
+import os
 import zipfile
 from datetime import datetime
 from fnmatch import fnmatch
@@ -15,6 +16,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 from app.core.config import WORKSPACE_DIR
+from app.utils.path_utils import as_system_path
 
 DEFAULT_EXPORT_EXCLUDE_PATTERNS: list[str] = [
     # 运行时状态
@@ -67,10 +69,10 @@ _EXPORTIGNORE_FILENAME = ".exportignore"
 def _load_exportignore(workspace_dir: Path) -> list[str]:
     """读取 .aiasys/.exportignore 中的用户自定义排除规则。"""
     path = workspace_dir / ".aiasys" / _EXPORTIGNORE_FILENAME
-    if not path.exists():
+    if not os.path.exists(as_system_path(path)):
         return []
     try:
-        lines = path.read_text(encoding="utf-8").splitlines()
+        lines = Path(as_system_path(path)).read_text(encoding="utf-8").splitlines()
         return [line.strip() for line in lines if line.strip() and not line.strip().startswith("#")]
     except Exception:
         return []
@@ -154,11 +156,11 @@ class WorkspaceExportService:
         """读取单个 session 的完整对话历史（history.json）。"""
         session_dir = self.workspace_root / user_id / session_id
         snapshot_path = session_dir / ".aiasys" / "session" / "_active" / "history.json"
-        if not snapshot_path.exists():
+        if not os.path.exists(as_system_path(snapshot_path)):
             return []
 
         try:
-            payload = json.loads(snapshot_path.read_text(encoding="utf-8"))
+            payload = json.loads(Path(as_system_path(snapshot_path)).read_text(encoding="utf-8"))
         except Exception:
             return []
 
@@ -210,7 +212,7 @@ class WorkspaceExportService:
         seen: set[str] = set()
 
         for file_path in workspace_dir.rglob("*"):
-            if not file_path.is_file():
+            if not os.path.isfile(as_system_path(file_path)):
                 continue
 
             relative = file_path.relative_to(workspace_dir).as_posix()
@@ -250,7 +252,7 @@ class WorkspaceExportService:
         返回 (zip_buffer, download_filename)。
         """
         workspace_dir = self._get_workspace_dir(user_id, workspace_id)
-        if not workspace_dir.exists():
+        if not os.path.exists(as_system_path(workspace_dir)):
             raise FileNotFoundError(f"工作区不存在: {user_id}/{workspace_id}")
 
         files, skipped_sensitive = self._collect_files(

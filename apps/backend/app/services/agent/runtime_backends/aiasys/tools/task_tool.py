@@ -40,6 +40,7 @@ from app.services.history import (
     current_user_id,
     current_workspace,
 )
+from app.utils.path_utils import as_system_path
 
 logger = logging.getLogger(__name__)
 
@@ -234,7 +235,7 @@ def _materialize_subagent_toml(
     # manifest 已经是 agent 段内容，需要包装为完整 TOML
     clean_manifest = {k: v for k, v in deepcopy(manifest).items() if v is not None}
     payload = {"version": 1, "agent": clean_manifest}
-    with open(path, "wb") as f:
+    with open(as_system_path(str(path)), "wb") as f:
         tomli_w.dump(payload, f)
     return path
 

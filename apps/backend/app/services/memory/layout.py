@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -11,6 +12,8 @@ from app.services.memory.constants import (
     RAW_MEMORIES_FILE_NAME,
     ROLLOUT_SUMMARIES_DIR_NAME,
 )
+from app.services.memory.store import MemoryStore
+from app.utils.path_utils import as_system_path
 
 
 @dataclass(frozen=True)
@@ -42,15 +45,13 @@ def ensure_memory_layout(root: Path) -> MemoryLayout:
 
     logger = logging.getLogger(__name__)
     layout = get_memory_layout(root)
-    layout.root.mkdir(parents=True, exist_ok=True)
-    layout.rollout_summaries.mkdir(parents=True, exist_ok=True)
-    if not layout.memory.exists():
-        logger.info("重建空的 memory 文件: %s", layout.memory)
-        layout.memory.write_text("", encoding="utf-8")
-    if not layout.summary.exists():
-        logger.info("重建空的 memory summary 文件: %s", layout.summary)
-        layout.summary.write_text("", encoding="utf-8")
-    if not layout.raw_memories.exists():
+    os.makedirs(as_system_path(layout.root), exist_ok=True)
+    os.makedirs(as_system_path(layout.rollout_summaries), exist_ok=True)
+    # memory/summary 走 MemoryStore，通过安全扫描与 Windows 长路径前缀
+    MemoryStore(layout.memory).initialize()
+    MemoryStore(layout.summary).initialize()
+    # raw_memories 是内部镜像，可跳过安全扫描路径
+    if not os.path.exists(as_system_path(layout.raw_memories)):
         logger.info("重建 raw memories 占位文件: %s", layout.raw_memories)
-        layout.raw_memories.write_text("# Raw Memories\n\nNo raw memories yet.\n", encoding="utf-8")
+        Path(as_system_path(layout.raw_memories)).write_text("# Raw Memories\n\nNo raw memories yet.\n", encoding="utf-8")
     return layout

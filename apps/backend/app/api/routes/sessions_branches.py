@@ -271,11 +271,11 @@ async def create_session(request: CreateSessionRequest, user: UserInfo = Depends
             message_count=metadata.message_count,
             code_timeout=metadata.code_timeout,
         )
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Operation failed")
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.error(f"创建会话失败: {e}")
-        raise HTTPException(status_code=500, detail="Failed to create session")
+        raise HTTPException(status_code=500, detail="Failed to create session") from e
 
 
 @router.get("/status/{session_id}")
@@ -352,7 +352,7 @@ async def get_session_status(
         raise
     except Exception as e:
         logger.error(f"获取会话状态失败: {e}")
-        raise HTTPException(status_code=500, detail="Failed to get session status")
+        raise HTTPException(status_code=500, detail="Failed to get session status") from e
 
 
 @router.get("/workspace-summary/{session_id}")
@@ -447,7 +447,7 @@ async def get_session_workspace_summary(
         raise
     except Exception as e:
         logger.error(f"获取工作区摘要失败: {e}")
-        raise HTTPException(status_code=500, detail="Failed to get workspace summary")
+        raise HTTPException(status_code=500, detail="Failed to get workspace summary") from e
 
 
 def _resolve_actual_session_user(
@@ -846,7 +846,7 @@ async def get_session(
         raise
     except Exception as e:
         logger.error(f"获取会话失败: {e}")
-        raise HTTPException(status_code=500, detail="Operation failed")
+        raise HTTPException(status_code=500, detail="Operation failed") from e
 
 
 @router.get("/{user_id}/{session_id}/metadata")
@@ -961,9 +961,9 @@ async def update_session_llm_selection(
             model_id=request.model_id,
         )
     except FileNotFoundError as exc:
-        raise HTTPException(status_code=404, detail="Operation failed") from exc
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail="Operation failed") from exc
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.post("/{user_id}/{session_id}/title")

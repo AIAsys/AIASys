@@ -161,7 +161,7 @@ export function useUserProfile() {
   }, []);
 
   const reloadProfileContext = useCallback(() => {
-    window.location.reload();
+    window.location.href = "/profile";
   }, []);
 
   return {

@@ -15,8 +15,8 @@ export function SurfacesSection({ isAuthenticated }: SurfacesSectionProps) {
       id="surfaces"
       className="scroll-mt-28 relative overflow-hidden px-4 py-24 sm:px-6 lg:px-8"
     >
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(15,23,42,0.08),transparent_28%),linear-gradient(180deg,#fffdf8_0%,#ffffff_54%,#f8fafc_100%)]" />
-      <div className="absolute inset-0 opacity-20 [background-image:linear-gradient(to_right,rgba(15,23,42,0.05)_1px,transparent_1px),linear-gradient(to_bottom,rgba(15,23,42,0.05)_1px,transparent_1px)] [background-size:88px_88px]" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(15,23,42,0.08),transparent_28%),linear-gradient(180deg,#fffdf8_0%,#ffffff_54%,#f8fafc_100%)] dark:bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.06),transparent_28%),linear-gradient(180deg,oklch(0.205_0.015_255)_0%,oklch(0.25_0.01_260)_54%,oklch(0.205_0.015_255)_100%)]" />
+      <div className="absolute inset-0 opacity-20 [background-image:linear-gradient(to_right,rgba(15,23,42,0.05)_1px,transparent_1px),linear-gradient(to_bottom,rgba(15,23,42,0.05)_1px,transparent_1px)] dark:[background-image:linear-gradient(to_right,rgba(255,255,255,0.05)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.05)_1px,transparent_1px)] [background-size:88px_88px]" />
 
       <div className="relative mx-auto max-w-7xl">
         <div className="grid gap-8 lg:grid-cols-[minmax(0,0.86fr)_minmax(0,1.14fr)] lg:items-end">
@@ -26,7 +26,7 @@ export function SurfacesSection({ isAuthenticated }: SurfacesSectionProps) {
             "首页更应该先告诉你这套产品能帮你做什么。下面这几块分别对应分析任务、资料整理和知识探索，方便你判断从哪里开始最合适。",
           )}
 
-          <div className="rounded-[2rem] border border-foreground/8 bg-white/78 p-6 shadow-[0_34px_72px_-54px_rgba(15,23,42,0.34)] backdrop-blur-sm sm:p-7">
+          <div className="rounded-[2rem] border border-foreground/8 bg-white/78 dark:bg-gray-900/78 p-6 shadow-[0_34px_72px_-54px_rgba(15,23,42,0.34)] backdrop-blur-sm sm:p-7">
             <div className="text-[11px] font-mono tracking-[0.2em] text-muted-foreground">
               先帮你判断
             </div>
@@ -54,7 +54,7 @@ export function SurfacesSection({ isAuthenticated }: SurfacesSectionProps) {
           {surfacePreviewCards.map((card) => (
             <Card
               key={card.title}
-              className="overflow-hidden rounded-[1.5rem] sm:rounded-[2rem] border border-foreground/8 bg-white/80 shadow-[0_40px_84px_-60px_rgba(15,23,42,0.38)] backdrop-blur-sm"
+              className="overflow-hidden rounded-[1.5rem] sm:rounded-[2rem] border border-foreground/8 bg-white/80 dark:bg-gray-900/80 shadow-[0_40px_84px_-60px_rgba(15,23,42,0.38)] backdrop-blur-sm"
             >
               <CardContent className="p-4 sm:p-6">
                 <div className="flex items-center justify-between">
@@ -73,7 +73,7 @@ export function SurfacesSection({ isAuthenticated }: SurfacesSectionProps) {
                   {card.summary}
                 </p>
 
-                <div className="mt-4 sm:mt-5 rounded-[1.2rem] sm:rounded-[1.6rem] border border-foreground/8 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] p-2.5 sm:p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]">
+                <div className="mt-4 sm:mt-5 rounded-[1.2rem] sm:rounded-[1.6rem] border border-foreground/8 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] dark:bg-[linear-gradient(180deg,oklch(0.25_0.01_260)_0%,oklch(0.205_0.015_255)_100%)] p-2.5 sm:p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
                   {renderSurfacePreview(card.kind)}
                 </div>
 
@@ -81,7 +81,7 @@ export function SurfacesSection({ isAuthenticated }: SurfacesSectionProps) {
                   {card.bullets.map((bullet) => (
                     <div
                       key={bullet}
-                      className="rounded-[1rem] sm:rounded-[1.2rem] border border-foreground/8 bg-muted/80 px-3 py-2 sm:px-4 sm:py-2.5 text-xs sm:text-sm leading-5 sm:leading-6 text-muted-foreground"
+                      className="rounded-[1rem] sm:rounded-[1.2rem] border border-foreground/8 bg-muted/80 dark:bg-gray-800/80 px-3 py-2 sm:px-4 sm:py-2.5 text-xs sm:text-sm leading-5 sm:leading-6 text-muted-foreground"
                     >
                       {bullet}
                     </div>
@@ -92,7 +92,7 @@ export function SurfacesSection({ isAuthenticated }: SurfacesSectionProps) {
                   type="button"
                   variant="outline"
                   size="sm"
-                  className="mt-4 sm:mt-5 w-full rounded-full border-foreground/12 bg-white/80 text-foreground hover:bg-muted"
+                  className="mt-4 sm:mt-5 w-full rounded-full border-foreground/12 bg-white/80 dark:bg-gray-800/80 text-foreground hover:bg-muted dark:hover:bg-gray-700"
                   onClick={() => card.onClick(isAuthenticated)}
                 >
                   {card.actionLabel}

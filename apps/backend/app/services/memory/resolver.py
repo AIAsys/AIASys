@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import os
 import threading
 import time
 from pathlib import Path
@@ -23,6 +24,7 @@ from app.services.memory.models import (
     ResolvedMemoryPreview,
 )
 from app.services.memory.store import MemoryStore
+from app.utils.path_utils import as_system_path
 
 logger = logging.getLogger(__name__)
 
@@ -167,7 +169,7 @@ class MemoryResolver:
                 hasher.update(b"\x00")
                 continue
             try:
-                stat = store.file_path.stat()
+                stat = os.stat(as_system_path(store.file_path))
                 hasher.update(struct.pack(">Q", stat.st_mtime_ns))
                 hasher.update(struct.pack(">Q", stat.st_size))
             except OSError:
@@ -202,14 +204,14 @@ def get_user_memory_file_path(user_dir: Path) -> Path:
 def get_workspace_memory_file_path(workspace_dir: Path) -> Path:
     """工作区 Memory 本地路径：{workspace}/.aiasys/memory/workspace_memory.md"""
     local_path = workspace_dir / ".aiasys" / "memory" / "workspace_memory.md"
-    local_path.parent.mkdir(parents=True, exist_ok=True)
+    os.makedirs(as_system_path(local_path.parent), exist_ok=True)
     return local_path
 
 
 def get_workspace_memory_summary_file_path(workspace_dir: Path) -> Path:
     """工作区 Memory Summary 本地路径：{workspace}/.aiasys/memory/workspace_memory_summary.md"""
     local_path = workspace_dir / ".aiasys" / "memory" / "workspace_memory_summary.md"
-    local_path.parent.mkdir(parents=True, exist_ok=True)
+    os.makedirs(as_system_path(local_path.parent), exist_ok=True)
     return local_path
 
 
@@ -227,7 +229,7 @@ def _get_memory_summary_path_if_exists(
 ) -> Path | None:
     """返回 summary 文件路径；如果不存在则返回 None。"""
     summary_path = get_user_memory_summary_path(user_dir)
-    if summary_path.exists():
+    if os.path.exists(as_system_path(summary_path)):
         return summary_path
     return None
 
@@ -371,7 +373,7 @@ def persist_memory_preview_snapshot(
     store.save_snapshot(snapshot)
 
     mirror_dir = get_memory_snapshot_mirror_dir(Path(session_dir))
-    mirror_dir.mkdir(parents=True, exist_ok=True)
+    os.makedirs(as_system_path(mirror_dir), exist_ok=True)
     mirror_path = mirror_dir / f"{snapshot.id}.md"
-    mirror_path.write_text(preview.rendered_markdown, encoding="utf-8")
+    Path(as_system_path(mirror_path)).write_text(preview.rendered_markdown, encoding="utf-8")
     return snapshot

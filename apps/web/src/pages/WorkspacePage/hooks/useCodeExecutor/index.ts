@@ -216,8 +216,9 @@ export function useCodeExecutor({
     tokens_after?: number;
     saved_tokens?: number;
     summary_tokens?: number;
-    clearTimer?: ReturnType<typeof setTimeout>;
   } | null>(null);
+
+  const compactionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleCompactionEvent = useCallback(
     (payload: {
@@ -227,25 +228,33 @@ export function useCodeExecutor({
       saved_tokens?: number;
       summary_tokens?: number;
     }) => {
+      // Clear any pending auto-dismiss timer
+      if (compactionTimerRef.current) {
+        clearTimeout(compactionTimerRef.current);
+        compactionTimerRef.current = null;
+      }
       if (payload.phase === "begin") {
-        setCompactionState((prev) => {
-          if (prev?.clearTimer) clearTimeout(prev.clearTimer);
-          return { ...payload, phase: "begin" };
-        });
+        setCompactionState({ ...payload, phase: "begin" });
         return;
       }
       // done: 刷新 token 占用数据，并短暂展示结果
       refreshTokenUsage();
-      setCompactionState((prev) => {
-        if (prev?.clearTimer) clearTimeout(prev.clearTimer);
-        const clearTimer = setTimeout(() => {
-          setCompactionState(null);
-        }, 3000);
-        return { ...payload, phase: "done", clearTimer };
-      });
+      setCompactionState({ ...payload, phase: "done" });
+      compactionTimerRef.current = setTimeout(() => {
+        setCompactionState(null);
+        compactionTimerRef.current = null;
+      }, 3000);
     },
     [refreshTokenUsage],
   );
+
+  useEffect(() => {
+    return () => {
+      if (compactionTimerRef.current) {
+        clearTimeout(compactionTimerRef.current);
+      }
+    };
+  }, []);
 
   const shouldAutoSyncVisibleSessionArtifacts = Boolean(
     initialSessionId ||

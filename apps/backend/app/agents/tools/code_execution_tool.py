@@ -17,6 +17,7 @@ from pydantic import BaseModel, Field
 from app.core.agent_tool import AiasysTool
 from app.core.tool_result import ToolResult
 from app.services.history import current_session_id, current_workspace
+from app.utils.path_utils import as_system_path
 
 
 class RunCodeParams(BaseModel):
@@ -228,7 +229,7 @@ class RegisterKernelEnv(AiasysTool):
         finally:
             ksm.ensure_native_kernel = save_native
         if name in existing_specs:
-            shutil.rmtree(existing_specs[name])
+            shutil.rmtree(as_system_path(str(existing_specs[name])))
 
         kernel_json = {
             "argv": [
@@ -249,7 +250,7 @@ class RegisterKernelEnv(AiasysTool):
                 json.dump(kernel_json, f, indent=1, ensure_ascii=False)
             dest = ksm.install_kernel_spec(tmp_dir, kernel_name=name, user=True)
         finally:
-            shutil.rmtree(tmp_dir)
+            shutil.rmtree(as_system_path(str(tmp_dir)))
 
         return ToolResult(
             content=json.dumps(

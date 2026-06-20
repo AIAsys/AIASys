@@ -107,14 +107,14 @@ export const CanvasPropertiesPanel: React.FC<CanvasPropertiesPanelProps> = ({
 
   return (
     <aside
-      className="absolute right-14 top-3 z-40 flex max-h-[calc(100%-1.5rem)] w-[320px] flex-col overflow-hidden rounded-xl border border-slate-200 bg-white/95 text-slate-900 shadow-xl backdrop-blur"
+      className="absolute right-14 top-3 z-40 flex max-h-[calc(100%-1.5rem)] w-[320px] flex-col overflow-hidden rounded-xl border border-slate-200 dark:border-gray-700 bg-white/95 dark:bg-gray-900/95 text-slate-900 dark:text-gray-100 shadow-xl backdrop-blur"
       data-testid="canvas-properties-panel"
       onPointerDown={(event) => event.stopPropagation()}
       onDoubleClick={(event) => event.stopPropagation()}
     >
-      <div className="flex items-center justify-between border-b border-slate-100 px-3 py-2.5">
+      <div className="flex items-center justify-between border-b border-slate-100 dark:border-gray-800 px-3 py-2.5">
         <div className="flex min-w-0 items-center gap-2">
-          <PanelRight className="h-4 w-4 shrink-0 text-slate-500" />
+          <PanelRight className="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" />
           <div className="min-w-0">
             <div className="truncate text-sm font-semibold">
               {selectedNode
@@ -124,7 +124,7 @@ export const CanvasPropertiesPanel: React.FC<CanvasPropertiesPanelProps> = ({
                     "节点"
                 : selectedEdge?.label || "连线"}
             </div>
-            <div className="mt-0.5 text-[11px] text-slate-500">
+            <div className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">
               {selectedNode ? "节点属性" : "连线属性"}
             </div>
           </div>

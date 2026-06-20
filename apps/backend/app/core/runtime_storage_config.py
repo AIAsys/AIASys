@@ -46,7 +46,7 @@ def read_runtime_storage_paths(config_root: Path) -> dict[str, str]:
         return {}
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
-    except Exception:
+    except (json.JSONDecodeError, OSError):
         return {}
     if not isinstance(payload, dict):
         return {}

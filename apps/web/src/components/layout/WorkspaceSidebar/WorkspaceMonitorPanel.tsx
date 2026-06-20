@@ -346,6 +346,7 @@ export function WorkspaceMonitorPanel({ userId, sessionId }: WorkspaceMonitorPan
 
           {loading && monitors.length === 0 ? (
             <div className="space-y-3">
+              {/* key={i} is safe — static skeleton array, never reorders */}
               {[1, 2, 3].map((i) => (
                 <div key={i} className="rounded-xl border border-border/60 bg-card p-3">
                   <Skeleton className="h-4 w-3/4 mb-2" />
@@ -540,7 +541,7 @@ export function WorkspaceMonitorPanel({ userId, sessionId }: WorkspaceMonitorPan
                     >
                       <div className="font-mono text-[11px] leading-4 text-muted-foreground">
                         {m.segments.slice(-5).map((s, i) => (
-                          <div key={i} className="truncate">
+                          <div key={`${s.index}-${i}`} className="truncate">
                             {s.is_stderr ? (
                               <span className="text-error/70">{s.content || " "}</span>
                             ) : (
@@ -591,7 +592,7 @@ export function WorkspaceMonitorPanel({ userId, sessionId }: WorkspaceMonitorPan
                                 <div key={s.index} className="whitespace-pre-wrap">
                                   {parts.map((part, i) => (
                                     <span
-                                      key={i}
+                                      key={`${s.index}-${i}`}
                                       className={cn(part.className, s.is_stderr && "bg-red-950/30")}
                                       style={part.color ? { color: part.color } : undefined}
                                     >

@@ -233,5 +233,6 @@ def create_llm_client_direct(
         )
         client = create_llm_client(runtime_provider, model)
         return GraphRAGLLMClient(client, model)
-    except Exception:
+    except Exception as e:
+        logger.warning("Failed to create GraphRAG LLM client: %s", e, exc_info=True)
         return None

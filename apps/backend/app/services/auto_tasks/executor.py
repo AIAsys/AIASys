@@ -75,6 +75,28 @@ async def _execute_loop_mode(
         if task.task_category == TaskCategory.continuous:
             _prepare_auto_task_signal(task, task.bind_session_id)
 
+        # 如果绑定的会话当前正被用户 SSE 流占用，scheduled 任务 fallback 到独立 session 执行，
+        # 避免与活跃流死锁；continuous 任务仍等待下次轮询。
+        if agent_service.is_session_busy(task.user_id, task.bind_session_id):
+            if task.task_category == TaskCategory.scheduled:
+                logger.info(
+                    "绑定 session 正在执行中，scheduled 任务 fallback 到独立 session: task=%s session=%s",
+                    task.task_id,
+                    task.bind_session_id,
+                )
+                return await _execute_standalone_mode(task, origin, manual_run)
+            logger.info(
+                "绑定 session 正在执行中，跳过本次触发: task=%s session=%s",
+                task.task_id,
+                task.bind_session_id,
+            )
+            return {
+                "mode": "loop",
+                "session_id": task.bind_session_id,
+                "executed": False,
+                "execution_reason": "bound_session_busy",
+            }
+
         logger.info(
             "Loop/continuous 模式执行: task=%s session=%s workspace=%s origin=%s manual=%s category=%s",
             task.task_id,

@@ -332,7 +332,7 @@ async def get_session_execution_records(
         raise
     except Exception as e:
         logger.error(f"获取 execution journal 失败: {e}")
-        raise HTTPException(status_code=500, detail="Operation failed")
+        raise HTTPException(status_code=500, detail="Operation failed") from e
 
 
 @router.post("/{user_id}/{session_id}/recovery-policy")
@@ -396,7 +396,7 @@ async def update_session_recovery_policy(
         raise
     except Exception as e:
         logger.error(f"更新恢复策略失败: {e}")
-        raise HTTPException(status_code=500, detail="Operation failed")
+        raise HTTPException(status_code=500, detail="Operation failed") from e
 
 
 @router.get("/{user_id}/{session_id}/recovery-policy")
@@ -436,7 +436,7 @@ async def get_session_recovery_policy(
         raise
     except Exception as e:
         logger.error(f"获取恢复策略失败: {e}")
-        raise HTTPException(status_code=500, detail="Operation failed")
+        raise HTTPException(status_code=500, detail="Operation failed") from e
 
 
 @router.post("/{user_id}/{session_id}/manual-replay")
@@ -552,7 +552,7 @@ async def manual_replay_session_records(
         raise
     except Exception as e:
         logger.error(f"手动重放 execution journal 失败: {e}")
-        raise HTTPException(status_code=500, detail="Operation failed")
+        raise HTTPException(status_code=500, detail="Operation failed") from e
 
 
 @router.post("/{user_id}/{session_id}/reset-history")
@@ -599,7 +599,7 @@ async def reset_session_history(
         raise
     except Exception as e:
         logger.error(f"重置会话历史失败: {e}")
-        raise HTTPException(status_code=500, detail="Operation failed")
+        raise HTTPException(status_code=500, detail="Operation failed") from e
 
 
 @router.post("/{user_id}/{session_id}/rewrite-from-message")
@@ -667,7 +667,7 @@ async def rewrite_session_from_message(
         raise HTTPException(status_code=400, detail=str(exc))
     except Exception as e:
         logger.error(f"重写会话消息失败: {e}")
-        raise HTTPException(status_code=500, detail="Operation failed")
+        raise HTTPException(status_code=500, detail="Operation failed") from e
 
 
 @router.post("/{user_id}/{session_id}/rebuild-runtime")
@@ -716,7 +716,7 @@ async def rebuild_session_runtime(
         raise
     except Exception as e:
         logger.error(f"重置代码运行态失败: {e}")
-        raise HTTPException(status_code=500, detail="Operation failed")
+        raise HTTPException(status_code=500, detail="Operation failed") from e
 
 
 @router.get("/history/{user_id}/{session_id}")
@@ -804,11 +804,8 @@ async def get_session_history(
             "oldest_loaded_index": oldest_loaded_index,
         }
     except Exception as e:
-        logger.error(f"获取历史失败: {e}")
-        import traceback
-
-        logger.error(traceback.format_exc())
-        raise HTTPException(status_code=500, detail="Operation failed")
+        logger.error(f"获取历史失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Operation failed") from e
 
 
 @router.get("/{user_id}/{session_id}/execution-tree")
@@ -918,7 +915,7 @@ async def get_execution_tree(
         return result
     except Exception as e:
         logger.error(f"获取执行树失败: {e}")
-        raise HTTPException(status_code=500, detail="Operation failed")
+        raise HTTPException(status_code=500, detail="Operation failed") from e
 
 
 @router.get("/{user_id}/{session_id}/host-events")
@@ -960,7 +957,7 @@ async def get_host_events(
         }
     except Exception as e:
         logger.error(f"获取 Host 事件失败: {e}")
-        raise HTTPException(status_code=500, detail="Operation failed")
+        raise HTTPException(status_code=500, detail="Operation failed") from e
 
 
 @router.get("/{user_id}/{session_id}/subagents")
@@ -1034,7 +1031,7 @@ async def list_subagents(
         }
     except Exception as e:
         logger.error(f"列出 Sub Agents 失败: {e}")
-        raise HTTPException(status_code=500, detail="Operation failed")
+        raise HTTPException(status_code=500, detail="Operation failed") from e
 
 
 @router.get("/{user_id}/{session_id}/subagents/{agent_id}")
@@ -1108,7 +1105,7 @@ async def get_subagent_detail(
         raise
     except Exception as e:
         logger.error(f"获取 Sub Agent 详情失败: {e}")
-        raise HTTPException(status_code=500, detail="Operation failed")
+        raise HTTPException(status_code=500, detail="Operation failed") from e
 
 
 # hosting-controller 只作为协作节点角色保留，不再提供单独控制端点。

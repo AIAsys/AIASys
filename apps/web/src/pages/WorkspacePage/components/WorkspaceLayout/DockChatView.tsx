@@ -197,7 +197,7 @@ export const DockChatView = memo(function DockChatView({
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => currentSessionId && window.location.reload()}
+                  onClick={() => currentSessionId && (window.location.href = window.location.pathname)}
                 >
                   重试
                 </Button>

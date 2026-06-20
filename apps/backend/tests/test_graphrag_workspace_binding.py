@@ -315,7 +315,7 @@ async def test_graphrag_service_refreshes_cached_graph_when_data_changes(
     )
 
     refreshed_health = await service.health_check()
-    visualization = service.get_visualization()
+    visualization = await service.get_visualization()
 
     assert refreshed_health["entities"] == 3
     assert refreshed_health["relations"] == 2

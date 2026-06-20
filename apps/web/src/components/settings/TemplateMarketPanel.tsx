@@ -106,6 +106,7 @@ export function TemplateMarketPanel() {
         {/* 模板卡片网格 */}
         {loadingItems ? (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {/* key={i} is safe — static skeleton array, never reorders */}
             {Array.from({ length: 6 }).map((_, i) => (
               <Skeleton key={i} className="h-32 rounded-lg" />
             ))}

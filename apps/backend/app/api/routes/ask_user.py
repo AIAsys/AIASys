@@ -100,8 +100,8 @@ async def resolve_ask_user(
 
     except HTTPException:
         raise
-    except Exception:
-        raise HTTPException(status_code=500, detail="Failed to process response")
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail="Failed to process response") from exc
 
 
 @router.get("/pending")

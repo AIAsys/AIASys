@@ -59,4 +59,4 @@ pre-commit:
     # --- EditorConfig ---
     editorconfig:
       glob: "*"
-      run: npx editorconfig-checker -exclude '\\.git|node_modules|\\.venv|dist|\\.pytest_cache|\\.ruff_cache' {staged_files} || true
+      run: node scripts/dev/lefthook/editorconfig-checker.mjs {staged_files}

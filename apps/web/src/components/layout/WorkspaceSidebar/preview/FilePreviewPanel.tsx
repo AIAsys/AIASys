@@ -196,6 +196,7 @@ function FileEditToolbar({
         </span>
       </div>
       <button
+        type="button"
         onClick={onToggleMode}
         className="flex items-center gap-1 px-2.5 py-0.5 text-[11px] border border-border bg-white hover:bg-muted/50 rounded text-foreground transition-colors"
       >
@@ -212,6 +213,7 @@ function FileEditToolbar({
         )}
       </button>
       <button
+        type="button"
         onClick={onSave}
         disabled={isSaving || !hasUnsavedChanges}
         className="flex items-center gap-1 px-2.5 py-0.5 text-[11px] bg-primary hover:bg-primary/90 disabled:bg-muted disabled:opacity-50 disabled:cursor-not-allowed rounded text-primary-foreground transition-colors"
@@ -230,6 +232,7 @@ function FileEditToolbar({
       </button>
       {onOpenHistory ? (
         <button
+          type="button"
           onClick={onOpenHistory}
           className="flex items-center gap-1 px-2.5 py-0.5 text-[11px] border border-border bg-white hover:bg-muted/50 rounded text-foreground transition-colors"
           title="文件历史"
@@ -896,6 +899,7 @@ const FilePreviewPanelComponent: React.FC<FilePreviewPanelProps> = ({
     case "notebook": {
       const notebookEditButton = (
         <button
+          type="button"
           onClick={() => onEditFile?.(file)}
           className="flex items-center gap-1 px-2.5 py-0.5 text-[11px] border border-border bg-white hover:bg-muted/50 rounded text-foreground transition-colors"
         >

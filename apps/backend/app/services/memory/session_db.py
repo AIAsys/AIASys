@@ -6,6 +6,8 @@ import sqlite3
 import time
 from pathlib import Path
 
+from app.utils.path_utils import as_system_path
+
 
 class SessionDB:
     """使用 SQLite + FTS5 持久化会话消息。"""
@@ -16,7 +18,7 @@ class SessionDB:
         self._ensure_schema()
 
     def _connect(self) -> sqlite3.Connection:
-        connection = sqlite3.connect(self.db_path)
+        connection = sqlite3.connect(as_system_path(str(self.db_path)))
         connection.row_factory = sqlite3.Row
         connection.execute("PRAGMA journal_mode=WAL")
         connection.execute("PRAGMA busy_timeout=30000")
@@ -199,17 +201,32 @@ class SessionDB:
 
         return results
 
-    def get_messages_after_id(self, last_message_id: int) -> list[dict]:
+    def get_messages_after_id(
+        self, last_message_id: int, session_id: str | None = None
+    ) -> list[dict]:
         with self._connect() as connection:
-            rows = connection.execute(
-                """
-                SELECT id, session_id, role, content, created_at
-                FROM messages
-                WHERE id > ?
-                ORDER BY id ASC
-                """,
-                (last_message_id,),
-            ).fetchall()
+            if session_id:
+                rows = connection.execute(
+                    """
+                    SELECT id, session_id, role, content, created_at
+                    FROM messages
+                    WHERE id > ? AND session_id = ?
+                    ORDER BY id ASC
+                    LIMIT 1000
+                    """,
+                    (last_message_id, session_id),
+                ).fetchall()
+            else:
+                rows = connection.execute(
+                    """
+                    SELECT id, session_id, role, content, created_at
+                    FROM messages
+                    WHERE id > ?
+                    ORDER BY id ASC
+                    LIMIT 1000
+                    """,
+                    (last_message_id,),
+                ).fetchall()
         return [dict(row) for row in rows]
 
     def delete_session(self, session_id: str) -> None:

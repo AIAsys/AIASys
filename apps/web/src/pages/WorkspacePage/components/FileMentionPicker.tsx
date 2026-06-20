@@ -77,7 +77,7 @@ export const FileMentionPicker = forwardRef<FileMentionPickerRef, FileMentionPic
       loadingRef.current = true;
       setLoading(true);
       setError(null);
-      console.log("[FileMentionPicker] 开始加载候选文件, workspaceId=", workspaceId);
+      if (import.meta.env.DEV) console.log("[FileMentionPicker] 开始加载候选文件, workspaceId=", workspaceId);
       try {
         const userId = getCurrentUserId();
 
@@ -93,11 +93,11 @@ export const FileMentionPicker = forwardRef<FileMentionPickerRef, FileMentionPic
               isDirectory: false,
               insertText: `@/workspace/${f.name}`,
             }));
-            console.log("[FileMentionPicker] 当前工作区文件:", mapped.length);
+            if (import.meta.env.DEV) console.log("[FileMentionPicker] 当前工作区文件:", mapped.length);
             return mapped;
           })
           .catch((err) => {
-            console.error("[FileMentionPicker] 加载当前工作区文件失败:", err);
+            if (import.meta.env.DEV) console.error("[FileMentionPicker] 加载当前工作区文件失败:", err);
             return [];
           });
 
@@ -107,23 +107,23 @@ export const FileMentionPicker = forwardRef<FileMentionPickerRef, FileMentionPic
         )
           .then((res) => {
             const mapped = collectGlobalCandidates(res.nodes || []);
-            console.log("[FileMentionPicker] 全局工作区资源:", mapped.length);
+            if (import.meta.env.DEV) console.log("[FileMentionPicker] 全局工作区资源:", mapped.length);
             return mapped;
           })
           .catch((err) => {
-            console.error("[FileMentionPicker] 加载全局工作区资源失败:", err);
+            if (import.meta.env.DEV) console.error("[FileMentionPicker] 加载全局工作区资源失败:", err);
             return [];
           });
 
         const [current, global] = await Promise.all([currentPromise, globalPromise]);
         const merged = [...current, ...global];
-        console.log("[FileMentionPicker] 候选文件总数:", merged.length);
+        if (import.meta.env.DEV) console.log("[FileMentionPicker] 候选文件总数:", merged.length);
         setCandidates(merged);
         if (merged.length === 0) {
           setError("工作区暂无可用文件");
         }
       } catch (err) {
-        console.error("[FileMentionPicker] 加载候选文件失败:", err);
+        if (import.meta.env.DEV) console.error("[FileMentionPicker] 加载候选文件失败:", err);
         setCandidates([]);
         setError("加载文件列表失败");
       } finally {

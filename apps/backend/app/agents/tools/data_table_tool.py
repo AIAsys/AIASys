@@ -7,6 +7,8 @@ import sqlite3
 from pathlib import Path
 from typing import Any, Literal
 
+from app.utils.path_utils import as_system_path
+
 from pydantic import BaseModel, Field, field_validator
 
 from app.core.agent_tool import AiasysTool
@@ -349,7 +351,7 @@ class QueryDataTable(AiasysTool):
         params = QueryDataTableParams.model_validate(kwargs)
         try:
             _, table_file, scope, relative_path = _resolve_table_path(params.table_path)
-            conn = sqlite3.connect(str(table_file))
+            conn = sqlite3.connect(as_system_path(str(table_file)))
             conn.row_factory = sqlite3.Row
             try:
                 # 安全：附加 LIMIT 防止超大结果

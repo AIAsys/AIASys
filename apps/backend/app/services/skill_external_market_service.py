@@ -273,9 +273,6 @@ class SkillHubExternalSkillAdapter(ExternalSkillMarketAdapter):
             install_unavailable_reason=None,
         )
 
-    def refresh_source_state(self) -> None:
-        pass
-
     def _parse_sort(self, sort_by: str) -> dict[str, str]:
         return self._SORT_MAP.get(sort_by, self._SORT_MAP["recommended"])
 

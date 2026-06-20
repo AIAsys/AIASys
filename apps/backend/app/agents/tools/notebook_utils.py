@@ -72,7 +72,9 @@ class NotebookPathTargets:
 def _ensure_path_under_root(root: Path, relative_path: Path) -> Path:
     file_path = (root / relative_path).resolve()
     root_resolved = root.resolve()
-    if not str(file_path).startswith(str(root_resolved)):
+    try:
+        file_path.relative_to(root_resolved)
+    except ValueError:
         raise ValueError("Notebook 路径超出当前允许范围。")
     return file_path
 

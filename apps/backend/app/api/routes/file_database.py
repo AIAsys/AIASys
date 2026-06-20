@@ -12,6 +12,8 @@ import sqlite3
 from pathlib import Path
 from typing import Any
 
+from app.utils.path_utils import as_system_path
+
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
@@ -85,7 +87,7 @@ def _detect_db_type(file_path: Path) -> str:
         return "sqlite"
     # 也根据文件 magic bytes 判断
     try:
-        with open(file_path, "rb") as f:
+        with open(as_system_path(str(file_path)), "rb") as f:
             header = f.read(16)
         if header.startswith(b"SQLite format 3"):
             return "sqlite"
@@ -104,7 +106,7 @@ def _read_file_database_schema(file_path: Path) -> FileDatabaseSchemaResponse:
 
     try:
         if db_type == "sqlite":
-            conn = sqlite3.connect(str(file_path))
+            conn = sqlite3.connect(as_system_path(str(file_path)))
             try:
                 cursor = conn.execute(
                     "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
@@ -115,6 +117,7 @@ def _read_file_database_schema(file_path: Path) -> FileDatabaseSchemaResponse:
                 for table_name in table_names:
                     if not _validate_sql_identifier(table_name, context="SQLite table_info"):
                         continue
+                    # PRAGMA does not support parameterized queries; table_name is validated by _validate_sql_identifier above
                     cursor = conn.execute(f'PRAGMA table_info("{table_name}")')
                     columns = [
                         FileDatabaseColumnInfo(name=row[1], type=row[2])
@@ -141,8 +144,9 @@ def _read_file_database_schema(file_path: Path) -> FileDatabaseSchemaResponse:
                     continue
                 result = conn.execute(
                     "SELECT column_name, data_type FROM information_schema.columns "
-                    f"WHERE table_name = '{table_name}' AND table_schema = 'main' "
-                    "ORDER BY ordinal_position"
+                    "WHERE table_name = ? AND table_schema = 'main' "
+                    "ORDER BY ordinal_position",
+                    (table_name,)
                 ).fetchall()
                 columns = [FileDatabaseColumnInfo(name=row[0], type=row[1]) for row in result]
                 tables.append(FileDatabaseTableInfo(name=table_name, columns=columns))
@@ -178,7 +182,7 @@ def _query_file_database(
 
     try:
         if db_type == "sqlite":
-            conn = sqlite3.connect(str(file_path))
+            conn = sqlite3.connect(as_system_path(str(file_path)))
             try:
                 conn.row_factory = sqlite3.Row
                 cursor = conn.execute(sql)

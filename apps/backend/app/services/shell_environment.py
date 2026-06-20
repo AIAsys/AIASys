@@ -18,9 +18,11 @@ from pathlib import Path
 import httpx
 
 from app.core.config import DATA_DIR, RUNTIME_ROOT
+from app.core.subprocess_utils import subprocess_kwargs
 from app.core.encoding_utils import smart_decode
 from app.core.uv_utils import find_uv_binary, get_uv_version
 from app.services.shell_executor import ShellExecutor, get_shell_executor
+from app.utils.path_utils import as_system_path
 
 logger = logging.getLogger(__name__)
 
@@ -115,16 +117,7 @@ def _find_bundled_fnm() -> str | None:
     return None
 
 
-def _find_bundled_uv() -> str | None:
-    """扫描 vendor 目录查找内置 uv。"""
-    candidates = [
-        Path(RUNTIME_ROOT) / "vendor" / "uv" / _vendor_platform_dir() / "uv.exe",
-        Path(RUNTIME_ROOT) / "vendor" / "uv" / _vendor_platform_dir() / "uv",
-    ]
-    for c in candidates:
-        if c.exists():
-            return str(c)
-    return None
+
 
 
 def _busybox_default_path() -> Path:
@@ -148,6 +141,7 @@ def _get_version(argv: list[str], pattern: str | None = None, timeout: int = 5) 
                 argv,
                 stderr=subprocess.DEVNULL,
                 timeout=timeout,
+                **subprocess_kwargs(),
             )
         ).strip()
         if not output:
@@ -250,8 +244,7 @@ def _detect_fnm() -> ShellComponentInfo:
 
 
 def _detect_uv() -> ShellComponentInfo:
-    # 桌面端打包时会通过环境变量注入内置 uv 路径；探测不到时扫描 vendor 目录
-    path = os.environ.get("AIASYS_BUNDLED_UV_PATH") or find_uv_binary() or _find_bundled_uv()
+    path = find_uv_binary()
     version = get_uv_version(path) if path else None
     return ShellComponentInfo(
         id="uv",
@@ -409,7 +402,7 @@ async def install_busybox_w32_streamed():
                 response.raise_for_status()
                 total = int(response.headers.get("content-length", 0))
                 downloaded = 0
-                with open(target, "wb") as f:
+                with open(as_system_path(str(target)), "wb") as f:
                     async for chunk in response.aiter_bytes(chunk_size=8192):
                         f.write(chunk)
                         downloaded += len(chunk)

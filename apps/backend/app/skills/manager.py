@@ -19,6 +19,8 @@ import time
 from pathlib import Path
 from typing import Optional
 
+from app.utils.path_utils import as_system_path
+
 from .models import SkillInfo, SkillMetaInfo, SkillOperationResult
 
 logger = logging.getLogger(__name__)
@@ -158,7 +160,7 @@ class SkillManager(SkillEnablementMixin, SkillImportMixin):
             )
 
         try:
-            shutil.rmtree(target_dir)
+            shutil.rmtree(as_system_path(str(target_dir)))
         except Exception as exc:
             return SkillOperationResult(
                 success=False,
@@ -412,7 +414,7 @@ class SkillManager(SkillEnablementMixin, SkillImportMixin):
             if target.is_symlink():
                 target.unlink()
             else:
-                shutil.rmtree(target)
+                shutil.rmtree(as_system_path(str(target)))
         except Exception as exc:
             return SkillOperationResult(
                 success=False,

@@ -125,6 +125,7 @@ export function PanelLoadingSkeleton({
         </div>
       )}
       <div className="space-y-3">
+        {/* key={index} is safe — static skeleton array, never reorders */}
         {Array.from({ length: lines }).map((_, index) => (
           <div key={index} className="space-y-2 rounded-xl border border-border/60 bg-card p-3">
             <Skeleton className="h-3.5 w-3/4" />

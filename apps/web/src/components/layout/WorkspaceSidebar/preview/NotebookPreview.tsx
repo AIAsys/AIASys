@@ -146,8 +146,9 @@ export const NotebookPreview: React.FC<NotebookPreviewProps> = ({
       )}
 
       <div className="p-8 max-w-4xl mx-auto w-full space-y-6 pb-20">
+        {/* key={`cell-${index}`} — NotebookCell has no stable id field */}
         {notebook.cells.map((cell, index) => (
-          <div key={index} className="group relative">
+          <div key={`cell-${index}`} className="group relative">
             {/* Cell Input */}
             <div className="flex gap-2">
               {/* Execution Count */}

@@ -47,9 +47,12 @@ class InternalMessage(TypedDict):
 
 def normalize_internal_message(message: dict[str, Any]) -> InternalMessage:
     role = _coerce_role(message.get("role"))
+    content = message.get("content")
+    if content is None:
+        content = ""
     normalized: InternalMessage = {
         "role": role,
-        "content": message.get("content", ""),
+        "content": content,
     }
 
     message_id = message.get("id")

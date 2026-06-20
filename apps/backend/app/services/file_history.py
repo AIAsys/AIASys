@@ -18,6 +18,7 @@ from typing import Literal
 
 import filelock
 
+from app.core.encoding_utils import smart_decode
 from app.services.diff_service import FileDiffResult, diff_service
 from app.utils.path_utils import as_system_path
 
@@ -76,7 +77,7 @@ class FileHistoryService:
         key = str(lock_path)
         lock = self._lock_cache.get(key)
         if lock is None:
-            lock = filelock.FileLock(str(lock_path))
+            lock = filelock.FileLock(as_system_path(lock_path))
             self._lock_cache[key] = lock
         return lock
 
@@ -130,10 +131,10 @@ class FileHistoryService:
 
     def read_entry_text(self, workspace_root: Path, entry_id: str) -> tuple[FileHistoryEntry, str]:
         entry, content = self.read_entry_bytes(workspace_root, entry_id)
-        try:
-            return entry, content.decode("utf-8")
-        except UnicodeDecodeError as exc:
-            raise ValueError("历史内容不是有效的 UTF-8 文本") from exc
+        decoded = smart_decode(content)
+        if "\ufffd" in decoded and decoded.count("\ufffd") / max(len(decoded), 1) > 0.1:
+            raise ValueError("历史内容不是有效的文本文件")
+        return entry, decoded
 
     def diff_entry(self, workspace_root: Path, entry_id: str) -> tuple[FileHistoryEntry, bool, str]:
         entry, result = self.diff_entry_result(workspace_root, entry_id)
@@ -421,9 +422,16 @@ class FileHistoryService:
             "updated_at": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
             "entries": [asdict(entry) for entry in entries],
         }
-        with open(temp_sys_path, "w", encoding="utf-8") as f:
-            f.write(json.dumps(payload, ensure_ascii=False, indent=2))
-        os.replace(temp_sys_path, as_system_path(index_path))
+        try:
+            with open(temp_sys_path, "w", encoding="utf-8") as f:
+                f.write(json.dumps(payload, ensure_ascii=False, indent=2))
+            os.replace(temp_sys_path, as_system_path(index_path))
+        except Exception:
+            try:
+                os.remove(temp_sys_path)
+            except OSError:
+                logger.warning("Failed to clean up temp file: %s", temp_sys_path)
+            raise
 
     def _latest_entry_for_path(
         self,
@@ -452,7 +460,10 @@ class FileHistoryService:
         for entry in entries:
             if entry.file_path == file_path and entry.id not in keep_ids:
                 stored_path = history_root / entry.stored_path
-                os.unlink(as_system_path(stored_path))
+                try:
+                    os.unlink(as_system_path(stored_path))
+                except OSError:
+                    logger.warning("Failed to remove pruned history file: %s", stored_path)
                 continue
             pruned.append(entry)
         return pruned

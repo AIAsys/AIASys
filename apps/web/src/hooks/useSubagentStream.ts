@@ -78,11 +78,20 @@ export function useSubagentStream(
   const isRunningRef = useRef(false);
   const abortControllerRef = useRef<AbortController | null>(null);
   const sseCleanupRef = useRef<(() => void) | null>(null);
+  const mountedRef = useRef(true);
 
   // Keep isRunningRef in sync
   useEffect(() => {
     isRunningRef.current = isRunning;
   }, [isRunning]);
+
+  // Track unmount to prevent SSE reconnect after unmount
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   // 加载子 Agent 详情
   const loadDetail = useCallback(async () => {
@@ -149,11 +158,12 @@ export function useSubagentStream(
 
   const sendMessage = useCallback(
     async (message: string) => {
-      if (!userId || !sessionId || !agentId || !message.trim() || isRunning) return;
+      if (!userId || !sessionId || !agentId || !message.trim() || isRunningRef.current) return;
 
       // 取消可能存在的旧 SSE，避免重复消费
       sseCleanupRef.current?.();
 
+      isRunningRef.current = true;
       setIsRunning(true);
       setError(null);
       setChatItems((prev) => [...prev, createUserChatItem(message.trim())]);
@@ -249,6 +259,7 @@ export function useSubagentStream(
       } catch (err) {
         setError(err instanceof Error ? err.message : "发送消息失败");
       } finally {
+        isRunningRef.current = false;
         setIsRunning(false);
         if (aiItemId) {
           setChatItems((prev) =>
@@ -258,13 +269,15 @@ export function useSubagentStream(
           );
         }
         // 重新建立 SSE 连接（使用共享事件处理器，不丢弃事件）
-        sseCleanupRef.current = streamSubagentEvents(userId, sessionId, agentId, {
-          onEvent: handleSseEvent,
-          onError: handleSseError,
-        });
+        if (mountedRef.current) {
+          sseCleanupRef.current = streamSubagentEvents(userId, sessionId, agentId, {
+            onEvent: handleSseEvent,
+            onError: handleSseError,
+          });
+        }
       }
     },
-    [userId, sessionId, agentId, isRunning, handleSseEvent, handleSseError],
+    [userId, sessionId, agentId, handleSseEvent, handleSseError],
   );
 
   const close = useCallback(async () => {

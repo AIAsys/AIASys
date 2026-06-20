@@ -6,6 +6,7 @@ Agent API 路由
 """
 
 import asyncio
+import contextlib
 import json
 import logging
 from datetime import datetime
@@ -25,6 +26,13 @@ from app.services.workspace_registry import get_workspace_registry_service
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/agent", tags=["agent"])
+
+
+def _log_task_exception(task: asyncio.Task) -> None:
+    with contextlib.suppress(asyncio.CancelledError):
+        exc = task.exception()
+        if exc is not None:
+            logger.error("Agent 后台任务异常: %s", exc, exc_info=True)
 
 
 class AgentExecuteRequest(BaseModel):
@@ -175,7 +183,9 @@ async def execute_stream(request: AgentExecuteRequest, user: UserInfo = Depends(
                 await queue.put(("heartbeat", None))
 
         producer_task = asyncio.create_task(producer())
+        producer_task.add_done_callback(_log_task_exception)
         heartbeat_task = asyncio.create_task(heartbeat_sender())
+        heartbeat_task.add_done_callback(_log_task_exception)
 
         try:
             while True:

@@ -146,7 +146,7 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
       ref={viewportRef}
       data-canvas-viewport
       className={[
-        "relative h-full w-full overflow-hidden bg-[#F6F7FA] bg-[linear-gradient(#E4E7EC_1px,transparent_1px),linear-gradient(90deg,#E4E7EC_1px,transparent_1px)] bg-[size:32px_32px] text-slate-950",
+        "relative h-full w-full overflow-hidden bg-[#F6F7FA] dark:bg-gray-950 bg-[linear-gradient(#E4E7EC_1px,transparent_1px),linear-gradient(90deg,#E4E7EC_1px,transparent_1px)] dark:bg-[linear-gradient(rgba(255,255,255,0.06)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.06)_1px,transparent_1px)] bg-[size:32px_32px] text-slate-950 dark:text-gray-100",
         isPanning ? "cursor-grabbing" : isSpacePanning ? "cursor-grab" : "",
       ].join(" ")}
       onPointerDown={onBackgroundPointerDown}
@@ -248,7 +248,7 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
       </div>
 
       {miniMap ? (
-        <div className="pointer-events-none absolute bottom-3 left-3 z-10 overflow-hidden rounded-lg border border-slate-200 bg-white/88 shadow-sm backdrop-blur">
+        <div className="pointer-events-none absolute bottom-3 left-3 z-10 overflow-hidden rounded-lg border border-slate-200 dark:border-gray-700 bg-white/88 dark:bg-gray-900/88 shadow-sm backdrop-blur">
           <svg
             width={miniMap.width}
             height={miniMap.height}
@@ -306,14 +306,14 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
               );
             })}
           </svg>
-          <div className="border-t border-slate-200 bg-white/70 px-2 py-1 text-[10px] font-medium text-slate-500">
+          <div className="border-t border-slate-200 dark:border-gray-700 bg-white/70 dark:bg-gray-900/70 px-2 py-1 text-[10px] font-medium text-slate-500 dark:text-gray-400">
             {nodes.length} 节点 / {edges.length} 连线
           </div>
         </div>
       ) : null}
 
       {isPanning ? (
-        <div className="pointer-events-none absolute bottom-36 left-3 rounded-md border border-slate-200 bg-white/85 px-2.5 py-1 text-[11px] font-medium text-slate-500 shadow-sm backdrop-blur">
+        <div className="pointer-events-none absolute bottom-36 left-3 rounded-md border border-slate-200 dark:border-gray-700 bg-white/85 dark:bg-gray-900/85 px-2.5 py-1 text-[11px] font-medium text-slate-500 dark:text-gray-400 shadow-sm backdrop-blur">
           正在移动画布
         </div>
       ) : null}

@@ -72,6 +72,7 @@ export function WorkspaceHomeScreen({
 
           {isLoading ? (
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {/* key={index} is safe — static skeleton array, never reorders */}
               {Array.from({ length: 3 }).map((_, index) => (
                 <div
                   key={index}

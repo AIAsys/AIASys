@@ -186,7 +186,11 @@ VITE_AUTH_MODE=local VITE_API_TARGET=http://localhost:13001 npm run dev -- --por
 用根目录脚本启动时，可以覆盖前端端口：
 
 ```bash
+# Linux/macOS/WSL (Git Bash)
 AIASYS_FRONTEND_PORT=13010 ./dev.sh
+
+# Windows PowerShell
+$env:AIASYS_FRONTEND_PORT=13010; .\dev.sh
 ```
 
 ## 5. 桌面版快速启动（可选）
@@ -229,7 +233,7 @@ npm run dev
 | 查看开发环境状态 | `./dev.sh status` | 项目根目录 |
 | 后端启动 | `uv run uvicorn app.main:app --host 0.0.0.0 --port 13001` | `apps/backend/` |
 | 前端启动 | `npm run dev` | `apps/web/` |
-| 运行后端测试 | `.venv/bin/python -m pytest` | `apps/backend/` |
+| 运行后端测试 | `uv run pytest` | `apps/backend/` |
 | 前端构建 | `npm run build` | `apps/web/` |
 | 校验视觉基线 | `./dev.sh design-lint` | 项目根目录 |
 | 桌面版开发 | `npm run dev` | `apps/desktop/` |

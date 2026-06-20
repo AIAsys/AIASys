@@ -226,7 +226,7 @@ class GraphRAGService:
     ) -> Dict[str, Any]:
         """查询知识图谱"""
         # 搜索实体
-        entities = self.graph_store.search_entities(question)
+        entities = await self.graph_store.search_entities(question)
 
         if not entities:
             return {
@@ -234,8 +234,8 @@ class GraphRAGService:
                 "entities": [],
                 "context": "",
                 "subgraph_stats": {"nodes": 0, "edges": 0},
-                "subgraph": self.graph_store.serialize_graph(
-                    self.graph_store.get_subgraph([], depth=depth), source="query"
+                "subgraph": await self.graph_store.serialize_graph(
+                    await self.graph_store.get_subgraph([], depth=depth), source="query"
                 ),
                 "communities": [] if use_communities else None,
             }
@@ -245,9 +245,9 @@ class GraphRAGService:
         entity_names = [e["name"] for e in top_entities]
 
         # 获取子图
-        subgraph = self.graph_store.get_subgraph(entity_names, depth=depth)
+        subgraph = await self.graph_store.get_subgraph(entity_names, depth=depth)
         communities = (
-            self._get_or_detect_communities()
+            await self._get_or_detect_communities()
             if use_communities and self._get_community_detector()
             else {}
         )
@@ -264,14 +264,14 @@ class GraphRAGService:
                 "nodes": subgraph.number_of_nodes(),
                 "edges": subgraph.number_of_edges(),
             },
-            "subgraph": self.graph_store.serialize_graph(
+            "subgraph": await self.graph_store.serialize_graph(
                 subgraph, communities=level_zero_communities, source="query"
             ),
         }
 
         # 添加社区信息
         if use_communities and self._get_community_detector():
-            entity_communities = self._find_entity_communities(entity_names)
+            entity_communities = await self._find_entity_communities(entity_names)
             result["communities"] = entity_communities
         else:
             result["communities"] = None
@@ -299,18 +299,18 @@ class GraphRAGService:
 
         return "\n".join(context_parts)
 
-    def _get_or_detect_communities(self) -> Dict[int, Dict[str, Any]]:
+    async def _get_or_detect_communities(self) -> Dict[int, Dict[str, Any]]:
         """获取或检测社区"""
         detector = self._get_community_detector()
         if self._communities is None and detector:
-            self._communities = detector.detect(self.graph_store.get_graph())
+            self._communities = detector.detect(await self.graph_store.get_graph())
         return self._communities or {}
 
-    def _find_entity_communities(
+    async def _find_entity_communities(
         self, entity_names: List[str], level: int = 0
     ) -> List[Dict[str, Any]]:
         """查找实体所属的社区"""
-        communities = self._get_or_detect_communities()
+        communities = await self._get_or_detect_communities()
         if level not in communities:
             return []
 
@@ -341,28 +341,28 @@ class GraphRAGService:
         if not detector or not self.community_reporter:
             return {}
 
-        communities = self._get_or_detect_communities()
+        communities = await self._get_or_detect_communities()
         if level not in communities:
             return {}
 
         # 生成社区摘要
         summaries = detector.generate_community_summary(
-            self.graph_store.get_graph(), communities[level]
+            await self.graph_store.get_graph(), communities[level]
         )
 
         # 生成报告
         reports = {}
         for summary in summaries:
             report = await self.community_reporter.generate_report(
-                self.graph_store.get_graph(), summary
+                await self.graph_store.get_graph(), summary
             )
             reports[summary["community_id"]] = report
 
         return reports
 
-    def get_statistics(self) -> Dict[str, Any]:
+    async def get_statistics(self) -> Dict[str, Any]:
         """获取图谱统计信息"""
-        stats = self.graph_store.get_statistics()
+        stats = await self.graph_store.get_statistics()
 
         # 统计接口保持轻量，只返回已经缓存的社区信息，避免首屏被社区检测阻塞。
         if self._enable_communities and self._communities:
@@ -370,11 +370,11 @@ class GraphRAGService:
 
         return stats
 
-    def get_entity(self, name: str) -> Optional[Dict[str, Any]]:
+    async def get_entity(self, name: str) -> Optional[Dict[str, Any]]:
         """获取实体详情"""
-        return self.graph_store.get_entity(name)
+        return await self.graph_store.get_entity(name)
 
-    def update_entity(
+    async def update_entity(
         self,
         entity_id: str,
         name: Optional[str] = None,
@@ -383,7 +383,7 @@ class GraphRAGService:
         properties: Optional[Dict[str, Any]] = None,
     ) -> Optional[Dict[str, Any]]:
         """更新实体信息"""
-        result = self.graph_store.update_entity(
+        result = await self.graph_store.update_entity(
             entity_id=entity_id,
             name=name,
             entity_type=entity_type,
@@ -395,7 +395,7 @@ class GraphRAGService:
             self._communities = None
         return result
 
-    def create_entity(
+    async def create_entity(
         self,
         name: str,
         entity_type: str = "concept",
@@ -403,7 +403,7 @@ class GraphRAGService:
         properties: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """创建手工实体节点。"""
-        result = self.graph_store.create_entity(
+        result = await self.graph_store.create_entity(
             name=name,
             entity_type=entity_type,
             description=description,
@@ -412,7 +412,7 @@ class GraphRAGService:
         self._communities = None
         return result
 
-    def create_relation(
+    async def create_relation(
         self,
         source_entity_id: str,
         target_entity_id: str,
@@ -422,7 +422,7 @@ class GraphRAGService:
         properties: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """创建手工实体关系。"""
-        result = self.graph_store.create_relation(
+        result = await self.graph_store.create_relation(
             source_entity_id=source_entity_id,
             target_entity_id=target_entity_id,
             relation_type=relation_type,
@@ -433,76 +433,76 @@ class GraphRAGService:
         self._communities = None
         return result
 
-    def delete_entity(self, entity_id: str) -> Optional[Dict[str, Any]]:
+    async def delete_entity(self, entity_id: str) -> Optional[Dict[str, Any]]:
         """删除实体节点和所有关联关系。"""
-        result = self.graph_store.delete_entity(entity_id)
+        result = await self.graph_store.delete_entity(entity_id)
         if result:
             self._communities = None
         return result
 
-    def get_all_entities(
+    async def get_all_entities(
         self, entity_type: Optional[str] = None, limit: int = 100
     ) -> List[Dict[str, Any]]:
         """获取所有实体"""
-        entities = self.graph_store.get_all_entities()
+        entities = await self.graph_store.get_all_entities()
 
         if entity_type:
             entities = [e for e in entities if e.get("entity_type") == entity_type]
 
         return entities[:limit]
 
-    def search(self, query: str, entity_type: Optional[str] = None) -> List[Dict[str, Any]]:
+    async def search(self, query: str, entity_type: Optional[str] = None) -> List[Dict[str, Any]]:
         """搜索实体"""
-        return self.graph_store.search_entities(query, entity_type)
+        return await self.graph_store.search_entities(query, entity_type)
 
-    def get_communities(self, level: int = 0) -> List[Dict[str, Any]]:
+    async def get_communities(self, level: int = 0) -> List[Dict[str, Any]]:
         """获取社区列表"""
         detector = self._get_community_detector()
         if not detector:
             return []
 
-        communities = self._get_or_detect_communities()
+        communities = await self._get_or_detect_communities()
         if level not in communities:
             return []
 
-        return detector.generate_community_summary(self.graph_store.get_graph(), communities[level])
+        return detector.generate_community_summary(await self.graph_store.get_graph(), communities[level])
 
-    def get_visualization(
+    async def get_visualization(
         self,
         limit: int = 180,
         community_level: int = 0,
         include_communities: bool = False,
     ) -> Dict[str, Any]:
         """获取供前端图可视化使用的图数据。"""
-        graph, truncated = self.graph_store.get_visualization_graph(limit=limit)
+        graph, truncated = await self.graph_store.get_visualization_graph(limit=limit)
         communities = (
-            self._get_or_detect_communities()
+            await self._get_or_detect_communities()
             if include_communities and self._get_community_detector()
             else {}
         )
         community_data = communities.get(community_level, {})
-        result = self.graph_store.serialize_graph(
+        result = await self.graph_store.serialize_graph(
             graph,
             communities=community_data,
             source="overview",
             truncated=truncated,
-            total_nodes=self.graph_store.get_graph().number_of_nodes(),
-            total_edges=self.graph_store.get_graph().number_of_edges(),
+            total_nodes=(await self.graph_store.get_graph()).number_of_nodes(),
+            total_edges=(await self.graph_store.get_graph()).number_of_edges(),
         )
-        result["layout_positions"] = self.graph_store.get_layout_positions()
+        result["layout_positions"] = await self.graph_store.get_layout_positions()
         return result
 
-    def save_layout_positions(self, positions: Dict[str, Any]) -> None:
+    async def save_layout_positions(self, positions: Dict[str, Any]) -> None:
         """保存前端布局位置。"""
-        self.graph_store.save_layout_positions(positions)
+        await self.graph_store.save_layout_positions(positions)
 
-    def get_layout_positions(self) -> Optional[Dict[str, Any]]:
+    async def get_layout_positions(self) -> Optional[Dict[str, Any]]:
         """读取持久化的布局位置。"""
-        return self.graph_store.get_layout_positions()
+        return await self.graph_store.get_layout_positions()
 
     async def health_check(self) -> Dict[str, Any]:
         """健康检查"""
-        stats = self.graph_store.get_statistics()
+        stats = await self.graph_store.get_statistics()
 
         # 检查 LLM 状态
         await self._init_llm()

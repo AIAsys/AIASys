@@ -7,7 +7,7 @@ const REPO = "asg017/sqlite-vec";
 
 const PLATFORM_ASSETS = {
   "linux-x64":    { slug: "linux-x86_64",   subdir: "linux-x86_64", filename: "vec0.so"    },
-  "linux-arm64":  { slug: "linux-x86_64",   subdir: "linux-x86_64", filename: "vec0.so"    },
+  "linux-arm64":  { slug: "linux-aarch64",  subdir: "linux-aarch64", filename: "vec0.so"    },
   "darwin-x64":   { slug: "macos-x86_64",   subdir: "macos-x86_64", filename: "vec0.dylib" },
   "darwin-arm64": { slug: "macos-aarch64",  subdir: "macos-aarch64", filename: "vec0.dylib" },
   "win-x64":      { slug: "windows-x86_64", subdir: "windows-x86_64", filename: "vec0.dll"  },
@@ -51,7 +51,7 @@ function curlDownload(url, dest) {
   const result = spawnSync(
     "curl",
     ["-L", "-f", "--connect-timeout", "15", "--max-time", "120", "-o", dest, url],
-    { encoding: "utf-8", stdio: "pipe" }
+    { encoding: "utf-8", stdio: "pipe", windowsHide: true }
   );
   if (result.status !== 0) {
     const detail = result.stderr || result.error || `curl exit ${result.status}`;
@@ -64,7 +64,7 @@ function curlDownload(url, dest) {
 function resolvePython() {
   const candidates = [process.env.PYTHON, process.env.PYTHON3, "py", "python3", "python"].filter(Boolean);
   for (const cmd of candidates) {
-    const result = spawnSync(cmd, ["--version"], { encoding: "utf-8", stdio: "pipe" });
+    const result = spawnSync(cmd, ["--version"], { encoding: "utf-8", stdio: "pipe", windowsHide: true });
     if (result.status === 0) return cmd;
   }
   return null;

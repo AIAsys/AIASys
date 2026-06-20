@@ -537,7 +537,7 @@ def _build_manifest_from_toml_config(
     role_tool_ids_by_subagent: dict[str, list[str]] | None = None,
     subagent_enabled_for_runtime: Any = None,
 ) -> dict[str, Any]:
-    with open(source_config_path, "rb") as f:
+    with open(as_system_path(str(source_config_path)), "rb") as f:
         payload = tomllib.load(f) or {}
     agent_manifest = payload.get("agent")
     if not isinstance(agent_manifest, dict):

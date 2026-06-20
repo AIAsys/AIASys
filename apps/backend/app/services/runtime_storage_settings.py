@@ -18,6 +18,7 @@ from app.core.runtime_storage_config import (
     read_runtime_storage_paths,
     write_runtime_storage_paths,
 )
+from app.utils.path_utils import as_system_path
 
 _MIGRATION_STATUS_FILE = "runtime-storage-migration.json"
 _MIGRATION_LOCK = threading.Lock()
@@ -375,16 +376,16 @@ class RuntimeStorageSettingsService:
         target.parent.mkdir(parents=True, exist_ok=True)
         temp_target = target.parent / f".{target.name}.aiasys-migrating-{uuid4().hex[:8]}"
         if temp_target.exists():
-            shutil.rmtree(temp_target)
+            shutil.rmtree(as_system_path(str(temp_target)))
 
         if source.exists():
-            shutil.copytree(source, temp_target, symlinks=True)
+            shutil.copytree(as_system_path(str(source)), as_system_path(str(temp_target)), symlinks=True)
         else:
             temp_target.mkdir(parents=True, exist_ok=True)
 
         if target.exists():
             if not self._is_empty_dir(target):
-                shutil.rmtree(temp_target)
+                shutil.rmtree(as_system_path(str(temp_target)))
                 raise ValueError(f"目标目录不是空目录: {target}")
             target.rmdir()
         os.replace(temp_target, target)

@@ -5,6 +5,7 @@ SQLite 图存储管理器
 每个知识图谱对应一个 SQLite 数据库文件。
 """
 
+import asyncio
 import json
 import logging
 import re
@@ -12,6 +13,8 @@ import sqlite3
 import uuid
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+
+from app.utils.path_utils import as_system_path
 
 import networkx as nx
 
@@ -149,11 +152,16 @@ class SQLiteGraphStore:
                 db_files.append(db_file)
         return db_files
 
-    def _get_conn(self) -> sqlite3.Connection:
-        self._db_path.parent.mkdir(parents=True, exist_ok=True)
-        conn = sqlite3.connect(str(self._db_path))
-        conn.row_factory = sqlite3.Row
-        return conn
+    async def _get_conn(self) -> sqlite3.Connection:
+        loop = asyncio.get_running_loop()
+
+        def _connect() -> sqlite3.Connection:
+            self._db_path.parent.mkdir(parents=True, exist_ok=True)
+            conn = sqlite3.connect(as_system_path(str(self._db_path)), check_same_thread=False)
+            conn.row_factory = sqlite3.Row
+            return conn
+
+        return await loop.run_in_executor(None, _connect)
 
     def _invalidate_graph_cache(self) -> None:
         self._nx_graph = None
@@ -207,7 +215,10 @@ class SQLiteGraphStore:
         }
 
     def _ensure_tables(self) -> None:
-        conn = self._get_conn()
+        # Direct sync connection — called from __init__, cannot be async.
+        self._db_path.parent.mkdir(parents=True, exist_ok=True)
+        conn = sqlite3.connect(as_system_path(str(self._db_path)))
+        conn.row_factory = sqlite3.Row
         try:
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS entities (
@@ -300,11 +311,11 @@ class SQLiteGraphStore:
             "community_count": conn.execute("SELECT COUNT(*) FROM communities").fetchone()[0],
         }
 
-    def save_layout_positions(self, positions: Dict[str, Dict[str, float]]) -> None:
+    async def save_layout_positions(self, positions: Dict[str, Dict[str, float]]) -> None:
         """将布局位置持久化到 graph_metadata。"""
         import datetime
 
-        conn = self._get_conn()
+        conn = await self._get_conn()
         try:
             conn.execute(
                 """
@@ -320,9 +331,9 @@ class SQLiteGraphStore:
         finally:
             conn.close()
 
-    def get_layout_positions(self) -> Optional[Dict[str, Dict[str, float]]]:
+    async def get_layout_positions(self) -> Optional[Dict[str, Dict[str, float]]]:
         """读取持久化的布局位置。"""
-        conn = self._get_conn()
+        conn = await self._get_conn()
         try:
             row = conn.execute(
                 "SELECT layout_positions FROM graph_metadata WHERE key = 'layout'"
@@ -353,7 +364,7 @@ class SQLiteGraphStore:
         for db_file in db_files:
             kg_id = db_file.stem
             try:
-                with sqlite3.connect(str(db_file)) as conn:
+                with sqlite3.connect(as_system_path(str(db_file))) as conn:
                     conn.row_factory = sqlite3.Row
                     conn.execute("""
                         CREATE TABLE IF NOT EXISTS graph_metadata (
@@ -388,13 +399,13 @@ class SQLiteGraphStore:
                 logger.warning("跳过已损坏的知识图谱数据库: path=%s error=%s", db_file, exc)
         return graphs
 
-    def set_metadata(self, key: str, value: Optional[str]) -> None:
+    async def set_metadata(self, key: str, value: Optional[str]) -> None:
         """写入图谱级元数据。"""
         normalized_key = key.strip()
         if not normalized_key:
             raise ValueError("元数据 key 不能为空")
 
-        conn = self._get_conn()
+        conn = await self._get_conn()
         try:
             conn.execute(
                 """
@@ -408,13 +419,13 @@ class SQLiteGraphStore:
         finally:
             conn.close()
 
-    def get_metadata(self, key: str) -> Optional[str]:
+    async def get_metadata(self, key: str) -> Optional[str]:
         """读取图谱级元数据。"""
         normalized_key = key.strip()
         if not normalized_key:
             return None
 
-        conn = self._get_conn()
+        conn = await self._get_conn()
         try:
             row = conn.execute(
                 "SELECT value FROM graph_metadata WHERE key = ?",
@@ -425,7 +436,7 @@ class SQLiteGraphStore:
             conn.close()
 
     async def add_entity(self, entity: Entity) -> None:
-        conn = self._get_conn()
+        conn = await self._get_conn()
         try:
             conn.execute(
                 """
@@ -449,7 +460,7 @@ class SQLiteGraphStore:
             conn.close()
 
     async def add_relation(self, relation: Relation) -> None:
-        conn = self._get_conn()
+        conn = await self._get_conn()
         try:
             source_entity_id = self._resolve_entity_id(conn, relation.source_entity)
             target_entity_id = self._resolve_entity_id(conn, relation.target_entity)
@@ -491,7 +502,7 @@ class SQLiteGraphStore:
     async def add_subgraph(
         self, doc_id: str, entities: List[Entity], relations: List[Relation]
     ) -> None:
-        conn = self._get_conn()
+        conn = await self._get_conn()
         try:
             conn.execute("BEGIN")
             for entity in entities:
@@ -555,10 +566,10 @@ class SQLiteGraphStore:
         finally:
             conn.close()
 
-    def search_entities(
+    async def search_entities(
         self, query: str, entity_type: Optional[str] = None, limit: int = 100
     ) -> List[Dict[str, Any]]:
-        conn = self._get_conn()
+        conn = await self._get_conn()
         try:
             sql = """
                 SELECT entity_id, name, entity_type, description, properties
@@ -586,8 +597,8 @@ class SQLiteGraphStore:
         finally:
             conn.close()
 
-    def get_entity(self, name: str) -> Optional[Dict[str, Any]]:
-        conn = self._get_conn()
+    async def get_entity(self, name: str) -> Optional[Dict[str, Any]]:
+        conn = await self._get_conn()
         try:
             row = conn.execute(
                 "SELECT entity_id, name, entity_type, description, properties FROM entities WHERE name = ? OR entity_id = ? LIMIT 1",
@@ -605,7 +616,7 @@ class SQLiteGraphStore:
         finally:
             conn.close()
 
-    def get_entity_relations(
+    async def get_entity_relations(
         self,
         entity_name: str,
         relation_type: Optional[str] = None,
@@ -613,7 +624,7 @@ class SQLiteGraphStore:
         limit: int = 20,
     ) -> tuple[Optional[Dict[str, Any]], List[Dict[str, Any]]]:
         """查询一个实体的直接关系，兼容关系端点中存储实体 ID 或实体名的历史数据。"""
-        conn = self._get_conn()
+        conn = await self._get_conn()
         try:
             entity = conn.execute(
                 """
@@ -715,7 +726,7 @@ class SQLiteGraphStore:
         finally:
             conn.close()
 
-    def create_entity(
+    async def create_entity(
         self,
         name: str,
         entity_type: str = "concept",
@@ -732,7 +743,7 @@ class SQLiteGraphStore:
         normalized_description = description.strip() if description else ""
         entity_properties = properties or {}
 
-        conn = self._get_conn()
+        conn = await self._get_conn()
         try:
             row = conn.execute(
                 "SELECT entity_id FROM entities WHERE name = ?",
@@ -770,7 +781,7 @@ class SQLiteGraphStore:
         finally:
             conn.close()
 
-    def create_relation(
+    async def create_relation(
         self,
         source_entity_id: str,
         target_entity_id: str,
@@ -793,7 +804,7 @@ class SQLiteGraphStore:
         normalized_strength = float(strength or 1.0)
         relation_properties = properties or {}
 
-        conn = self._get_conn()
+        conn = await self._get_conn()
         try:
             source_row = conn.execute(
                 "SELECT entity_id, name FROM entities WHERE entity_id = ? OR name = ? LIMIT 1",
@@ -861,7 +872,7 @@ class SQLiteGraphStore:
         finally:
             conn.close()
 
-    def update_entity(
+    async def update_entity(
         self,
         entity_id: str,
         name: Optional[str] = None,
@@ -870,7 +881,7 @@ class SQLiteGraphStore:
         properties: Optional[Dict[str, Any]] = None,
     ) -> Optional[Dict[str, Any]]:
         """更新实体信息，返回更新后的实体"""
-        conn = self._get_conn()
+        conn = await self._get_conn()
         try:
             # 先获取当前实体
             row = conn.execute(
@@ -912,13 +923,13 @@ class SQLiteGraphStore:
         finally:
             conn.close()
 
-    def delete_entity(self, entity_id: str) -> Optional[Dict[str, Any]]:
+    async def delete_entity(self, entity_id: str) -> Optional[Dict[str, Any]]:
         """删除实体，并同步删除连接到该实体的关系。"""
         normalized_entity_id = str(entity_id or "").strip()
         if not normalized_entity_id:
             return None
 
-        conn = self._get_conn()
+        conn = await self._get_conn()
         transaction_started = False
         try:
             row = conn.execute(
@@ -962,10 +973,10 @@ class SQLiteGraphStore:
         finally:
             conn.close()
 
-    def get_all_entities(
+    async def get_all_entities(
         self, entity_type: Optional[str] = None, limit: int = 100
     ) -> List[Dict[str, Any]]:
-        conn = self._get_conn()
+        conn = await self._get_conn()
         try:
             sql = "SELECT entity_id, name, entity_type, description FROM entities WHERE 1=1"
             params = []
@@ -988,8 +999,8 @@ class SQLiteGraphStore:
         finally:
             conn.close()
 
-    def get_statistics(self) -> Dict[str, Any]:
-        conn = self._get_conn()
+    async def get_statistics(self) -> Dict[str, Any]:
+        conn = await self._get_conn()
         try:
             counts = self._get_cached_counts(conn)
             doc_count = conn.execute(
@@ -1005,8 +1016,8 @@ class SQLiteGraphStore:
         finally:
             conn.close()
 
-    def save_communities(self, communities: Dict[int, Dict[str, Any]]) -> None:
-        conn = self._get_conn()
+    async def save_communities(self, communities: Dict[int, Dict[str, Any]]) -> None:
+        conn = await self._get_conn()
         try:
             conn.execute("BEGIN")
             conn.execute("DELETE FROM communities")
@@ -1034,8 +1045,8 @@ class SQLiteGraphStore:
         finally:
             conn.close()
 
-    def get_communities(self, level: int = 0) -> List[Dict[str, Any]]:
-        conn = self._get_conn()
+    async def get_communities(self, level: int = 0) -> List[Dict[str, Any]]:
+        conn = await self._get_conn()
         try:
             rows = conn.execute(
                 "SELECT community_id, entity_ids, summary FROM communities WHERE level = ?",
@@ -1063,9 +1074,9 @@ class SQLiteGraphStore:
 
     # ==================== 原始数据探查接口 ====================
 
-    def list_tables(self) -> List[Dict[str, Any]]:
+    async def list_tables(self) -> List[Dict[str, Any]]:
         """返回当前数据库中所有用户表的名称和列信息。"""
-        conn = self._get_conn()
+        conn = await self._get_conn()
         try:
             cursor = conn.execute(
                 "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name"
@@ -1090,11 +1101,11 @@ class SQLiteGraphStore:
         finally:
             conn.close()
 
-    def execute_raw_sql(self, sql: str, params: Optional[List[Any]] = None) -> Dict[str, Any]:
+    async def execute_raw_sql(self, sql: str, params: Optional[List[Any]] = None) -> Dict[str, Any]:
         """执行原始 SQL 查询并返回结果。仅允许 SELECT 语句。"""
         import re
 
-        conn = self._get_conn()
+        conn = await self._get_conn()
         try:
             cleaned = sql.strip()
             if not cleaned:
@@ -1119,15 +1130,15 @@ class SQLiteGraphStore:
 
     # ==================== networkx 视图接口 ====================
 
-    def get_graph(self) -> nx.Graph:
+    async def get_graph(self) -> nx.Graph:
         """返回当前 SQLite 图谱的 networkx 内存视图。"""
         if self._nx_graph is None:
-            self._nx_graph = self._load_graph()
+            self._nx_graph = await self._load_graph()
         return self._nx_graph
 
-    def _load_graph(self) -> nx.Graph:
+    async def _load_graph(self) -> nx.Graph:
         graph = nx.Graph()
-        conn = self._get_conn()
+        conn = await self._get_conn()
         try:
             entity_rows = conn.execute(
                 "SELECT entity_id, name, entity_type, description, properties, source_doc_id FROM entities"
@@ -1155,11 +1166,11 @@ class SQLiteGraphStore:
             conn.close()
         return graph
 
-    def get_subgraph(self, entity_names: List[str], depth: int = 1) -> nx.Graph:
+    async def get_subgraph(self, entity_names: List[str], depth: int = 1) -> nx.Graph:
         """按实体名称从 SQLite 读取子图，并返回 networkx 图对象。"""
         if not entity_names:
             return nx.Graph()
-        conn = self._get_conn()
+        conn = await self._get_conn()
         try:
             placeholders = ", ".join(["?"] * len(entity_names))
             entity_rows = conn.execute(
@@ -1227,17 +1238,17 @@ class SQLiteGraphStore:
         finally:
             conn.close()
 
-    def get_visualization_graph(
+    async def get_visualization_graph(
         self,
         limit: int = 180,
         offset: int = 0,
     ) -> tuple[nx.Graph, bool]:
         """按实体关联度在 SQL 层面排序分页，避免全量加载内存。"""
-        conn = self._get_conn()
+        conn = await self._get_conn()
         try:
             total = conn.execute("SELECT COUNT(*) FROM entities").fetchone()[0]
             if limit <= 0 or total <= limit:
-                graph = self.get_graph()
+                graph = await self.get_graph()
                 return graph.copy(), False
 
             entity_rows = conn.execute(
@@ -1291,14 +1302,14 @@ class SQLiteGraphStore:
         finally:
             conn.close()
 
-    def serialize_graph(
+    async def serialize_graph(
         self,
         subgraph: Optional[nx.Graph] = None,
         communities: Optional[Dict[str, Any]] = None,
         source: str = "unknown",
         **kwargs: Any,
     ) -> Dict[str, Any]:
-        target = subgraph if subgraph is not None else self.get_graph()
+        target = subgraph if subgraph is not None else await self.get_graph()
         community_lookup: dict[str, list[str]] = {}
         for community_id, community_data in (communities or {}).items():
             entity_ids = []

@@ -4,9 +4,14 @@
 用于文件监控和内容读取
 """
 
+import logging
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional, Set
+
+from app.utils.path_utils import as_system_path
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -156,7 +161,7 @@ def compare_files(
                         change["content"] = content
                         change["has_content"] = True
                 except Exception:
-                    pass  # 读取失败则不带内容
+                    logger.debug("Failed to read text file %s for diff", path, exc_info=True)  # 读取失败则不带内容
 
             changes.append(change)
 
@@ -188,7 +193,7 @@ def read_text_file(file_path: Path) -> Optional[str]:
         文件内容，失败返回 None
     """
     try:
-        with open(file_path, "r", encoding="utf-8", errors="replace") as f:
+        with open(as_system_path(file_path), "r", encoding="utf-8", errors="replace") as f:
             return f.read()
     except Exception:
         return None

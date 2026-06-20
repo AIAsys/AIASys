@@ -47,12 +47,12 @@ interface CanvasNodeProps {
 }
 
 const nodeColorClasses: Record<string, string> = {
-  "1": "border-red-200 text-red-950",
-  "2": "border-orange-200 text-orange-950",
-  "3": "border-yellow-200 text-yellow-950",
-  "4": "border-teal-200 text-teal-950",
-  "5": "border-sky-200 text-sky-950",
-  "6": "border-violet-200 text-violet-950",
+  "1": "border-red-200 dark:border-red-800 text-red-950 dark:text-red-200",
+  "2": "border-orange-200 dark:border-orange-800 text-orange-950 dark:text-orange-200",
+  "3": "border-yellow-200 dark:border-yellow-800 text-yellow-950 dark:text-yellow-200",
+  "4": "border-teal-200 dark:border-teal-800 text-teal-950 dark:text-teal-200",
+  "5": "border-sky-200 dark:border-sky-800 text-sky-950 dark:text-sky-200",
+  "6": "border-violet-200 dark:border-violet-800 text-violet-950 dark:text-violet-200",
 };
 
 function getNodeDisplayText(node: CanvasNode): string {
@@ -226,10 +226,10 @@ export const CanvasNodeComponent: React.FC<CanvasNodeProps> = React.memo(
         className={cn(
           "group absolute select-none rounded-[8px] border shadow-sm transition-[box-shadow,border-color,background-color]",
           isGroup
-            ? "border-dashed border-slate-300 text-slate-700 shadow-none"
+            ? "border-dashed border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 shadow-none"
             : colorClass,
-          !fillColor && !isGroup && "bg-white",
-          !fillColor && isGroup && "bg-slate-50/70",
+          !fillColor && !isGroup && "bg-white dark:bg-gray-900",
+          !fillColor && isGroup && "bg-slate-50/70 dark:bg-gray-900/70",
           isSelected && "border-blue-500 shadow-md ring-2 ring-blue-500/20",
           isConnectionTarget && "border-blue-600 ring-4 ring-blue-500/20",
           !isEditing && (isSpacePanning ? "cursor-grab" : "cursor-move"),
@@ -292,7 +292,7 @@ export const CanvasNodeComponent: React.FC<CanvasNodeProps> = React.memo(
         ) : null}
         <div className="flex h-full flex-col overflow-hidden p-3">
           {showHeader ? (
-            <div className="mb-2 flex items-center gap-1.5 text-[11px] font-semibold text-slate-500">
+            <div className="mb-2 flex items-center gap-1.5 text-[11px] font-semibold text-slate-500 dark:text-slate-400">
               {Icon ? <Icon className="h-3.5 w-3.5" /> : null}
               <span>{getNodeTypeLabel(node)}</span>
             </div>
@@ -302,7 +302,7 @@ export const CanvasNodeComponent: React.FC<CanvasNodeProps> = React.memo(
             <textarea
               value={editValue}
               autoFocus
-              className="scrollbar-thin min-h-0 flex-1 resize-none overflow-y-auto overscroll-contain rounded-md border border-blue-200 bg-white/90 px-2 py-1.5 text-sm leading-5 text-slate-950 outline-none ring-2 ring-blue-500/10"
+              className="scrollbar-thin min-h-0 flex-1 resize-none overflow-y-auto overscroll-contain rounded-md border border-blue-200 dark:border-blue-800 bg-white/90 dark:bg-gray-900/90 px-2 py-1.5 text-sm leading-5 text-slate-950 dark:text-gray-100 outline-none ring-2 ring-blue-500/10"
               onChange={(event) => onEditValueChange(event.target.value)}
               onBlur={onEditCommit}
               onPointerDown={(event) => event.stopPropagation()}
@@ -350,28 +350,28 @@ export const CanvasNodeComponent: React.FC<CanvasNodeProps> = React.memo(
               </div>
             </div>
           ) : node.type === "file" ? (
-            <div className="min-h-0 flex-1 rounded-md border border-black/5 bg-white/60 px-3 py-2">
+            <div className="min-h-0 flex-1 rounded-md border border-black/5 dark:border-white/10 bg-white/60 dark:bg-gray-900/60 px-3 py-2">
               <div className="flex items-start gap-2">
-                <FileText className="mt-0.5 h-4 w-4 shrink-0 text-slate-500" />
+                <FileText className="mt-0.5 h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" />
                 <div className="min-w-0 flex-1">
-                  <div className="truncate text-sm font-semibold text-slate-900">
+                  <div className="truncate text-sm font-semibold text-slate-900 dark:text-gray-100">
                     {getWorkspaceFileLabel(displayText)}
                   </div>
-                  <div className="mt-1 line-clamp-3 break-all text-[11px] leading-4 text-slate-500">
+                  <div className="mt-1 line-clamp-3 break-all text-[11px] leading-4 text-slate-500 dark:text-slate-400">
                     {displayText}
                   </div>
                   {node.subpath ? (
-                    <div className="mt-1 truncate rounded bg-slate-900/5 px-1.5 py-0.5 text-[10px] font-medium text-slate-500">
+                    <div className="mt-1 truncate rounded bg-slate-900/5 dark:bg-white/10 px-1.5 py-0.5 text-[10px] font-medium text-slate-500 dark:text-slate-400">
                       {node.subpath}
                     </div>
                   ) : null}
                 </div>
-                <span className="shrink-0 rounded bg-slate-900/5 px-1.5 py-0.5 text-[10px] font-bold leading-4 text-slate-500">
+                <span className="shrink-0 rounded bg-slate-900/5 dark:bg-white/10 px-1.5 py-0.5 text-[10px] font-bold leading-4 text-slate-500 dark:text-slate-400">
                   {getFileExtensionLabel(displayText)}
                 </span>
                 <button
                   type="button"
-                  className="pointer-events-auto -mr-1 -mt-1 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-slate-500 transition-colors hover:bg-blue-50 hover:text-blue-700"
+                  className="pointer-events-auto -mr-1 -mt-1 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-slate-500 dark:text-slate-400 transition-colors hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:text-blue-700 dark:hover:text-blue-400"
                   title="打开文件"
                   aria-label="打开文件"
                   onPointerDown={(event) => event.stopPropagation()}
@@ -386,19 +386,19 @@ export const CanvasNodeComponent: React.FC<CanvasNodeProps> = React.memo(
               </div>
             </div>
           ) : node.type === "link" ? (
-            <div className="min-h-0 flex-1 rounded-md border border-black/5 bg-white/60 px-3 py-2">
+            <div className="min-h-0 flex-1 rounded-md border border-black/5 dark:border-white/10 bg-white/60 dark:bg-gray-900/60 px-3 py-2">
               <div className="flex items-start gap-2">
                 <div className="min-w-0 flex-1">
-                  <div className="truncate text-sm font-semibold text-slate-900">
+                  <div className="truncate text-sm font-semibold text-slate-900 dark:text-gray-100">
                     {getLinkHost(displayText)}
                   </div>
-                  <div className="mt-1 line-clamp-3 break-all text-[11px] leading-4 text-slate-500">
+                  <div className="mt-1 line-clamp-3 break-all text-[11px] leading-4 text-slate-500 dark:text-slate-400">
                     {displayText}
                   </div>
                 </div>
                 <button
                   type="button"
-                  className="pointer-events-auto -mr-1 -mt-1 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-slate-500 transition-colors hover:bg-blue-50 hover:text-blue-700"
+                  className="pointer-events-auto -mr-1 -mt-1 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-slate-500 dark:text-slate-400 transition-colors hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:text-blue-700 dark:hover:text-blue-400"
                   title="打开链接"
                   aria-label="打开链接"
                   onPointerDown={(event) => event.stopPropagation()}
@@ -414,7 +414,7 @@ export const CanvasNodeComponent: React.FC<CanvasNodeProps> = React.memo(
             </div>
           ) : isGroup ? (
             <div
-              className="scrollbar-thin min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1 text-sm font-semibold leading-5 text-slate-600"
+              className="scrollbar-thin min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1 text-sm font-semibold leading-5 text-slate-600 dark:text-slate-400"
               onWheel={stopWheelWhenScrollable}
             >
               {displayText || "分组"}
@@ -443,7 +443,7 @@ export const CanvasNodeComponent: React.FC<CanvasNodeProps> = React.memo(
                   </div>
                 </Suspense>
               ) : (
-                <span className="text-slate-400">双击编辑内容</span>
+                <span className="text-slate-400 dark:text-slate-500">双击编辑内容</span>
               )}
             </div>
           )}

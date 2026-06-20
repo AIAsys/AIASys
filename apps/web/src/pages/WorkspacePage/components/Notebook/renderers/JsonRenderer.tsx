@@ -38,8 +38,9 @@ function JsonPreview({ data, depth = 0 }: { data: unknown; depth?: number }) {
         </button>
         {expanded ? (
           <div className="ml-3 border-l border-border pl-2">
+            {/* key={`json-${i}`} — JSON array items may not have stable id */}
             {data.map((item, i) => (
-              <div key={i} className="py-0.5">
+              <div key={`json-${i}`} className="py-0.5">
                 <JsonPreview data={item} depth={depth + 1} />
               </div>
             ))}

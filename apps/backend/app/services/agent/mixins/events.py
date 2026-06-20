@@ -314,7 +314,6 @@ class EventMixin:
 
         if _is_tool_call(item):
             self._ensure_host_turn_started(state, events)
-            self._maybe_prepend_host_step_for_tool_call(state, events)
             func = getattr(item, "function", None)
             state["pending_tool_call"] = {
                 "tool_call_id": getattr(item, "id", str(uuid.uuid4())),
@@ -337,9 +336,7 @@ class EventMixin:
         if event is not None:
             if _is_host_execution_event(event):
                 self._ensure_host_turn_started(state, events)
-                if event.get("type") == "tool_call":
-                    self._maybe_prepend_host_step_for_tool_call(state, events)
-            events.append(event)
+                events.append(event)
             # 标记当前 turn 产生了实质内容
             if state.get("turn_started"):
                 event_type = event.get("type")
@@ -432,13 +429,6 @@ class EventMixin:
         state["turn_n"] = state.get("turn_n", 0) + 1
         state["turn_has_content"] = False
         events.append({"type": "turn_begin", "turn_n": state["turn_n"]})
-
-    def _maybe_prepend_host_step_for_tool_call(
-        self: "AgentService",
-        state: dict[str, Any],
-        events: list[dict[str, Any]],
-    ) -> None:
-        pass
 
     def _flush_projected_output(
         self: "AgentService",

@@ -10,6 +10,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List
 
+from app.utils.path_utils import as_system_path
+
 from app.core.config import WORKSPACE_DIR
 from app.services.agent.utils import get_work_dir
 from app.services.history import (
@@ -67,7 +69,7 @@ def _load_host_turn_reasoning_chunks(session_dir: Path) -> list[dict[str, Any]]:
         )
 
     try:
-        with open(wire_file, "r", encoding="utf-8") as f:
+        with open(as_system_path(str(wire_file)), "r", encoding="utf-8") as f:
             for line in f:
                 line = line.strip()
                 if not line:
@@ -384,7 +386,7 @@ class HistoryMixin:
 
             events = []
             if wire_file.exists():
-                with open(wire_file, "r", encoding="utf-8") as f:
+                with open(as_system_path(str(wire_file)), "r", encoding="utf-8") as f:
                     for line in f:
                         line = line.strip()
                         if line:

@@ -14,6 +14,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 import os
 import struct
@@ -21,7 +22,16 @@ import subprocess
 from dataclasses import dataclass
 from typing import Any, Callable
 
+from app.core.subprocess_utils import subprocess_kwargs
+
 logger = logging.getLogger(__name__)
+
+
+def _log_task_exception(task: asyncio.Task) -> None:
+    with contextlib.suppress(asyncio.CancelledError):
+        exc = task.exception()
+        if exc is not None:
+            logger.error("PTY 后台任务异常: %s", exc, exc_info=True)
 
 IS_POSIX = os.name == "posix"
 IS_WINDOWS = os.name == "nt"
@@ -91,6 +101,7 @@ class PtySession:
                         ["taskkill", "/T", "/F", "/PID", str(pid)],
                         capture_output=True,
                         timeout=5,
+                        **subprocess_kwargs(),
                     )
             except Exception:
                 pass
@@ -123,14 +134,14 @@ class PtyManager:
         self._is_windows = IS_WINDOWS
 
     def _find_windows_shell(self) -> str:
-        """查找 Windows 上可用的 shell，优先 PowerShell。"""
+        """查找 Windows 上可用的 shell，优先 PowerShell；不回落到 cmd.exe。"""
         candidates = [
             r"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe",
-            r"C:\Windows\System32\cmd.exe",
         ]
         for candidate in candidates:
             if os.path.exists(candidate):
                 return candidate
+        # 不返回 cmd.exe；AGENTS.md 已明确禁用 cmd.exe 作为解释器。
         return "powershell.exe"  # 依赖 PATH
 
     async def spawn(
@@ -241,6 +252,7 @@ class PtyManager:
             self._read_loop_posix(session),
             name=f"pty-read-{terminal_id}",
         )
+        session.read_task.add_done_callback(_log_task_exception)
 
         session.has_interaction = True
 
@@ -319,6 +331,7 @@ class PtyManager:
             self._read_loop_windows(session),
             name=f"pty-read-{terminal_id}",
         )
+        session.read_task.add_done_callback(_log_task_exception)
 
         session.has_interaction = True
 
@@ -434,6 +447,7 @@ class PtyManager:
                     self._read_loop_posix(session),
                     name=f"pty-read-{session.terminal_id}",
                 )
+            session.read_task.add_done_callback(_log_task_exception)
 
         logger.info("PTY attach: terminal_id=%s pid=%d", session.terminal_id, session.pid)
         return session
@@ -506,7 +520,7 @@ class PtyManager:
                         session._on_output(data)
                 except asyncio.CancelledError:
                     raise
-                except OSError as exc:
+                except Exception as exc:
                     logger.debug("PTY 读取异常: terminal_id=%s %s", session.terminal_id, exc)
                     break
         except asyncio.CancelledError:

@@ -3,6 +3,15 @@ const path = require("path");
 const { app, BrowserWindow, dialog, ipcMain, shell, Tray, Menu, nativeImage } = require("electron");
 const { DesktopServiceManager } = require("./service-manager.cjs");
 
+process.on("unhandledRejection", (reason) => {
+  const { logError } = require("./src/utils.cjs");
+  logError("unhandled rejection", reason);
+});
+process.on("uncaughtException", (error) => {
+  const { logError } = require("./src/utils.cjs");
+  logError("uncaught exception", error);
+});
+
 const desktopMode =
   process.env.AIASYS_DESKTOP_MODE || (app.isPackaged ? "preview" : "dev");
 const openDevTools =
@@ -31,8 +40,24 @@ if (disableGpu) {
   app.disableHardwareAcceleration();
 }
 
+function isWSL() {
+  if (process.platform !== "linux") return false;
+  try {
+    const release = fs.readFileSync("/proc/sys/kernel/osrelease", "utf8");
+    return release.toLowerCase().includes("wsl");
+  } catch (e) {
+    console.error("[aiasys-desktop] WSL detection failed:", e);
+    return false;
+  }
+}
+
 if (process.platform === "linux") {
   app.commandLine.appendSwitch("no-sandbox");
+  if (isWSL()) {
+    // WSLg 下 Chromium zygote 无法访问 /dev/shm，需要关闭 namespace/setuid sandbox
+    app.commandLine.appendSwitch("disable-namespace-sandbox");
+    app.commandLine.appendSwitch("disable-setuid-sandbox");
+  }
 }
 
 // Windows 任务栏需要稳定的 AppUserModelID，否则运行中窗口会被识别为 Electron 默认图标
@@ -52,7 +77,7 @@ if (!gotTheLock) {
   app.quit();
 } else {
   // 收到第二个实例启动请求时，恢复并聚焦主窗口。
-  app.on("second-instance", () => {
+  app.on("second-instance", (_event, argv) => {
     if (!mainWindow || mainWindow.isDestroyed()) {
       // 主窗口尚未创建或已销毁（例如被最小化到托盘后关闭），无需处理
       return;
@@ -64,6 +89,11 @@ if (!gotTheLock) {
       mainWindow.show();
     }
     mainWindow.focus();
+    // 处理通过 aiasys:// 协议传入的启动参数
+    const deepLink = argv.find((arg) => arg.startsWith("aiasys://"));
+    if (deepLink && mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send("deep-link", deepLink);
+    }
   });
 }
 
@@ -76,8 +106,8 @@ function logError(message, error) {
     const timestamp = new Date().toISOString();
     const errorMessage = error instanceof Error ? error.stack || error.message : String(error);
     fs.appendFileSync(logPath, `[${timestamp}] ERROR: ${message}\n${errorMessage}\n\n`);
-  } catch {
-    // ignore logging failures
+  } catch (e) {
+    console.error("[aiasys-desktop] error log append failed:", e);
   }
 }
 
@@ -328,7 +358,7 @@ function createTray() {
 
 async function bootstrap() {
   console.log("[aiasys-desktop] bootstrap start");
-  logError("bootstrap", "bootstrap started");
+  console.log("[aiasys-desktop] bootstrap started");
   serviceManager = new DesktopServiceManager({
     mode: desktopMode,
     isPackaged: app.isPackaged,
@@ -378,6 +408,10 @@ app.whenReady().then(() => {
   if (!gotTheLock) {
     return;
   }
+  // 注册 aiasys:// 自定义协议，用于从浏览器/外部应用唤起桌面端
+  if (!app.isDefaultProtocolClient("aiasys")) {
+    app.setAsDefaultProtocolClient("aiasys");
+  }
   void bootstrap().catch(async (error) => {
     logError("bootstrap failed", error);
 
@@ -392,8 +426,8 @@ app.whenReady().then(() => {
     // 尝试打开日志目录
     try {
       void shell.openPath(logsDir);
-    } catch {
-      // 忽略打开目录失败
+    } catch (e) {
+      console.error("[aiasys-desktop] open directory failed:", e);
     }
 
     await shutdownApp();
@@ -418,6 +452,12 @@ process.on("message", (message) => {
 
   isQuitting = true;
   exitAfterShutdown(0);
+});
+
+app.on("open-url", (_event, url) => {
+  if (url.startsWith("aiasys://") && mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send("deep-link", url);
+  }
 });
 
 app.on("activate", () => {

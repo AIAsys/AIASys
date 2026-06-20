@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # scripts/dev/release.sh -- AIASys 发布辅助脚本
 #
 # 用法：

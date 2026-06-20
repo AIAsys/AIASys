@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import io
 import json
+import os
 import shutil
 import zipfile
 from datetime import datetime
@@ -16,6 +17,7 @@ from typing import Any, Dict, Tuple
 from app.core.config import WORKSPACE_DIR
 from app.services.workspace_registry import WorkspaceRegistryService
 from app.utils.ids import generate_workspace_id
+from app.utils.path_utils import as_system_path
 
 
 class WorkspaceImportError(ValueError):
@@ -51,14 +53,14 @@ class WorkspaceImportService:
         # 收集现有工作区标题
         existing_titles: set[str] = set()
         user_dir = self._get_user_dir(user_id)
-        if user_dir.exists():
+        if os.path.exists(as_system_path(user_dir)):
             for candidate in user_dir.iterdir():
-                if not candidate.is_dir():
+                if not os.path.isdir(as_system_path(candidate)):
                     continue
                 meta_path = candidate / ".aiasys" / "workspace" / "workspace.json"
-                if meta_path.exists():
+                if os.path.exists(as_system_path(meta_path)):
                     try:
-                        data = json.loads(meta_path.read_text(encoding="utf-8"))
+                        data = json.loads(Path(as_system_path(meta_path)).read_text(encoding="utf-8"))
                         existing_titles.add(str(data.get("title") or ""))
                     except Exception:
                         pass
@@ -154,7 +156,7 @@ class WorkspaceImportService:
 
         # 创建工作区目录并恢复文件
         workspace_dir = self._get_user_dir(user_id) / new_workspace_id
-        workspace_dir.mkdir(parents=True, exist_ok=True)
+        os.makedirs(as_system_path(workspace_dir), exist_ok=True)
 
         try:
             # 恢复 workspace_files/
@@ -163,22 +165,22 @@ class WorkspaceImportService:
                 if name.startswith(prefix) and not name.endswith("/"):
                     relative = name[len(prefix) :]
                     target = workspace_dir / relative
-                    target.parent.mkdir(parents=True, exist_ok=True)
+                    os.makedirs(as_system_path(target.parent), exist_ok=True)
                     with zf.open(name) as src, open(target, "wb") as dst:
-                        shutil.copyfileobj(src, dst)
+                        shutil.copyfileobj(as_system_path(str(src)), as_system_path(str(dst)))
 
             # 写 workspace.json
             meta_dir = workspace_dir / ".aiasys" / "workspace"
-            meta_dir.mkdir(parents=True, exist_ok=True)
+            os.makedirs(as_system_path(meta_dir), exist_ok=True)
             meta_path = meta_dir / "workspace.json"
-            meta_path.write_text(
+            Path(as_system_path(meta_path)).write_text(
                 json.dumps(workspace_meta, indent=2, ensure_ascii=False),
                 encoding="utf-8",
             )
 
             # 写 conversations.json
             conv_path = meta_dir / "conversations.json"
-            conv_path.write_text(
+            Path(as_system_path(conv_path)).write_text(
                 json.dumps(
                     {"_schema_version": 1, "conversations": conversations},
                     indent=2,
@@ -197,8 +199,8 @@ class WorkspaceImportService:
 
         except Exception as exc:
             # 清理失败的半成品
-            if workspace_dir.exists():
-                shutil.rmtree(workspace_dir, ignore_errors=True)
+            if os.path.exists(as_system_path(workspace_dir)):
+                shutil.rmtree(as_system_path(str(workspace_dir)), ignore_errors=True)
             raise WorkspaceImportError(f"恢复工作区文件失败: {exc}") from exc
 
         return new_workspace_id, workspace_meta

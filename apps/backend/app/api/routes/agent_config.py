@@ -205,8 +205,8 @@ async def get_merged_config(
             compaction_trigger_ratio=config.runtime_config.compaction_trigger_ratio,
             runtime_source=config.runtime_source,
         )
-    except Exception:
-        raise HTTPException(status_code=500, detail="Failed to get config")
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail="Failed to get config") from exc
 
 
 @router.get("/{mode}/editor", response_model=EditableConfigResponse)
@@ -225,8 +225,8 @@ async def get_editor_config(
             session_id=session_id,
         )
         return EditableConfigResponse(**config)
-    except Exception:
-        raise HTTPException(status_code=500, detail="Failed to get session config")
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail="Failed to get session config") from exc
 
 
 @router.get("/{mode}/workspace/editor", response_model=EditableConfigResponse)
@@ -245,8 +245,8 @@ async def get_workspace_editor_config(
             workspace_id=workspace_id,
         )
         return EditableConfigResponse(**config)
-    except Exception:
-        raise HTTPException(status_code=500, detail="Failed to get workspace config")
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail="Failed to get workspace config") from exc
 
 
 @router.get("/{mode}/user", response_model=UserConfigResponse)
@@ -288,8 +288,8 @@ async def get_user_config(
                 mode_config.runtime.compaction_trigger_ratio if mode_config.runtime else None
             ),
         )
-    except Exception:
-        raise HTTPException(status_code=500, detail="Failed to get user config")
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail="Failed to get user config") from exc
 
 
 @router.put("/{mode}/prompt")
@@ -324,8 +324,8 @@ async def update_prompt(
         return {"success": True, "message": "提示词已保存"}
     except HTTPException:
         raise
-    except Exception:
-        raise HTTPException(status_code=500, detail="Failed to save prompt")
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail="Failed to save prompt") from exc
 
 
 @router.put("/{mode}/tools")
@@ -363,8 +363,8 @@ async def update_tools(
         return {"success": True, "message": "工具配置已保存"}
     except HTTPException:
         raise
-    except Exception:
-        raise HTTPException(status_code=500, detail="Failed to save tool config")
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail="Failed to save tool config") from exc
 
 
 @router.put("/{mode}/runtime")
@@ -400,8 +400,8 @@ async def update_runtime(
         return {"success": True, "message": "运行时配置已保存"}
     except HTTPException:
         raise
-    except Exception:
-        raise HTTPException(status_code=500, detail="Failed to save runtime config")
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail="Failed to save runtime config") from exc
 
 
 @router.post("/{mode}/reset")
@@ -436,8 +436,8 @@ async def reset_to_default(
         return {"success": True, "message": "配置已重置为系统默认"}
     except HTTPException:
         raise
-    except Exception:
-        raise HTTPException(status_code=500, detail="Failed to reset config")
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail="Failed to reset config") from exc
 
 
 @router.post("/{mode}/validate")
@@ -464,8 +464,8 @@ async def validate_config(
             "valid": is_valid,
             "errors": errors,
         }
-    except Exception:
-        raise HTTPException(status_code=500, detail="Configuration validation failed")
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail="Configuration validation failed") from exc
 
 
 # ============ 管理员 API ============
@@ -516,8 +516,8 @@ async def get_system_default_config(
             "config": config_data,
             "prompt_content": prompt_content,
         }
-    except Exception:
-        raise HTTPException(status_code=500, detail="Failed to retrieve system config")
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail="Failed to retrieve system config") from exc
 
 
 @router.put("/admin/system/{mode}/prompt")
@@ -570,5 +570,5 @@ async def update_system_prompt(
             "message": "系统默认提示词已更新",
             "backup_created": backup_path.exists(),
         }
-    except Exception:
-        raise HTTPException(status_code=500, detail="Failed to update system prompt")
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail="Failed to update system prompt") from exc

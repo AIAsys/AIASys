@@ -45,6 +45,7 @@ def send_prompt(prompt: str):
     try:
         with urllib.request.urlopen(req, timeout=300) as resp:
             for line in resp:
+                # FastAPI/Starlette always sends UTF-8 encoded responses
                 line = line.decode("utf-8").strip()
                 if not line.startswith("data: "):
                     continue

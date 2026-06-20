@@ -85,8 +85,18 @@ class SessionMixin:
     async def _get_session_lock(self: "AgentService", session_key: str) -> asyncio.Lock:
         """获取会话级别的锁，用于串行化同一会话的请求"""
         if session_key not in self._session_locks:
-            self._session_locks[session_key] = asyncio.Lock()
+            async with self._locks_lock:
+                if session_key not in self._session_locks:  # double-check
+                    self._session_locks[session_key] = asyncio.Lock()
         return self._session_locks[session_key]
+
+    def is_session_busy(self: "AgentService", user_id: str, session_id: str) -> bool:
+        """判断指定会话当前是否正在执行中（锁被持有）。"""
+        session_key = f"{user_id}/{session_id}"
+        lock = self._session_locks.get(session_key)
+        if lock is None:
+            return False
+        return lock.locked()
 
     def _get_runtime_backend(self: "AgentService") -> AgentRuntimeBackend:
         """获取当前 AIASys 绑定的 runtime backend。"""

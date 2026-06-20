@@ -14,6 +14,8 @@ from collections import OrderedDict
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from app.utils.path_utils import as_system_path
+
 import jieba
 
 from app.core.sqlite_vec import ensure_vec_extension
@@ -206,7 +208,7 @@ class SQLiteKBService:
 
     def _read_kb_info(self, db_path: Path) -> dict[str, Any]:
         """从 {kb_id}.db 的 kb_metadata 读取知识库完整信息。"""
-        conn = sqlite3.connect(str(db_path))
+        conn = sqlite3.connect(as_system_path(str(db_path)))
         try:
             conn.row_factory = sqlite3.Row
             # 确保 metadata 表存在
@@ -1129,7 +1131,7 @@ class SQLiteKBService:
         db_file = self._find_db_file(user_id, kb_id)
         if not db_file or not db_file.exists():
             return []
-        conn = sqlite3.connect(str(db_file))
+        conn = sqlite3.connect(as_system_path(str(db_file)))
         try:
             conn.row_factory = sqlite3.Row
             rows = conn.execute(
@@ -1448,9 +1450,10 @@ class SQLiteKBService:
         cleaned = sql.strip()
         if not cleaned:
             raise ValueError("SQL 不能为空")
-        # 只允许 SELECT 查询
-        first_word = re.sub(r"^\s*(--[^\n]*\n|\s)*", "", cleaned, flags=re.IGNORECASE).lstrip()
-        if not re.match(r"^SELECT\b", first_word, re.IGNORECASE):
+        # 去除 SQL 行注释，再检测分号，防止注释绕过
+        no_comments = re.sub(r"--[^\n]*", "", cleaned)
+        first_word = re.sub(r"^\s*", "", no_comments, flags=re.IGNORECASE).lstrip()
+        if not re.match(r"^SELECT\b", first_word, re.IGNORECASE) or re.search(r";", no_comments):
             raise ValueError("只允许执行 SELECT 查询")
 
         conn = self._get_conn(user_id, kb_id)

@@ -9,6 +9,8 @@ from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
 from uuid import uuid4
 
+from sqlalchemy import text
+
 from app.core.database import (
     DatabaseConnectorORM,
     SessionAttachmentORM,
@@ -109,6 +111,7 @@ class StorageMixin:
         _ensure_connector_tables()
         with db_session() as db:
             try:
+                db.execute(text("BEGIN IMMEDIATE"))
                 # 删除该用户所有旧记录
                 db.query(DatabaseConnectorORM).filter(
                     DatabaseConnectorORM.user_id == user_id
@@ -197,6 +200,7 @@ class StorageMixin:
         _ensure_connector_tables()
         with db_session() as db:
             try:
+                db.execute(text("BEGIN IMMEDIATE"))
                 # 删除该会话所有旧记录
                 db.query(SessionAttachmentORM).filter(
                     SessionAttachmentORM.session_id == session_id,

@@ -13,6 +13,8 @@ import time
 from dataclasses import replace
 from datetime import datetime
 from pathlib import Path
+
+from app.utils.path_utils import as_system_path
 from typing import TYPE_CHECKING, Any, AsyncGenerator
 
 from app.models.worker_lifecycle import (
@@ -274,7 +276,7 @@ def _persist_host_execution_event(
         wire_file.parent.mkdir(parents=True, exist_ok=True)
         payload = dict(event)
         payload.setdefault("timestamp", time.time())
-        with open(wire_file, "a", encoding="utf-8") as f:
+        with open(as_system_path(str(wire_file)), "a", encoding="utf-8") as f:
             f.write(json.dumps(payload, ensure_ascii=False) + "\n")
     except Exception as exc:
         logger.warning(
@@ -296,7 +298,7 @@ def _read_last_host_step(session_root: Path, session_id: str) -> int:
 
     last_step = 0
     try:
-        with open(wire_file, "r", encoding="utf-8") as f:
+        with open(as_system_path(str(wire_file)), "r", encoding="utf-8") as f:
             for line in f:
                 line = line.strip()
                 if not line:
@@ -692,6 +694,19 @@ def _is_terminal_host_lifecycle_event(event: dict[str, Any]) -> bool:
     if event.get("scope") != "host":
         return False
     return event.get("status") in {"finished", "cancelled", "interrupted", "failed"}
+
+
+def _drain_monitor_queue(monitor_queue):
+    """Drain all items from monitor_queue and return them as a list."""
+    if monitor_queue is None:
+        return []
+    items = []
+    while True:
+        try:
+            items.append(monitor_queue.get_nowait())
+        except asyncio.QueueEmpty:
+            break
+    return items
 
 
 def _build_research_listener_context(
@@ -1402,14 +1417,8 @@ class ExecutionMixin:
                                             ):
                                                 _bg_reasoning.append(_bg_event.get("think", ""))
                                             await _bg_queue.put(_bg_event)
-                                            if monitor_queue is not None:
-                                                while True:
-                                                    try:
-                                                        await _bg_queue.put(
-                                                            monitor_queue.get_nowait()
-                                                        )
-                                                    except asyncio.QueueEmpty:
-                                                        break
+                                            for _ev in _drain_monitor_queue(monitor_queue):
+                                                await _bg_queue.put(_ev)
                                             if (
                                                 _bg_event.get("type") == "worker.lifecycle.changed"
                                                 and _is_terminal_host_lifecycle_event(_bg_event)
@@ -1436,14 +1445,8 @@ class ExecutionMixin:
                                                         event=_bg_lc,
                                                     )
                                                     await _bg_queue.put(_bg_lc)
-                                                    if monitor_queue is not None:
-                                                        while True:
-                                                            try:
-                                                                await _bg_queue.put(
-                                                                    monitor_queue.get_nowait()
-                                                                )
-                                                            except asyncio.QueueEmpty:
-                                                                break
+                                                    for _ev in _drain_monitor_queue(monitor_queue):
+                                                        await _bg_queue.put(_ev)
                                                     if listener_context is not None:
                                                         get_research_listener_service().append_worker_lifecycle_event(
                                                             context=listener_context,
@@ -1467,12 +1470,8 @@ class ExecutionMixin:
                                         ):
                                             _bg_reasoning.append(_bg_event.get("think", ""))
                                         await _bg_queue.put(_bg_event)
-                                        if monitor_queue is not None:
-                                            while True:
-                                                try:
-                                                    await _bg_queue.put(monitor_queue.get_nowait())
-                                                except asyncio.QueueEmpty:
-                                                    break
+                                        for _ev in _drain_monitor_queue(monitor_queue):
+                                                await _bg_queue.put(_ev)
                                         if _bg_event.get("type") == "tool_result":
                                             _bg_lc = _project_task_result_lifecycle_event(_bg_event)
                                             if _bg_lc:
@@ -1482,14 +1481,8 @@ class ExecutionMixin:
                                                     event=_bg_lc,
                                                 )
                                                 await _bg_queue.put(_bg_lc)
-                                                if monitor_queue is not None:
-                                                    while True:
-                                                        try:
-                                                            await _bg_queue.put(
-                                                                monitor_queue.get_nowait()
-                                                            )
-                                                        except asyncio.QueueEmpty:
-                                                            break
+                                                for _ev in _drain_monitor_queue(monitor_queue):
+                                                    await _bg_queue.put(_ev)
                                                 if listener_context is not None:
                                                     get_research_listener_service().append_worker_lifecycle_event(
                                                         context=listener_context,
@@ -1581,11 +1574,9 @@ class ExecutionMixin:
                                                 origin="execute_stream",
                                             )
                                         logger.error(
-                                            f"后台执行失败: user={user_id}, session={session_id}, error={_e}"
+                                            f"后台执行失败: user={user_id}, session={session_id}, error={_e}",
+                                            exc_info=True,
                                         )
-                                        import traceback
-
-                                        logger.error(traceback.format_exc())
                                         await _bg_queue.put(
                                             {"type": "error", "message": _user_error}
                                         )
@@ -1680,12 +1671,8 @@ class ExecutionMixin:
                                 ):
                                     stream_reasoning_outputs.append(event.get("think", ""))
                                 yield event
-                                if monitor_queue is not None:
-                                    while True:
-                                        try:
-                                            yield monitor_queue.get_nowait()
-                                        except asyncio.QueueEmpty:
-                                            break
+                                for _ev in _drain_monitor_queue(monitor_queue):
+                                    yield _ev
                                 if (
                                     event.get("type") == "worker.lifecycle.changed"
                                     and _is_terminal_host_lifecycle_event(event)
@@ -1710,12 +1697,8 @@ class ExecutionMixin:
                                             event=lifecycle_event,
                                         )
                                         yield lifecycle_event
-                                        if monitor_queue is not None:
-                                            while True:
-                                                try:
-                                                    yield monitor_queue.get_nowait()
-                                                except asyncio.QueueEmpty:
-                                                    break
+                                        for _ev in _drain_monitor_queue(monitor_queue):
+                                            yield _ev
                                         if listener_context is not None:
                                             get_research_listener_service().append_worker_lifecycle_event(
                                                 context=listener_context,
@@ -1739,12 +1722,8 @@ class ExecutionMixin:
                             ):
                                 stream_reasoning_outputs.append(event.get("think", ""))
                             yield event
-                            if monitor_queue is not None:
-                                while True:
-                                    try:
-                                        yield monitor_queue.get_nowait()
-                                    except asyncio.QueueEmpty:
-                                        break
+                            for _ev in _drain_monitor_queue(monitor_queue):
+                                yield _ev
                             if event.get("type") == "tool_result":
                                 lifecycle_event = _project_task_result_lifecycle_event(event)
                                 if lifecycle_event:
@@ -1754,12 +1733,8 @@ class ExecutionMixin:
                                         event=lifecycle_event,
                                     )
                                     yield lifecycle_event
-                                    if monitor_queue is not None:
-                                        while True:
-                                            try:
-                                                yield monitor_queue.get_nowait()
-                                            except asyncio.QueueEmpty:
-                                                break
+                                    for _ev in _drain_monitor_queue(monitor_queue):
+                                        yield _ev
                                     if listener_context is not None:
                                         get_research_listener_service().append_worker_lifecycle_event(
                                             context=listener_context,
@@ -1847,10 +1822,7 @@ class ExecutionMixin:
                                 lifecycle_event=lifecycle_event,
                                 origin="execute_stream",
                             )
-                        logger.error(f"执行失败: user={user_id}, session={session_id}, error={e}")
-                        import traceback
-
-                        logger.error(traceback.format_exc())
+                        logger.error(f"执行失败: user={user_id}, session={session_id}, error={e}", exc_info=True)
                         yield {"type": "error", "message": user_facing_error}
 
                 finally:

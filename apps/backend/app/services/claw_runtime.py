@@ -21,6 +21,13 @@ logger = logging.getLogger(__name__)
 _TYPING_TICKET_TTL_SECONDS = 600
 
 
+def _log_task_exception(task: asyncio.Task) -> None:
+    with contextlib.suppress(asyncio.CancelledError):
+        exc = task.exception()
+        if exc is not None:
+            logger.error("Claw runtime 后台任务异常: %s", exc, exc_info=True)
+
+
 @dataclass(frozen=True, slots=True)
 class ClawRuntimeBinding:
     session_id: str
@@ -593,6 +600,7 @@ class ClawWeixinRuntime:
             ),
             name=f"claw-weixin-typing:{self.connector_id}:{effective_chat_id}",
         )
+        typing_task.add_done_callback(_log_task_exception)
         try:
             prompt, attachments, _summaries = self._claw_service.prepare_runtime_inbound_message(
                 self.user_id,
@@ -817,6 +825,7 @@ class ClawFeishuRuntime:
                     self._ws_client._ping_loop(),
                     name=f"claw-feishu-ping:{self.connector_id}",
                 )
+                self._ping_task.add_done_callback(_log_task_exception)
                 self._last_error = None
                 backoff_seconds = 1.0
                 while self._running:

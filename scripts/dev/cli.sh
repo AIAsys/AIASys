@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 set -euo pipefail
 
@@ -36,12 +36,33 @@ check_url_ready() {
 # 端口探测：返回 0 表示空闲，1 表示被占用
 probe_port() {
   local host="$1" port="$2"
-  # 使用 bash 内置 /dev/tcp 探测（需要编译时启用 --enable-net-redirections）
-  # 如果 bash 不支持，回退到 python
-  if (echo >/dev/tcp/${host}/${port}) 2>/dev/null; then
-    return 1  # 端口可达 = 被占用
+  local nc_rc=0 py_rc=0
+
+  if command -v nc >/dev/null 2>&1; then
+    if nc -z "$host" "$port" 2>/dev/null; then
+      return 1  # 端口可达 = 被占用
+    else
+      return 0  # 端口不可达 = 空闲
+    fi
+  elif command -v python3 >/dev/null 2>&1; then
+    python3 -c "
+import socket
+s = socket.socket()
+s.settimeout(1)
+try:
+    s.connect(('$host', $port))
+    s.close()
+except:
+    exit(1)
+" 2>/dev/null
+    py_rc=$?
+    if [[ $py_rc -eq 0 ]]; then
+      return 1  # 端口可达 = 被占用
+    else
+      return 0  # 端口不可达 = 空闲
+    fi
   else
-    return 0  # 端口不可达 = 空闲
+    return 1
   fi
 }
 
@@ -158,7 +179,15 @@ case "${command_name}" in
 
     start_backend
     start_frontend
-    wait -n "${BACKEND_PID}" "${FRONTEND_PID}"
+    # Wait for any background job to finish (bash 3.2 compatible alternative to wait -n)
+    while true; do
+      for pid in $(jobs -p); do
+        if ! kill -0 "$pid" 2>/dev/null; then
+          break 2
+        fi
+      done
+      sleep 0.5
+    done
     ;;
   status)
     status_command

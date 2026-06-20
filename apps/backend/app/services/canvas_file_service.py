@@ -4,9 +4,12 @@ import json
 import threading
 import time
 import uuid
+from collections import OrderedDict
 from pathlib import Path
 
 from filelock import FileLock
+
+MAX_CACHE_SIZE = 100
 
 from app.models.canvas import CanvasBatchOperation, CanvasEdge, CanvasFile, CanvasNode
 from app.services.file_history import file_history_service
@@ -66,9 +69,9 @@ class CanvasFileService:
         self._pending: dict[str, tuple[Path, str, CanvasFile, float]] = {}
         self._timer: threading.Timer | None = None
         # 读缓存：file_path -> (mtime, CanvasFile)
-        self._read_cache: dict[str, tuple[float, CanvasFile]] = {}
+        self._read_cache: OrderedDict[str, tuple[float, CanvasFile]] = OrderedDict()
         # 写序列化缓存：file_path -> (canvas_hash, json_string)
-        self._write_json_cache: dict[str, tuple[int, str]] = {}
+        self._write_json_cache: OrderedDict[str, tuple[int, str]] = OrderedDict()
 
     def _read_from_disk(self, file_path: Path) -> CanvasFile:
         """从磁盘读取并缓存。调用方必须确保并发安全。"""
@@ -91,6 +94,8 @@ class CanvasFileService:
             if cached and cached[0] == file_path.stat().st_mtime:
                 return cached[1]
             self._read_cache[file_path_str] = (file_path.stat().st_mtime, canvas)
+            if len(self._read_cache) > MAX_CACHE_SIZE:
+                self._read_cache.popitem(last=False)
         return canvas
 
     def read_canvas(self, workspace_root: Path, relative_path: str) -> CanvasFile:
@@ -122,6 +127,8 @@ class CanvasFileService:
             else:
                 json_str = json.dumps(dumped, ensure_ascii=False)
                 self._write_json_cache[file_path_str] = (canvas_hash, json_str)
+                if len(self._write_json_cache) > MAX_CACHE_SIZE:
+                    self._write_json_cache.popitem(last=False)
 
         file_path.parent.mkdir(parents=True, exist_ok=True)
         file_history_service.record_file_before_change(
@@ -140,6 +147,8 @@ class CanvasFileService:
         new_mtime = file_path.stat().st_mtime
         with self._lock:
             self._read_cache[file_path_str] = (new_mtime, canvas)
+            if len(self._read_cache) > MAX_CACHE_SIZE:
+                self._read_cache.popitem(last=False)
 
     def write_canvas(
         self,

@@ -537,7 +537,7 @@ export function QueryDialog({
             <div className="space-y-3">
               <p className="text-xs text-muted-foreground">找到 {queryResults.length} 个相关片段</p>
               {queryResults.map((result, idx) => (
-                <div key={idx} className="rounded-lg bg-muted p-3 text-sm">
+                <div key={`result-${idx}`} className="rounded-lg bg-muted p-3 text-sm">
                   <div className="mb-1 flex items-center justify-between">
                     <span className="text-xs font-medium">片段 {idx + 1}</span>
                     <span className="text-xs text-muted-foreground">

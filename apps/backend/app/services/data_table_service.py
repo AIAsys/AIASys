@@ -13,6 +13,7 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
+from app.utils.path_utils import as_system_path
 from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
@@ -113,7 +114,7 @@ def create_data_table(
         counter += 1
 
     # 创建 SQLite 文件
-    conn = sqlite3.connect(str(file_path))
+    conn = sqlite3.connect(as_system_path(str(file_path)))
     try:
         # 使用默认的 DELETE journal 模式，避免生成 .db-wal / .db-shm 临时文件
         conn.execute("PRAGMA journal_mode=DELETE")
@@ -203,7 +204,7 @@ def read_data_table_schema(file_path: Path) -> dict:
     if not file_path.exists():
         raise FileNotFoundError(f"数据表文件不存在: {file_path}")
 
-    conn = sqlite3.connect(str(file_path))
+    conn = sqlite3.connect(as_system_path(str(file_path)))
     conn.row_factory = sqlite3.Row
     try:
         # 读取 metadata
@@ -255,7 +256,7 @@ def read_data_table_records(
     if not file_path.exists():
         raise FileNotFoundError(f"数据表文件不存在: {file_path}")
 
-    conn = sqlite3.connect(str(file_path))
+    conn = sqlite3.connect(as_system_path(str(file_path)))
     conn.row_factory = sqlite3.Row
     try:
         rows = conn.execute(
@@ -283,7 +284,7 @@ def insert_data_table_records(
     if not file_path.exists():
         raise FileNotFoundError(f"数据表文件不存在: {file_path}")
 
-    conn = sqlite3.connect(str(file_path))
+    conn = sqlite3.connect(as_system_path(str(file_path)))
     try:
         # 读取 schema 确定合法列
         schema_rows = conn.execute("SELECT column_name FROM _schema").fetchall()
@@ -332,7 +333,7 @@ def update_data_table_record(
     if not file_path.exists():
         raise FileNotFoundError(f"数据表文件不存在: {file_path}")
 
-    conn = sqlite3.connect(str(file_path))
+    conn = sqlite3.connect(as_system_path(str(file_path)))
     try:
         # 读取 schema 确定合法列
         schema_rows = conn.execute("SELECT column_name FROM _schema").fetchall()
@@ -368,7 +369,7 @@ def delete_data_table_record(file_path: Path, record_id: str) -> bool:
     if not file_path.exists():
         raise FileNotFoundError(f"数据表文件不存在: {file_path}")
 
-    conn = sqlite3.connect(str(file_path))
+    conn = sqlite3.connect(as_system_path(str(file_path)))
     try:
         cursor = conn.execute("DELETE FROM records WHERE _id = ?", (record_id,))
         conn.commit()
@@ -393,7 +394,7 @@ def add_data_table_column(file_path: Path, column: DataTableColumnDef) -> None:
 
     _validate_column_name(column.name)
 
-    conn = sqlite3.connect(str(file_path))
+    conn = sqlite3.connect(as_system_path(str(file_path)))
     try:
         # 检查列名是否已存在
         existing = conn.execute(
@@ -438,7 +439,7 @@ def remove_data_table_column(file_path: Path, column_name: str) -> None:
 
     _validate_column_name(column_name)
 
-    conn = sqlite3.connect(str(file_path))
+    conn = sqlite3.connect(as_system_path(str(file_path)))
     try:
         # 不能删除系统列
         if column_name in ("_id", "_created_at", "_updated_at"):
@@ -477,7 +478,7 @@ def update_data_table_column(
     _validate_column_name(old_name)
     _validate_column_name(column.name)
 
-    conn = sqlite3.connect(str(file_path))
+    conn = sqlite3.connect(as_system_path(str(file_path)))
     try:
         if old_name in ("_id", "_created_at", "_updated_at"):
             raise ValueError("不能修改系统列")

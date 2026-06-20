@@ -9,6 +9,7 @@ from typing import Any
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel, Field
 
 from app.core.auth import require_auth
 from app.models.user import UserInfo
@@ -27,6 +28,30 @@ from app.services.auto_tasks import (
 from app.services.workspace_registry import get_workspace_registry_service
 
 router = APIRouter(prefix="/auto-tasks", tags=["auto-tasks"])
+
+
+class CreateAutoTaskRequest(BaseModel):
+    """创建自动任务请求"""
+
+    prompt: str = Field(..., min_length=1, description="任务提示词")
+    trigger_type: str = Field(default="interval", description="触发类型: continuous / interval / cron / once")
+    trigger_value: str = Field(default="", description="触发值（cron 表达式或间隔秒数）")
+    title: str = Field(default="", description="任务标题")
+    status: str = Field(default="active", description="任务状态: active / paused / disabled")
+    model: str | None = Field(default=None, description="模型名称")
+    model_id: str | None = Field(default=None, description="模型 ID")
+    sandbox_mode: str | None = Field(default=None, description="沙盒模式")
+    attachments: list[str] = Field(default_factory=list, description="附件列表")
+    auto_enable_hosting: bool = Field(default=False, description="是否自动启用 Hosting")
+    hosting_bootstrap_mode: str | None = Field(default=None, description="Hosting 启动模式")
+    overlap_policy: str | None = Field(default=None, description="重叠策略")
+    bind_session_id: str | None = Field(default=None, description="绑定会话 ID")
+    session_strategy: str | None = Field(default=None, description="会话策略")
+    continuation_prompt: str | None = Field(default=None, description="连续运行提示词")
+    max_continuations: int = Field(default=-1, description="最大连续运行次数")
+    first_run_policy: str | None = Field(default=None, description="首次运行策略")
+    stop_on_consecutive_errors: int = Field(default=10, ge=1, description="连续错误停止阈值")
+    stop_on_signal: bool = Field(default=True, description="是否响应停止信号")
 
 
 def _build_task_response(task: AutoTask) -> dict[str, Any]:
@@ -48,12 +73,10 @@ def _parse_session_strategy(
     body: dict[str, Any],
     bind_session_id: str | None,
 ) -> str:
-    value = str(
-        body.get(
-            "session_strategy",
-            "bind_session" if bind_session_id else "new_each_time",
-        )
-    )
+    raw = body.get("session_strategy")
+    if raw is None:
+        raw = "bind_session" if bind_session_id else "new_each_time"
+    value = str(raw)
     if value not in {"bind_session", "new_each_time"}:
         raise HTTPException(
             status_code=400,
@@ -260,7 +283,7 @@ async def list_tasks(
 @router.post("/workspaces/{workspace_id}/tasks")
 async def create_task(
     workspace_id: str,
-    body: dict[str, Any],
+    body: CreateAutoTaskRequest,
     user: UserInfo = Depends(require_auth()),
 ):
     """在工作区下创建自动任务"""
@@ -271,13 +294,16 @@ async def create_task(
         workspace_registry=registry,
     )
 
-    trigger_type = _parse_trigger_type(body)
+    # Convert to dict for helper functions that expect dict[str, Any]
+    body_dict = body.model_dump()
+
+    trigger_type = _parse_trigger_type(body_dict)
     task_category = _task_category_for_trigger(trigger_type)
-    first_run_policy = _parse_first_run_policy(body.get("first_run_policy"))
+    first_run_policy = _parse_first_run_policy(body.first_run_policy)
     if task_category == TaskCategory.continuous:
         first_run_policy = FirstRunPolicy.immediate
 
-    trigger_value = body.get("trigger_value", "")
+    trigger_value = body.trigger_value
     if task_category == TaskCategory.continuous:
         trigger_value = ""
     if not trigger_value and trigger_type != AutoTaskTriggerType.continuous:
@@ -285,11 +311,8 @@ async def create_task(
 
     _validate_trigger_value(trigger_type, trigger_value)
 
-    prompt = body.get("prompt", "")
-    if not prompt:
-        raise HTTPException(status_code=400, detail="prompt 不能为空")
-
-    bind_session_id = _resolve_bind_session_id(body)
+    prompt = body.prompt
+    bind_session_id = _resolve_bind_session_id(body_dict)
 
     now = datetime.now().isoformat()
     task = AutoTask(
@@ -299,26 +322,24 @@ async def create_task(
         prompt=prompt,
         trigger_type=trigger_type,
         trigger_value=trigger_value,
-        status=_parse_task_status(body.get("status")),
-        title=body.get("title", ""),
+        status=_parse_task_status(body.status),
+        title=body.title,
         created_at=now,
         updated_at=now,
-        model=body.get("model"),
-        model_id=body.get("model_id"),
-        sandbox_mode=body.get("sandbox_mode"),
-        attachments=body.get("attachments") or [],
-        auto_enable_hosting=bool(body.get("auto_enable_hosting", False)),
-        hosting_bootstrap_mode=_parse_hosting_bootstrap_mode(body.get("hosting_bootstrap_mode")),
-        overlap_policy=_parse_overlap_policy(body.get("overlap_policy")),
+        model=body.model,
+        model_id=body.model_id,
+        sandbox_mode=body.sandbox_mode,
+        attachments=body.attachments,
+        auto_enable_hosting=body.auto_enable_hosting,
+        hosting_bootstrap_mode=_parse_hosting_bootstrap_mode(body.hosting_bootstrap_mode),
+        overlap_policy=_parse_overlap_policy(body.overlap_policy),
         bind_session_id=bind_session_id,
-        continuation_prompt=body.get("continuation_prompt"),
-        max_continuations=_coerce_max_continuations(body.get("max_continuations", -1)),
+        continuation_prompt=body.continuation_prompt,
+        max_continuations=body.max_continuations,
         task_category=task_category,
         first_run_policy=first_run_policy,
-        stop_on_consecutive_errors=_coerce_stop_on_consecutive_errors(
-            body.get("stop_on_consecutive_errors", 10)
-        ),
-        stop_on_signal=bool(body.get("stop_on_signal", True)),
+        stop_on_consecutive_errors=body.stop_on_consecutive_errors,
+        stop_on_signal=body.stop_on_signal,
     )
 
     _validate_overlap_for_mode(task.overlap_policy, task.bind_session_id)

@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import threading
 from pathlib import Path
 from typing import Any, Optional
@@ -65,7 +66,7 @@ class MCPManager:
             user_id = workspace_path.parent.name
             if user_id:
                 return user_id
-        except Exception:
+        except (AttributeError, TypeError):
             pass
         return None
 
@@ -91,19 +92,24 @@ class MCPManager:
         try:
             data = json.loads(path.read_text(encoding="utf-8"))
             return MCPConfig.model_validate(data)
-        except Exception:
-            logger.warning("MCP 配置解析失败: %s", path, exc_info=True)
+        except (json.JSONDecodeError, ValueError, OSError) as e:
+            logger.warning("MCP 配置解析失败: %s - %s", path, e)
             return MCPConfig()
 
     def _save_config_file(self, path: Path, config: MCPConfig) -> None:
         """保存 MCP 配置到指定路径（原子写）。"""
         path.parent.mkdir(parents=True, exist_ok=True)
         tmp_path = path.with_suffix(".tmp")
-        tmp_path.write_text(
-            json.dumps(config.model_dump(mode="json"), indent=2, ensure_ascii=False),
-            encoding="utf-8",
-        )
-        tmp_path.replace(path)
+        try:
+            with open(tmp_path, "w", encoding="utf-8") as f:
+                f.write(json.dumps(config.model_dump(mode="json"), indent=2, ensure_ascii=False))
+                f.flush()
+                os.fsync(f.fileno())
+            os.replace(str(tmp_path), str(path))
+        except Exception:
+            if tmp_path.exists():
+                tmp_path.unlink(missing_ok=True)
+            raise
 
     def _load_system_defaults(self) -> MCPConfig:
         """读取系统默认 MCP 配置。"""
@@ -332,10 +338,20 @@ class MCPManager:
     def _save_tools_cache(
         self, workspace_path: Path, cache: dict[str, list[dict[str, Any]]]
     ) -> None:
-        """保存工具缓存。"""
+        """保存工具缓存（原子写）。"""
         path = self._get_tools_cache_path(workspace_path)
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(cache, indent=2, ensure_ascii=False), encoding="utf-8")
+        tmp_path = path.with_suffix(".tmp")
+        try:
+            with open(tmp_path, "w", encoding="utf-8") as f:
+                f.write(json.dumps(cache, indent=2, ensure_ascii=False))
+                f.flush()
+                os.fsync(f.fileno())
+            os.replace(str(tmp_path), str(path))
+        except Exception:
+            if tmp_path.exists():
+                tmp_path.unlink(missing_ok=True)
+            raise
 
     def cache_server_tools(
         self,

@@ -8,6 +8,8 @@ import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
+from app.core.subprocess_utils import subprocess_kwargs
+
 MARKDOWN_EXTENSIONS = {".md", ".markdown"}
 PDF_ENGINE_CANDIDATES = (
     "weasyprint",
@@ -125,13 +127,14 @@ def export_markdown_file(source_path: Path, output_format: str) -> ExportedArtif
             command,
             cwd=source.parent,
             capture_output=True,
-            text=True,
             timeout=120,
             check=False,
+            **subprocess_kwargs(),
         )
         if result.returncode != 0:
-            stderr = (result.stderr or "").strip()
-            stdout = (result.stdout or "").strip()
+            from app.core.encoding_utils import smart_decode
+            stderr = smart_decode(result.stderr).strip() if result.stderr else ""
+            stdout = smart_decode(result.stdout).strip() if result.stdout else ""
             detail = stderr or stdout or "Pandoc 未返回具体错误"
             raise MarkdownExportError(f"Pandoc 导出失败: {detail}")
 

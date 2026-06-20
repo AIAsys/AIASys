@@ -19,6 +19,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from app.utils.path_utils import as_system_path
+
 logger = logging.getLogger(__name__)
 
 
@@ -315,7 +317,7 @@ def _write_knowledge_db_metadata(
 ) -> None:
     """写入知识库 SQLite metadata。"""
     try:
-        with sqlite3.connect(str(file_path)) as conn:
+        with sqlite3.connect(as_system_path(str(file_path))) as conn:
             conn.execute("PRAGMA journal_mode = DELETE")
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS _aiasys_metadata (
@@ -353,7 +355,7 @@ def _create_graph_db_tables(
 ) -> None:
     """创建知识图谱 SQLite 表结构并写入初始 metadata。"""
     try:
-        with sqlite3.connect(str(file_path)) as conn:
+        with sqlite3.connect(as_system_path(str(file_path))) as conn:
             conn.execute("PRAGMA journal_mode = DELETE")
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS _aiasys_metadata (

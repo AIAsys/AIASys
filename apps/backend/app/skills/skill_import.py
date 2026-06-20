@@ -7,6 +7,8 @@ import tempfile
 import zipfile
 from pathlib import Path
 
+from app.utils.path_utils import as_system_path
+
 from .models import SkillOperationResult
 
 
@@ -116,16 +118,16 @@ class SkillImportMixin:
                     package_path=target_dir,
                     message=f"全局仓库中已存在同名 Skill '{skill_name}'",
                 )
-            shutil.rmtree(target_dir)
+            shutil.rmtree(as_system_path(str(target_dir)))
 
         target_dir.parent.mkdir(parents=True, exist_ok=True)
 
         tmp_dir = target_dir.with_suffix(".new")
         if tmp_dir.exists():
-            shutil.rmtree(tmp_dir)
+            shutil.rmtree(as_system_path(str(tmp_dir)))
 
         try:
-            shutil.copytree(source_dir, tmp_dir)
+            shutil.copytree(as_system_path(str(source_dir)), as_system_path(str(tmp_dir)))
         except Exception as exc:
             return SkillOperationResult(
                 success=False,
@@ -134,7 +136,7 @@ class SkillImportMixin:
             )
 
         if target_dir.exists():
-            shutil.rmtree(target_dir)
+            shutil.rmtree(as_system_path(str(target_dir)))
         tmp_dir.rename(target_dir)
 
         return SkillOperationResult(

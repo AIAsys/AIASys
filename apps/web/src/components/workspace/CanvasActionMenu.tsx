@@ -77,9 +77,9 @@ export function CanvasActionMenu({
         >
           {hasSplit || onShowInfo || (customItems && customItems.length > 0) ? (
             <>
-              {customItems?.map((item, index) => (
+              {customItems?.map((item) => (
                 <button
-                  key={index}
+                  key={item.label}
                   type="button"
                   role="menuitem"
                   className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-accent focus:bg-accent focus:outline-none ${item.active ? "bg-accent" : ""} ${item.variant === "danger" ? "text-error hover:bg-error-container focus:bg-error-container" : ""}`}

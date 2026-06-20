@@ -10,7 +10,7 @@ import { WorkspaceLayout } from "./components/WorkspaceLayout";
 // 本地 Hooks
 import { getCurrentUserId } from "@/config/api";
 import { getAuthMode } from "@/config/auth";
-import { useAuthState } from "@/contexts/AuthContext";
+import { useAuthContext } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -265,7 +265,7 @@ export default function WorkspacePage({
     isAuthenticated,
     error,
     refreshSession,
-  } = useAuthState();
+  } = useAuthContext();
   const authMode = getAuthMode();
   const userId = user?.id || getCurrentUserId();
   const [isRetryingContext, setIsRetryingContext] = useState(false);

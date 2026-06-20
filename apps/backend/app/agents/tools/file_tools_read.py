@@ -201,6 +201,10 @@ class ReadFile(AiasysTool):
 - 单次最多读取 {MAX_LINES} 行或 {MAX_BYTES} 字节
 - 单行超过 {MAX_LINE_LENGTH} 字符会被截断
 - 拒绝读取非文本文件（含二进制文件和已知非文本格式）
+
+错误恢复：
+- 优先直接调用 ReadFile 读取用户给出的路径
+- 当 ReadFile 返回文件不存在错误时，不要连续猜测文件名重复调用 ReadFile；应改用 Shell 工具运行 `ls`/`find`/`dir` 列出父目录，确认正确文件名后再读取正确文件并完成原任务
 """
     params: type[BaseModel] = ReadFileParams
 
@@ -231,7 +235,10 @@ class ReadFile(AiasysTool):
             )
 
         if not os.path.exists(as_system_path(file_path)):
-            return ToolResult(content=f"`{params.path}` 不存在", is_error=True)
+            return ToolResult(
+                content=f"`{params.path}` 不存在。建议先用 Shell 列出所在目录确认正确文件名。",
+                is_error=True,
+            )
         if not os.path.isfile(as_system_path(file_path)):
             return ToolResult(content=f"`{params.path}` 不是文件", is_error=True)
 

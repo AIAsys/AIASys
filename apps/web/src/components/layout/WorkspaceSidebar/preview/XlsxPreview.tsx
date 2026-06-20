@@ -270,7 +270,7 @@ export const XlsxPreview: React.FC<XlsxPreviewProps> = ({
                 </th>
               ) : (
                 <th
-                  key={i}
+                  key={`col-${i}`}
                   className="px-3 py-2 text-left font-semibold text-foreground border-b border-border whitespace-nowrap"
                 >
                   {header || `列${i + 1}`}
@@ -370,6 +370,7 @@ export const XlsxPreview: React.FC<XlsxPreviewProps> = ({
                 </span>
               </div>
               <button
+                type="button"
                 onClick={() => {
                   setIsEditing((prev) => !prev);
                   setEditingCell(null);
@@ -380,6 +381,7 @@ export const XlsxPreview: React.FC<XlsxPreviewProps> = ({
               </button>
               {isEditing && (
                 <button
+                  type="button"
                   onClick={handleSave}
                   disabled={isSaving || !hasChanges}
                   className="flex items-center gap-1 px-2.5 py-0.5 text-[11px] bg-primary hover:bg-primary/90 disabled:bg-muted disabled:opacity-50 disabled:cursor-not-allowed rounded text-primary-foreground transition-colors"
@@ -422,6 +424,7 @@ export const XlsxPreview: React.FC<XlsxPreviewProps> = ({
         <div className="flex items-center gap-1 px-2 py-1.5 border-b border-border bg-muted/30 overflow-x-auto shrink-0">
           {(isEditing ? editedSheets : sheets).map((sheet, index) => (
             <button
+              type="button"
               key={sheet.name}
               onClick={() => {
                 setActiveSheet(index);

@@ -806,13 +806,21 @@ class SimpleCompaction:
 
         # 构建压缩后的消息列表
         # 摘要放在 user 角色消息中，但标记 origin=compaction_summary，便于前端识别。
+        # 如果调用方提供了自定义压缩指令，把原文附在摘要末尾，确保关键 token
+        # 在摘要消息中一定存在，不会被 LLM 的总结风格遗漏。
+        summary_content = (
+            "Previous context has been compacted. "
+            "Here is the compaction output:\n\n" + summary_text
+        )
+        if custom_instruction and custom_instruction.strip():
+            summary_content += (
+                "\n\n[Compaction must preserve the following user-specified information]\n"
+                + custom_instruction.strip()
+            )
         summary_message: dict[str, Any] = {
             "role": "user",
             "origin": "compaction_summary",
-            "content": (
-                "Previous context has been compacted. "
-                "Here is the compaction output:\n\n" + summary_text
-            ),
+            "content": summary_content,
         }
         if summary_turn_n is not None:
             summary_message["turn_n"] = summary_turn_n

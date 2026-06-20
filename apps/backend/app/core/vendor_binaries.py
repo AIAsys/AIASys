@@ -16,6 +16,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from app.core.subprocess_utils import subprocess_kwargs
+
 logger = logging.getLogger(__name__)
 
 
@@ -133,18 +135,19 @@ def ensure_vendor_binaries() -> None:
         result = subprocess.run(
             [sys.executable, str(script)],
             cwd=_repo_root(),
-            text=True,
-            encoding="utf-8",
-            errors="replace",
             capture_output=True,
             check=False,
             timeout=60,
+            **subprocess_kwargs(),
         )
         if result.returncode != 0:
+            from app.core.encoding_utils import smart_decode
+            stderr = smart_decode(result.stderr) if result.stderr else ""
+            stdout = smart_decode(result.stdout) if result.stdout else ""
             logger.warning(
                 "vendor 二进制自动下载失败 (exit %s):\n%s",
                 result.returncode,
-                result.stderr or result.stdout,
+                stderr or stdout,
             )
             return
 

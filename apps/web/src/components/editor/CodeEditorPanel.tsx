@@ -101,7 +101,7 @@ export function CodeEditorPanel({
   const language = getWorkspaceEditorLanguage(file.name);
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-[#1e1e1e] text-white">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-white dark:bg-[#1e1e1e] text-gray-900 dark:text-white">
       {error ? (
         <div className="border-b border-warning/30 bg-warning-container px-4 py-3 text-sm text-warning">
           <div className="flex items-center gap-2">
@@ -120,7 +120,7 @@ export function CodeEditorPanel({
       ) : null}
 
       {/* 工具栏 */}
-      <div className="flex items-center justify-between gap-3 border-b border-border/20 bg-[#252526] px-4 py-2">
+      <div className="flex items-center justify-between gap-3 border-b border-border/20 bg-gray-50 dark:bg-[#252526] px-4 py-2">
         <div className="flex items-center gap-2">
           {editable ? (
             <>
@@ -130,12 +130,12 @@ export function CodeEditorPanel({
                   dirty ? "bg-yellow-500" : "bg-green-500",
                 )}
               />
-              <span className="text-[11px] text-white/60">
+              <span className="text-[11px] text-gray-500 dark:text-white/60">
                 {dirty ? "未保存" : "已保存"}
               </span>
             </>
           ) : (
-            <span className="text-[11px] text-white/60">只读</span>
+            <span className="text-[11px] text-gray-500 dark:text-white/60">只读</span>
           )}
         </div>
         <div className="flex items-center gap-2">
@@ -145,7 +145,7 @@ export function CodeEditorPanel({
                 type="button"
                 onClick={handleReset}
                 disabled={!dirty || isSaving}
-                className="inline-flex h-7 items-center gap-1 rounded-md border border-white/10 bg-white/5 px-2.5 text-[11px] text-white/70 transition-colors hover:bg-white/10 disabled:opacity-40"
+                className="inline-flex h-7 items-center gap-1 rounded-md border border-gray-200 dark:border-white/10 bg-gray-100 dark:bg-white/5 px-2.5 text-[11px] text-gray-600 dark:text-white/70 transition-colors hover:bg-gray-200 dark:hover:bg-white/10 disabled:opacity-40"
               >
                 <RotateCcw className="h-3 w-3" />
                 还原
@@ -171,7 +171,7 @@ export function CodeEditorPanel({
       {/* 编辑器 */}
       <div className="min-h-0 flex-1 overflow-hidden">
         {isLoading || !loaded ? (
-          <div className="flex h-full items-center justify-center text-sm text-white/60">
+          <div className="flex h-full items-center justify-center text-sm text-gray-500 dark:text-white/60">
             <Loader2 className="mr-2 h-5 w-5 animate-spin" />
             正在加载文件
           </div>
@@ -208,7 +208,7 @@ export function CodeEditorPanel({
       </AlertDialog>
 
       {/* 状态栏 */}
-      <div className="flex min-h-7 items-center justify-between gap-3 border-t border-border/20 bg-[#252526] px-4 py-1.5 text-[11px] text-white/50">
+      <div className="flex min-h-7 items-center justify-between gap-3 border-t border-border/20 bg-gray-50 dark:bg-[#252526] px-4 py-1.5 text-[11px] text-gray-500 dark:text-white/50">
         <div className="min-w-0 truncate font-mono">{file.name}</div>
         <div className="flex shrink-0 items-center gap-3">
           <span>{content.length.toLocaleString("zh-CN")} 字符</span>

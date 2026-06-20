@@ -49,7 +49,9 @@ def _resolve_directory_under_root(root: Path, directory: str | None) -> tuple[Pa
     relative_dir = _normalize_notebook_directory(directory)
     resolved_dir = (root / relative_dir).resolve()
     root_resolved = root.resolve()
-    if not str(resolved_dir).startswith(str(root_resolved)):
+    try:
+        resolved_dir.relative_to(root_resolved)
+    except ValueError:
         raise ValueError("Notebook 目录超出当前允许范围。")
     return relative_dir, resolved_dir
 

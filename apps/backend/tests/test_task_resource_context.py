@@ -491,16 +491,18 @@ async def test_graph_entity_search_tool_uses_all_mounted_graphs(
         graphrag_tool, "resolve_mounted_knowledge_graph_ids", lambda: ["graph-a", "graph-b"]
     )
 
+    async def _search_a(query, entity_type=None):
+        return [{"name": "Alpha", "entity_type": "concept", "description": "from graph-a"}]
+
+    async def _search_b(query, entity_type=None):
+        return [{"name": "Beta", "entity_type": "concept", "description": "from graph-b"}]
+
     services = {
         "graph-a": SimpleNamespace(
-            search=lambda query, entity_type=None: [
-                {"name": "Alpha", "entity_type": "concept", "description": "from graph-a"}
-            ]
+            search=_search_a
         ),
         "graph-b": SimpleNamespace(
-            search=lambda query, entity_type=None: [
-                {"name": "Beta", "entity_type": "concept", "description": "from graph-b"}
-            ]
+            search=_search_b
         ),
     }
     monkeypatch.setattr(
@@ -536,7 +538,7 @@ async def test_list_knowledge_graphs_tool_uses_current_user_when_listing_all(
             return [{"kg_id": "graph-user"}]
 
     class FakeGraphService:
-        def get_statistics(self):
+        async def get_statistics(self):
             return {"entity_count": 2, "relation_count": 1, "document_count": 1}
 
     monkeypatch.setattr(graphrag_tool, "SQLiteGraphStore", FakeGraphStore)
@@ -673,7 +675,7 @@ async def test_graphrag_entity_and_relation_tools_manage_sqlite_store(
         ).model_dump()
     )
 
-    entity_a = store.get_entity("实体A")
+    entity_a = await store.get_entity("实体A")
     assert entity_a is not None
 
     update_result = await graphrag_tool.UpdateGraphEntity().invoke(
@@ -702,8 +704,8 @@ async def test_graphrag_entity_and_relation_tools_manage_sqlite_store(
         ).model_dump()
     )
 
-    updated_entity = store.get_entity("实体A")
-    _, relations = store.get_entity_relations("实体A")
+    updated_entity = await store.get_entity("实体A")
+    _, relations = await store.get_entity_relations("实体A")
 
     assert first_result.is_error is False
     assert "已创建实体" in first_result.output
@@ -717,7 +719,7 @@ async def test_graphrag_entity_and_relation_tools_manage_sqlite_store(
     assert "类型: depends_on" in relation_result.output
     assert delete_result.is_error is False
     assert "同步删除关系数: 1" in delete_result.output
-    assert store.get_entity("实体B") is None
+    assert await store.get_entity("实体B") is None
     assert relations == []
 
 
@@ -788,7 +790,7 @@ async def test_graphrag_get_community_report_tool_filters_community(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     class FakeGraphService:
-        def get_communities(self, level: int = 0):
+        async def get_communities(self, level: int = 0):
             assert level == 0
             return [
                 {

@@ -128,6 +128,7 @@ function highlightText(text: string, query: string): React.ReactNode {
   const splitRe = new RegExp(`(${terms.join("|")})`, "gi");
   const parts = text.split(splitRe);
   const matchRe = new RegExp(`^(?:${terms.join("|")})$`, "i");
+  {/* key={index} is safe — static text split, parts never reorder */}
   return parts.map((part, index) =>
     part && matchRe.test(part) ? (
       <mark key={index} className="rounded bg-yellow-200/60 px-0.5 text-inherit">

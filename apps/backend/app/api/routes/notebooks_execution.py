@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime
-from typing import List
+from typing import Any, Callable, Coroutine, List
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
@@ -483,15 +483,17 @@ async def get_notebook_artifacts(
     )
 
 
-@router.post(
-    "/{user_id}/{session_id}/runtime/interrupt", response_model=NotebookRuntimeControlResponse
-)
-async def interrupt_notebook_runtime(
+async def _execute_runtime_control(
     user_id: str,
     session_id: str,
     request: NotebookPathRequest,
-    current_user: UserInfo = Depends(require_auth()),
-):
+    current_user: UserInfo,
+    *,
+    action: str,
+    execute_fn: Callable[..., Coroutine[Any, Any, Any]],
+    build_status: Callable[[Any], str],
+    build_detail: Callable[[Any], str],
+) -> NotebookRuntimeControlResponse:
     _check_user_access(current_user, user_id)
     targets = _resolve_targets(user_id, session_id, request.notebook_path)
     _load_notebook_for_targets(targets)
@@ -504,11 +506,7 @@ async def interrupt_notebook_runtime(
         workspace_root=workspace_root,
         session_root=session_root,
     ):
-        box = LocalIPythonBox()
-        user_identity = box._resolve_user_id()
-        interrupted = LocalIPythonBox.interrupt_kernel(
-            session_id, request.notebook_path, user_identity
-        )
+        result = await execute_fn(workspace_root=workspace_root, session_root=session_root)
 
     state = _build_notebook_state(
         user_id=user_id,
@@ -519,15 +517,36 @@ async def interrupt_notebook_runtime(
     runtime_summary, _ = _build_runtime_summary(user_id, session_id)
     return NotebookRuntimeControlResponse(
         notebook_path=targets.relative_path.as_posix(),
-        action="interrupt",
-        status="success" if interrupted else "noop",
-        detail=(
-            "已发送 notebook 中断信号。"
-            if interrupted
-            else "当前没有活跃 notebook kernel，可跳过中断。"
-        ),
+        action=action,
+        status=build_status(result),
+        detail=build_detail(result),
         runtime_summary=runtime_summary,
         state=state,
+    )
+
+
+@router.post(
+    "/{user_id}/{session_id}/runtime/interrupt", response_model=NotebookRuntimeControlResponse
+)
+async def interrupt_notebook_runtime(
+    user_id: str,
+    session_id: str,
+    request: NotebookPathRequest,
+    current_user: UserInfo = Depends(require_auth()),
+):
+    async def _do_interrupt(*, workspace_root: str, session_root: str):
+        box = LocalIPythonBox()
+        user_identity = box._resolve_user_id()
+        return LocalIPythonBox.interrupt_kernel(
+            session_id, request.notebook_path, user_identity
+        )
+
+    return await _execute_runtime_control(
+        user_id, session_id, request, current_user,
+        action="interrupt",
+        execute_fn=_do_interrupt,
+        build_status=lambda r: "success" if r else "noop",
+        build_detail=lambda r: "已发送 notebook 中断信号。" if r else "当前没有活跃 notebook kernel，可跳过中断。",
     )
 
 
@@ -540,24 +559,13 @@ async def restart_notebook_runtime(
     request: NotebookPathRequest,
     current_user: UserInfo = Depends(require_auth()),
 ):
-    _check_user_access(current_user, user_id)
-    targets = _resolve_targets(user_id, session_id, request.notebook_path)
-    _load_notebook_for_targets(targets)
-
-    workspace_root = _get_logical_workspace_root(user_id, session_id)
-    session_root = _get_work_dir(user_id, session_id)
-    async with _bind_notebook_execution_context(
-        user_id=user_id,
-        session_id=session_id,
-        workspace_root=workspace_root,
-        session_root=session_root,
-    ):
+    async def _do_restart(*, workspace_root: str, session_root: str):
         box = LocalIPythonBox()
         box.workspace = workspace_root
         box.notebook_path = request.notebook_path
         helper_env = box._resolve_runtime_helper_env()
         user_identity = box._resolve_user_id()
-        had_kernel = await LocalIPythonBox.restart_kernel(
+        return await LocalIPythonBox.restart_kernel(
             session_id,
             request.notebook_path,
             user_identity,
@@ -565,24 +573,12 @@ async def restart_notebook_runtime(
             helper_env=helper_env,
         )
 
-    state = _build_notebook_state(
-        user_id=user_id,
-        session_id=session_id,
-        targets=targets,
-        edit_lock_reason=_get_notebook_edit_lock_reason(user_id, session_id),
-    )
-    runtime_summary, _ = _build_runtime_summary(user_id, session_id)
-    return NotebookRuntimeControlResponse(
-        notebook_path=targets.relative_path.as_posix(),
+    return await _execute_runtime_control(
+        user_id, session_id, request, current_user,
         action="restart",
-        status="success",
-        detail=(
-            "已重启 notebook kernel。"
-            if had_kernel
-            else "当前没有旧 kernel，已创建新的 notebook kernel。"
-        ),
-        runtime_summary=runtime_summary,
-        state=state,
+        execute_fn=_do_restart,
+        build_status=lambda r: "success",
+        build_detail=lambda r: "已重启 notebook kernel。" if r else "当前没有旧 kernel，已创建新的 notebook kernel。",
     )
 
 
@@ -593,42 +589,19 @@ async def stop_notebook_runtime(
     request: NotebookPathRequest,
     current_user: UserInfo = Depends(require_auth()),
 ):
-    _check_user_access(current_user, user_id)
-    targets = _resolve_targets(user_id, session_id, request.notebook_path)
-    _load_notebook_for_targets(targets)
-
-    workspace_root = _get_logical_workspace_root(user_id, session_id)
-    session_root = _get_work_dir(user_id, session_id)
-    async with _bind_notebook_execution_context(
-        user_id=user_id,
-        session_id=session_id,
-        workspace_root=workspace_root,
-        session_root=session_root,
-    ):
+    async def _do_stop(*, workspace_root: str, session_root: str):
         box = LocalIPythonBox()
         user_identity = box._resolve_user_id()
-        had_kernel = await LocalIPythonBox.stop_kernel(
+        return await LocalIPythonBox.stop_kernel(
             session_id, request.notebook_path, user_identity
         )
 
-    state = _build_notebook_state(
-        user_id=user_id,
-        session_id=session_id,
-        targets=targets,
-        edit_lock_reason=_get_notebook_edit_lock_reason(user_id, session_id),
-    )
-    runtime_summary, _ = _build_runtime_summary(user_id, session_id)
-    return NotebookRuntimeControlResponse(
-        notebook_path=targets.relative_path.as_posix(),
+    return await _execute_runtime_control(
+        user_id, session_id, request, current_user,
         action="stop",
-        status="success" if had_kernel else "noop",
-        detail=(
-            "已停止 notebook kernel。"
-            if had_kernel
-            else "当前没有活跃 notebook kernel，可跳过停止。"
-        ),
-        runtime_summary=runtime_summary,
-        state=state,
+        execute_fn=_do_stop,
+        build_status=lambda r: "success" if r else "noop",
+        build_detail=lambda r: "已停止 notebook kernel。" if r else "当前没有活跃 notebook kernel，可跳过停止。",
     )
 
 

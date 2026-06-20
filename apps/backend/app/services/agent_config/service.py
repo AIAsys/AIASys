@@ -13,6 +13,8 @@ import shutil
 import tomllib
 from datetime import datetime
 from pathlib import Path
+
+from app.utils.path_utils import as_system_path
 from typing import Dict, List, Literal, Optional, Tuple
 
 from app.core.config import WORKSPACE_DIR
@@ -1525,7 +1527,7 @@ class AgentConfigService:
 
             if mode_dir.exists():
                 # 删除整个模式配置目录
-                shutil.rmtree(mode_dir)
+                shutil.rmtree(as_system_path(str(mode_dir)))
                 logger.info("删除配置目录: %s", mode_dir)
 
             if not session_id and not workspace_id:

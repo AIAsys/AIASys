@@ -7,6 +7,8 @@ import shutil
 from datetime import datetime, timezone
 from pathlib import Path
 
+from app.utils.path_utils import as_system_path
+
 from .models import SkillMetaInfo, SkillOperationResult
 from .skill_fingerprint import META_FILE_NAME, compute_directory_fingerprint
 
@@ -39,7 +41,7 @@ class SkillEnablementMixin:
         example = store_skill_dir / self.CONFIG_EXAMPLE_NAME
         if example.exists():
             config_path.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy(example, config_path)
+            shutil.copy(as_system_path(str(example)), as_system_path(str(config_path)))
 
     def _cleanup_workspace_skill_config(
         self,
@@ -158,10 +160,10 @@ class SkillEnablementMixin:
 
         tmp_path = dest_path.parent / (dest_path.name + ".new")
         if tmp_path.exists():
-            shutil.rmtree(tmp_path)
+            shutil.rmtree(as_system_path(str(tmp_path)))
 
         try:
-            shutil.copytree(target_dir.resolve(), tmp_path)
+            shutil.copytree(as_system_path(str(target_dir.resolve())), as_system_path(str(tmp_path)))
         except Exception as exc:
             return SkillOperationResult(
                 success=False,
@@ -173,7 +175,7 @@ class SkillEnablementMixin:
         if dest_path.is_symlink():
             dest_path.unlink()
         elif dest_path.is_dir():
-            shutil.rmtree(dest_path)
+            shutil.rmtree(as_system_path(str(dest_path)))
         elif dest_path.exists():
             dest_path.unlink()
         tmp_path.rename(dest_path)
@@ -214,7 +216,7 @@ class SkillEnablementMixin:
             if link_path.is_symlink():
                 link_path.unlink()
             elif link_path.is_dir():
-                shutil.rmtree(link_path)
+                shutil.rmtree(as_system_path(str(link_path)))
             else:
                 link_path.unlink()
         except Exception as exc:
@@ -284,10 +286,10 @@ class SkillEnablementMixin:
 
         tmp_path = dest_path.parent / (dest_path.name + ".new")
         if tmp_path.exists():
-            shutil.rmtree(tmp_path)
+            shutil.rmtree(as_system_path(str(tmp_path)))
 
         try:
-            shutil.copytree(target_dir.resolve(), tmp_path)
+            shutil.copytree(as_system_path(str(target_dir.resolve())), as_system_path(str(tmp_path)))
         except Exception as exc:
             return SkillOperationResult(
                 success=False,
@@ -299,7 +301,7 @@ class SkillEnablementMixin:
         if dest_path.is_symlink():
             dest_path.unlink()
         elif dest_path.is_dir():
-            shutil.rmtree(dest_path)
+            shutil.rmtree(as_system_path(str(dest_path)))
         elif dest_path.exists():
             dest_path.unlink()
         tmp_path.rename(dest_path)
@@ -343,7 +345,7 @@ class SkillEnablementMixin:
             if link_path.is_symlink():
                 link_path.unlink()
             elif link_path.is_dir():
-                shutil.rmtree(link_path)
+                shutil.rmtree(as_system_path(str(link_path)))
             else:
                 link_path.unlink()
         except Exception as exc:
@@ -391,10 +393,10 @@ class SkillEnablementMixin:
 
         tmp_path = dest_path.parent / (dest_path.name + ".new")
         if tmp_path.exists():
-            shutil.rmtree(tmp_path)
+            shutil.rmtree(as_system_path(str(tmp_path)))
 
         try:
-            shutil.copytree(store_skill_dir.resolve(), tmp_path)
+            shutil.copytree(as_system_path(str(store_skill_dir.resolve())), as_system_path(str(tmp_path)))
         except Exception as exc:
             return SkillOperationResult(
                 success=False,
@@ -405,7 +407,7 @@ class SkillEnablementMixin:
         if dest_path.is_symlink():
             dest_path.unlink()
         elif dest_path.is_dir():
-            shutil.rmtree(dest_path)
+            shutil.rmtree(as_system_path(str(dest_path)))
         elif dest_path.exists():
             dest_path.unlink()
         tmp_path.rename(dest_path)

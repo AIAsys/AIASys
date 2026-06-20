@@ -13,6 +13,8 @@ import logging
 import shutil
 from datetime import datetime, timedelta
 from pathlib import Path
+
+from app.utils.path_utils import as_system_path
 from typing import Any
 
 from croniter import croniter
@@ -153,7 +155,10 @@ def _calculate_next_run(task: AutoTask, after: datetime | None = None) -> dateti
         if not task.last_run_at and first_run_policy == FirstRunPolicy.immediate:
             return base
         try:
-            anchor = base if task.last_run_at else first_run_anchor
+            # 使用上次执行时间作为锚点，避免轮询时把当前时间当锚点导致
+            # "永远差一个轮询间隔" 而触发不了的问题。
+            last_run = _parse_datetime(task.last_run_at) if task.last_run_at else None
+            anchor = last_run if last_run is not None else first_run_anchor
             iterator = croniter(task.trigger_value, anchor)
             return iterator.get_next(datetime)
         except Exception as exc:
@@ -290,7 +295,7 @@ class AutoTaskStore:
             workspace_meta = _workspace_meta_file(user_id, workspace_id)
             if not workspace_meta.exists() and workspace_dir.exists():
                 try:
-                    shutil.rmtree(workspace_dir)
+                    shutil.rmtree(as_system_path(str(workspace_dir)))
                 except OSError:
                     pass
 

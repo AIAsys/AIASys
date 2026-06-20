@@ -59,7 +59,7 @@ cd AIASys
 ```bash
 # 后端（注意：不要加 --reload，避免多 agent 时热重启干扰）
 cd apps/backend
-.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 13001
+uv run uvicorn app.main:app --host 0.0.0.0 --port 13001
 
 # 前端
 cd apps/web

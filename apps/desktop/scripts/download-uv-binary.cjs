@@ -51,7 +51,7 @@ function curlDownload(url, dest) {
   const result = spawnSync(
     "curl",
     ["-L", "-f", "--connect-timeout", "15", "--max-time", "300", "-o", dest, url],
-    { encoding: "utf-8", stdio: "pipe" }
+    { encoding: "utf-8", stdio: "pipe", windowsHide: true }
   );
   if (result.status !== 0) {
     const detail = result.stderr || result.error || `curl exit ${result.status}`;
@@ -64,7 +64,7 @@ function curlDownload(url, dest) {
 function resolvePython() {
   const candidates = [process.env.PYTHON, process.env.PYTHON3, "py", "python3", "python"].filter(Boolean);
   for (const cmd of candidates) {
-    const result = spawnSync(cmd, ["--version"], { encoding: "utf-8", stdio: "pipe" });
+    const result = spawnSync(cmd, ["--version"], { encoding: "utf-8", stdio: "pipe", windowsHide: true });
     if (result.status === 0) return cmd;
   }
   return null;
@@ -123,7 +123,6 @@ async function downloadForPlatform(slug) {
 
   const repoRoot = resolveRepoRoot();
   const vendorDir = path.join(repoRoot, "apps", "backend", "vendor", "uv");
-  // 与 service-manager.cjs 中 _bundledUvPath() 的目录命名保持一致
   const platformDirMap = {
     "linux-x64":    "linux-x64",
     "linux-arm64":  "linux-arm64",

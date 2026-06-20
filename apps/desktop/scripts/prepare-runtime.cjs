@@ -369,6 +369,7 @@ function prepareBackendRuntime() {
     const result = spawnSync("node", [downloadScript], {
       encoding: "utf-8",
       stdio: "pipe",
+      windowsHide: true,
     });
     if (result.status !== 0) {
       const detail = result.stderr || result.error || `exit ${result.status}`;
@@ -387,6 +388,7 @@ function prepareBackendRuntime() {
     const result = spawnSync("node", [downloadScript], {
       encoding: "utf-8",
       stdio: "pipe",
+      windowsHide: true,
     });
     if (result.status !== 0) {
       const detail = result.stderr || result.error || `exit ${result.status}`;
@@ -404,6 +406,7 @@ function prepareBackendRuntime() {
     const result = spawnSync("node", [downloadScript], {
       encoding: "utf-8",
       stdio: "pipe",
+      windowsHide: true,
     });
     if (result.status !== 0) {
       const detail = result.stderr || result.error || `exit ${result.status}`;

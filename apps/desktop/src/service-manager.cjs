@@ -296,8 +296,24 @@ function createLogStream(logFilePath) {
   return stream;
 }
 
+function decodeProcessOutput(data) {
+  if (Buffer.isBuffer(data)) {
+    // Try UTF-8 first, fall back to latin1 (never fails, preserves raw bytes)
+    try {
+      const str = data.toString("utf-8");
+      // Quick check: if it contains replacement characters, it might be a different encoding
+      if (!str.includes('\uFFFD')) return str;
+      // Fall through to latin1 which preserves all bytes
+      return data.toString("latin1");
+    } catch {
+      return data.toString("latin1");
+    }
+  }
+  return String(data);
+}
+
 function logToBoth(stream, prefix, data) {
-  const lines = String(data).split("\n");
+  const lines = decodeProcessOutput(data).split("\n");
   for (const line of lines) {
     if (line.trim() === "") {
       continue;
@@ -432,14 +448,27 @@ async function terminateChild(child) {
   }
 
   if (process.platform === "win32") {
+    // 先尝试优雅终止，等待后再强制终止
     await new Promise((resolve) => {
-      const killer = spawn("taskkill", ["/pid", String(child.pid), "/t", "/f"], {
+      const killer = spawn("taskkill", ["/pid", String(child.pid), "/t"], {
         stdio: "ignore",
         windowsHide: true,
       });
       killer.once("exit", () => resolve());
       killer.once("error", () => resolve());
+      setTimeout(() => resolve(), 2000);
     });
+
+    if (!child.killed && child.exitCode === null) {
+      await new Promise((resolve) => {
+        const killer = spawn("taskkill", ["/pid", String(child.pid), "/t", "/f"], {
+          stdio: "ignore",
+          windowsHide: true,
+        });
+        killer.once("exit", () => resolve());
+        killer.once("error", () => resolve());
+      });
+    }
     return;
   }
 
@@ -545,9 +574,9 @@ class DesktopServiceManager {
    */
   _getVenvRoot() {
     // 构建时已按平台修复 pyvenv.cfg / dylib / shebang
-    // 运行时：Linux AppImage 的 squashfs 只读，需复制 .venv 到可写目录；
-    // macOS / Windows 文件系统可写，直接使用 backendRoot。
-    if (this.isPackaged && process.platform === "linux") {
+    // 运行时：打包模式下 backendRoot 位于只读资源目录（AppImage squashfs、
+    // Windows Program Files、macOS app bundle），需把 .venv 复制到可写运行时目录。
+    if (this.isPackaged) {
       return this.runtimeStateRoot;
     }
     return this.backendRoot;
@@ -693,12 +722,10 @@ class DesktopServiceManager {
     this.preparePackagedRuntimeState();
 
     // 构建时已按平台修复（dylib/shebang/pyvenv.cfg）。
-    // 运行时：Linux AppImage squashfs 只读，需复制 .venv 到可写目录；
-    // macOS / Windows 文件系统可写，原地修复即可。
-    if (this.isPackaged && process.platform === "linux") {
+    // 运行时：打包模式下 backendRoot 只读，需复制 .venv 到可写运行时目录并修复。
+    if (this.isPackaged) {
       preparePackagedVenv(this.backendRoot, this.runtimeStateRoot);
-    } else if (this.isPackaged) {
-      fixPyvenvHomeIfNeeded(this.backendRoot);
+      fixPyvenvHomeIfNeeded(this.runtimeStateRoot);
     }
 
     const backendResolution = await this.resolveDesiredPort({
@@ -758,6 +785,9 @@ class DesktopServiceManager {
             })
             .catch((err) => {
               console.error("[aiasys-desktop] backend 重启后健康检查失败:", err);
+              if (typeof this.onBackendCrash === "function") {
+                this.onBackendCrash({ exitCode: null, signal: null, error: err.message });
+              }
             });
         },
       },

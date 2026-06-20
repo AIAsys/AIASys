@@ -50,8 +50,8 @@ export const Header = () => {
   };
 
   return (
-    <div className="fixed inset-x-0 top-0 z-50 border-b border-foreground/8 bg-white/78 shadow-[0_18px_40px_-32px_rgba(15,23,42,0.32)] backdrop-blur-2xl supports-[backdrop-filter]:bg-white/66">
-      <div className="absolute inset-0 bg-gradient-to-b from-white/95 via-white/78 to-white/62" />
+    <div className="fixed inset-x-0 top-0 z-50 border-b border-foreground/8 bg-white/78 dark:bg-background shadow-[0_18px_40px_-32px_rgba(15,23,42,0.32)] backdrop-blur-2xl supports-[backdrop-filter]:bg-white/66 dark:supports-[backdrop-filter]:bg-background/66">
+      <div className="absolute inset-0 bg-gradient-to-b from-white/95 via-white/78 to-white/62 dark:from-background/95 dark:via-background/78 dark:to-background/62" />
       <header className="relative flex h-16 items-center justify-between container mx-auto px-4 md:h-[4.5rem] md:px-8">
         <button
           type="button"

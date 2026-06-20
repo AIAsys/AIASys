@@ -155,6 +155,7 @@ export function GraphPreviewPanel({
     useState<Record<string, GraphLayoutPosition> | null>(null);
   const [isSavingLayout, setIsSavingLayout] = useState(false);
   const [layoutSaveMessage, setLayoutSaveMessage] = useState<string | null>(null);
+  const saveMessageTimerRef = useRef<number | null>(null);
 
   // 查询参数（持久化到 localStorage）
   const [queryTopK, setQueryTopK] = useState<number>(() => {
@@ -929,7 +930,13 @@ export function GraphPreviewPanel({
       await graphApi.saveLayout(positions);
       setSavedLayoutPositions(positions);
       setLayoutSaveMessage(`已保存 ${Object.keys(positions).length} 个节点位置`);
-      window.setTimeout(() => setLayoutSaveMessage(null), 3000);
+      if (saveMessageTimerRef.current) {
+        clearTimeout(saveMessageTimerRef.current);
+      }
+      saveMessageTimerRef.current = window.setTimeout(() => {
+        setLayoutSaveMessage(null);
+        saveMessageTimerRef.current = null;
+      }, 3000);
     } catch (error) {
       setLayoutSaveMessage(null);
       setVisualizationError(
@@ -942,6 +949,15 @@ export function GraphPreviewPanel({
 
   const handleTriggerUpload = useCallback(() => {
     uploadInputRef.current?.click();
+  }, []);
+
+  // Cleanup save message timer on unmount
+  useEffect(() => {
+    return () => {
+      if (saveMessageTimerRef.current) {
+        clearTimeout(saveMessageTimerRef.current);
+      }
+    };
   }, []);
 
   // LLM 状态检测：面板加载时检查 LLM 是否可用（文档上传需要 LLM 抽取实体）
@@ -1663,15 +1679,18 @@ export function GraphPreviewPanel({
                               {Object.entries(editNodeProperties).length === 0 ? (
                                 <div className="text-[11px] text-muted-foreground">暂无扩展属性</div>
                               ) : (
-                                Object.entries(editNodeProperties).map(([key, value], index) => (
-                                  <div key={index} className="flex gap-1.5">
+                                Object.entries(editNodeProperties).map(([key, value]) => (
+                                  <div key={key} className="flex gap-1.5">
                                     <Input
                                       value={key}
                                       onChange={(e) => {
                                         const newKey = e.target.value;
                                         setEditNodeProperties((prev) => {
                                           const entries = Object.entries(prev);
-                                          entries[index] = [newKey, value];
+                                          const idx = entries.findIndex(([k]) => k === key);
+                                          if (idx !== -1) {
+                                            entries[idx] = [newKey, value];
+                                          }
                                           return Object.fromEntries(entries);
                                         });
                                       }}

@@ -101,7 +101,7 @@ export const CanvasToolbar: React.FC<CanvasToolbarProps> = ({
   return (
     <>
       {/* Left toolbar: add node buttons */}
-      <div className="absolute left-3 top-3 z-30 flex flex-col items-center gap-1 rounded-lg border border-slate-200 bg-white/92 p-1 shadow-sm backdrop-blur">
+      <div className="absolute left-3 top-3 z-30 flex flex-col items-center gap-1 rounded-lg border border-slate-200 dark:border-gray-700 bg-white/92 dark:bg-gray-900/92 p-1 shadow-sm backdrop-blur">
         <Button
           variant="ghost"
           size="icon"
@@ -242,7 +242,7 @@ export const CanvasToolbar: React.FC<CanvasToolbarProps> = ({
       </div>
 
       {/* Save status badge */}
-      <div className="absolute right-3 top-3 z-10 flex items-center gap-2 rounded-lg border border-slate-200 bg-white/90 px-2.5 py-1.5 text-[11px] font-medium text-slate-500 shadow-sm backdrop-blur">
+      <div className="absolute right-3 top-3 z-10 flex items-center gap-2 rounded-lg border border-slate-200 dark:border-gray-700 bg-white/90 dark:bg-gray-900/90 px-2.5 py-1.5 text-[11px] font-medium text-slate-500 dark:text-slate-400 shadow-sm backdrop-blur">
         <Circle
           className={cn(
             "h-2.5 w-2.5 fill-current",
@@ -257,11 +257,11 @@ export const CanvasToolbar: React.FC<CanvasToolbarProps> = ({
       </div>
 
       {/* Zoom controls */}
-      <div className="absolute right-3 top-1/2 z-30 flex -translate-y-1/2 flex-col overflow-hidden rounded-lg border border-slate-200 bg-white/92 shadow-sm backdrop-blur">
+      <div className="absolute right-3 top-1/2 z-30 flex -translate-y-1/2 flex-col overflow-hidden rounded-lg border border-slate-200 dark:border-gray-700 bg-white/92 dark:bg-gray-900/92 shadow-sm backdrop-blur">
         <Button
           variant="ghost"
           size="icon"
-          className="h-9 w-9 rounded-none border-b border-slate-100"
+          className="h-9 w-9 rounded-none border-b border-slate-100 dark:border-gray-800"
           title="放大"
           onClick={onZoomIn}
         >
@@ -270,7 +270,7 @@ export const CanvasToolbar: React.FC<CanvasToolbarProps> = ({
         <Button
           variant="ghost"
           size="icon"
-          className="h-9 w-9 rounded-none border-b border-slate-100"
+          className="h-9 w-9 rounded-none border-b border-slate-100 dark:border-gray-800"
           title="重置缩放"
           onClick={onResetZoom}
         >
@@ -279,7 +279,7 @@ export const CanvasToolbar: React.FC<CanvasToolbarProps> = ({
         <Button
           variant="ghost"
           size="icon"
-          className="h-9 w-9 rounded-none border-b border-slate-100"
+          className="h-9 w-9 rounded-none border-b border-slate-100 dark:border-gray-800"
           title="适配画布"
           aria-label="适配画布"
           onClick={onFitView}
@@ -297,7 +297,7 @@ export const CanvasToolbar: React.FC<CanvasToolbarProps> = ({
         </Button>
         <div
           data-testid="canvas-zoom-label"
-          className="border-t border-slate-100 px-1.5 py-1 text-center text-[10px] font-medium tabular-nums text-slate-500"
+          className="border-t border-slate-100 dark:border-gray-800 px-1.5 py-1 text-center text-[10px] font-medium tabular-nums text-slate-500 dark:text-slate-400"
         >
           {Math.round(viewportScale * 100)}%
         </div>
@@ -305,7 +305,7 @@ export const CanvasToolbar: React.FC<CanvasToolbarProps> = ({
 
       {/* Color palette */}
       {selectedNode || selectedEdge ? (
-        <div className="absolute right-14 top-1/2 z-30 flex -translate-y-1/2 flex-col items-center gap-1 rounded-lg border border-slate-200 bg-white/92 px-1.5 py-2 shadow-sm backdrop-blur">
+        <div className="absolute right-14 top-1/2 z-30 flex -translate-y-1/2 flex-col items-center gap-1 rounded-lg border border-slate-200 dark:border-gray-700 bg-white/92 dark:bg-gray-900/92 px-1.5 py-2 shadow-sm backdrop-blur">
           <Palette className="mb-0.5 h-3.5 w-3.5 text-slate-500" />
           {CANVAS_COLOR_OPTIONS.map((option) => (
             <button
@@ -335,7 +335,7 @@ export const CanvasToolbar: React.FC<CanvasToolbarProps> = ({
 
       {/* Connection preview badge */}
       {showConnectionPreview ? (
-        <div className="absolute bottom-3 right-3 z-10 flex items-center gap-2 rounded-lg border border-blue-200 bg-white/90 px-2.5 py-1.5 text-[11px] font-medium text-blue-700 shadow-sm backdrop-blur">
+        <div className="absolute bottom-3 right-3 z-10 flex items-center gap-2 rounded-lg border border-blue-200 dark:border-blue-800 bg-white/90 dark:bg-gray-900/90 px-2.5 py-1.5 text-[11px] font-medium text-blue-700 dark:text-blue-400 shadow-sm backdrop-blur">
           <Link2 className="h-3.5 w-3.5" />
           <span>连线中</span>
         </div>

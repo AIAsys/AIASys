@@ -29,24 +29,36 @@ interface AuthSession {
 }
 
 /**
- * 认证上下文类型
+ * 认证状态（高频变化）
  */
-interface AuthContextValue {
+interface AuthState {
   user: AuthUser | null;
   session: AuthSession | null;
   isAuthenticated: boolean;
   isLoading: boolean;
   error: string;
   isAdmin: boolean;
+}
+
+/**
+ * 认证操作（稳定引用，避免不必要的重渲染）
+ */
+interface AuthActions {
   refreshSession: () => Promise<void>;
   handleLogout: () => Promise<void>;
   updateProfile: (data: { name?: string; avatarColor?: string; avatarChar?: string }) => Promise<boolean>;
 }
 
 /**
- * 认证上下文
+ * 认证上下文类型（兼容旧接口）
  */
-const AuthContext = createContext<AuthContextValue | null>(null);
+interface AuthContextValue extends AuthState, AuthActions {}
+
+/**
+ * 分离的状态上下文和操作上下文
+ */
+const AuthStateContext = createContext<AuthState | null>(null);
+const AuthActionContext = createContext<AuthActions | null>(null);
 
 /**
  * AuthProvider Props
@@ -250,8 +262,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
       setSession(null);
       // Redirect based on auth mode
       if (getAuthMode() === "local") {
-        // Local mode: just reload to re-establish session
-        window.location.reload();
+        // Local mode: navigate home to re-establish session
+        window.location.href = "/";
       } else {
         window.location.href = "/home";
       }
@@ -351,7 +363,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     window.location.href = "/home";
   }, [refreshSession]);
 
-  const value = useMemo<AuthContextValue>(
+  const stateValue = useMemo<AuthState>(
     () => ({
       user,
       session,
@@ -359,27 +371,58 @@ export function AuthProvider({ children }: AuthProviderProps) {
       isLoading,
       error,
       isAdmin: user?.role === "admin",
+    }),
+    [user, session, isAuthenticated, isLoading, error],
+  );
+
+  const actionValue = useMemo<AuthActions>(
+    () => ({
       refreshSession,
       handleLogout,
       updateProfile,
     }),
-    [user, session, isAuthenticated, isLoading, error, refreshSession, handleLogout, updateProfile],
+    [refreshSession, handleLogout, updateProfile],
   );
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return (
+    <AuthStateContext.Provider value={stateValue}>
+      <AuthActionContext.Provider value={actionValue}>
+        {children}
+      </AuthActionContext.Provider>
+    </AuthStateContext.Provider>
+  );
 }
 
 /**
- * 使用认证上下文的 Hook
+ * 使用认证上下文的 Hook（兼容旧接口，同时读取状态和操作）
  */
-export function useAuthContext() {
-  const context = useContext(AuthContext);
-  if (!context) {
+export function useAuthContext(): AuthContextValue {
+  const state = useContext(AuthStateContext);
+  const actions = useContext(AuthActionContext);
+  if (!state || !actions) {
     throw new Error("useAuthContext must be used within an AuthProvider");
   }
-  return context;
+  return { ...state, ...actions };
 }
 
-export function useAuthState() {
-  return useAuthContext();
+/**
+ * 仅读取认证状态（不触发操作变化导致的重渲染）
+ */
+export function useAuthState(): AuthState {
+  const state = useContext(AuthStateContext);
+  if (!state) {
+    throw new Error("useAuthState must be used within an AuthProvider");
+  }
+  return state;
+}
+
+/**
+ * 仅读取认证操作（稳定引用，永不触发重渲染）
+ */
+export function useAuthActions(): AuthActions {
+  const actions = useContext(AuthActionContext);
+  if (!actions) {
+    throw new Error("useAuthActions must be used within an AuthProvider");
+  }
+  return actions;
 }

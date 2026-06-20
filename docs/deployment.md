@@ -16,7 +16,7 @@
 
 补充说明：
 
-- 后端部署基线按 `apps/backend/.venv/bin/python`，暂不按根目录 `.python-version`
+- 后端部署基线按 `uv run python`，由 `apps/backend/pyproject.toml` 与 `.python-version` 共同锁定版本
 - 前端当前按 `npm` 路径验证，不按 `pnpm` 作为主部署口径
 
 ## 2. 运行前提

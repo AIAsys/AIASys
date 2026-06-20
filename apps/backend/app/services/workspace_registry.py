@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import re
 import shutil
 from datetime import datetime
@@ -38,6 +39,7 @@ from app.services.session.config_projection import (
     ensure_workspace_layout,
 )
 from app.utils.ids import generate_conversation_id, generate_workspace_id
+from app.utils.path_utils import as_system_path
 
 _ID_PATTERN = re.compile(r"^[a-zA-Z0-9_-]+$")
 _WORKSPACE_META_DIR = ".aiasys/workspace"
@@ -152,7 +154,7 @@ class WorkspaceRegistryService:
         session_manager: Optional[SessionManager] = None,
     ) -> None:
         self.base_dir = Path(base_dir)
-        self.base_dir.mkdir(parents=True, exist_ok=True)
+        os.makedirs(as_system_path(self.base_dir), exist_ok=True)
         self.session_manager = session_manager or SessionManager(self.base_dir)
 
     def _get_user_dir(self, user_id: str) -> Path:
@@ -193,14 +195,14 @@ class WorkspaceRegistryService:
     def _delete_session_index(self, user_id: str, session_id: str) -> None:
         path = self._get_session_index_path(user_id, session_id)
         try:
-            if path.exists():
-                path.unlink()
+            if os.path.exists(as_system_path(path)):
+                os.unlink(as_system_path(path))
         except OSError as exc:
             logger.warning("删除会话索引失败: %s — %s", path, exc)
 
     def _ensure_workspace_layout(self, workspace_dir: Path) -> None:
-        workspace_dir.mkdir(parents=True, exist_ok=True)
-        (workspace_dir / _WORKSPACE_META_DIR).mkdir(parents=True, exist_ok=True)
+        os.makedirs(as_system_path(workspace_dir), exist_ok=True)
+        os.makedirs(as_system_path(workspace_dir / _WORKSPACE_META_DIR), exist_ok=True)
 
     def _ensure_workspace_context_files(
         self,
@@ -216,7 +218,7 @@ class WorkspaceRegistryService:
             description=description,
         )
         memory_path = get_workspace_memory_file_path(workspace_dir)
-        if not memory_path.exists():
+        if not os.path.exists(as_system_path(memory_path)):
             store = MemoryStore(memory_path)
             store.initialize()
             store.write_text(
@@ -227,41 +229,41 @@ class WorkspaceRegistryService:
             )
 
     def _read_json(self, path: Path, default: Any) -> Any:
-        if not path.exists():
+        if not os.path.exists(as_system_path(path)):
             return default
         try:
-            return json.loads(path.read_text(encoding="utf-8"))
-        except Exception:
+            return json.loads(Path(as_system_path(path)).read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError) as e:
+            logger.warning("Failed to read JSON from %s: %s", path, e)
             return default
 
     def _write_json(self, path: Path, payload: Any) -> None:
-        import os
         import tempfile
 
-        path.parent.mkdir(parents=True, exist_ok=True)
+        os.makedirs(as_system_path(path.parent), exist_ok=True)
         data = json.dumps(payload, indent=2, ensure_ascii=False)
-        fd, temp_path = tempfile.mkstemp(dir=path.parent, suffix=".tmp")
+        fd, temp_path = tempfile.mkstemp(dir=as_system_path(path.parent), suffix=".tmp")
         try:
             with os.fdopen(fd, "w", encoding="utf-8") as f:
                 f.write(data)
-            os.replace(temp_path, path)
+            os.replace(as_system_path(temp_path), as_system_path(path))
         except Exception:
             try:
-                os.unlink(temp_path)
+                os.unlink(as_system_path(temp_path))
             except FileNotFoundError:
                 pass
             raise
 
     def _is_workspace_dir(self, path: Path) -> bool:
-        return self._get_workspace_meta_path(path).exists()
+        return os.path.exists(as_system_path(self._get_workspace_meta_path(path)))
 
     def _looks_like_session_dir(self, path: Path) -> bool:
-        if (path / "metadata.json").exists():
+        if os.path.exists(as_system_path(path / "metadata.json")):
             return True
-        if (path / ".aiasys" / "session").exists():
+        if os.path.exists(as_system_path(path / ".aiasys" / "session")):
             return True
         for dirname in ("workspace", "attachments", "artifacts", ".aiasys"):
-            if (path / dirname).exists():
+            if os.path.exists(as_system_path(path / dirname)):
                 return True
         return False
 
@@ -271,7 +273,7 @@ class WorkspaceRegistryService:
     def _read_workspace_meta(self, user_id: str, workspace_id: str) -> dict[str, Any]:
         workspace_dir = self._get_workspace_dir(user_id, workspace_id)
         meta_path = self._get_workspace_meta_path(workspace_dir)
-        if not meta_path.exists():
+        if not os.path.exists(as_system_path(meta_path)):
             raise FileNotFoundError(f"工作区不存在: {workspace_id}")
         payload = self._read_json(meta_path, default={})
         if not isinstance(payload, dict) or not payload:
@@ -310,7 +312,7 @@ class WorkspaceRegistryService:
         bound_session_ids: set[str] = set()
         user_dir = self._get_user_dir(user_id)
         for candidate in user_dir.iterdir():
-            if not candidate.is_dir():
+            if not os.path.isdir(as_system_path(candidate)):
                 continue
             if not self._is_workspace_dir(candidate):
                 continue
@@ -415,10 +417,10 @@ class WorkspaceRegistryService:
         user_dir = self._get_user_dir(user_id)
         workspaces: list[WorkspaceDetailResponse] = []
         for candidate in user_dir.iterdir():
-            if not candidate.is_dir() or candidate.is_symlink():
+            if not os.path.isdir(as_system_path(candidate)) or os.path.islink(as_system_path(candidate)):
                 continue
             meta_path = self._get_workspace_meta_path(candidate)
-            if not meta_path.exists():
+            if not os.path.exists(as_system_path(meta_path)):
                 continue
 
             workspace_id = candidate.name
@@ -786,11 +788,11 @@ class WorkspaceRegistryService:
         resolved_workspace_id = workspace_id or self._generate_workspace_id(user_id)
         _ensure_valid_id(resolved_workspace_id, "workspace_id")
         workspace_dir = self._get_workspace_dir(user_id, resolved_workspace_id)
-        if self._get_workspace_meta_path(workspace_dir).exists():
+        if os.path.exists(as_system_path(self._get_workspace_meta_path(workspace_dir))):
             raise ValueError(f"工作区已存在: {resolved_workspace_id}")
 
         # 确保工作区目录存在，以便应用模板文件
-        workspace_dir.mkdir(parents=True, exist_ok=True)
+        os.makedirs(as_system_path(workspace_dir), exist_ok=True)
         try:
             # 如果从本地文件夹导入，先复制用户选中的文件
             if source_folder_path or temp_upload_id:
@@ -1018,8 +1020,8 @@ class WorkspaceRegistryService:
                 workspace_dir,
                 exc_info=True,
             )
-            if workspace_dir.exists():
-                shutil.rmtree(workspace_dir, ignore_errors=True)
+            if os.path.exists(as_system_path(workspace_dir)):
+                shutil.rmtree(as_system_path(workspace_dir), ignore_errors=True)
             raise
 
     def sync_conversation_task_profile(
@@ -1238,17 +1240,38 @@ class WorkspaceRegistryService:
             self._delete_session_index(user_id, session_id)
 
         try:
-            from app.core.database import SubAgentConfigORM, db_session
+            from app.core.database import (
+                SubAgentConfigORM,
+                SubAgentInstanceORM,
+                DatabaseConnectorORM,
+                WorkspaceResourceDefaultORM,
+                db_session,
+            )
 
             with db_session() as db:
                 db.query(SubAgentConfigORM).filter(
                     SubAgentConfigORM.user_id == user_id,
                     SubAgentConfigORM.workspace_id == workspace_id,
                 ).delete(synchronize_session=False)
+
+                db.query(SubAgentInstanceORM).filter(
+                    SubAgentInstanceORM.user_id == user_id,
+                    SubAgentInstanceORM.workspace_id == workspace_id,
+                ).delete(synchronize_session=False)
+
+                db.query(DatabaseConnectorORM).filter(
+                    DatabaseConnectorORM.workspace_id == workspace_id,
+                    DatabaseConnectorORM.scope == "workspace",
+                ).delete(synchronize_session=False)
+
+                db.query(WorkspaceResourceDefaultORM).filter(
+                    WorkspaceResourceDefaultORM.workspace_id == workspace_id,
+                ).delete(synchronize_session=False)
+
                 db.commit()
         except Exception:
             logger.warning(
-                "删除工作区 %s 时 SubAgentConfigORM 记录清理失败", workspace_id, exc_info=True
+                "删除工作区 %s 时 ORM 记录清理失败", workspace_id, exc_info=True
             )
 
         # 清理工作区注册的 Docker 容器，避免删除目录后容器仍运行且挂载路径失效
@@ -1257,8 +1280,8 @@ class WorkspaceRegistryService:
         # 清理 GraphRAG 服务缓存中指向本工作区的条目
         self._cleanup_workspace_graphrag_cache(workspace_dir)
 
-        if workspace_dir.exists():
-            shutil.rmtree(workspace_dir)
+        if os.path.exists(as_system_path(workspace_dir)):
+            shutil.rmtree(as_system_path(workspace_dir))
 
     def _cleanup_workspace_containers(
         self,
@@ -1523,7 +1546,7 @@ class WorkspaceRegistryService:
         candidates: list[OrphanConversationCleanupCandidate] = []
 
         for candidate in user_dir.iterdir():
-            if candidate.is_symlink() or not candidate.is_dir():
+            if os.path.islink(as_system_path(candidate)) or not os.path.isdir(as_system_path(candidate)):
                 continue
             if self._is_reserved_user_dir(candidate):
                 continue
@@ -1537,7 +1560,7 @@ class WorkspaceRegistryService:
                 continue
 
             reason = "未绑定到任何工作区的旧会话目录"
-            if not (candidate / "metadata.json").exists():
+            if not os.path.exists(as_system_path(candidate / "metadata.json")):
                 reason = "未绑定到任何工作区的残留会话目录"
 
             candidates.append(
@@ -1563,10 +1586,10 @@ class WorkspaceRegistryService:
         if not dry_run:
             for item in candidates:
                 target = self._get_user_dir(user_id) / item.session_id
-                if target.is_symlink() or not target.is_dir():
+                if os.path.islink(as_system_path(target)) or not os.path.isdir(as_system_path(target)):
                     continue
-                if target.exists():
-                    shutil.rmtree(target)
+                if os.path.exists(as_system_path(target)):
+                    shutil.rmtree(as_system_path(target))
                     deleted_session_ids.append(item.session_id)
 
         return OrphanConversationCleanupResponse(

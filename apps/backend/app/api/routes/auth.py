@@ -50,7 +50,8 @@ def _set_auth_cookie(response: Response, access_token: str) -> None:
         key="access_token",
         value=access_token,
         httponly=True,
-        secure=os.environ.get("COOKIE_SECURE", "true").lower() == "true",
+        # 默认本地开发使用 HTTP，secure=False；生产环境请设置 COOKIE_SECURE=true
+        secure=os.environ.get("COOKIE_SECURE", "false").lower() == "true",
         samesite="lax",
         max_age=30 * 24 * 60 * 60,  # 30 天
         path="/",
@@ -62,7 +63,7 @@ def _clear_auth_cookie(response: Response) -> None:
     response.delete_cookie(
         key="access_token",
         path="/",
-        secure=os.environ.get("COOKIE_SECURE", "true").lower() == "true",
+        secure=os.environ.get("COOKIE_SECURE", "false").lower() == "true",
     )
 
 

@@ -32,15 +32,16 @@ logger = logging.getLogger(__name__)
 def _shell_quote(arg: str) -> str:
     """跨平台 shell 参数引用。
 
-    Windows cmd 不识别 POSIX 单引号，需要用双引号包裹参数，内部双
-    引号用 `""` 转义（batch/cmd 语法）。ShellExecutor 会进一步把包含
-    双引号的命令写入临时 .cmd 脚本执行，避免 `cmd /c` 直接解析引号
-    时产生 os error 123 等路径错误。
+    Windows 使用 PowerShell 单引号规则（内部单引号转义为两个单引号），
+    因为 AGENTS.md 已明确禁用 cmd.exe，ShellExecutor 在 Windows 上优先
+    降级到 PowerShell。
     POSIX 平台沿用 shlex.quote。
     """
     if os.name == "nt":
-        escaped = arg.replace('"', '""')
-        return '"' + escaped + '"'
+        # Note: This assumes PowerShell quoting. If the command is run under Git Bash
+        # or WSL bash, paths containing literal single quotes may not be escaped correctly.
+        # This is an edge case (paths rarely contain single quotes).
+        return "'" + arg.replace("'", "''") + "'"
     return shlex.quote(arg)
 
 
@@ -299,8 +300,10 @@ def build_runtime_shell_env(
         if container.container_name:
             env["AIASYS_RUNTIME_CONTAINER_NAME"] = container.container_name
 
-    # 确保 uv 在 PATH 中：Windows 桌面版 bash/cmd 子进程默认可能看不到 uv
-    uv_bin = shutil.which("uv")
+    # 确保 uv 在 PATH 中：子进程默认可能看不到 uv（桌面版 AIASYS_BUNDLED_UV_PATH、
+    # vendor 内置、或用户安装的 uv）。统一走 find_uv_binary() 三层检测链。
+    from app.core.uv_utils import find_uv_binary
+    uv_bin = find_uv_binary()
     if uv_bin:
         uv_dir = str(Path(uv_bin).parent)
         current_path = env.get("PATH", "")

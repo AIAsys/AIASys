@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from app.core.config import WORKSPACE_DIR
+from app.utils.path_utils import as_system_path
 
 logger = logging.getLogger(__name__)
 
@@ -141,7 +142,7 @@ class SubAgentTrackingService:
         try:
             if not meta_path.exists():
                 return None
-            with open(meta_path, "r", encoding="utf-8") as f:
+            with open(as_system_path(str(meta_path)), "r", encoding="utf-8") as f:
                 return json.load(f)
         except Exception as e:
             logger.warning("解析 meta.json 失败: %s, error=%s", meta_path, e)
@@ -196,7 +197,7 @@ class SubAgentTrackingService:
         try:
             if not wire_path.exists():
                 return events
-            with open(wire_path, "r", encoding="utf-8") as f:
+            with open(as_system_path(str(wire_path)), "r", encoding="utf-8") as f:
                 for line in f:
                     line = line.strip()
                     if not line:
@@ -241,7 +242,7 @@ class SubAgentTrackingService:
         try:
             if not context_path.exists():
                 return messages
-            with open(context_path, "r", encoding="utf-8") as f:
+            with open(as_system_path(str(context_path)), "r", encoding="utf-8") as f:
                 for line in f:
                     line = line.strip()
                     if not line:

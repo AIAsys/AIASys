@@ -18,6 +18,8 @@ import signal
 import subprocess
 import sys
 from datetime import datetime, timezone
+
+from app.core.subprocess_utils import subprocess_kwargs
 from pathlib import Path
 from typing import Any, Optional
 
@@ -67,6 +69,7 @@ def terminate_pid(pid: int, *, force: bool = False) -> None:
                 capture_output=True,
                 text=True,
                 timeout=10,
+                **subprocess_kwargs(),
             )
         except FileNotFoundError:
             os.kill(pid, signal.SIGTERM)

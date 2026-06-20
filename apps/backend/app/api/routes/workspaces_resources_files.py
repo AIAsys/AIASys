@@ -45,6 +45,7 @@ from app.api.routes.workspaces_resources_tree import (
     _scan_workspace_file_assets,
 )
 from app.core.auth import require_auth
+from app.core.encoding_utils import smart_decode
 from app.knowledge import SQLiteKBService
 from app.knowledge.models import KnowledgeBaseCreate
 from app.models.user import UserInfo
@@ -55,6 +56,7 @@ from app.services.file_history import (
     file_history_service,
 )
 from app.services.workspace_registry import get_workspace_registry_service
+from app.utils.path_utils import as_system_path
 
 logger = logging.getLogger(__name__)
 
@@ -142,6 +144,11 @@ def _normalize_relative_path(relative_path: str) -> Path:
     return normalized_path
 
 
+def _sys_path(path: Path) -> str:
+    """将 Path 转为带 Windows 长路径前缀的系统 IO 路径字符串。"""
+    return as_system_path(path)
+
+
 def _is_pruned_workspace_path(relative_path: str) -> bool:
     parts = Path(relative_path).parts
     if not parts:
@@ -168,7 +175,9 @@ def _iter_workspace_files(
     max_depth: int | None = None,
 ):
     """遍历工作区文件，屏蔽内部目录和资源树文件夹标记。"""
-    if not workspace_root.exists() or not workspace_root.is_dir():
+    if not os.path.exists(_sys_path(workspace_root)) or not os.path.isdir(
+        _sys_path(workspace_root)
+    ):
         return
 
     patterns = _load_file_visibility_rules(workspace_root)
@@ -183,10 +192,10 @@ def _iter_workspace_files(
         root_dir.relative_to(workspace_root_resolved)
     except ValueError:
         return
-    if not root_dir.exists() or not root_dir.is_dir():
+    if not os.path.exists(_sys_path(root_dir)) or not os.path.isdir(_sys_path(root_dir)):
         return
 
-    for current_dir, dir_names, file_names in os.walk(root_dir, topdown=True):
+    for current_dir, dir_names, file_names in os.walk(_sys_path(root_dir), topdown=True):
         current_path = Path(current_dir)
         relative_dir = current_path.relative_to(workspace_root_resolved).as_posix()
         if relative_dir == ".":
@@ -195,7 +204,7 @@ def _iter_workspace_files(
         visible_dir_names: list[str] = []
         for dir_name in sorted(dir_names):
             dir_path = current_path / dir_name
-            if dir_path.is_symlink():
+            if os.path.islink(_sys_path(dir_path)):
                 continue
             candidate_relative = f"{relative_dir}/{dir_name}" if relative_dir else dir_name
             if _is_pruned_workspace_path(candidate_relative):
@@ -218,7 +227,8 @@ def _iter_workspace_files(
 
         for file_name in sorted(file_names):
             file_path = current_path / file_name
-            if not file_path.is_file() or file_path.is_symlink():
+            file_sys_path = _sys_path(file_path)
+            if not os.path.isfile(file_sys_path) or os.path.islink(file_sys_path):
                 continue
 
             relative_path = file_path.relative_to(workspace_root_resolved).as_posix()
@@ -230,7 +240,7 @@ def _iter_workspace_files(
 
 def _ensure_path_within_root(root: Path, relative_path: Path) -> Path:
     """将相对路径解析到指定根目录并进行越界校验"""
-    root.mkdir(parents=True, exist_ok=True)
+    os.makedirs(_sys_path(root), exist_ok=True)
     file_path = (root / relative_path).resolve()
     root_resolved = root.resolve()
     try:
@@ -358,21 +368,21 @@ def _resource_id_from_db_path(path: Path, suffix: str) -> str:
 
 
 def _copy_file_or_directory(source_path: Path, target_path: Path) -> None:
-    if target_path.exists():
+    if os.path.exists(_sys_path(target_path)):
         raise HTTPException(status_code=409, detail="目标已存在")
 
-    if source_path.is_dir():
+    if os.path.isdir(_sys_path(source_path)) and not os.path.islink(_sys_path(source_path)):
         try:
             target_path.resolve().relative_to(source_path.resolve())
             raise HTTPException(status_code=400, detail="不能将文件夹复制到自身内部")
         except ValueError:
             pass
 
-    target_path.parent.mkdir(parents=True, exist_ok=True)
-    if source_path.is_dir():
-        shutil.copytree(source_path, target_path, symlinks=True)
+    os.makedirs(_sys_path(target_path.parent), exist_ok=True)
+    if os.path.isdir(_sys_path(source_path)) and not os.path.islink(_sys_path(source_path)):
+        shutil.copytree(_sys_path(source_path), _sys_path(target_path), symlinks=True)
     else:
-        shutil.copy2(source_path, target_path)
+        shutil.copy2(_sys_path(source_path), _sys_path(target_path))
 
 
 def _create_graph_db_at_path(
@@ -385,7 +395,7 @@ def _create_graph_db_at_path(
     """创建空知识图谱资源数据库。"""
     import sqlite3
 
-    file_path.parent.mkdir(parents=True, exist_ok=True)
+    os.makedirs(_sys_path(file_path.parent), exist_ok=True)
 
     graph_id = (
         request.graph_id.strip()
@@ -396,7 +406,7 @@ def _create_graph_db_at_path(
     graph_desc = request.description or ""
 
     try:
-        with sqlite3.connect(str(file_path)) as conn:
+        with sqlite3.connect(_sys_path(file_path)) as conn:
             # 使用 DELETE journal，避免新建资源后文件树出现 -wal / -shm 临时文件。
             conn.execute("PRAGMA journal_mode = DELETE")
             conn.execute("""
@@ -491,7 +501,7 @@ def _write_knowledge_db_metadata(
     import sqlite3
 
     try:
-        with sqlite3.connect(str(file_path)) as conn:
+        with sqlite3.connect(_sys_path(file_path)) as conn:
             conn.execute("PRAGMA journal_mode = DELETE")
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS _aiasys_metadata (
@@ -679,9 +689,11 @@ async def get_workspace_file_content(
     file_size = file_path.stat().st_size
 
     try:
-        content = file_path.read_text(encoding="utf-8")
-    except UnicodeDecodeError:
-        raise HTTPException(status_code=400, detail="文件不是有效的文本文件")
+        content = smart_decode(file_path.read_bytes())
+        if "\ufffd" in content and content.count("\ufffd") / max(len(content), 1) > 0.1:
+            raise HTTPException(status_code=400, detail="文件不是有效的文本文件")
+    except OSError:
+        raise HTTPException(status_code=400, detail="文件读取失败")
 
     return {
         "filename": filename,
@@ -719,14 +731,15 @@ async def update_workspace_file_content(
         )
 
     content_bytes = request.content.encode("utf-8")
-    file_path.parent.mkdir(parents=True, exist_ok=True)
+    os.makedirs(_sys_path(file_path.parent), exist_ok=True)
     _record_file_history(
         workspace_root,
         normalized_path,
         operation="before_update",
         current_user=current_user,
     )
-    file_path.write_bytes(content_bytes)
+    with open(_sys_path(file_path), "wb") as f:
+        f.write(content_bytes)
     logger.info(
         "工作区文件内容更新: %s/%s/%s",
         current_user.user_id,
@@ -852,13 +865,13 @@ async def download_workspace_file(
     media_type = mimetypes.guess_type(file_path.name)[0]
     if disposition == "inline":
         return FileResponse(
-            file_path,
+            _sys_path(file_path),
             media_type=media_type,
             headers={"Content-Disposition": f'inline; filename="{file_path.name}"'},
         )
 
     return FileResponse(
-        file_path,
+        _sys_path(file_path),
         filename=file_path.name,
         media_type=media_type,
         content_disposition_type="attachment",
@@ -888,17 +901,17 @@ async def upload_workspace_file(
         raise HTTPException(status_code=400, detail="Invalid filename")
 
     workspace_root = service.get_workspace_root(current_user.user_id, workspace_id)
-    workspace_root.mkdir(parents=True, exist_ok=True)
+    os.makedirs(_sys_path(workspace_root), exist_ok=True)
 
     file_path = _ensure_path_within_root(workspace_root, normalized_path)
-    file_path.parent.mkdir(parents=True, exist_ok=True)
+    os.makedirs(_sys_path(file_path.parent), exist_ok=True)
     _record_file_history(
         workspace_root,
         normalized_path,
         operation="before_overwrite",
         current_user=current_user,
     )
-    with open(file_path, "wb") as f:
+    with open(_sys_path(file_path), "wb") as f:
         from .files_utils import _copyfileobj_with_limit
 
         _copyfileobj_with_limit(file.file, f)
@@ -939,14 +952,15 @@ async def create_workspace_file(
         raise HTTPException(status_code=409, detail="文件已存在")
 
     content_bytes = request.content.encode("utf-8") if request.content else b""
-    file_path.parent.mkdir(parents=True, exist_ok=True)
+    os.makedirs(_sys_path(file_path.parent), exist_ok=True)
     _record_file_history(
         workspace_root,
         normalized_path,
         operation="before_overwrite",
         current_user=current_user,
     )
-    file_path.write_bytes(content_bytes)
+    with open(_sys_path(file_path), "wb") as f:
+        f.write(content_bytes)
 
     logger.info(
         f"工作区文件创建: {current_user.user_id}/{workspace_id}/{normalized_path.as_posix()}"
@@ -997,7 +1011,7 @@ async def create_knowledge_db_file(
         current_user.user_id,
         KnowledgeBaseCreate(name=kb_name, description=kb_description),
     )
-    file_path.parent.mkdir(parents=True, exist_ok=True)
+    os.makedirs(_sys_path(file_path.parent), exist_ok=True)
     _record_file_history(
         workspace_root,
         normalized_path,
@@ -1138,15 +1152,16 @@ async def delete_workspace_file(
         operation="before_delete",
         current_user=current_user,
     )
-    if file_path.is_dir():
+    file_sys_path = _sys_path(file_path)
+    if os.path.isdir(file_sys_path) and not os.path.islink(file_sys_path):
         if not recursive:
             raise HTTPException(
                 status_code=400,
                 detail="目标是一个目录，需要传入 recursive=true 才能删除",
             )
-        shutil.rmtree(file_path)
+        shutil.rmtree(file_sys_path)
     else:
-        file_path.unlink()
+        os.unlink(file_sys_path)
 
     logger.info(f"工作区文件删除: {current_user.user_id}/{workspace_id}/{filename}")
 
@@ -1237,8 +1252,8 @@ async def move_workspace_file(
         current_user=current_user,
         target_path=normalized_target,
     )
-    target_path.parent.mkdir(parents=True, exist_ok=True)
-    shutil.move(str(source_path), str(target_path))
+    os.makedirs(_sys_path(target_path.parent), exist_ok=True)
+    shutil.move(_sys_path(source_path), _sys_path(target_path))
     file_history_service.move_entries(
         workspace_root,
         normalized_source.as_posix(),
@@ -1503,9 +1518,11 @@ async def get_global_workspace_file_content(
     editable = _is_editable_file(global_path.name)
 
     try:
-        content = global_path.read_text(encoding="utf-8")
-    except UnicodeDecodeError:
-        raise HTTPException(status_code=400, detail="文件不是有效的文本文件")
+        content = smart_decode(global_path.read_bytes())
+        if "\ufffd" in content and content.count("\ufffd") / max(len(content), 1) > 0.1:
+            raise HTTPException(status_code=400, detail="文件不是有效的文本文件")
+    except OSError:
+        raise HTTPException(status_code=400, detail="文件读取失败")
 
     return FileContentResponse(
         filename=asset_path,
@@ -1609,14 +1626,15 @@ async def update_global_workspace_file_content(
         normalized_path.as_posix(),
     )
     content_bytes = request.content.encode("utf-8")
-    global_path.parent.mkdir(parents=True, exist_ok=True)
+    os.makedirs(_sys_path(global_path.parent), exist_ok=True)
     _record_file_history(
         _resolve_user_global_workspace_root(current_user.user_id),
         normalized_path,
         operation="before_update",
         current_user=current_user,
     )
-    global_path.write_bytes(content_bytes)
+    with open(_sys_path(global_path), "wb") as f:
+        f.write(content_bytes)
 
     logger.info(
         "全局工作区文件更新: %s/%s",
@@ -1650,13 +1668,13 @@ async def download_global_workspace_file(
     media_type = mimetypes.guess_type(global_path.name)[0]
     if disposition == "inline":
         return FileResponse(
-            global_path,
+            _sys_path(global_path),
             media_type=media_type,
             headers={"Content-Disposition": f'inline; filename="{global_path.name}"'},
         )
 
     return FileResponse(
-        global_path,
+        _sys_path(global_path),
         filename=global_path.name,
         media_type=media_type,
         content_disposition_type="attachment",
@@ -1689,14 +1707,15 @@ async def create_global_workspace_file(
         raise HTTPException(status_code=409, detail="文件已存在")
 
     content_bytes = request.content.encode("utf-8") if request.content else b""
-    global_path.parent.mkdir(parents=True, exist_ok=True)
+    os.makedirs(_sys_path(global_path.parent), exist_ok=True)
     _record_file_history(
         _resolve_user_global_workspace_root(current_user.user_id),
         normalized_path,
         operation="before_overwrite",
         current_user=current_user,
     )
-    global_path.write_bytes(content_bytes)
+    with open(_sys_path(global_path), "wb") as f:
+        f.write(content_bytes)
 
     logger.info(
         "全局工作区文件创建: %s/%s",
@@ -1747,7 +1766,7 @@ async def create_global_workspace_knowledge_db_file(
         current_user.user_id,
         KnowledgeBaseCreate(name=kb_name, description=kb_description),
     )
-    global_path.parent.mkdir(parents=True, exist_ok=True)
+    os.makedirs(_sys_path(global_path.parent), exist_ok=True)
     _record_file_history(
         _resolve_user_global_workspace_root(current_user.user_id),
         normalized_path,
@@ -1935,8 +1954,8 @@ async def move_global_workspace_file(
         current_user=current_user,
         target_path=normalized_target,
     )
-    target_path.parent.mkdir(parents=True, exist_ok=True)
-    shutil.move(str(source_path), str(target_path))
+    os.makedirs(_sys_path(target_path.parent), exist_ok=True)
+    shutil.move(_sys_path(source_path), _sys_path(target_path))
     file_history_service.move_entries(
         global_root,
         normalized_source.as_posix(),
@@ -2082,14 +2101,14 @@ async def upload_global_workspace_file(
         current_user.user_id,
         safe_filename,
     )
-    global_path.parent.mkdir(parents=True, exist_ok=True)
+    os.makedirs(_sys_path(global_path.parent), exist_ok=True)
     _record_file_history(
         _resolve_user_global_workspace_root(current_user.user_id),
         safe_filename,
         operation="before_overwrite",
         current_user=current_user,
     )
-    with open(global_path, "wb") as f:
+    with open(_sys_path(global_path), "wb") as f:
         from .files_utils import _copyfileobj_with_limit
 
         _copyfileobj_with_limit(file.file, f)
@@ -2132,9 +2151,9 @@ async def delete_global_workspace_file(
                 status_code=400,
                 detail="目标是一个目录，需要传入 recursive=true 才能删除",
             )
-        shutil.rmtree(global_path)
+        shutil.rmtree(_sys_path(global_path))
     else:
-        global_path.unlink()
+        os.unlink(_sys_path(global_path))
 
     logger.info("全局工作区文件删除: %s/%s", current_user.user_id, asset_path)
     return {"success": True, "filename": asset_path}

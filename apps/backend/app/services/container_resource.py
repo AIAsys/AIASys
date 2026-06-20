@@ -9,6 +9,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from app.utils.path_utils import as_system_path
+
 if TYPE_CHECKING:
     from app.services.workspace_registry import WorkspaceRegistryService
 
@@ -30,7 +32,8 @@ def _shell_split(command: str | list[str] | None) -> list[str] | None:
     if command is None or isinstance(command, list):
         return command
     if os.name == "nt":
-        return command.split()
+        import shlex
+        return shlex.split(command, posix=False)
     import shlex
 
     return shlex.split(command)
@@ -344,14 +347,14 @@ class ContainerResourceService:
 
     def _read_registry(self, workspace_dir: Path) -> dict[str, Any]:
         path = self._registry_path(workspace_dir)
-        if not path.exists():
+        if not os.path.exists(as_system_path(path)):
             return {
                 "_schema_version": 1,
                 "containers": [],
                 "updated_at": None,
             }
         try:
-            data = json.loads(path.read_text(encoding="utf-8"))
+            data = json.loads(Path(as_system_path(path)).read_text(encoding="utf-8"))
         except Exception:
             data = {}
         if not isinstance(data, dict):
@@ -365,8 +368,8 @@ class ContainerResourceService:
 
     def _write_registry(self, workspace_dir: Path, data: dict[str, Any]) -> None:
         path = self._registry_path(workspace_dir)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(
+        os.makedirs(as_system_path(path.parent), exist_ok=True)
+        Path(as_system_path(path)).write_text(
             json.dumps(data, indent=2, ensure_ascii=False),
             encoding="utf-8",
         )

@@ -8,12 +8,14 @@ aiasys_repo_root() {
 
 aiasys_load_staged_files() {
   local repo_root="$1"
-  local -n output_ref="$2"
+  local array_name="$2"
+  local _files=()
 
-  mapfile -d '' output_ref < <(
-    cd "${repo_root}" &&
-      git diff --cached --name-only --diff-filter=ACMRD -z
-  )
+  while IFS= read -r -d '' line; do
+    _files+=("$line")
+  done < <(cd "${repo_root}" && git diff --cached --name-only --diff-filter=ACMRD -z)
+
+  eval "${array_name}=(\"\${_files[@]}\")"
 }
 
 aiasys_is_sensitive_path() {
@@ -46,10 +48,9 @@ aiasys_find_python() {
 aiasys_file_size() {
   local path="$1"
 
-  if stat -c %s "${path}" >/dev/null 2>&1; then
-    stat -c %s "${path}"
-    return 0
+  if [[ "$(uname)" == "Darwin" ]]; then
+    stat -f%z "${path}" 2>/dev/null || wc -c <"${path}"
+  else
+    stat -c %s "${path}" 2>/dev/null || wc -c <"${path}"
   fi
-
-  wc -c <"${path}"
 }

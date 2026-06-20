@@ -10,6 +10,8 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile
 from pydantic import BaseModel, Field
 
+from app.core.auth import require_auth
+
 from ..core import SQLiteGraphStore
 from ..service import GraphRAGService
 
@@ -206,7 +208,12 @@ def _resolve_db_path(
         service = get_workspace_registry_service()
         workspace_root = service.get_workspace_root(user_id, workspace_id)
         rel = db_path_str[len("/workspace/") :]
-        return (workspace_root / rel).resolve()
+        resolved = (workspace_root / rel).resolve()
+        try:
+            resolved.relative_to(workspace_root.resolve())
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Path traversal detected")
+        return resolved
 
     # /global/xxx → 全局资源目录下的相对路径
     if db_path_str.startswith("/global/"):
@@ -214,7 +221,12 @@ def _resolve_db_path(
 
         global_root = get_user_global_resources_dir(user_id)
         rel = db_path_str[len("/global/") :]
-        return (global_root / rel).resolve()
+        resolved = (global_root / rel).resolve()
+        try:
+            resolved.relative_to(global_root.resolve())
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Path traversal detected")
+        return resolved
 
     # 无前缀的绝对路径或相对路径（兜底，优先按工作区解析）
     if workspace_id:
@@ -223,13 +235,18 @@ def _resolve_db_path(
         service = get_workspace_registry_service()
         workspace_root = service.get_workspace_root(user_id, workspace_id)
         candidate = (workspace_root / db_path_str).resolve()
+        try:
+            candidate.relative_to(workspace_root.resolve())
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Path traversal detected")
         if candidate.exists():
             return candidate
 
-    return Path(db_path_str).resolve()
+    return None
 
 
 def get_graphrag_service(
+    _: None = Depends(require_auth),
     request: Request = None,
     workspace_id: Optional[str] = Query(default=None),
     db_path: Optional[str] = Query(
@@ -325,7 +342,7 @@ async def add_document(
             )
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Processing failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Processing failed: {str(e)}") from e
 
 
 @router.post("/documents/upload", response_model=UploadDocumentResponse)
@@ -361,7 +378,7 @@ async def upload_document(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"File upload processing failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"File upload processing failed: {str(e)}") from e
 
 
 @router.post("/query", response_model=QueryResponse)
@@ -378,7 +395,7 @@ async def query_graph(
         )
         return QueryResponse(**result)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Query failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Query failed: {str(e)}") from e
 
 
 @router.get("/entities", response_model=List[EntityResponse])
@@ -388,7 +405,7 @@ async def list_entities(
     service: GraphRAGService = Depends(get_graphrag_service),
 ):
     """获取实体列表"""
-    entities = service.get_all_entities(entity_type=entity_type, limit=limit)
+    entities = await service.get_all_entities(entity_type=entity_type, limit=limit)
     return [EntityResponse(**e) for e in entities]
 
 
@@ -398,7 +415,7 @@ async def create_entity(
 ):
     """手工创建实体节点"""
     try:
-        result = service.create_entity(
+        result = await service.create_entity(
             name=request.name,
             entity_type=request.entity_type,
             description=request.description or "",
@@ -415,7 +432,7 @@ async def create_relation(
 ):
     """手工创建实体关系"""
     try:
-        result = service.create_relation(
+        result = await service.create_relation(
             source_entity_id=request.source_entity_id,
             target_entity_id=request.target_entity_id,
             relation_type=request.relation_type,
@@ -431,7 +448,7 @@ async def create_relation(
 @router.get("/entities/{name}", response_model=EntityResponse)
 async def get_entity(name: str, service: GraphRAGService = Depends(get_graphrag_service)):
     """获取实体详情"""
-    entity = service.get_entity(name)
+    entity = await service.get_entity(name)
     if not entity:
         raise HTTPException(status_code=404, detail=f"Entity '{name}' not found")
     return EntityResponse(**entity)
@@ -444,7 +461,7 @@ async def update_entity(
     service: GraphRAGService = Depends(get_graphrag_service),
 ):
     """更新实体信息"""
-    result = service.update_entity(
+    result = await service.update_entity(
         entity_id=entity_id,
         name=request.name,
         entity_type=request.entity_type,
@@ -459,7 +476,7 @@ async def update_entity(
 @router.delete("/entities/{entity_id}", response_model=DeleteEntityResponse)
 async def delete_entity(entity_id: str, service: GraphRAGService = Depends(get_graphrag_service)):
     """删除实体节点及其关联关系"""
-    result = service.delete_entity(entity_id)
+    result = await service.delete_entity(entity_id)
     if not result:
         raise HTTPException(status_code=404, detail=f"Entity '{entity_id}' not found")
     return DeleteEntityResponse(**result)
@@ -472,14 +489,14 @@ async def search_entities(
     service: GraphRAGService = Depends(get_graphrag_service),
 ):
     """搜索实体"""
-    results = service.search(query, entity_type)
+    results = await service.search(query, entity_type)
     return {"results": results, "count": len(results)}
 
 
 @router.get("/statistics", response_model=StatisticsResponse)
 async def get_statistics(service: GraphRAGService = Depends(get_graphrag_service)):
     """获取图谱统计信息"""
-    stats = service.get_statistics()
+    stats = await service.get_statistics()
 
     # 获取 LLM 状态
     health = await service.health_check()
@@ -493,7 +510,7 @@ async def get_statistics(service: GraphRAGService = Depends(get_graphrag_service
 @router.get("/communities", response_model=List[CommunitySummary])
 async def get_communities(level: int = 0, service: GraphRAGService = Depends(get_graphrag_service)):
     """获取社区列表"""
-    communities = service.get_communities(level=level)
+    communities = await service.get_communities(level=level)
     return [CommunitySummary(**c) for c in communities]
 
 
@@ -506,7 +523,7 @@ async def get_visualization(
 ):
     """获取前端知识图谱可视化所需的节点和边。"""
     try:
-        result = service.get_visualization(
+        result = await service.get_visualization(
             limit=limit,
             community_level=community_level,
             include_communities=include_communities,
@@ -516,7 +533,7 @@ async def get_visualization(
         raise HTTPException(
             status_code=500,
             detail=f"Visualization graph export failed: {str(e)}",
-        )
+        ) from e
 
 
 @router.post("/communities/reports")
@@ -540,7 +557,7 @@ async def generate_community_reports(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Report generation failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Report generation failed: {str(e)}") from e
 
 
 @router.get("/config/llm/status")
@@ -568,10 +585,10 @@ async def save_layout(
     """保存前端图谱布局位置，下次打开直接复用。"""
     try:
         positions = {k: {"x": v.x, "y": v.y} for k, v in request.positions.items()}
-        service.save_layout_positions(positions)
+        await service.save_layout_positions(positions)
         return {"success": True}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Save layout failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Save layout failed: {str(e)}") from e
 
 
 @router.get("/layout")
@@ -580,10 +597,10 @@ async def get_layout(
 ):
     """获取已保存的图谱布局位置。"""
     try:
-        positions = service.get_layout_positions()
+        positions = await service.get_layout_positions()
         return {"positions": positions}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Get layout failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Get layout failed: {str(e)}") from e
 
 
 @router.get("/health")
@@ -593,7 +610,7 @@ async def health_check(service: GraphRAGService = Depends(get_graphrag_service))
         health = await service.health_check()
         return health
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Health check failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Health check failed: {str(e)}") from e
 
 
 class RawQueryRequest(BaseModel):
@@ -615,10 +632,10 @@ class TableInfoResponse(BaseModel):
 async def list_graph_tables(service: GraphRAGService = Depends(get_graphrag_service)):
     """获取知识图谱底层 SQLite 数据库的表列表和列信息"""
     try:
-        tables = service.graph_store.list_tables()
+        tables = await service.graph_store.list_tables()
         return [TableInfoResponse(**t) for t in tables]
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"获取表列表失败: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"获取表列表失败: {str(e)}") from e
 
 
 @router.post("/raw-query", response_model=RawQueryResponse)
@@ -627,9 +644,9 @@ async def execute_graph_raw_query(
 ):
     """对知识图谱底层 SQLite 数据库执行原始 SELECT 查询"""
     try:
-        result = service.graph_store.execute_raw_sql(request.sql)
+        result = await service.graph_store.execute_raw_sql(request.sql)
         return RawQueryResponse(**result)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"查询失败: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"查询失败: {str(e)}") from e

@@ -128,6 +128,10 @@ class BudgetResponse(BaseModel):
     status: Literal["active", "budget_limited"]
 
 
+class SuccessResponse(BaseModel):
+    success: bool
+
+
 class TokenStatsResponse(BaseModel):
     """Session Token 监控数据（聊天区指示器用）"""
 

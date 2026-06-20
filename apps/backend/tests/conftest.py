@@ -21,12 +21,12 @@ for _key in ("HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "http_proxy", "https_prox
 
 
 def _is_safe_test_database_url(database_url: str) -> bool:
-    """只允许 pytest 使用内存库或 /tmp 下的临时 SQLite。"""
-    return (
-        database_url.startswith("sqlite:///:memory:")
-        or database_url.startswith("sqlite:////tmp/")
-        or database_url.startswith("sqlite:///tmp/")
-    )
+    """只允许 pytest 使用内存库或系统临时目录下的临时 SQLite（跨平台兼容）。"""
+    db_path = database_url.removeprefix("sqlite:///")
+    if db_path == "/:memory:":
+        return True
+    temp_dir = tempfile.gettempdir()
+    return db_path.startswith(temp_dir) or db_path.startswith("/tmp/")
 
 
 def _default_test_database_url() -> str:

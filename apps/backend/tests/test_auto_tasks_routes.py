@@ -147,8 +147,8 @@ class TestAutoTaskWorkspaceRoutes:
                 "trigger_value": "3600",
             },
         )
-        assert response.status_code == 400
-        assert "prompt" in response.json()["detail"]
+        assert response.status_code == 422
+        assert "prompt" in str(response.json())
 
     def test_create_task_missing_trigger_value(self, monkeypatch, tmp_path):
         """非 continuous 类型缺少 trigger_value 时返回 400。"""

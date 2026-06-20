@@ -13,6 +13,9 @@ from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from app.core.subprocess_utils import subprocess_kwargs
+from app.utils.path_utils import as_system_path
+
 if TYPE_CHECKING:
     from app.services.workspace_registry import WorkspaceRegistryService
 
@@ -78,7 +81,7 @@ def _python_bin_for_venv(venv_dir: Path) -> Path:
 def resolve_workspace_runtime_dir(workspace_dir: Path, *, create: bool = False) -> Path:
     runtime_dir = workspace_dir / WORKSPACE_RUNTIME_DIR_NAME
     if create:
-        runtime_dir.mkdir(parents=True, exist_ok=True)
+        os.makedirs(as_system_path(runtime_dir), exist_ok=True)
     return runtime_dir
 
 
@@ -186,13 +189,13 @@ class RuntimeEnvironmentService:
         env_id = _normalize_env_id(env_id, DEFAULT_UV_ENV_ID)
         workspace_dir = self._workspace_dir(user_id, workspace_id)
         env_dir = self._env_dir(workspace_dir)
-        env_dir.mkdir(parents=True, exist_ok=True)
+        os.makedirs(as_system_path(env_dir), exist_ok=True)
         now = _now_iso()
 
         pyproject_path = env_dir / "pyproject.toml"
-        if not pyproject_path.exists():
+        if not os.path.exists(as_system_path(pyproject_path)):
             requires_python = _requires_python_spec(python_version)
-            pyproject_path.write_text(
+            Path(as_system_path(pyproject_path)).write_text(
                 _PYPROJECT_TEMPLATE.format(
                     project_name=self._project_name(workspace_id),
                     requires_python=requires_python,
@@ -201,7 +204,7 @@ class RuntimeEnvironmentService:
             )
 
         if python_version:
-            (env_dir / ".python-version").write_text(
+            Path(as_system_path(env_dir / ".python-version")).write_text(
                 f"{python_version.strip()}\n",
                 encoding="utf-8",
             )
@@ -461,7 +464,7 @@ class RuntimeEnvironmentService:
 
     def _read_registry(self, workspace_dir: Path) -> dict[str, Any]:
         path = self._registry_path(workspace_dir)
-        if not path.exists():
+        if not os.path.exists(as_system_path(path)):
             return {
                 "_schema_version": 1,
                 "default_env_id": DEFAULT_UV_ENV_ID,
@@ -470,7 +473,7 @@ class RuntimeEnvironmentService:
                 "updated_at": None,
             }
         try:
-            data = json.loads(path.read_text(encoding="utf-8"))
+            data = json.loads(Path(as_system_path(path)).read_text(encoding="utf-8"))
         except Exception:
             data = {}
         if not isinstance(data, dict):
@@ -486,8 +489,8 @@ class RuntimeEnvironmentService:
 
     def _write_registry(self, workspace_dir: Path, data: dict[str, Any]) -> None:
         path = self._registry_path(workspace_dir)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(
+        os.makedirs(as_system_path(path.parent), exist_ok=True)
+        Path(as_system_path(path)).write_text(
             json.dumps(data, indent=2, ensure_ascii=False),
             encoding="utf-8",
         )
@@ -533,19 +536,19 @@ class RuntimeEnvironmentService:
         python_file = env_dir / ".python-version"
         venv_dir = env_dir / ".venv"
         python_bin = _python_bin_for_venv(venv_dir)
-        packages = self._list_uv_packages(python_bin) if python_bin.exists() else []
+        packages = self._list_uv_packages(python_bin) if os.path.exists(as_system_path(python_bin)) else []
         env.material_path = str(env_dir)
         env.python_version = self._read_python_version(env_dir) or env.python_version
         env.python_executable = str(python_bin)
         env.package_count = len(packages)
         env.packages = packages
-        env.status = "ready" if pyproject.exists() and python_bin.exists() else "registered"
+        env.status = "ready" if os.path.exists(as_system_path(pyproject)) and os.path.exists(as_system_path(python_bin)) else "registered"
         env.metadata = {
             **env.metadata,
-            "pyproject_exists": pyproject.exists(),
-            "lock_exists": lock_file.exists(),
-            "python_version_file_exists": python_file.exists(),
-            "venv_exists": venv_dir.exists(),
+            "pyproject_exists": os.path.exists(as_system_path(pyproject)),
+            "lock_exists": os.path.exists(as_system_path(lock_file)),
+            "python_version_file_exists": os.path.exists(as_system_path(python_file)),
+            "venv_exists": os.path.exists(as_system_path(venv_dir)),
         }
         return env
 
@@ -597,6 +600,7 @@ class RuntimeEnvironmentService:
                 capture_output=True,
                 timeout=300,
                 check=False,
+                **subprocess_kwargs(),
             )
         except Exception as exc:
             return RuntimeEnvCommandResult(
@@ -630,6 +634,7 @@ class RuntimeEnvironmentService:
                 capture_output=True,
                 timeout=30,
                 check=False,
+                **subprocess_kwargs(),
             )
         except Exception:
             return []
@@ -671,6 +676,7 @@ print(json.dumps(packages))
                 capture_output=True,
                 timeout=30,
                 check=False,
+                **subprocess_kwargs(),
             )
         except Exception:
             return []
@@ -703,6 +709,7 @@ print(json.dumps(packages))
                 capture_output=True,
                 timeout=10,
                 check=False,
+                **subprocess_kwargs(),
             )
         except Exception:
             return None
@@ -712,9 +719,9 @@ print(json.dumps(packages))
 
     def _read_python_version(self, env_dir: Path) -> str | None:
         version_file = env_dir / ".python-version"
-        if not version_file.exists():
+        if not os.path.exists(as_system_path(version_file)):
             return None
-        text = version_file.read_text(encoding="utf-8").strip()
+        text = Path(as_system_path(version_file)).read_text(encoding="utf-8").strip()
         return text or None
 
     def _project_name(self, workspace_id: str) -> str:

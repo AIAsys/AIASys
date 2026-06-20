@@ -14,6 +14,8 @@ import threading
 from datetime import datetime
 from pathlib import Path
 from typing import Any, List, Optional
+
+from app.utils.path_utils import as_system_path
 from uuid import uuid4
 
 from app.models.session import (
@@ -73,7 +75,7 @@ class SessionManager(StatusMixin, HistoryMixin, FileSnapshotMixin):
         """原子写入 metadata.json，防止并发竞态导致文件损坏。"""
         with self._metadata_lock:
             meta_path = session_dir / METADATA_FILE_NAME
-            fd, temp_path = tempfile.mkstemp(dir=session_dir, suffix=".tmp")
+            fd, temp_path = tempfile.mkstemp(dir=as_system_path(str(session_dir)), suffix=".tmp")
             try:
                 with os.fdopen(fd, "w", encoding="utf-8") as f:
                     json.dump(data, f, indent=2, ensure_ascii=False)
@@ -316,7 +318,7 @@ class SessionManager(StatusMixin, HistoryMixin, FileSnapshotMixin):
             if not session_dir.exists():
                 return False
 
-            shutil.rmtree(session_dir)
+            shutil.rmtree(as_system_path(str(session_dir)))
             logger.info("删除会话: user=%s, session=%s", user_id, session_id)
 
             # 清理 MemoryResolver 缓存，避免已删除会话的缓存残留
@@ -345,7 +347,7 @@ class SessionManager(StatusMixin, HistoryMixin, FileSnapshotMixin):
         trash_dir = self.base_dir / ".trash" / user_id
         trash_dir.mkdir(parents=True, exist_ok=True)
         detached_path = trash_dir / f"{session_id}-{uuid4().hex[:8]}"
-        shutil.move(str(session_dir), str(detached_path))
+        shutil.move(as_system_path(str(session_dir)), as_system_path(str(detached_path)))
         logger.info(
             "会话目录已 detach 到回收区: user=%s, session=%s, path=%s",
             user_id,
@@ -360,7 +362,7 @@ class SessionManager(StatusMixin, HistoryMixin, FileSnapshotMixin):
         if not target.exists():
             return False
 
-        shutil.rmtree(target)
+        shutil.rmtree(as_system_path(str(target)))
         logger.info("已物理删除 detach 会话目录: %s", target)
         return True
 
@@ -680,8 +682,8 @@ class SessionManager(StatusMixin, HistoryMixin, FileSnapshotMixin):
             display_history_path = sidecar_session_dir / DISPLAY_HISTORY_FILE_NAME
             if display_history_path.exists():
                 shutil.copy2(
-                    display_history_path,
-                    archive_dir / f"{archive_token}-{DISPLAY_HISTORY_FILE_NAME}",
+                    as_system_path(str(display_history_path)),
+                    as_system_path(str(archive_dir / f"{archive_token}-{DISPLAY_HISTORY_FILE_NAME}")),
                 )
                 display_history_path.write_text("", encoding="utf-8")
 
@@ -689,8 +691,8 @@ class SessionManager(StatusMixin, HistoryMixin, FileSnapshotMixin):
             history_path = self._get_history_snapshot_path(session_dir)
             if history_path.exists():
                 shutil.copy2(
-                    history_path,
-                    archive_dir / f"{archive_token}-history.json",
+                    as_system_path(str(history_path)),
+                    as_system_path(str(archive_dir / f"{archive_token}-history.json")),
                 )
             self._write_history_snapshot(session_dir, [])
 
@@ -1382,7 +1384,7 @@ class SessionManager(StatusMixin, HistoryMixin, FileSnapshotMixin):
                 source_path = source_sidecar_dir / filename
                 target_path = target_sidecar_dir / filename
                 if source_path.exists():
-                    shutil.copy2(source_path, target_path)
+                    shutil.copy2(as_system_path(str(source_path)), as_system_path(str(target_path)))
 
             self._update_message_count(
                 target_session_id,

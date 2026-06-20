@@ -20,6 +20,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from app.core.subprocess_utils import subprocess_kwargs
+
 
 def get_platform_slug() -> str:
     """将 Python 的 platform 信息映射到项目内部使用的 platform slug。"""
@@ -61,6 +63,7 @@ def run_node_download_script(script_name: str, platform_slug: str, repo_root: Pa
         errors="replace",
         capture_output=True,
         env=env,
+        **subprocess_kwargs(),
     )
     if result.returncode != 0:
         print(result.stdout, end="")

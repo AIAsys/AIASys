@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
@@ -15,6 +17,8 @@ from app.models.capability import (
 from app.models.user import UserInfo
 from app.services.capability_registry import get_capability_registry_service
 from app.services.runtime_storage_settings import RuntimeStorageSettingsService
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/system", tags=["system"])
 
@@ -272,7 +276,7 @@ async def install_uv_endpoint(
         if cfg.uv.installer_mirror:
             installer_mirror = cfg.uv.installer_mirror
     except Exception:
-        pass
+        logger.warning("Failed to load AIASys config for user %s, using default installer mirror", current_user.user_id)
 
     ok, path, version, message = install_uv(installer_mirror=installer_mirror)
     if not ok:

@@ -149,6 +149,10 @@ class FolderImportPreviewResponse(BaseModel):
     total_size_bytes: int = Field(default=0, description="预选文件总大小（字节）")
 
 
+class FolderImportPreviewRequest(BaseModel):
+    source_path: str = Field(..., min_length=1, description="源文件夹绝对路径")
+
+
 class FolderImportProgressEvent(BaseModel):
     stage: Literal["scanning", "copying", "creating_workspace", "completed", "error"] = Field(
         default="scanning", description="当前阶段"

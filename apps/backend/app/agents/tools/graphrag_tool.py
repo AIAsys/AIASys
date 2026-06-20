@@ -239,9 +239,9 @@ class CreateKnowledgeGraph(AiasysTool):
             store = SQLiteGraphStore(user_id=user_id, kg_id=graph_id, db_path=graph_path)
             graph_name = (params.name or graph_id).strip() or graph_id
             graph_description = (params.description or "").strip()
-            store.set_metadata("name", graph_name)
-            store.set_metadata("description", graph_description)
-            stats = store.get_statistics()
+            await store.set_metadata("name", graph_name)
+            await store.set_metadata("description", graph_description)
+            stats = await store.get_statistics()
             scope_label = "全局工作区" if params.scope == "global" else "当前工作区"
             return ToolResult(
                 content="\n".join(
@@ -337,7 +337,7 @@ class CreateGraphEntity(AiasysTool):
         params = CreateGraphEntityParams.model_validate(kwargs)
         try:
             service = get_graphrag_service_for_tools(_normalize_graph_id(params.base_id))
-            created = service.create_entity(
+            created = await service.create_entity(
                 name=params.name,
                 entity_type=params.entity_type,
                 description=params.description or "",
@@ -385,13 +385,13 @@ properties 一旦传入会替换原 properties。
         params = UpdateGraphEntityParams.model_validate(kwargs)
         try:
             service = get_graphrag_service_for_tools(_normalize_graph_id(params.base_id))
-            current_entity = service.get_entity(params.entity_id)
+            current_entity = await service.get_entity(params.entity_id)
             if not current_entity:
                 return ToolResult(
                     content=f"知识图谱 {params.base_id} 中未找到实体：{params.entity_id}",
                     is_error=True,
                 )
-            updated = service.update_entity(
+            updated = await service.update_entity(
                 entity_id=str(current_entity["entity_id"]),
                 name=params.name,
                 entity_type=params.entity_type,
@@ -443,7 +443,7 @@ entity_id 可以传实体 ID，也可以传实体名称。如果用户只给出�
         params = DeleteGraphEntityParams.model_validate(kwargs)
         try:
             service = get_graphrag_service_for_tools(_normalize_graph_id(params.base_id))
-            deleted = service.delete_entity(params.entity_id)
+            deleted = await service.delete_entity(params.entity_id)
             if not deleted:
                 return ToolResult(
                     content=f"知识图谱 {params.base_id} 中未找到实体：{params.entity_id}",
@@ -499,7 +499,7 @@ source_entity_id 和 target_entity_id 可以传实体 ID，也可以传实体名
         params = CreateGraphRelationParams.model_validate(kwargs)
         try:
             service = get_graphrag_service_for_tools(_normalize_graph_id(params.base_id))
-            relation = service.create_relation(
+            relation = await service.create_relation(
                 source_entity_id=params.source_entity_id,
                 target_entity_id=params.target_entity_id,
                 relation_type=params.relation_type,
@@ -588,7 +588,7 @@ class SearchKnowledgeGraphEntities(AiasysTool):
             seen: set[tuple[str, str]] = set()
             for graph_id in graph_ids:
                 service = get_graphrag_service_for_tools(graph_id)
-                graph_results = service.search(
+                graph_results = await service.search(
                     query=params.query,
                     entity_type=params.entity_type,
                 )
@@ -666,7 +666,7 @@ class GetKnowledgeGraphEntityDetail(AiasysTool):
             matched_entities: list[tuple[str, dict[str, Any]]] = []
             for graph_id in graph_ids:
                 service = get_graphrag_service_for_tools(graph_id)
-                entity = service.get_entity(params.entity_name)
+                entity = await service.get_entity(params.entity_name)
                 if entity:
                     matched_entities.append((graph_id, entity))
 
@@ -733,7 +733,7 @@ class GetCommunityReport(AiasysTool):
                 return ToolResult(content="base_id 不能为空。", is_error=True)
 
             service = get_graphrag_service_for_tools(base_id, auto_init_llm=True)
-            summaries = service.get_communities(level=params.level)
+            summaries = await service.get_communities(level=params.level)
             summary_by_id = {str(summary.get("community_id")): summary for summary in summaries}
 
             selected_ids: list[str]
@@ -869,7 +869,7 @@ class ListKnowledgeGraphs(AiasysTool):
 
             for index, graph_id in enumerate(candidate_ids, 1):
                 service = get_graphrag_service_for_tools(graph_id)
-                stats = service.get_statistics()
+                stats = await service.get_statistics()
                 entity_count = stats.get("entity_count", 0)
                 relation_count = stats.get("relation_count", 0)
                 doc_count = stats.get("document_count", 0)

@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import Any
 
 from app.core.encoding_utils import smart_decode
+from app.core.subprocess_utils import subprocess_kwargs
 from app.services.agent.runtime_backends.base import (
     AgentRuntimeEvent,
     RuntimeSessionCreateSpec,
@@ -103,6 +104,7 @@ class AcpClientRuntimeSession:
                         ["taskkill", "/T", "/F", "/PID", str(proc.pid)],
                         capture_output=True,
                         timeout=5,
+                        **subprocess_kwargs(),
                     )
                 else:
                     proc.terminate()
@@ -124,6 +126,7 @@ class AcpClientRuntimeSession:
                         ["taskkill", "/T", "/F", "/PID", str(proc.pid)],
                         capture_output=True,
                         timeout=5,
+                        **subprocess_kwargs(),
                     )
                 else:
                     proc.terminate()
@@ -185,6 +188,7 @@ class AcpClientRuntimeSession:
                 stderr=subprocess.PIPE,
                 bufsize=1,
                 cwd=self._acp_cwd,
+                **subprocess_kwargs(),
             )
         except FileNotFoundError as exc:
             raise RuntimeError(
@@ -325,13 +329,20 @@ class AcpClientRuntimeSession:
         if proc is None:
             return
         try:
-            proc.terminate()
-            proc.wait(timeout=2)
+            if os.name == "nt":
+                subprocess.run(
+                    ["taskkill", "/T", "/F", "/PID", str(proc.pid)],
+                    capture_output=True,
+                    **subprocess_kwargs(),
+                )
+            else:
+                proc.terminate()
+                try:
+                    proc.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    proc.kill()
         except Exception:
-            try:
-                proc.kill()
-            except Exception:
-                pass
+            pass
 
     def _handle_server_message(
         self,
