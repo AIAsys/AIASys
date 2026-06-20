@@ -22,6 +22,7 @@ AIASys/
 │   ├── team-skill-guide/        ← 本指南：Skill 路由总览
 │   ├── team-skill-governance/   ← 管理机制与准入标准
 │   ├── aiasys-frontend-architecture/
+│   ├── aiasys-cross-platform/
 │   ├── aiasys-git-workflow/
 │   ├── aiasys-llm-config/
 │   ├── aiasys-mac-desktop-deploy/
@@ -63,6 +64,7 @@ AIASys/
 | LLM 配置、模型 key 管理、provider 切换 | `aiasys-llm-config` | LLM 配置规范 |
 | Mac 桌面端远程编译打包验证 | `aiasys-mac-desktop-deploy` | Mac 桌面部署 |
 | 项目目录结构、脚本落位、临时文件管理 | `aiasys-project-structure` | 项目结构规范 |
+| 跨平台兼容、路径处理、编码、进程管理 | `aiasys-cross-platform` | 跨平台兼容规范 |
 | 不知道用哪个 Skill、Skill 冲突 | `team-skill-guide`（本指南） | 路由决策 |
 
 ## 强制读取顺序
@@ -84,6 +86,7 @@ AIASys/
 - 涉及 LLM 配置/模型 key → 读 `aiasys-llm-config`
 - 涉及 Mac 桌面端打包 → 读 `aiasys-mac-desktop-deploy`
 - 涉及项目目录/脚本落位 → 读 `aiasys-project-structure`
+- 涉及跨平台兼容/路径处理/编码 → 读 `aiasys-cross-platform`
 - 涉及文件/目录操作 → 读 `workspace-ops`（`.kimi-code/skills/`）
 - 涉及写作/文档 → 读 `writing-guide`（`.kimi-code/skills/`）
 - 涉及任务执行 → 读 `task-protocol`（`.kimi-code/skills/`）

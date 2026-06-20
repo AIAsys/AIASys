@@ -245,6 +245,7 @@ AIASys/
   - 系统设计：`.team-skills/aiasys-system-design/SKILL.md`
   - 工具开发：`.team-skills/aiasys-tool-dev/SKILL.md`
   - Commit 历史审计：`.team-skills/commit-history-audit/SKILL.md`
+  - 跨平台兼容：`.team-skills/aiasys-cross-platform/SKILL.md`
 - 维护者发版流程：`docs/guides/maintainers/RELEASE_PROCESS.md`
 - Changelog 编写规范：`docs/changelog/README.md`
 
