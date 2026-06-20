@@ -11,6 +11,7 @@ import {
   PenSquare,
   Search,
   Trash2,
+  Upload,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -31,7 +32,7 @@ import {
 import { cn } from "@/lib/utils";
 import * as React from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { exportConversation } from "@/lib/api/sessions";
+import { exportConversation, importConversation } from "@/lib/api/sessions";
 import { useAuthContext } from "@/contexts/AuthContext";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import type { TaskWorkspaceSummary, WorkspaceConversationSummary } from "../../types";
@@ -74,6 +75,8 @@ interface WorkspaceConversationPanelProps {
   onForkConversation: (sessionId: string) => void;
   onRenameConversation: (sessionId: string, title: string) => Promise<void>;
   onDeleteConversation?: (sessionId: string) => Promise<void>;
+  /** 导入成功后回调，由父组件刷新工作区列表 */
+  onImportConversation?: () => void;
 }
 
 interface ConversationItemProps {
@@ -277,6 +280,7 @@ export function WorkspaceConversationPanel({
   onForkConversation,
   onRenameConversation,
   onDeleteConversation,
+  onImportConversation,
 }: WorkspaceConversationPanelProps) {
   const [collapsed, setCollapsed] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -385,6 +389,35 @@ export function WorkspaceConversationPanel({
       }
     },
     [currentUserId],
+  );
+
+  const importInputRef = useRef<HTMLInputElement>(null);
+  const [isImporting, setIsImporting] = useState(false);
+
+  const handleImportClick = useCallback(() => {
+    importInputRef.current?.click();
+  }, []);
+
+  const handleImportFileChange = useCallback(
+    async (event: React.ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0];
+      const workspaceId = workspace?.workspace_id;
+      if (!file || !currentUserId || !workspaceId) {
+        event.target.value = "";
+        return;
+      }
+      setIsImporting(true);
+      try {
+        await importConversation(currentUserId, workspaceId, file);
+        onImportConversation?.();
+      } catch (error) {
+        console.error("导入对话失败:", error);
+      } finally {
+        setIsImporting(false);
+        event.target.value = "";
+      }
+    },
+    [currentUserId, workspace?.workspace_id, onImportConversation],
   );
 
   const conversations = useMemo(
@@ -572,6 +605,32 @@ export function WorkspaceConversationPanel({
               >
                 <MessageSquarePlus className="w-4 h-4" />
                 {!isCollapsed ? <span>新建对话</span> : null}
+              </button>
+              <input
+                ref={importInputRef}
+                type="file"
+                accept=".json,application/json"
+                className="hidden"
+                onChange={handleImportFileChange}
+              />
+              <button
+                type="button"
+                onClick={handleImportClick}
+                title="导入对话"
+                disabled={isImporting}
+                className={cn(
+                  "rounded-lg border border-border bg-background font-medium text-foreground transition-colors hover:bg-accent disabled:opacity-50",
+                  isCollapsed
+                    ? "mx-auto flex h-10 w-10 items-center justify-center"
+                    : "flex w-full items-center justify-center gap-2 px-3 py-2 text-sm",
+                )}
+              >
+                {isImporting ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Upload className="w-4 h-4" />
+                )}
+                {!isCollapsed ? <span>导入对话</span> : null}
               </button>
             </div>
           ) : null}

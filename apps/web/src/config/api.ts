@@ -155,6 +155,7 @@ export const API_ENDPOINTS = {
     `/api/sessions/${userId}/${sessionId}`,
   SESSION_EXPORT: (userId: string, sessionId: string) =>
     `/api/sessions/${userId}/${sessionId}/export`,
+  SESSION_IMPORT: (userId: string) => `/api/sessions/${userId}/import`,
   SESSION_HISTORY: (userId: string, sessionId: string) =>
     `/api/sessions/history/${userId}/${sessionId}`,
   SESSION_REWRITE_FROM_MESSAGE: (userId: string, sessionId: string) =>

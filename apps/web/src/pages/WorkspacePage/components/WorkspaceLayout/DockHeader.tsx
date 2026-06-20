@@ -45,6 +45,8 @@ interface DockHeaderProps {
   onForkConversation: (sessionId: string) => void;
   onRenameConversation: (sessionId: string, title: string) => Promise<void>;
   onDeleteConversation?: (sessionId: string) => Promise<void>;
+  /** 导入成功后回调，由父组件刷新工作区列表 */
+  onImportConversation?: () => void;
   onCompactConversation?: () => Promise<void> | void;
   isCompactingConversation?: boolean;
   isRunning?: boolean;
@@ -71,6 +73,7 @@ export function DockHeader({
   onForkConversation,
   onRenameConversation,
   onDeleteConversation,
+  onImportConversation,
   onCompactConversation,
   isCompactingConversation = false,
   isRunning = false,
@@ -325,6 +328,7 @@ export function DockHeader({
             onForkConversation={onForkConversation}
             onRenameConversation={onRenameConversation}
             onDeleteConversation={onDeleteConversation}
+            onImportConversation={onImportConversation}
           />
         </div>
       </PopoverContent>
