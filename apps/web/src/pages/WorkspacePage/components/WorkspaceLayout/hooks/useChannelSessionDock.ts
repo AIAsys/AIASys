@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   clearSessionClawBinding,
@@ -53,6 +53,7 @@ export function useChannelSessionDock({
   const [isQrLoginPolling, setIsQrLoginPolling] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const qrLoginPollingLockRef = useRef(false);
 
   const clearState = useCallback(() => {
     setPlatforms([]);
@@ -327,9 +328,10 @@ export function useChannelSessionDock({
 
   const handlePollQrLogin = useCallback(
     async (platform: string): Promise<ClawQrLoginSession | null> => {
-      if (!qrLogin?.flow_id || isQrLoginPolling) {
+      if (!qrLogin?.flow_id || qrLoginPollingLockRef.current) {
         return qrLogin;
       }
+      qrLoginPollingLockRef.current = true;
       setIsQrLoginPolling(true);
       setError(null);
       try {
@@ -372,10 +374,11 @@ export function useChannelSessionDock({
         setError(getClawErrorMessage(err, `轮询 ${platform} 扫码状态失败`));
         return null;
       } finally {
+        qrLoginPollingLockRef.current = false;
         setIsQrLoginPolling(false);
       }
     },
-    [binding?.channel_id, binding?.connector_id, isQrLoginPolling, qrLogin, reload, sessionId],
+    [binding?.channel_id, binding?.connector_id, qrLogin, reload, sessionId],
   );
 
   // 兼容旧名

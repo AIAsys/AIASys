@@ -157,7 +157,7 @@ export function useSessionLifecycleExecutionActions({
       ]);
       setIsLoadingExecutionRecords(false);
 
-      if (!executionLoaded && !conversationLoaded) {
+      if (!executionLoaded || !conversationLoaded) {
         showError("记录加载失败");
         return;
       }

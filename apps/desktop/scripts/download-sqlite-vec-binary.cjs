@@ -76,6 +76,7 @@ function extractTarGz(archivePath, targetDir) {
   const result = spawnSync("tar", ["-xzf", archivePath, "-C", targetDir], {
     encoding: "utf-8",
     stdio: "pipe",
+    windowsHide: true,
   });
   if (result.status === 0) return;
   if (result.error && result.error.code === "ENOENT") {
@@ -88,7 +89,7 @@ function extractTarGz(archivePath, targetDir) {
     const pyResult = spawnSync(
       pyCmd,
       ["-c", "import sys, tarfile, gzip; ar=sys.argv[1]; td=sys.argv[2]; f=tarfile.open(ar, 'r:gz' if ar.endswith('.gz') else 'r'); f.extractall(td)", archivePath, targetDir],
-      { encoding: "utf-8", stdio: "pipe" }
+      { encoding: "utf-8", stdio: "pipe", windowsHide: true }
     );
     if (pyResult.status !== 0) {
       throw new Error(`${pyCmd} tarfile 解压失败: ${pyResult.stderr || pyResult.error}`);

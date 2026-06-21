@@ -27,21 +27,21 @@ class ClawOutboundMixin:
         attachment_paths = {item.workspace_path for item in attachments}
 
         def _replace_markdown_image(match: re.Match[str]) -> str:
-            path = str(match.group("path") or "").strip()
+            path = str(match.group("path") or "").strip().removeprefix("file://")
             if path not in attachment_paths:
                 return match.group(0)
             label = str(match.group("label") or "").strip()
             return label
 
         def _replace_markdown_link(match: re.Match[str]) -> str:
-            path = str(match.group("path") or "").strip()
+            path = str(match.group("path") or "").strip().removeprefix("file://")
             if path not in attachment_paths:
                 return match.group(0)
             label = str(match.group("label") or "").strip()
             return label
 
         def _replace_file_block(match: re.Match[str]) -> str:
-            path = str(match.group("path") or "").strip()
+            path = str(match.group("path") or "").strip().removeprefix("file://")
             return "" if path in attachment_paths else match.group(0)
 
         cleaned = _OUTBOUND_AIASYS_FILE_RE.sub(_replace_file_block, cleaned)

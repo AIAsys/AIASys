@@ -84,6 +84,7 @@ function extractArchive(archivePath, targetDir, isZip) {
     const primaryResult = spawnSync(primaryCmd, primaryArgs, {
       encoding: "utf-8",
       stdio: "pipe",
+      windowsHide: true,
     });
     if (primaryResult.status === 0) {
       result = primaryResult;
@@ -96,7 +97,7 @@ function extractArchive(archivePath, targetDir, isZip) {
       const pyResult = spawnSync(
         pyCmd,
         ["-m", "zipfile", "-e", archivePath, targetDir],
-        { encoding: "utf-8", stdio: "pipe" }
+        { encoding: "utf-8", stdio: "pipe", windowsHide: true }
       );
       if (pyResult.status !== 0) {
         throw new Error(`${pyCmd} zipfile 解压失败: ${pyResult.stderr || pyResult.error}`);
@@ -109,6 +110,7 @@ function extractArchive(archivePath, targetDir, isZip) {
     result = spawnSync("tar", ["-xzf", archivePath, "-C", targetDir], {
       encoding: "utf-8",
       stdio: "pipe",
+      windowsHide: true,
     });
   }
   if (result.status !== 0) {

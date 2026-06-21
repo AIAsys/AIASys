@@ -55,4 +55,4 @@ async def test_read_media_tool_fallback_reads_png_file(tmp_path) -> None:
     assert any("[image:/workspace/pixel.png]" in p.get("text", "") for p in text_parts)
     assert len(image_parts) == 1
     assert image_parts[0].get("source_path") == "/workspace/pixel.png"
-    assert image_parts[0]["image_url"]["url"] == "file:///workspace/pixel.png"
+    assert image_parts[0]["image_url"]["url"] == "/workspace/pixel.png"

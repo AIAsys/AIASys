@@ -21,6 +21,10 @@ import {
 import { QRCodeSVG } from "qrcode.react";
 
 import { Button } from "@/components/ui/button";
+import {
+  FileUploadToast,
+  useFileUploadToast,
+} from "@/components/file/FileUploadToast";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -70,6 +74,7 @@ interface ChannelAssetsSectionProps {
   isMutating: boolean;
   isQrLoginStarting: boolean;
   isQrLoginPolling: boolean;
+  qrLoginError?: string | null;
   onSelectChannel: (id: string) => void;
   onCreateChannel: (payload: CreateChannelPayload) => void | Promise<void>;
   onDeleteChannel?: (channelId: string) => void | Promise<void>;
@@ -241,6 +246,7 @@ export function ChannelAssetsSection({
   isMutating,
   isQrLoginStarting,
   isQrLoginPolling,
+  qrLoginError,
   onSelectChannel,
   onDeleteChannel,
   onUpdateChannelEnabled,
@@ -267,8 +273,10 @@ export function ChannelAssetsSection({
   onStopLink,
   availableSessionGroups = [],
 }: ChannelAssetsSectionProps) {
+  const { toasts, showError } = useFileUploadToast();
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [pendingDeleteChannelId, setPendingDeleteChannelId] = useState<string | null>(null);
+  const [isDeletingChannel, setIsDeletingChannel] = useState(false);
   const [qrDialogOpen, setQrDialogOpen] = useState(false);
   const [qrDialogPlatform, setQrDialogPlatform] = useState<string>("");
   const [channelBindingsMap, setChannelBindingsMap] = useState<Record<string, ChannelBindingItem[]>>({});
@@ -310,12 +318,23 @@ export function ChannelAssetsSection({
   const [createToken, setCreateToken] = useState("");
   const [createBaseUrl, setCreateBaseUrl] = useState(PLATFORM_PRESETS.weixin.defaultBaseUrl);
 
-  const confirmDelete = () => {
-    setShowDeleteDialog(false);
-    if (pendingDeleteChannelId && onDeleteChannel) {
-      void onDeleteChannel(pendingDeleteChannelId);
+  const confirmDelete = async () => {
+    if (!pendingDeleteChannelId || !onDeleteChannel) {
+      setShowDeleteDialog(false);
+      setPendingDeleteChannelId(null);
+      return;
     }
-    setPendingDeleteChannelId(null);
+    setIsDeletingChannel(true);
+    try {
+      await onDeleteChannel(pendingDeleteChannelId);
+      setShowDeleteDialog(false);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "删除频道失败";
+      showError(message);
+    } finally {
+      setIsDeletingChannel(false);
+      setPendingDeleteChannelId(null);
+    }
   };
 
   const visiblePlatforms = [...platforms].sort(
@@ -896,6 +915,12 @@ export function ChannelAssetsSection({
             </DialogDescription>
           </DialogHeader>
 
+          {qrLoginError ? (
+            <div className="rounded-md border border-destructive/20 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+              {qrLoginError}
+            </div>
+          ) : null}
+
           <div className="flex flex-wrap gap-2">
             <Button
               type="button"
@@ -1122,11 +1147,26 @@ export function ChannelAssetsSection({
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>取消</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmDelete}>确认</AlertDialogAction>
+            <AlertDialogCancel disabled={isDeletingChannel}>取消</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => void confirmDelete()}
+              disabled={isDeletingChannel}
+            >
+              {isDeletingChannel ? (
+                <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+              ) : null}
+              确认
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      {toasts.map((toast) => (
+        <FileUploadToast
+          key={toast.id}
+          message={toast.message}
+          type={toast.type}
+        />
+      ))}
     </div>
   );
 }

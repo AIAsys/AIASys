@@ -6,6 +6,10 @@ import {
   DialogDescription,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  FileUploadToast,
+  useFileUploadToast,
+} from "@/components/file/FileUploadToast";
 import { DatabaseConnectionsManagerPanel } from "@/components/database/DatabaseConnectionsManagerPanel";
 import {
   DatabaseConnectorFormContent,
@@ -41,6 +45,7 @@ export function DatabaseResourceDialog({
   defaultAction = "manage",
   sessionId,
 }: DatabaseResourceDialogProps) {
+  const { toasts, showError } = useFileUploadToast();
   const [activeTab, setActiveTab] = useState<DatabaseResourceDialogTab>(defaultTab);
   const [activeAction, setActiveAction] =
     useState<DatabaseResourceDialogAction>(defaultAction);
@@ -86,6 +91,9 @@ export function DatabaseResourceDialog({
       await createDatabaseConnector(payload as DatabaseConnectorDraftPayload);
       emitDatabaseConnectorSync({ scope: "connectors", sessionId });
       onOpenChange(false);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "创建数据库连接失败";
+      showError(message);
     } finally {
       setIsSaving(false);
     }
@@ -148,6 +156,13 @@ export function DatabaseResourceDialog({
             />
           </div>
         )}
+        {toasts.map((toast) => (
+          <FileUploadToast
+            key={toast.id}
+            message={toast.message}
+            type={toast.type}
+          />
+        ))}
       </DialogContent>
     </Dialog>
   );

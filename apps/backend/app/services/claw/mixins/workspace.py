@@ -76,6 +76,7 @@ class ClawWorkspaceMixin:
         ):
             for match in pattern.finditer(text):
                 path = str(match.groupdict().get("path") or match.group(0) or "").strip()
+                path = path.removeprefix("file://")
                 if not path.startswith("/workspace/"):
                     continue
                 if path in seen:

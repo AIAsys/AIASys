@@ -402,7 +402,7 @@ export function useStreamEventHandler({
           slot.taskEventsMap[taskId] = [];
         slot.taskEventsMap[taskId].push(taskEvent);
         addStreamEventsForSession(sessionId, taskId, [taskEvent], subagentName);
-        
+
         // 发送代码执行结果事件到执行记录
         eventBus.emit(EVENTS.CODE_EXECUTION_EVENT, {
           type: "subagent_event",
@@ -415,6 +415,23 @@ export function useStreamEventHandler({
             is_error: payload.is_error,
           },
         });
+      } else if (payload.type === "subagent_content") {
+        const contentText =
+          payload.content_type === "think" && payload.think
+            ? `[${subagentName}] 思考: ${payload.think}`
+            : `[${subagentName}] ${payload.text || ""}`;
+        if (!contentText.trim()) return;
+        updateChatItems(sessionId, (prev: ChatItem[]) => [
+          ...prev,
+          {
+            type: "message" as const,
+            id: `subagent-content-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+            sender: "system" as const,
+            role: "system" as const,
+            content: contentText,
+            timestamp: new Date(),
+          },
+        ]);
       }
       return;
     }
@@ -427,7 +444,9 @@ export function useStreamEventHandler({
       eventType === "subagent_step_begin";
     if (isSubagentEvent) {
       const taskId = event.task_tool_call_id;
-      const subagentName = "专家";
+      const subagentName = String(
+        event.subagent_name || event.subagent_type || "专家",
+      );
 
       if (!taskId) return;
 
@@ -445,6 +464,26 @@ export function useStreamEventHandler({
         }
         return newItems;
       });
+
+      if (eventType === "subagent_content") {
+        const contentText =
+          event.content_type === "think" && event.think
+            ? `[${subagentName}] 思考: ${event.think}`
+            : `[${subagentName}] ${event.text || ""}`;
+        if (!contentText.trim()) return;
+        updateChatItems(sessionId, (prev: ChatItem[]) => [
+          ...prev,
+          {
+            type: "message" as const,
+            id: `subagent-content-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+            sender: "system" as const,
+            role: "system" as const,
+            content: contentText,
+            timestamp: new Date(),
+          },
+        ]);
+        return;
+      }
 
       if (eventType === "subagent_tool_call") {
         if (!shouldTrackExecutionFlowTool(event.tool_name)) {

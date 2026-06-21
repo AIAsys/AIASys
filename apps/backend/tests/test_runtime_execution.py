@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
 import pytest
@@ -161,6 +162,8 @@ def test_wrap_uv_shell_command_uses_uv_project_and_workspace_directory(
 ) -> None:
     workspace = tmp_path / "workspace"
     project_dir = tmp_path / "workspace" / "env"
+    project_dir.mkdir(parents=True)
+    (project_dir / "pyproject.toml").write_text("[project]\nname = \"test\"\n", encoding="utf-8")
     plan = RuntimeExecutionPlan(
         sandbox_mode="local",
         env_id="uv-env",
@@ -186,14 +189,17 @@ def test_wrap_uv_shell_command_uses_uv_project_and_workspace_directory(
     assert "python -c" in command
 
 
-def test_wrap_uv_shell_command_uses_cmd_on_windows(
+@pytest.mark.skipif(os.name != "nt", reason="Windows Path 与文件系统行为只能在 Windows 真机验证")
+def test_wrap_uv_shell_command_uses_powershell_on_windows(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Windows 上没有 sh，uv 包装应改用 cmd /c。"""
+    """Windows 上没有 sh，uv 包装改用 PowerShell。"""
     monkeypatch.setattr(runtime_execution.os, "name", "nt")
     workspace = tmp_path / "workspace"
     project_dir = tmp_path / "workspace" / "env"
+    project_dir.mkdir(parents=True)
+    (project_dir / "pyproject.toml").write_text("[project]\nname = \"test\"\n", encoding="utf-8")
     plan = RuntimeExecutionPlan(
         sandbox_mode="local",
         env_id="uv-env",
@@ -217,8 +223,9 @@ def test_wrap_uv_shell_command_uses_cmd_on_windows(
     assert "workspace/env" in command.replace("\\", "/")
     assert "--directory" in command
     assert "workspace" in command.replace("\\", "/")
-    assert "cmd /c" in command
+    assert "powershell -NoProfile -Command" in command
     assert "sh -lc" not in command
+    assert "cmd /c" not in command
     assert "python -V" in command
 
 

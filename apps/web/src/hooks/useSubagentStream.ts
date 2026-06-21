@@ -79,6 +79,8 @@ export function useSubagentStream(
   const abortControllerRef = useRef<AbortController | null>(null);
   const sseCleanupRef = useRef<(() => void) | null>(null);
   const mountedRef = useRef(true);
+  // 记录已消费的 wire event_id，重连时从该位置继续，避免重复渲染
+  const lastEventIdRef = useRef(0);
 
   // Keep isRunningRef in sync
   useEffect(() => {
@@ -103,6 +105,9 @@ export function useSubagentStream(
         `/api/sessions/${userId}/${sessionId}/subagents/${agentId}`,
       );
       setDetail(data);
+      // wire.jsonl 中 metadata 占第 0 行（event_id=1），detail.events 已跳过 metadata。
+      // 已有 N 个事件时，最后一个事件 event_id=N+1，下一条新事件 event_id=N+2，因此 lastEventId=N+1。
+      lastEventIdRef.current = (data.events?.length ?? 0) + 1;
     } catch (err) {
       setError(err instanceof Error ? err.message : "加载详情失败");
     } finally {
@@ -117,8 +122,14 @@ export function useSubagentStream(
   // SSE 事件处理器（初始连接和重连共用）
   const handleSseEvent = useCallback(
     (event: Record<string, unknown>) => {
-      // 只处理来自外部的事件；sendMessage 产生的事件由 sendMessage 自己处理
-      if (isRunningRef.current) return;
+      const eventId = typeof event.event_id === "number" ? event.event_id : null;
+      if (eventId !== null && eventId <= lastEventIdRef.current) {
+        return;
+      }
+      if (eventId !== null) {
+        lastEventIdRef.current = eventId;
+      }
+
       if (event.type === "content" && typeof event.text === "string") {
         const text = event.text;
         setChatItems((prev) => {
@@ -131,6 +142,66 @@ export function useSubagentStream(
           }
           return [...prev, createAiChatItem(text, true)];
         });
+      } else if (event.type === "tool_call") {
+        setChatItems((prev) => [
+          ...prev,
+          {
+            type: "message",
+            id: generateId("tool-call"),
+            sender: "tool",
+            role: "tool",
+            content: `工具调用: ${String(event.tool_name || "unknown")}`,
+            timestamp: new Date(),
+          },
+        ]);
+      } else if (event.type === "tool_result") {
+        setChatItems((prev) => [
+          ...prev,
+          {
+            type: "message",
+            id: generateId("tool-result"),
+            sender: "tool",
+            role: "tool",
+            content: String(event.content || ""),
+            timestamp: new Date(),
+          },
+        ]);
+      } else if (event.type === "system_warning") {
+        setError(String(event.text || "子 Agent 返回警告"));
+      } else if (event.type === "ask_user_request") {
+        const requestText =
+          typeof event.request === "object" && event.request !== null
+            ? String((event.request as Record<string, unknown>).prompt || "")
+            : "";
+        setChatItems((prev) => [
+          ...prev,
+          {
+            type: "message",
+            id: generateId("ask-user"),
+            sender: "system",
+            role: "system",
+            content: requestText
+              ? `[子 Agent 等待用户确认] ${requestText}`
+              : "子 Agent 等待用户确认",
+            timestamp: new Date(),
+          },
+        ]);
+      } else if (
+        event.type === "capability_confirmation" ||
+        event.type === "subagent_capability_confirmation"
+      ) {
+        const toolName = String(event.tool_name || "unknown");
+        setChatItems((prev) => [
+          ...prev,
+          {
+            type: "message",
+            id: generateId("capability-confirmation"),
+            sender: "system",
+            role: "system",
+            content: `[子 Agent 能力确认] 工具: ${toolName}`,
+            timestamp: new Date(),
+          },
+        ]);
       }
     },
     [],
@@ -142,9 +213,10 @@ export function useSubagentStream(
 
   // 建立独立 SSE 连接，用于接收其他来源（如 Host 触发）的子 Agent 事件
   useEffect(() => {
-    if (!userId || !sessionId || !agentId) return;
+    if (!userId || !sessionId || !agentId || !detail) return;
 
     const cleanup = streamSubagentEvents(userId, sessionId, agentId, {
+      lastEventId: lastEventIdRef.current,
       onEvent: handleSseEvent,
       onError: handleSseError,
     });
@@ -154,7 +226,7 @@ export function useSubagentStream(
       cleanup();
       sseCleanupRef.current = null;
     };
-  }, [userId, sessionId, agentId, handleSseEvent, handleSseError]);
+  }, [userId, sessionId, agentId, detail, handleSseEvent, handleSseError]);
 
   const sendMessage = useCallback(
     async (message: string) => {
@@ -170,6 +242,7 @@ export function useSubagentStream(
 
       abortControllerRef.current = new AbortController();
       let aiItemId: string | null = null;
+      let streamEventCount = 0;
 
       try {
         const response = await sendSubagentMessage(
@@ -206,6 +279,7 @@ export function useSubagentStream(
 
             try {
               const event = JSON.parse(data) as Record<string, unknown>;
+              streamEventCount += 1;
               if (event.type === "content" && typeof event.text === "string") {
                 const text = event.text;
                 setChatItems((prev) => {
@@ -268,9 +342,11 @@ export function useSubagentStream(
             ),
           );
         }
-        // 重新建立 SSE 连接（使用共享事件处理器，不丢弃事件）
+        // 重新建立 SSE 连接，跳过本次已处理的事件，避免重复渲染
         if (mountedRef.current) {
+          lastEventIdRef.current += streamEventCount;
           sseCleanupRef.current = streamSubagentEvents(userId, sessionId, agentId, {
+            lastEventId: lastEventIdRef.current,
             onEvent: handleSseEvent,
             onError: handleSseError,
           });

@@ -111,6 +111,7 @@ def serialize_tool_output(content: Any) -> str:
         return str(content.text)
     if hasattr(content, "image_url"):
         url = content.image_url.url if hasattr(content.image_url, "url") else str(content.image_url)
+        url = url.removeprefix("file://")
         return f"![image]({url})"
     return str(content)
 

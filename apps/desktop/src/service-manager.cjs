@@ -38,10 +38,52 @@ function resolveRepoRoot() {
 }
 
 /**
+ * macOS 上尝试移除复制后的 .venv 的 com.apple.quarantine 扩展属性。
+ * 首次启动时从 app bundle 复制到用户目录的二进制仍可能携带隔离属性，
+ * 导致 Gatekeeper / AMFI 在第一次执行 Python 时拦截或延迟验证，表现为白屏或启动失败。
+ * 此处作为最佳 effort 兜底，失败不阻塞启动。
+ */
+function removeMacVenvQuarantine(writableVenv) {
+  if (process.platform !== "darwin") {
+    return Promise.resolve();
+  }
+  return new Promise((resolve) => {
+    console.log(
+      `[aiasys-desktop] 正在尝试移除 .venv 的 quarantine 属性: ${writableVenv}`,
+    );
+    const child = spawn("xattr", ["-r", "-d", "com.apple.quarantine", writableVenv], {
+      stdio: "ignore",
+      detached: true,
+    });
+    child.once("error", (error) => {
+      console.warn(`[aiasys-desktop] 移除 quarantine 属性失败: ${error.message}`);
+      resolve();
+    });
+    child.once("exit", (code) => {
+      if (code === 0) {
+        console.log(`[aiasys-desktop] 已移除 .venv 的 quarantine 属性`);
+      } else {
+        console.warn(`[aiasys-desktop] 移除 quarantine 属性退出码: ${code}`);
+      }
+      resolve();
+    });
+    // 最多等待 10 秒，避免首次启动长时间卡住
+    setTimeout(() => {
+      try {
+        child.kill();
+      } catch {
+        // ignore
+      }
+      resolve();
+    }, 10_000);
+  });
+}
+
+/**
  * 将 AppImage 只读目录中的 .venv 复制到可写运行时目录，
  * 然后修复 pyvenv.cfg 和符号链接。
  */
-function preparePackagedVenv(backendRoot, runtimeStateRoot) {
+async function preparePackagedVenv(backendRoot, runtimeStateRoot) {
   const writableVenv = path.join(runtimeStateRoot, ".venv");
   if (fs.existsSync(writableVenv)) {
     return; // 已复制过，直接复用
@@ -53,9 +95,16 @@ function preparePackagedVenv(backendRoot, runtimeStateRoot) {
   }
 
   console.log(`[aiasys-desktop] 复制 .venv 到可写目录: ${writableVenv}`);
+  const copyStart = Date.now();
   fs.cpSync(readOnlyVenv, writableVenv, { recursive: true, dereference: true });
+  console.log(
+    `[aiasys-desktop] .venv 复制完成，耗时 ${Date.now() - copyStart}ms`,
+  );
   fixPyvenvHomeIfNeeded(writableVenv);
   console.log(`[aiasys-desktop] .venv 就绪（可写副本）`);
+
+  // macOS: 复制后的 Mach-O 二进制可能仍携带 quarantine 属性，尝试清理
+  await removeMacVenvQuarantine(writableVenv);
 }
 
 function resolvePythonExecutable(backendRoot) {
@@ -277,6 +326,9 @@ async function waitForUrl(url, label, timeoutMs = 90_000, childProcesses = []) {
     }
 
     if (await probeUrl(url)) {
+      console.log(
+        `[aiasys-desktop] ${label} 已就绪，耗时 ${Date.now() - start}ms: ${url}`,
+      );
       return;
     }
     await new Promise((resolve) => setTimeout(resolve, 1000));
@@ -724,7 +776,7 @@ class DesktopServiceManager {
     // 构建时已按平台修复（dylib/shebang/pyvenv.cfg）。
     // 运行时：打包模式下 backendRoot 只读，需复制 .venv 到可写运行时目录并修复。
     if (this.isPackaged) {
-      preparePackagedVenv(this.backendRoot, this.runtimeStateRoot);
+      await preparePackagedVenv(this.backendRoot, this.runtimeStateRoot);
       fixPyvenvHomeIfNeeded(this.runtimeStateRoot);
     }
 

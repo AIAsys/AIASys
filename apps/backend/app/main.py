@@ -22,7 +22,7 @@ import contextlib
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Request
+from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
 
@@ -33,6 +33,7 @@ from app.core.auth import (
     AuthorizationError,
     ensure_local_default_user_exists,
     get_auth_provider,
+    require_auth,
 )
 from app.core.config import (
     APP_NAME,
@@ -165,6 +166,15 @@ async def lifespan(app: FastAPI):
 
     if kernel_cleanup_task is not None:
         kernel_cleanup_task.cancel()
+
+    # 停止自动任务引擎
+    try:
+        from app.services.auto_tasks.engine import stop_auto_tasks
+
+        stop_auto_tasks()
+        logger.info(" 自动任务引擎已停止")
+    except Exception as e:
+        logger.warning(f" 自动任务引擎停止失败（忽略）: {e}")
 
     try:
         from app.services.claw_runtime import shutdown_claw_runtime_manager
@@ -381,7 +391,7 @@ async def health_check():
 
 
 @app.get("/health/auth")
-async def auth_health_check():
+async def auth_health_check(current_user=Depends(require_auth())):
     """
     认证健康检查
 

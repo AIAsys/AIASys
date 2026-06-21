@@ -14,13 +14,15 @@ _CLAW_SESSION_KEYS_FILE = "session-keys.json"
 _DEFAULT_QR_TIMEOUT_SECONDS = 480
 _SUPPORTED_RUNTIME_PLATFORMS = {"weixin", "feishu", "dingtalk"}
 _CLAW_INBOX_DIR = "claw-inbox"
-_OUTBOUND_WORKSPACE_REF_RE = re.compile(r"/workspace/[^\s\"')>]+")
+# 兼容 file:// 前缀的工作区路径引用
+_FILE_SCHEME_PREFIX = r"(?:file://)?"
+_OUTBOUND_WORKSPACE_REF_RE = re.compile(rf"{_FILE_SCHEME_PREFIX}/workspace/[^\s\"')>]+")
 _OUTBOUND_AIASYS_FILE_RE = re.compile(
-    r":::aiasys-file\{[^}]*src=(?P<quote>[\"'])(?P<path>/workspace/[^\"']+)(?P=quote)[^}]*\}",
+    rf":::aiasys-file\{{[^}}]*src=(?P<quote>[\"'])(?P<path>{_FILE_SCHEME_PREFIX}/workspace/[^\"']+)(?P=quote)[^}}]*\}}",
     re.IGNORECASE,
 )
-_OUTBOUND_MARKDOWN_IMAGE_RE = re.compile(r"!\[(?P<label>[^\]]*)\]\((?P<path>/workspace/[^)\s]+)\)")
-_OUTBOUND_MARKDOWN_LINK_RE = re.compile(r"\[(?P<label>[^\]]+)\]\((?P<path>/workspace/[^)\s]+)\)")
+_OUTBOUND_MARKDOWN_IMAGE_RE = re.compile(rf"!\[(?P<label>[^\]]*)\]\((?P<path>{_FILE_SCHEME_PREFIX}/workspace/[^)\s]+)\)")
+_OUTBOUND_MARKDOWN_LINK_RE = re.compile(rf"\[(?P<label>[^\]]+)\]\((?P<path>{_FILE_SCHEME_PREFIX}/workspace/[^)\s]+)\)")
 _PLATFORM_LABELS: dict[str, str] = {
     "weixin": "微信",
     "feishu": "飞书",

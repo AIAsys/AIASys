@@ -64,6 +64,7 @@ def _serialize_tool_content_for_event(content: str | list[dict[str, Any]]) -> st
         elif item_type == "image_url":
             image_url = item.get("image_url", {})
             url = image_url.get("url") if isinstance(image_url, dict) else str(image_url)
+            url = url.removeprefix("file://")
             parts.append(f"![image]({url})")
     return "".join(parts)
 
@@ -603,22 +604,22 @@ class SessionStreamMixin:
                     # 构建带 tool_call_id 的 ctx，供 TaskTool 使用
                     item_ctx = {**tool_ctx, "_tool_call_id": item["id"]}
 
-                    async def _collect_tool_events() -> list[Any]:
-                        events: list[Any] = []
-                        async for stream_event in self._tool_registry.invoke_stream(
+                    # 直接流式迭代工具事件：事件产生即 yield，避免缓冲导致死锁或实时性丢失。
+                    final_tool_result: ToolResult | None = None
+                    try:
+                        stream_gen = self._tool_registry.invoke_stream(
                             item["function"]["name"],
                             item["arguments"],
                             ctx=item_ctx,
-                        ):
-                            events.append(stream_event)
-                            if stream_event.kind == "result":
+                        )
+                        while True:
+                            try:
+                                stream_event = await asyncio.wait_for(
+                                    stream_gen.__anext__(), timeout=300
+                                )
+                            except StopAsyncIteration:
                                 break
-                        return events
 
-                    try:
-                        tool_events = await asyncio.wait_for(_collect_tool_events(), timeout=300)
-                        final_tool_result: ToolResult | None = None
-                        for stream_event in tool_events:
                             if (
                                 stream_event.kind == "event"
                                 and stream_event.runtime_event is not None
@@ -632,6 +633,7 @@ class SessionStreamMixin:
                                 yield wrapped
                             elif stream_event.kind == "result":
                                 final_tool_result = stream_event.tool_result
+                                break
 
                         tool_result = final_tool_result or ToolResult(
                             content="无结果", is_error=True

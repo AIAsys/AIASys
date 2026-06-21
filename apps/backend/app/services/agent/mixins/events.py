@@ -278,6 +278,46 @@ class EventMixin:
                 "summary_tokens": item.summary_tokens,
             }
 
+        if item.kind == "capability_confirmation":
+            return {
+                "type": "capability_confirmation",
+                "tool_call_id": item.tool_call_id,
+                "tool_name": item.tool_name or "unknown",
+                "arguments": item.arguments or {},
+                "content": item.content or "",
+            }
+
+        if item.kind == "subagent_capability_confirmation":
+            event = {
+                "type": "subagent_capability_confirmation",
+                "tool_call_id": item.tool_call_id,
+                "tool_name": item.tool_name or "unknown",
+                "arguments": item.arguments or {},
+                "content": item.content or "",
+                "task_tool_call_id": item.task_tool_call_id,
+                "subagent_name": item.subagent_name,
+                "subagent_type": item.subagent_type,
+            }
+            if item.parent_tool_call_id is not None:
+                event["parent_tool_call_id"] = item.parent_tool_call_id
+            if item.agent_id is not None:
+                event["agent_id"] = item.agent_id
+            return event
+
+        if item.kind == "approval_required":
+            return {
+                "type": "approval_required",
+                "tool_call_id": item.tool_call_id,
+                "tool_name": item.tool_name or "unknown",
+                "arguments": item.arguments or {},
+            }
+
+        if item.kind == "system_warning":
+            return {
+                "type": "system_warning",
+                "message": item.text or "系统警告",
+            }
+
         return None
 
     def _project_output_item(
@@ -336,13 +376,15 @@ class EventMixin:
         if event is not None:
             if _is_host_execution_event(event):
                 self._ensure_host_turn_started(state, events)
-                events.append(event)
+            events.append(event)
             # 标记当前 turn 产生了实质内容
             if state.get("turn_started"):
                 event_type = event.get("type")
                 if event_type in {"content", "tool_call", "tool_result", "monitor"}:
                     state["turn_has_content"] = True
                 elif event_type == "worker.lifecycle.changed" and event.get("scope") == "host":
+                    state["turn_has_content"] = True
+                elif event_type in _SUBSTANTIVE_EVENT_TYPES:
                     state["turn_has_content"] = True
 
         if runtime_event.kind == "tool_call":
@@ -821,7 +863,30 @@ def _is_subagent_event(item: Any) -> bool:
     return _class_name(item) == "SubagentEvent" and hasattr(item, "event")
 
 
+# 需要标记为 turn 实质内容的事件类型（避免空 turn 分隔线）
+_SUBSTANTIVE_EVENT_TYPES = {
+    "ask_user_request",
+    "capability_confirmation",
+    "subagent_capability_confirmation",
+    "approval_required",
+    "system_warning",
+    "token_usage",
+    "budget_limited",
+    "budget_updated",
+    "compaction",
+    "data",
+    "subagent_content",
+    "subagent_tool_call",
+    "subagent_tool_result",
+}
+
+
 def _is_host_execution_event(event: dict[str, Any]) -> bool:
+    """判断事件是否需要先确保 host turn 已开始。
+
+    只有 host 主动产生的内容类事件才会触发 turn_begin；
+    审批、AskUser、预算、子 Agent 投影等事件只 append，不额外开启 turn。
+    """
     event_type = str(event.get("type") or "").strip().lower()
     if event_type in {"content", "tool_call", "tool_result", "status"}:
         return True
@@ -904,5 +969,6 @@ def _serialize_tool_output(content: Any) -> str:
     if hasattr(content, "image_url"):
         image_url = getattr(content, "image_url")
         url = image_url.url if hasattr(image_url, "url") else str(image_url)
+        url = url.removeprefix("file://")
         return f"![image]({url})"
     return "" if content is None else str(content)

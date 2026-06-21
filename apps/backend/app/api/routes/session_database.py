@@ -258,7 +258,7 @@ async def runtime_database_query(
 ):
     context = _get_runtime_db_context(request)
     try:
-        return _BROKER.query(
+        return await _BROKER.query_async(
             user_id=context.user_id,
             session_id=context.session_id,
             handle=payload.handle,
@@ -337,7 +337,7 @@ async def runtime_database_list_tables(
 ):
     context = _get_runtime_db_context(request)
     try:
-        return _BROKER.list_tables(
+        return await _BROKER.list_tables_async(
             user_id=context.user_id,
             session_id=context.session_id,
             handle=handle,
@@ -374,7 +374,7 @@ async def runtime_database_describe_table(
 ):
     context = _get_runtime_db_context(request)
     try:
-        return _BROKER.describe_table(
+        return await _BROKER.describe_table_async(
             user_id=context.user_id,
             session_id=context.session_id,
             handle=handle,

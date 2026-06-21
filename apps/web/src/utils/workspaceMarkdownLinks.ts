@@ -17,9 +17,11 @@ const SCOPED_PREFIXES: Array<{
 }> = [
   { prefix: "/workspace/", scope: "workspace" },
   { prefix: "workspace/", scope: "workspace" },
+  { prefix: "workspace:/", scope: "workspace" },
   { prefix: "./workspace/", scope: "workspace" },
   { prefix: "/global/", scope: "global" },
   { prefix: "global/", scope: "global" },
+  { prefix: "global:/", scope: "global" },
   { prefix: "./global/", scope: "global" },
 ];
 
@@ -73,6 +75,15 @@ function decodePath(value: string): string {
 function stripSameOriginUrl(value: string): string | null {
   if (!/^[a-z][a-z0-9+.-]*:/i.test(value)) {
     return value;
+  }
+
+  // file:// 视为本地工作区路径，直接返回 pathname
+  if (/^file:/i.test(value)) {
+    try {
+      return decodeURIComponent(new URL(value).pathname);
+    } catch {
+      return value.replace(/^file:\/\//, "");
+    }
   }
 
   if (!/^https?:/i.test(value) || typeof window === "undefined") {

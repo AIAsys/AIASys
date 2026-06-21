@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import logging
 import os
@@ -232,6 +233,28 @@ class DatabaseAccessBroker:
             return response
         raise ValueError(f"不支持的数据库句柄: {resolved_handle}")
 
+    async def query_async(
+        self,
+        *,
+        user_id: str,
+        session_id: str,
+        handle: str,
+        sql: str,
+        params: list[Any] | dict[str, Any] | None = None,
+        limit: int | None = None,
+        sandbox_mode: str | None = None,
+    ) -> RuntimeDatabaseQueryResponse:
+        return await asyncio.to_thread(
+            self.query,
+            user_id=user_id,
+            session_id=session_id,
+            handle=handle,
+            sql=sql,
+            params=params,
+            limit=limit,
+            sandbox_mode=sandbox_mode,
+        )
+
     async def execute(
         self,
         *,
@@ -340,6 +363,22 @@ class DatabaseAccessBroker:
             return response
         raise ValueError(f"不支持的数据库句柄: {resolved_handle}")
 
+    async def list_tables_async(
+        self,
+        *,
+        user_id: str,
+        session_id: str,
+        handle: str,
+        sandbox_mode: str | None = None,
+    ) -> RuntimeDatabaseListTablesResponse:
+        return await asyncio.to_thread(
+            self.list_tables,
+            user_id=user_id,
+            session_id=session_id,
+            handle=handle,
+            sandbox_mode=sandbox_mode,
+        )
+
     def describe_table(
         self,
         *,
@@ -404,6 +443,24 @@ class DatabaseAccessBroker:
             )
             return response
         raise ValueError(f"不支持的数据库句柄: {resolved_handle}")
+
+    async def describe_table_async(
+        self,
+        *,
+        user_id: str,
+        session_id: str,
+        handle: str,
+        table_name: str,
+        sandbox_mode: str | None = None,
+    ) -> RuntimeDatabaseDescribeTableResponse:
+        return await asyncio.to_thread(
+            self.describe_table,
+            user_id=user_id,
+            session_id=session_id,
+            handle=handle,
+            table_name=table_name,
+            sandbox_mode=sandbox_mode,
+        )
 
     def _ensure_session_exists(self, user_id: str, session_id: str) -> None:
         if self.session_manager.get_session(session_id, user_id) is None:

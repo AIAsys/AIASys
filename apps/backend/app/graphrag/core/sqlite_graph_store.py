@@ -505,25 +505,25 @@ class SQLiteGraphStore:
         conn = await self._get_conn()
         try:
             conn.execute("BEGIN")
-            for entity in entities:
-                conn.execute(
-                    """
-                        INSERT OR REPLACE INTO entities
-                        (entity_id, name, entity_type, description, properties, source_doc_id)
-                        VALUES (?, ?, ?, ?, ?, ?)
-                    """,
+            if entities:
+                entity_params = [
                     [
                         entity.entity_id,
                         entity.name,
                         entity.entity_type,
                         entity.description,
-                        (
-                            json.dumps(entity.metadata, ensure_ascii=False)
-                            if entity.metadata
-                            else "{}"
-                        ),
+                        json.dumps(entity.metadata, ensure_ascii=False) if entity.metadata else "{}",
                         doc_id,
-                    ],
+                    ]
+                    for entity in entities
+                ]
+                conn.executemany(
+                    """
+                        INSERT OR REPLACE INTO entities
+                        (entity_id, name, entity_type, description, properties, source_doc_id)
+                        VALUES (?, ?, ?, ?, ?, ?)
+                    """,
+                    entity_params,
                 )
             for relation in relations:
                 source_entity_id = self._resolve_entity_id(conn, relation.source_entity)

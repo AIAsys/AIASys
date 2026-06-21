@@ -118,7 +118,7 @@ class DatabaseQuery(AiasysTool):
             effective_limit = params.limit or DEFAULT_TOOL_ROW_LIMIT
             effective_limit = min(effective_limit, MAX_TOOL_ROW_LIMIT)
 
-            result = self._broker.query(
+            result = await self._broker.query_async(
                 user_id=user_id,
                 session_id=session_id,
                 handle=params.handle,

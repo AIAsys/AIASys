@@ -14,6 +14,7 @@ from fastapi.responses import FileResponse, StreamingResponse
 
 from app.core.auth import require_auth, require_role
 from app.models.user import UserInfo
+from app.utils.file_utils import sanitize_content_disposition_filename
 from app.services.export import (
     MarkdownExportDependencyError,
     MarkdownExportError,
@@ -245,7 +246,7 @@ async def download_file(
             return FileResponse(
                 file_path,
                 media_type=media_type,
-                headers={"Content-Disposition": f'inline; filename="{file_path.name}"'},
+                headers={"Content-Disposition": f'inline; filename="{sanitize_content_disposition_filename(file_path.name)}"'},
             )
 
         return FileResponse(
@@ -375,7 +376,7 @@ async def export_workspace(
         return StreamingResponse(
             _zip_chunks(zip_buffer),
             media_type="application/zip",
-            headers={"Content-Disposition": f'attachment; filename="{download_filename}"'},
+            headers={"Content-Disposition": f'attachment; filename="{sanitize_content_disposition_filename(download_filename)}"'},
         )
 
     except HTTPException:
@@ -438,7 +439,7 @@ async def export_markdown_document(
         return StreamingResponse(
             io.BytesIO(artifact.content),
             media_type=artifact.media_type,
-            headers={"Content-Disposition": f'attachment; filename="{artifact.filename}"'},
+            headers={"Content-Disposition": f'attachment; filename="{sanitize_content_disposition_filename(artifact.filename)}"'},
         )
 
     except HTTPException:

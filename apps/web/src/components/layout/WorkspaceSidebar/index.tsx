@@ -309,6 +309,27 @@ function WorkspaceSidebarContent({
 
   const normalizedActiveTab = isActivityPanelView(activeTab) ? activeTab : "artifacts";
 
+  // 自动把新派发的 running 子 agent 打开到主画布 Tab
+  const autoOpenedSubagentIdsRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    autoOpenedSubagentIdsRef.current.clear();
+  }, [sessionId]);
+  useEffect(() => {
+    if (!executionTree || !onOpenSubagentInMainCanvas) return;
+    for (let i = executionTree.subagent_calls.length - 1; i >= 0; i--) {
+      const call = executionTree.subagent_calls[i];
+      const agentId = call.subagent.id;
+      if (
+        !autoOpenedSubagentIdsRef.current.has(agentId) &&
+        (call.subagent.status === "running" || call.subagent.status === "queued")
+      ) {
+        autoOpenedSubagentIdsRef.current.add(agentId);
+        onOpenSubagentInMainCanvas(agentId);
+        break;
+      }
+    }
+  }, [executionTree, onOpenSubagentInMainCanvas]);
+
   const body = isLoadingHistory ? (
     <LoadingState />
   ) : (

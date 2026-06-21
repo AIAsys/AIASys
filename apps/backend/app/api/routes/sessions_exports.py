@@ -7,6 +7,7 @@ from fastapi.responses import StreamingResponse
 from app.core.auth import require_auth
 from app.core.config import WORKSPACE_DIR
 from app.models.user import UserInfo
+from app.utils.file_utils import sanitize_content_disposition_filename
 from app.services.export import (
     SessionExportNotFoundError,
     SessionExportScope,
@@ -62,7 +63,7 @@ async def export_session_artifact(
             return StreamingResponse(
                 io.BytesIO(payload),
                 media_type="application/json",
-                headers={"Content-Disposition": f'attachment; filename="{download_filename}"'},
+                headers={"Content-Disposition": f'attachment; filename="{sanitize_content_disposition_filename(download_filename)}"'},
             )
 
         if scope == "workspace":
@@ -81,7 +82,7 @@ async def export_session_artifact(
         return StreamingResponse(
             zip_buffer,
             media_type="application/zip",
-            headers={"Content-Disposition": f'attachment; filename="{download_filename}"'},
+            headers={"Content-Disposition": f'attachment; filename="{sanitize_content_disposition_filename(download_filename)}"'},
         )
     except SessionExportNotFoundError:
         raise HTTPException(status_code=404, detail="Session export not found")

@@ -4,11 +4,11 @@ const { app, BrowserWindow, dialog, ipcMain, shell, Tray, Menu, nativeImage } = 
 const { DesktopServiceManager } = require("./service-manager.cjs");
 
 process.on("unhandledRejection", (reason) => {
-  const { logError } = require("./src/utils.cjs");
+  const { logError } = require("./utils.cjs");
   logError("unhandled rejection", reason);
 });
 process.on("uncaughtException", (error) => {
-  const { logError } = require("./src/utils.cjs");
+  const { logError } = require("./utils.cjs");
   logError("uncaught exception", error);
 });
 
@@ -30,6 +30,8 @@ let serviceManager = null;
 let shutdownStarted = false;
 let signalShutdownPromise = null;
 let isQuitting = false;
+let mainWindowLoadRetryCount = 0;
+const MAX_MAIN_WINDOW_LOAD_RETRIES = 3;
 
 if (remoteDebuggingPort) {
   app.commandLine.appendSwitch("remote-debugging-port", remoteDebuggingPort);
@@ -171,6 +173,85 @@ function getWindowIcon() {
   return undefined;
 }
 
+let splashWindow = null;
+
+function createSplashWindow() {
+  splashWindow = new BrowserWindow({
+    width: 360,
+    height: 240,
+    frame: false,
+    alwaysOnTop: true,
+    resizable: false,
+    movable: true,
+    show: false,
+    transparent: true,
+    backgroundColor: "#0f0f0f",
+    skipTaskbar: true,
+    webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: true,
+    },
+    icon: getWindowIcon(),
+  });
+
+  const splashHtml = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #0f0f0f; color: #ffffff; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; overflow: hidden; user-select: none; -webkit-app-region: drag; }
+    .container { text-align: center; }
+    .logo { font-size: 28px; font-weight: 600; letter-spacing: -0.5px; margin-bottom: 20px; background: linear-gradient(135deg, #ffffff 0%, #a0a0a0 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .status { font-size: 13px; color: #888888; min-height: 20px; }
+    .spinner { width: 24px; height: 24px; border: 2px solid #333333; border-top-color: #ffffff; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 20px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="spinner"></div>
+    <div class="logo">AIASys Desktop</div>
+    <div class="status" id="status">正在启动...</div>
+  </div>
+  <script>
+    window.setSplashStatus = (message) => {
+      const el = document.getElementById('status');
+      if (el) el.textContent = message;
+    };
+  </script>
+</body>
+</html>`;
+
+  void splashWindow.loadURL(
+    `data:text/html;charset=utf-8,${encodeURIComponent(splashHtml)}`,
+  );
+  splashWindow.once("ready-to-show", () => {
+    splashWindow?.show();
+  });
+
+  splashWindow.on("closed", () => {
+    splashWindow = null;
+  });
+}
+
+function setSplashStatus(message) {
+  if (!splashWindow || splashWindow.isDestroyed()) return;
+  try {
+    void splashWindow.webContents.executeJavaScript(
+      `window.setSplashStatus && window.setSplashStatus(${JSON.stringify(message)})`,
+    );
+  } catch (e) {
+    // 忽略 splash 状态更新失败
+  }
+}
+
+function closeSplashWindow() {
+  if (!splashWindow || splashWindow.isDestroyed()) return;
+  splashWindow.close();
+  splashWindow = null;
+}
+
 function createMainWindow(rendererBaseUrl) {
   const preloadPath = path.join(__dirname, "preload.cjs");
   const initialUrl = new URL(startPath, rendererBaseUrl).toString();
@@ -221,10 +302,39 @@ function createMainWindow(rendererBaseUrl) {
   mainWindow.webContents.on(
     "did-fail-load",
     (_event, errorCode, errorDescription, validatedUrl) => {
+      // errorCode -3 为 ERR_ABORTED，通常是页面主动重导航或重载，不必重试
+      if (errorCode === -3) {
+        return;
+      }
       console.error(
         "[aiasys-desktop] load failed:",
         JSON.stringify({ errorCode, errorDescription, validatedUrl }),
       );
+      if (mainWindowLoadRetryCount < MAX_MAIN_WINDOW_LOAD_RETRIES) {
+        mainWindowLoadRetryCount += 1;
+        const delay = mainWindowLoadRetryCount * 1000;
+        console.log(
+          `[aiasys-desktop] 页面加载失败，${delay}ms 后第 ${mainWindowLoadRetryCount}/${MAX_MAIN_WINDOW_LOAD_RETRIES} 次重试...`,
+        );
+        setSplashStatus(
+          `页面加载失败，正在重试 (${mainWindowLoadRetryCount}/${MAX_MAIN_WINDOW_LOAD_RETRIES})...`,
+        );
+        setTimeout(() => {
+          if (mainWindow && !mainWindow.isDestroyed()) {
+            void mainWindow.loadURL(validatedUrl || initialUrl);
+          }
+        }, delay);
+      } else {
+        logError("page load failed after retries", {
+          errorCode,
+          errorDescription,
+          validatedUrl,
+        });
+        dialog.showErrorBox(
+          "AIASys Desktop 加载失败",
+          `无法加载页面：${validatedUrl || initialUrl}\n错误：${errorDescription} (${errorCode})\n\n请检查日志目录获取详细信息。`,
+        );
+      }
     },
   );
 
@@ -240,12 +350,14 @@ function createMainWindow(rendererBaseUrl) {
   });
 
   mainWindow.once("ready-to-show", () => {
+    closeSplashWindow();
     mainWindow?.show();
     if (openDevTools) {
       mainWindow?.webContents.openDevTools({ mode: "detach" });
     }
   });
 
+  mainWindowLoadRetryCount = 0;
   void mainWindow.loadURL(initialUrl);
 }
 
@@ -359,6 +471,11 @@ function createTray() {
 async function bootstrap() {
   console.log("[aiasys-desktop] bootstrap start");
   console.log("[aiasys-desktop] bootstrap started");
+
+  // 立即展示启动画面，避免首次启动长时间初始化时用户看到空白或无响应
+  createSplashWindow();
+  setSplashStatus("正在准备运行环境...");
+
   serviceManager = new DesktopServiceManager({
     mode: desktopMode,
     isPackaged: app.isPackaged,
@@ -380,9 +497,12 @@ async function bootstrap() {
     }
   };
 
+  setSplashStatus("正在启动本地服务...");
   console.log("[aiasys-desktop] starting backend...");
   const rendererBaseUrl = await serviceManager.start();
   console.log("[aiasys-desktop] backend started, creating window...");
+
+  setSplashStatus("正在加载界面...");
   createMainWindow(rendererBaseUrl);
   console.log("[aiasys-desktop] creating tray...");
   createTray();
@@ -414,6 +534,7 @@ app.whenReady().then(() => {
   }
   void bootstrap().catch(async (error) => {
     logError("bootstrap failed", error);
+    closeSplashWindow();
 
     // 收集日志路径信息
     const logsDir = path.join(runtimeStateRoot, "logs");

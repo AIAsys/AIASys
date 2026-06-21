@@ -4,6 +4,7 @@
 用于文件监控和内容读取
 """
 
+import asyncio
 import logging
 from dataclasses import dataclass
 from pathlib import Path
@@ -73,15 +74,9 @@ def is_text_file(path: str) -> bool:
     return suffix in TEXT_EXTENSIONS
 
 
-async def scan_directory(workspace: Path) -> Dict[str, FileSnapshot]:
+def _sync_scan_directory(workspace: Path) -> Dict[str, FileSnapshot]:
     """
-    扫描目录，返回文件快照字典，自动忽略系统文件和目录
-
-    Args:
-        workspace: 工作目录路径
-
-    Returns:
-        {相对路径: FileSnapshot}
+    同步扫描目录，返回文件快照字典，自动忽略系统文件和目录
     """
     files = {}
 
@@ -114,6 +109,19 @@ async def scan_directory(workspace: Path) -> Dict[str, FileSnapshot]:
                 continue
 
     return files
+
+
+async def scan_directory(workspace: Path) -> Dict[str, FileSnapshot]:
+    """
+    扫描目录，返回文件快照字典，自动忽略系统文件和目录
+
+    Args:
+        workspace: 工作目录路径
+
+    Returns:
+        {相对路径: FileSnapshot}
+    """
+    return await asyncio.to_thread(_sync_scan_directory, workspace)
 
 
 def compare_files(
@@ -199,3 +207,16 @@ def read_text_file(file_path: Path) -> Optional[str]:
             return f.read()
     except Exception:
         return None
+
+
+def sanitize_content_disposition_filename(filename: str) -> str:
+    """Sanitize a filename for use in Content-Disposition header.
+
+    Prevents header injection by stripping CR/LF and escaping double-quotes
+    and backslashes per RFC 6266 quoted-string rules.
+    """
+    # Strip control characters that could inject headers
+    sanitized = filename.replace("\r", "").replace("\n", "")
+    # Escape double-quote and backslash for quoted-string
+    sanitized = sanitized.replace("\\", "\\\\").replace('"', '\\"')
+    return sanitized

@@ -36,6 +36,9 @@ RuntimeEventKind = Literal[
     "budget_updated",
     "ask_user_request",
     "capability_confirmation",
+    "subagent_capability_confirmation",
+    "approval_required",
+    "system_warning",
     "compaction",
 ]
 

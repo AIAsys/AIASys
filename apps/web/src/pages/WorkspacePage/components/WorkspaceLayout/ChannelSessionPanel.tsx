@@ -381,6 +381,7 @@ export function ChannelSessionPanel({
                   isMutating={isMutating}
                   isQrLoginStarting={isQrLoginStarting}
                   isQrLoginPolling={isQrLoginPolling}
+                  qrLoginError={error}
                   onSelectChannel={setSelectedChannelId}
                   onCreateChannel={onCreateChannel}
                   onDeleteChannel={onDeleteChannel}

@@ -644,6 +644,7 @@ def ensure_auto_tasks_running() -> None:
         logger.warning("自动任务引擎启动时无运行中的事件循环，跳过")
         return
     _auto_tasks_task = loop.create_task(_auto_task_loop())
+    _auto_tasks_task.add_done_callback(_log_task_exception)
     logger.info("自动任务引擎已启动")
 
 

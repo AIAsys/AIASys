@@ -227,7 +227,7 @@ def _map_connector_access_error(exc: Exception) -> HTTPException:
     )
 
 
-def _broker_query(
+async def _broker_query(
     *,
     user_id: str,
     session_id: str,
@@ -236,7 +236,7 @@ def _broker_query(
     params: list[Any] | dict[str, Any] | None,
     limit: int | None = None,
 ) -> RuntimeDatabaseQueryResponse:
-    return _BROKER.query(
+    return await _BROKER.query_async(
         user_id=user_id,
         session_id=session_id,
         handle=handle,
@@ -353,7 +353,7 @@ async def list_runtime_database_tables(
     current_user: UserInfo = Depends(require_auth()),
 ):
     try:
-        return _BROKER.list_tables(
+        return await _BROKER.list_tables_async(
             user_id=current_user.user_id,
             session_id=session_id,
             handle=handle,
@@ -390,7 +390,7 @@ async def describe_runtime_database_table(
     current_user: UserInfo = Depends(require_auth()),
 ):
     try:
-        return _BROKER.describe_table(
+        return await _BROKER.describe_table_async(
             user_id=current_user.user_id,
             session_id=session_id,
             handle=handle,

@@ -12,9 +12,12 @@ import {
  * 格式: /api/files/download/{userId}/{sessionId}/{filename}?user_id={userId}
  */
 function resolveWorkspaceImage(src: string, sessionId?: string): string {
-  if (!src?.startsWith("/workspace/")) {
-    return src;
+  // 防御式去除 file:// 前缀，避免 LLM transport 细节泄漏到展示层
+  const normalized = src?.replace(/^file:\/\//, "") ?? "";
+  if (!normalized.startsWith("/workspace/")) {
+    return normalized;
   }
+  src = normalized;
 
   // 优先使用传入的 sessionId，否则尝试从 URL 解析
   if (!sessionId) {

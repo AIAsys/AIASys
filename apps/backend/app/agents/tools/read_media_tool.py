@@ -275,7 +275,7 @@ class ReadMediaFile(AiasysTool):
                 {"type": "text", "text": f"[image:{visible_path}]"},
                 {
                     "type": "image_url",
-                    "image_url": {"url": f"file://{visible_path}"},
+                    "image_url": {"url": visible_path},
                     "source_path": visible_path,
                 },
             ]

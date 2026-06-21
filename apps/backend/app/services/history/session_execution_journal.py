@@ -144,6 +144,11 @@ class SessionExecutionJournal:
             if legacy_display_history_path.exists():
                 legacy_display_history_path.unlink()
 
+            # 清理会话根目录下的旧版 file_snapshots.json，避免重建后残留内部文件
+            legacy_file_snapshots_path = self.session_dir / "file_snapshots.json"
+            if legacy_file_snapshots_path.exists():
+                legacy_file_snapshots_path.unlink()
+
         if self.execution_dir.exists():
             shutil.rmtree(as_system_path(str(self.execution_dir)))
 

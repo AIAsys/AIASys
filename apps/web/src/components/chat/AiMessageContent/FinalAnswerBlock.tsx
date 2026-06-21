@@ -5,7 +5,10 @@
  */
 import { memo, useMemo, useState, useCallback } from "react";
 import { FileText, Loader2 } from "lucide-react";
-import { useFileUploadToast } from "@/components/file/FileUploadToast";
+import {
+  FileUploadToast,
+  useFileUploadToast,
+} from "@/components/file/FileUploadToast";
 import { useAiMessageContext } from "./context";
 import { ChartAwareMarkdown } from "../ChartAwareMarkdown";
 
@@ -38,7 +41,7 @@ export const FinalAnswerBlock = memo(function FinalAnswerBlock({
     meta: { token, sessionId, onOpenWorkspaceArtifact, onOpenInBrowserTab },
   } = useAiMessageContext();
   const [isExporting, setIsExporting] = useState(false);
-  const { showSuccess, showError } = useFileUploadToast();
+  const { toasts, showSuccess, showError } = useFileUploadToast();
 
   const handleExportDocx = useCallback(async () => {
     if (isExporting) return;
@@ -83,6 +86,13 @@ export const FinalAnswerBlock = memo(function FinalAnswerBlock({
           <span>{isExporting ? "导出中..." : "导出 Word"}</span>
         </button>
       </div>
+      {toasts.map((toast) => (
+        <FileUploadToast
+          key={toast.id}
+          message={toast.message}
+          type={toast.type}
+        />
+      ))}
     </div>
   );
 });

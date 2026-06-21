@@ -41,6 +41,10 @@ import {
   type CapabilityItem,
   type CapabilitySourceTreeEntry,
 } from "@/lib/api/capabilities";
+import {
+  FileUploadToast,
+  useFileUploadToast,
+} from "@/components/file/FileUploadToast";
 import { CapabilitySourceTree } from "./CapabilitySourceTree";
 
 const KIND_LABEL: Record<string, string> = {
@@ -100,6 +104,7 @@ export function CapabilityDetailPanel({
   capabilityId,
   scope = "workspace",
 }: CapabilityDetailPanelProps) {
+  const { toasts, showError } = useFileUploadToast();
   const [workspaceCaps, setWorkspaceCaps] = useState<WorkspaceCapabilityItem[]>([]);
   const [availableCaps, setAvailableCaps] = useState<CapabilityItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -214,6 +219,10 @@ export function CapabilityDetailPanel({
         await installCapability(workspaceId, capabilityId, config);
       }
       await load();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "安装失败";
+      showError(message);
+      throw err;
     } finally {
       setProcessingId(null);
     }
@@ -228,6 +237,9 @@ export function CapabilityDetailPanel({
         await uninstallCapability(workspaceId, capabilityId);
       }
       await load();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "卸载失败";
+      showError(message);
     } finally {
       setProcessingId(null);
     }
@@ -250,6 +262,9 @@ export function CapabilityDetailPanel({
         }
       }
       await load();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "状态切换失败";
+      showError(message);
     } finally {
       setProcessingId(null);
     }
@@ -264,6 +279,9 @@ export function CapabilityDetailPanel({
         await verifyCapability(workspaceId, capabilityId);
       }
       await load();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "验证失败";
+      showError(message);
     } finally {
       setProcessingId(null);
     }
@@ -296,7 +314,13 @@ export function CapabilityDetailPanel({
       return;
     }
     setMcpConfigOpen(false);
-    await handleInstall(config);
+    try {
+      await handleInstall(config);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "安装失败";
+      showError(message);
+      setMcpConfigOpen(true);
+    }
   };
 
   if (loading) {
@@ -577,6 +601,13 @@ export function CapabilityDetailPanel({
           </div>
         </DialogContent>
       </Dialog>
+      {toasts.map((toast) => (
+        <FileUploadToast
+          key={toast.id}
+          message={toast.message}
+          type={toast.type}
+        />
+      ))}
     </div>
   );
 }

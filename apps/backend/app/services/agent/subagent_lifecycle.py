@@ -278,6 +278,7 @@ class SubAgentLifecycleManager:
 
         subagent_name = str(meta.get("subagent_type") or meta.get("subagent_name") or "subagent")
         self._registry.set_status(agent_id, SubAgentRegistry.STATUS_RUNNING)
+        final_content = ""
         try:
             async for event in self._run_prompt_loop(
                 session,
@@ -288,6 +289,16 @@ class SubAgentLifecycleManager:
                 timeout_seconds,
             ):
                 yield event
+                final_content = self._extract_final_content(event, final_content)
+
+            if final_content:
+                await storage.append_context_message(
+                    {
+                        "role": "assistant",
+                        "content": final_content,
+                        "parent_tool_call_id": parent_tool_call_id,
+                    }
+                )
         except Exception as exc:
             logger.exception("子 Agent 继续对话异常: agent_id=%s", agent_id)
             storage.update_status("failed")
@@ -537,8 +548,12 @@ class SubAgentLifecycleManager:
         storage: SubAgentStorage,
         event: AgentRuntimeEvent,
     ) -> None:
-        """将事件持久化到 wire.jsonl 和 context.jsonl。"""
+        """将事件持久化到 wire.jsonl 和 context.jsonl。
+
+        每次事件都 flush，确保独立 SSE 端点能实时 tail 到最新内容。
+        """
         await storage.append_wire_agent_runtime_event(asdict(event))
+        await storage.flush()
 
         if event.kind == "tool_call":
             msg = {
@@ -568,9 +583,13 @@ class SubAgentLifecycleManager:
         event: AgentRuntimeEvent,
         current: str,
     ) -> str:
-        """从事件中提取最新文本结果。"""
+        """从事件中累加最新文本结果。
+
+        流式 content 事件是文本 delta，需要累加才能得到完整回复；
+        非 text 类型（如 think）不参与最终消息内容。
+        """
         if event.kind == "content" and event.content_type == "text" and event.text:
-            return event.text
+            return current + event.text
         return current
 
 

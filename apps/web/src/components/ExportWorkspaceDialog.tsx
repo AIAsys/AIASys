@@ -14,7 +14,10 @@ import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Input } from "@/components/ui/input";
-import { useFileUploadToast } from "@/components/file/FileUploadToast";
+import {
+  FileUploadToast,
+  useFileUploadToast,
+} from "@/components/file/FileUploadToast";
 import {
   TemplateFileTreeSelector,
   isFileExcluded,
@@ -81,7 +84,7 @@ export function ExportWorkspaceDialog({
   isOpen,
   onClose,
 }: ExportWorkspaceDialogProps) {
-  const { showSuccess, showError: showToastError } = useFileUploadToast();
+  const { toasts, showSuccess, showError: showToastError } = useFileUploadToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -404,6 +407,13 @@ export function ExportWorkspaceDialog({
             {isSubmitting ? "导出中..." : "导出工作区"}
           </Button>
         </DialogFooter>
+        {toasts.map((toast) => (
+          <FileUploadToast
+            key={toast.id}
+            message={toast.message}
+            type={toast.type}
+          />
+        ))}
       </DialogContent>
     </Dialog>
   );

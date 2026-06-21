@@ -187,8 +187,8 @@ async def terminal_websocket(
                 if not terminal_id:
                     terminal_id = f"term-{uuid.uuid4().hex[:8]}"
 
-                rows = int(payload.get("rows", 24))
-                cols = int(payload.get("cols", 80))
+                rows = max(1, min(500, int(payload.get("rows", 24))))
+                cols = max(1, min(1000, int(payload.get("cols", 80))))
                 cwd = payload.get("cwd") or await _get_session_cwd(user_id, session_id)
 
                 # 检查是否已有同名会话（可能是重连后前端重新 spawn）
@@ -312,8 +312,8 @@ async def terminal_websocket(
             elif msg_type == "resize":
                 if not terminal_id:
                     continue
-                rows = int(payload.get("rows", 24))
-                cols = int(payload.get("cols", 80))
+                rows = max(1, min(500, int(payload.get("rows", 24))))
+                cols = max(1, min(1000, int(payload.get("cols", 80))))
                 ok = pty_manager.resize(terminal_id, rows, cols)
                 if not ok:
                     await websocket.send_json(

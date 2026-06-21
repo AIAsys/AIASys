@@ -24,7 +24,10 @@ import {
   deleteWorkspaceTemplate,
   type WorkspaceTemplateItem,
 } from "@/lib/api/workspaces";
-import { useFileUploadToast } from "@/components/file/FileUploadToast";
+import {
+  FileUploadToast,
+  useFileUploadToast,
+} from "@/components/file/FileUploadToast";
 import { useAuthState } from "@/contexts/AuthContext";
 import { saveUserUISettings } from "@/lib/api/uiSettings";
 import { TemplateSortableGrid } from "@/components/TemplateSortableGrid";
@@ -35,7 +38,7 @@ export interface TemplateManagementPanelProps {
 }
 
 export function TemplateManagementPanel({ onNavigate }: TemplateManagementPanelProps) {
-  const { showSuccess, showError: showToastError } = useFileUploadToast();
+  const { toasts, showSuccess, showError: showToastError } = useFileUploadToast();
   const { user } = useAuthState();
   const [templates, setTemplates] = useState<WorkspaceTemplateItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -189,6 +192,13 @@ export function TemplateManagementPanel({ onNavigate }: TemplateManagementPanelP
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      {toasts.map((toast) => (
+        <FileUploadToast
+          key={toast.id}
+          message={toast.message}
+          type={toast.type}
+        />
+      ))}
     </div>
   );
 }

@@ -107,6 +107,41 @@ def _event_to_sse(event: dict[str, Any]) -> str:
     return f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
 
 
+def _sync_read_wire_records(
+    wire_file: Any,
+    event_id: int,
+    last_size: int,
+) -> tuple[int, int, list[dict[str, Any]]]:
+    """同步读取 wire.jsonl 新增记录，返回 (next_event_id, new_last_size, records)。"""
+    next_event_id = event_id
+    new_records: list[dict[str, Any]] = []
+    try:
+        if not wire_file.exists():
+            return next_event_id, last_size, new_records
+        current_size = wire_file.stat().st_size
+        if current_size <= last_size:
+            return next_event_id, last_size, new_records
+        with open(wire_file, "r", encoding="utf-8") as f:
+            f.seek(0)
+            for _ in range(event_id):
+                line = f.readline()
+                if not line:
+                    break
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    record = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                new_records.append(record)
+                next_event_id += 1
+        return next_event_id, current_size, new_records
+    except Exception:
+        return next_event_id, last_size, new_records
+
+
 async def _tail_subagent_wire_file(
     storage: SubAgentStorage,
     last_event_id: int,
@@ -116,42 +151,27 @@ async def _tail_subagent_wire_file(
     event_id = last_event_id
     last_size = 0
     try:
-        if storage.wire_file.exists():
-            last_size = storage.wire_file.stat().st_size
+        if await asyncio.to_thread(storage.wire_file.exists):
+            last_size = (await asyncio.to_thread(storage.wire_file.stat)).st_size
     except Exception:
         pass
 
     while True:
-        new_records: list[dict[str, Any]] = []
         try:
-            if storage.wire_file.exists():
-                current_size = storage.wire_file.stat().st_size
-                if current_size > last_size:
-                    with open(storage.wire_file, "r", encoding="utf-8") as f:
-                        f.seek(0)
-                        # 跳过已发送的记录
-                        for _ in range(event_id):
-                            line = f.readline()
-                            if not line:
-                                break
-                        for line in f:
-                            line = line.strip()
-                            if not line:
-                                continue
-                            try:
-                                record = json.loads(line)
-                            except json.JSONDecodeError:
-                                continue
-                            new_records.append(record)
-                            event_id += 1
-                    last_size = current_size
+            event_id, last_size, new_records = await asyncio.to_thread(
+                _sync_read_wire_records,
+                storage.wire_file,
+                event_id,
+                last_size,
+            )
         except Exception as exc:
             logger.warning("读取子 Agent wire 文件失败: %s", exc)
+            new_records = []
 
         for record in new_records:
-            event = _wire_record_to_event(record)
-            if event is not None:
-                yield event_id, event
+            converted = _wire_record_to_event(record)
+            if converted is not None:
+                yield event_id, converted
 
         await asyncio.sleep(poll_interval_ms / 1000)
 

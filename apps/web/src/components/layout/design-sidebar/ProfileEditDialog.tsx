@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Check, X } from "lucide-react";
+import { Check, Loader2, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const AVATAR_COLORS = [
@@ -145,7 +145,11 @@ export function ProfileEditDialog({
             disabled={saving}
             className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
           >
-            <Check className="h-4 w-4" />
+            {saving ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Check className="h-4 w-4" />
+            )}
             {saving ? "保存中..." : "保存"}
           </button>
         </div>

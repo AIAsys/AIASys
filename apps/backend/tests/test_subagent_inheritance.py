@@ -1017,6 +1017,7 @@ class TestSubagentNestingProhibition:
         mock_storage = MagicMock()
         mock_storage.append_context_message = AsyncMock()
         mock_storage.append_wire_agent_runtime_event = AsyncMock()
+        mock_storage.flush = AsyncMock()
         mock_storage.update_status = Mock()
         mock_storage_cls.return_value = mock_storage
         mock_storage.subagent_dir = Path("/fake")
