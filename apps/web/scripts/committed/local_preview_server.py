@@ -32,7 +32,12 @@ class ThreadingPreviewServer(socketserver.ThreadingTCPServer):
 class PreviewHandler(http.server.SimpleHTTPRequestHandler):
     def translate_path(self, path: str) -> str:
         path = path.split("?", 1)[0].split("#", 1)[0]
-        return str(ROOT / path.lstrip("/"))
+        # 过滤路径穿越：把路径拆成段，拒绝任何 ".." 段
+        relative = path.lstrip("/").lstrip("\\")
+        segments = [p for p in relative.replace("\\", "/").split("/") if p and p != "."]
+        if any(segment == ".." for segment in segments):
+            return str(ROOT / "__forbidden__")
+        return str(ROOT / "/".join(segments))
 
     def _proxy_timeout(self) -> int:
         if self.path.startswith(tuple(_LONG_LIVED_STREAM_PATHS)):
@@ -75,11 +80,12 @@ class PreviewHandler(http.server.SimpleHTTPRequestHandler):
     def _proxy(self) -> None:
         target = BACKEND + self.path
         length = int(self.headers.get("Content-Length", "0") or "0")
-        body = self.rfile.read(length) if length > 0 else None
+        # 对于大请求体，直接流式转发 self.rfile，避免在内存中缓冲整个 body
+        body = self.rfile if length > 0 else None
 
         request = urllib.request.Request(target, data=body, method=self.command)
         for key, value in self.headers.items():
-            if key.lower() in {"host", "connection", "content-length"}:
+            if key.lower() in {"host", "connection"}:
                 continue
             request.add_header(key, value)
 

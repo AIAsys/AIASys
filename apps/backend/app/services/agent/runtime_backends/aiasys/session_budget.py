@@ -21,9 +21,10 @@ class SessionBudgetMixin:
             from app.models.session import SessionMetadata
 
             meta_path = Path(self._spec.work_dir) / "metadata.json"
-            if not meta_path.exists():
+            sys_meta_path = as_system_path(str(meta_path))
+            if not Path(sys_meta_path).exists():
                 return None
-            data = json.loads(meta_path.read_text(encoding="utf-8"))
+            data = json.loads(Path(sys_meta_path).read_text(encoding="utf-8"))
             meta = SessionMetadata(**data)
             return meta.budget
         except Exception:
@@ -35,9 +36,10 @@ class SessionBudgetMixin:
             from app.models.session import SessionMetadata
 
             meta_path = Path(self._spec.work_dir) / "metadata.json"
-            if not meta_path.exists():
+            sys_meta_path = as_system_path(str(meta_path))
+            if not Path(sys_meta_path).exists():
                 return None
-            data = json.loads(meta_path.read_text(encoding="utf-8"))
+            data = json.loads(Path(sys_meta_path).read_text(encoding="utf-8"))
             meta = SessionMetadata(**data)
             value = getattr(meta, "context_tokens", 0) or 0
             return value if isinstance(value, int) and value > 0 else None
@@ -89,12 +91,13 @@ class SessionBudgetMixin:
             from app.models.session import SessionMetadata
 
             meta_path = Path(self._spec.work_dir) / "metadata.json"
-            if not meta_path.exists():
+            sys_meta_path = as_system_path(str(meta_path))
+            if not Path(sys_meta_path).exists():
                 return
-            data = json.loads(meta_path.read_text(encoding="utf-8"))
+            data = json.loads(Path(sys_meta_path).read_text(encoding="utf-8"))
             meta = SessionMetadata(**data)
             meta.budget = self.budget
-            meta_path.write_text(
+            Path(sys_meta_path).write_text(
                 meta.model_dump_json(indent=2),
                 encoding="utf-8",
             )
@@ -111,20 +114,22 @@ class SessionBudgetMixin:
         try:
             from app.models.session import SessionMetadata
 
-            meta_path = Path(self._spec.work_dir) / "metadata.json"
-            if not meta_path.exists():
-                return
-            data = json.loads(meta_path.read_text(encoding="utf-8"))
-            meta = SessionMetadata(**data)
-            estimated = getattr(self, "_estimated_token_count", 0) or 0
-            if isinstance(estimated, int) and estimated > 0:
-                meta.context_tokens = estimated
-                if meta.budget is not None:
-                    meta.budget.context_tokens = estimated
-            meta_path.write_text(
-                meta.model_dump_json(indent=2),
-                encoding="utf-8",
-            )
+            with self._metadata_lock:
+                meta_path = Path(self._spec.work_dir) / "metadata.json"
+                sys_meta_path = as_system_path(str(meta_path))
+                if not Path(sys_meta_path).exists():
+                    return
+                data = json.loads(Path(sys_meta_path).read_text(encoding="utf-8"))
+                meta = SessionMetadata(**data)
+                estimated = getattr(self, "_estimated_token_count", 0) or 0
+                if isinstance(estimated, int) and estimated > 0:
+                    meta.context_tokens = estimated
+                    if meta.budget is not None:
+                        meta.budget.context_tokens = estimated
+                Path(sys_meta_path).write_text(
+                    meta.model_dump_json(indent=2),
+                    encoding="utf-8",
+                )
         except Exception:
             logger.warning("保存 context_tokens 到 metadata 失败", exc_info=True)
 

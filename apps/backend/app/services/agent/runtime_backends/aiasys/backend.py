@@ -10,6 +10,7 @@ from typing import Any
 from app.core.agent_tool import AiasysTool
 from app.core.config import DEFAULT_MODEL, DEFAULT_PROVIDER, LLM_PROVIDERS
 from app.services.runtime_tooling import is_subagent_orchestration_tool_name
+from app.utils.path_utils import as_system_path
 
 from ..base import RuntimeSessionCreateSpec
 from .llm_clients import create_llm_client
@@ -23,7 +24,7 @@ _READ_MEDIA_ALIAS = "app.agents.tools.read_media_tool:ReadMediaFile"
 
 
 def _load_agent_manifest(agent_file: Path) -> dict[str, Any]:
-    with open(agent_file, "rb") as file:
+    with open(as_system_path(str(agent_file)), "rb") as file:
         data = tomllib.load(file) or {}
     agent = data.get("agent")
     if not isinstance(agent, dict):

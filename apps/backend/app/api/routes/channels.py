@@ -59,7 +59,9 @@ class SetChannelEnabledRequest(BaseModel):
 
 
 @router.get("/platforms")
-async def list_platforms() -> list[dict[str, Any]]:
+async def list_platforms(
+    current_user: UserInfo = Depends(require_auth()),
+) -> list[dict[str, Any]]:
     """列出支持的平台目录。"""
     platforms = get_claw_service().list_platforms()
     return [

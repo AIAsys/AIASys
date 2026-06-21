@@ -54,7 +54,9 @@ def _ensure_session_access(session_id: str, user_id: str) -> None:
 
 
 @router.get("/capabilities", response_model=list[DatabaseConnectorCapability])
-async def list_database_capabilities():
+async def list_database_capabilities(
+    current_user: UserInfo = Depends(require_auth()),
+):
     """返回当前平台支持的数据库连接类型。"""
     return _CONNECTOR_SERVICE.list_capabilities()
 

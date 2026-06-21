@@ -9,7 +9,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from app.core.auth import require_auth
@@ -68,8 +68,21 @@ class ApprovalResolveResponse(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-def _get_runtime_session(user_id: str, session_id: str):
-    """从 agent_service 获取活跃 runtime session。"""
+def _get_runtime_session(user_id: str, session_id: str, agent_id: str | None = None):
+    """从 agent_service 获取活跃 runtime session。
+
+    当提供 agent_id 时，查找子 Agent 的 session 而非 Host session。
+    """
+    if agent_id:
+        from app.services.agent.subagent_registry import get_subagent_registry
+
+        subagent_session = get_subagent_registry().get(agent_id)
+        if subagent_session is None:
+            raise HTTPException(status_code=404, detail="子 Agent 会话未激活或已关闭")
+        if not hasattr(subagent_session, "_confirmation_manager"):
+            raise HTTPException(status_code=500, detail="子 Agent 会话不支持能力确认")
+        return subagent_session
+
     session_key = f"{user_id}/{session_id}"
     session = getattr(agent_service, "_active_sessions", {}).get(session_key)
     if session is None:
@@ -93,15 +106,17 @@ async def resolve_approval(
     session_id: str,
     tool_call_id: str,
     body: ApprovalResolveRequest,
+    agent_id: str | None = Query(None, description="子 Agent ID，处理子 Agent 能力确认时必传"),
     _user: UserInfo = Depends(require_auth()),
 ):
     """确认或拒绝指定的能力请求。
 
-    前端收到 ``capability_confirmation`` SSE 事件后，
+    前端收到 ``capability_confirmation`` 或 ``subagent_capability_confirmation`` SSE 事件后，
     调用此接口发送用户的审批决定。
+    处理子 Agent 的能力确认时需传入 agent_id 参数。
     """
     try:
-        session = _get_runtime_session(user_id, session_id)
+        session = _get_runtime_session(user_id, session_id, agent_id=agent_id)
     except HTTPException:
         raise
 

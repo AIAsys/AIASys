@@ -15,6 +15,7 @@ import tomli_w
 from filelock import FileLock
 
 from app.core.config import WORKSPACE_DIR
+from app.utils.path_utils import as_system_path
 
 logger = logging.getLogger(__name__)
 
@@ -134,15 +135,16 @@ class ChannelConfig:
 
     def _load(self) -> None:
         """从 TOML 加载配置。"""
-        if not self._config_path.exists():
+        sys_path = as_system_path(str(self._config_path))
+        if not Path(sys_path).exists():
             self._channels = {}
             self._loaded_mtime_ns = None
             self._loaded_size = None
             return
 
         try:
-            raw = tomllib.load(self._config_path.open("rb"))
-            stat = self._config_path.stat()
+            raw = tomllib.load(Path(sys_path).open("rb"))
+            stat = Path(sys_path).stat()
             self._loaded_mtime_ns = stat.st_mtime_ns
             self._loaded_size = stat.st_size
             if not isinstance(raw, dict):
@@ -172,37 +174,40 @@ class ChannelConfig:
 
     def _reload_if_changed(self) -> None:
         """重新加载被外部工具直接编辑过的 channels.toml。"""
-        if not self._config_path.exists():
+        sys_path = as_system_path(str(self._config_path))
+        if not Path(sys_path).exists():
             if self._loaded_mtime_ns is not None:
                 self._load()
             return
-        stat = self._config_path.stat()
+        stat = Path(sys_path).stat()
         if stat.st_mtime_ns != self._loaded_mtime_ns or stat.st_size != self._loaded_size:
             self._load()
 
     def save(self) -> None:
         """保存配置到 TOML（带跨平台文件锁和原子替换）。"""
-        self._config_path.parent.mkdir(parents=True, exist_ok=True)
-        lock_path = self._config_path.with_suffix(self._LOCK_SUFFIX)
+        sys_path = as_system_path(str(self._config_path))
+        sys_parent = as_system_path(str(self._config_path.parent))
+        Path(sys_parent).mkdir(parents=True, exist_ok=True)
+        lock_path = as_system_path(str(self._config_path.with_suffix(self._LOCK_SUFFIX)))
 
         payload = {"channels": {k: v.to_dict() for k, v in self._channels.items()}}
 
         content = tomli_w.dumps(payload)
-        with FileLock(str(lock_path)):
+        with FileLock(lock_path):
             with tempfile.NamedTemporaryFile(
                 "w",
                 encoding="utf-8",
-                dir=self._config_path.parent,
+                dir=sys_parent,
                 delete=False,
             ) as tmp_file:
                 tmp_path = Path(tmp_file.name)
                 tmp_file.write(content)
-            tmp_path.replace(self._config_path)
+            tmp_path.replace(Path(sys_path))
             try:
-                self._config_path.chmod(0o600)
+                Path(sys_path).chmod(0o600)
             except OSError:
                 logger.debug("设置 channels.toml 权限失败: path=%s", self._config_path)
-            stat = self._config_path.stat()
+            stat = Path(sys_path).stat()
             self._loaded_mtime_ns = stat.st_mtime_ns
             self._loaded_size = stat.st_size
 

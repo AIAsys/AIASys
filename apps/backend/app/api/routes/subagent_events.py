@@ -13,6 +13,7 @@ import json
 import logging
 from collections.abc import AsyncGenerator
 from dataclasses import asdict
+from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -24,6 +25,7 @@ from app.services.agent.subagent_lifecycle import get_subagent_lifecycle_manager
 from app.services.agent.subagent_registry import SubAgentRegistry, get_subagent_registry
 from app.services.agent.subagent_storage import SubAgentStorage
 from app.services.tracking import SubAgentTrackingService, get_subagent_tracking_service
+from app.utils.path_utils import as_system_path
 
 logger = logging.getLogger(__name__)
 
@@ -116,12 +118,13 @@ def _sync_read_wire_records(
     next_event_id = event_id
     new_records: list[dict[str, Any]] = []
     try:
-        if not wire_file.exists():
+        sys_wire_file = as_system_path(str(wire_file))
+        if not Path(sys_wire_file).exists():
             return next_event_id, last_size, new_records
-        current_size = wire_file.stat().st_size
+        current_size = Path(sys_wire_file).stat().st_size
         if current_size <= last_size:
             return next_event_id, last_size, new_records
-        with open(wire_file, "r", encoding="utf-8") as f:
+        with open(sys_wire_file, "r", encoding="utf-8") as f:
             f.seek(last_size)
             for line in f:
                 line = line.strip()

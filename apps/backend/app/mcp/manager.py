@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 from app.core.config import WORKSPACE_DIR
+from app.utils.path_utils import as_system_path
 
 from .models import MCPConfig, MCPOperationResult, MCPServerDefinition
 
@@ -87,10 +88,11 @@ class MCPManager:
 
     def _load_config_file(self, path: Path) -> MCPConfig:
         """从指定路径读取 MCP 配置。"""
-        if not path.exists():
+        sys_path = as_system_path(str(path))
+        if not Path(sys_path).exists():
             return MCPConfig()
         try:
-            data = json.loads(path.read_text(encoding="utf-8"))
+            data = json.loads(Path(sys_path).read_text(encoding="utf-8"))
             return MCPConfig.model_validate(data)
         except (json.JSONDecodeError, ValueError, OSError) as e:
             logger.warning("MCP 配置解析失败: %s - %s", path, e)
@@ -98,17 +100,20 @@ class MCPManager:
 
     def _save_config_file(self, path: Path, config: MCPConfig) -> None:
         """保存 MCP 配置到指定路径（原子写）。"""
-        path.parent.mkdir(parents=True, exist_ok=True)
+        sys_path = as_system_path(str(path))
+        sys_parent = as_system_path(str(path.parent))
+        Path(sys_parent).mkdir(parents=True, exist_ok=True)
         tmp_path = path.with_suffix(".tmp")
+        sys_tmp_path = as_system_path(str(tmp_path))
         try:
-            with open(tmp_path, "w", encoding="utf-8") as f:
+            with open(sys_tmp_path, "w", encoding="utf-8") as f:
                 f.write(json.dumps(config.model_dump(mode="json"), indent=2, ensure_ascii=False))
                 f.flush()
                 os.fsync(f.fileno())
-            os.replace(str(tmp_path), str(path))
+            os.replace(sys_tmp_path, sys_path)
         except Exception:
-            if tmp_path.exists():
-                tmp_path.unlink(missing_ok=True)
+            if Path(sys_tmp_path).exists():
+                Path(sys_tmp_path).unlink(missing_ok=True)
             raise
 
     def _load_system_defaults(self) -> MCPConfig:

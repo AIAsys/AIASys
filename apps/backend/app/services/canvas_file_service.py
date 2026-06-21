@@ -9,6 +9,8 @@ from pathlib import Path
 
 from filelock import FileLock
 
+from app.utils.path_utils import as_system_path
+
 MAX_CACHE_SIZE = 100
 
 from app.models.canvas import CanvasBatchOperation, CanvasEdge, CanvasFile, CanvasNode
@@ -76,12 +78,13 @@ class CanvasFileService:
     def _read_from_disk(self, file_path: Path) -> CanvasFile:
         """从磁盘读取并缓存。调用方必须确保并发安全。"""
         file_path_str = str(file_path)
+        sys_path = as_system_path(file_path_str)
         with self._lock:
             cached = self._read_cache.get(file_path_str)
-            if cached and cached[0] == file_path.stat().st_mtime:
+            if cached and cached[0] == Path(sys_path).stat().st_mtime:
                 return cached[1]
 
-        content = file_path.read_text(encoding="utf-8")
+        content = Path(sys_path).read_text(encoding="utf-8")
         if not content.strip():
             canvas = CanvasFile()
         else:
@@ -91,9 +94,9 @@ class CanvasFileService:
         with self._lock:
             # 双检：读取期间可能有其他线程更新了缓存
             cached = self._read_cache.get(file_path_str)
-            if cached and cached[0] == file_path.stat().st_mtime:
+            if cached and cached[0] == Path(sys_path).stat().st_mtime:
                 return cached[1]
-            self._read_cache[file_path_str] = (file_path.stat().st_mtime, canvas)
+            self._read_cache[file_path_str] = (Path(sys_path).stat().st_mtime, canvas)
             if len(self._read_cache) > MAX_CACHE_SIZE:
                 self._read_cache.popitem(last=False)
         return canvas
@@ -101,10 +104,11 @@ class CanvasFileService:
     def read_canvas(self, workspace_root: Path, relative_path: str) -> CanvasFile:
         file_path = _resolve_canvas_file_path(workspace_root, relative_path)
         file_path_str = str(file_path)
+        sys_path = as_system_path(file_path_str)
         with self._lock:
             if file_path_str in self._pending:
                 return self._pending[file_path_str][2]
-        if not file_path.exists():
+        if not Path(sys_path).exists():
             raise FileNotFoundError(f"Canvas 文件不存在: {relative_path}")
         return self._read_from_disk(file_path)
 
@@ -130,7 +134,9 @@ class CanvasFileService:
                 if len(self._write_json_cache) > MAX_CACHE_SIZE:
                     self._write_json_cache.popitem(last=False)
 
-        file_path.parent.mkdir(parents=True, exist_ok=True)
+        sys_path = as_system_path(str(file_path))
+        sys_parent = as_system_path(str(file_path.parent))
+        Path(sys_parent).mkdir(parents=True, exist_ok=True)
         file_history_service.record_file_before_change(
             workspace_root,
             relative_path,
@@ -139,12 +145,13 @@ class CanvasFileService:
             source_detail="write_canvas",
         )
         tmp_path = file_path.with_suffix(".tmp")
-        lock_path = str(tmp_path) + ".lock"
+        sys_tmp_path = as_system_path(str(tmp_path))
+        lock_path = as_system_path(str(tmp_path) + ".lock")
         with FileLock(lock_path):
-            tmp_path.write_text(json_str, encoding="utf-8")
-        tmp_path.replace(file_path)
+            Path(sys_tmp_path).write_text(json_str, encoding="utf-8")
+        Path(sys_tmp_path).replace(Path(sys_path))
 
-        new_mtime = file_path.stat().st_mtime
+        new_mtime = Path(sys_path).stat().st_mtime
         with self._lock:
             self._read_cache[file_path_str] = (new_mtime, canvas)
             if len(self._read_cache) > MAX_CACHE_SIZE:
@@ -208,10 +215,11 @@ class CanvasFileService:
         """读取 canvas，不存在时返回空对象（用于写入操作）。优先返回 pending 中的内存对象。"""
         file_path = _resolve_canvas_file_path(workspace_root, relative_path)
         file_path_str = str(file_path)
+        sys_path = as_system_path(file_path_str)
         with self._lock:
             if file_path_str in self._pending:
                 return self._pending[file_path_str][2]
-        if not file_path.exists():
+        if not Path(sys_path).exists():
             return CanvasFile()
         return self._read_from_disk(file_path)
 

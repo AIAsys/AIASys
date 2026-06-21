@@ -15,6 +15,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from app.core.auth import require_auth
 from app.core.config import WORKSPACE_DIR
 from app.models.user import UserInfo
+from app.utils.path_utils import as_system_path
 
 logger = logging.getLogger(__name__)
 
@@ -24,10 +25,11 @@ router = APIRouter(prefix="/token-usage", tags=["token-usage"])
 def _is_session_dir(path: Path) -> bool:
     """判断目录是否为 session 目录：存在 metadata.json 且包含 session_id。"""
     meta_path = path / "metadata.json"
-    if not meta_path.exists():
+    sys_meta_path = as_system_path(str(meta_path))
+    if not Path(sys_meta_path).exists():
         return False
     try:
-        data = json.loads(meta_path.read_text(encoding="utf-8"))
+        data = json.loads(Path(sys_meta_path).read_text(encoding="utf-8"))
         return bool(data.get("session_id"))
     except Exception:
         return False
@@ -44,11 +46,12 @@ def _read_usage_file(
         lambda: {"input": 0, "output": 0, "cache_read": 0, "cache_write": 0, "reasoning": 0}
     )
     models: set[str] = set()
-    if not usage_file.exists():
+    sys_usage_file = as_system_path(str(usage_file))
+    if not Path(sys_usage_file).exists():
         return daily, models
 
     try:
-        with usage_file.open("r", encoding="utf-8") as f:
+        with Path(sys_usage_file).open("r", encoding="utf-8") as f:
             for line in f:
                 line = line.strip()
                 if not line:
@@ -103,7 +106,8 @@ async def get_token_heatmap(
         raise HTTPException(status_code=400, detail="granularity 只支持 day/week/month")
 
     user_dir = WORKSPACE_DIR / user.user_id
-    if not user_dir.exists():
+    sys_user_dir = as_system_path(str(user_dir))
+    if not Path(sys_user_dir).exists():
         return {
             "granularity": granularity,
             "from": from_date,
@@ -122,7 +126,10 @@ async def get_token_heatmap(
     all_models: set[str] = set()
 
     try:
-        candidates = [p for p in user_dir.iterdir() if p.is_dir() and p.name != "global_workspace"]
+        candidates = [
+            p for p in Path(sys_user_dir).iterdir()
+            if p.is_dir() and p.name != "global_workspace"
+        ]
     except OSError:
         candidates = []
 
@@ -143,7 +150,8 @@ async def get_token_heatmap(
         if _is_session_dir(candidate):
             if workspace_id is not None:
                 try:
-                    meta = json.loads((candidate / "metadata.json").read_text(encoding="utf-8"))
+                    meta_path = as_system_path(str(candidate / "metadata.json"))
+                    meta = json.loads(Path(meta_path).read_text(encoding="utf-8"))
                     if meta.get("workspace_id") != workspace_id:
                         continue
                 except Exception:
@@ -161,7 +169,8 @@ async def get_token_heatmap(
                 continue
             if workspace_id is not None:
                 try:
-                    meta = json.loads((session_dir / "metadata.json").read_text(encoding="utf-8"))
+                    meta_path = as_system_path(str(session_dir / "metadata.json"))
+                    meta = json.loads(Path(meta_path).read_text(encoding="utf-8"))
                     if meta.get("workspace_id") != workspace_id:
                         continue
                 except Exception:
