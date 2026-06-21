@@ -45,13 +45,23 @@ export function EnvVarsPanel({
   const [error, setError] = useState<string | null>(null);
   const newKeyInputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
+  const loadGlobalEnvVars = useCallback(async () => {
     setGlobalLoading(true);
-    apiRequest<{ env_vars: Record<string, string> }>("/api/global-env-vars/me")
-      .then((res) => setGlobalEnvVars(res.env_vars ?? {}))
-      .catch(() => setGlobalEnvVars({}))
-      .finally(() => setGlobalLoading(false));
+    setError(null);
+    try {
+      const res = await apiRequest<{ env_vars: Record<string, string> }>("/api/global-env-vars/me");
+      setGlobalEnvVars(res.env_vars ?? {});
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "加载全局环境变量失败");
+      setGlobalEnvVars({});
+    } finally {
+      setGlobalLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    void loadGlobalEnvVars();
+  }, [loadGlobalEnvVars]);
 
   const mergedVars = useMemo<MergedEnvVar[]>(() => {
     const map = new Map<string, MergedEnvVar>();
@@ -235,7 +245,18 @@ export function EnvVarsPanel({
 
       {error ? (
         <div className="rounded-lg border border-error/30 bg-error-container px-3 py-2 text-sm text-on-error-container">
-          {error}
+          <div className="flex items-center justify-between gap-2">
+            <span>{error}</span>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-7 text-xs"
+              onClick={() => void loadGlobalEnvVars()}
+            >
+              重试
+            </Button>
+          </div>
         </div>
       ) : null}
 

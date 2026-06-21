@@ -144,10 +144,14 @@ export function TemplateManagementPanel({ onNavigate }: TemplateManagementPanelP
             onSelect={(templateId) => setSelectedTemplateId(templateId)}
             onPreview={() => {}}
             onReorder={(newItems) => {
+              const previousItems = templates;
               setTemplates(newItems);
               if (user?.id) {
                 const order = newItems.map((t) => t.template_id);
-                saveUserUISettings(user.id, { templateOrder: order }).catch(() => {});
+                saveUserUISettings(user.id, { templateOrder: order }).catch((err) => {
+                  setTemplates(previousItems);
+                  showToastError(err instanceof Error ? err.message : "保存排序失败，请重试");
+                });
               }
             }}
           />

@@ -7,6 +7,7 @@ import {
   updateWorkspaceLLMSelection,
   type SessionLLMSelectionSummary,
 } from "@/lib/api/llmSelection";
+import { useFileUploadToast } from "@/components/file/FileUploadToast";
 
 export interface UseModelSelectionReturn {
   models: LLMModelConfig[];
@@ -117,6 +118,7 @@ export function useModelSelection(
     useState(false);
   const [thinkingEnabled, setThinkingEnabledState] = useState(false);
   const [thinkingEffort, setThinkingEffortState] = useState<"low" | "medium" | "high">("high");
+  const { showError } = useFileUploadToast();
 
   const selectedModel = models.find((m) => m.id === selectedModelId);
   const selectedModelSupportsThinking = modelSupportsThinking(selectedModel);
@@ -211,11 +213,13 @@ export function useModelSelection(
         setSessionSelection(response);
         setSelectedModelIdState(getSessionSelectedModelId(response));
         setEffectiveModelDisplayName(getDisplayName(response));
+      } catch (err) {
+        showError(err instanceof Error ? err.message : "切换会话模型失败");
       } finally {
         setIsUpdatingSessionSelection(false);
       }
     },
-    [activeSessionId],
+    [activeSessionId, showError],
   );
 
   const updateWorkspaceModelId = useCallback(
@@ -235,11 +239,13 @@ export function useModelSelection(
         setSessionSelection(refreshed);
         setSelectedModelIdState(getSessionSelectedModelId(refreshed));
         setEffectiveModelDisplayName(getDisplayName(refreshed));
+      } catch (err) {
+        showError(err instanceof Error ? err.message : "切换工作区模型失败");
       } finally {
         setIsUpdatingWorkspaceSelection(false);
       }
     },
-    [activeSessionId, sessionSelection?.workspace_id],
+    [activeSessionId, sessionSelection?.workspace_id, showError],
   );
 
   const setThinkingEnabled = useCallback(

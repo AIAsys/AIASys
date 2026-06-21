@@ -122,6 +122,7 @@ export function useDatabaseConnectionsManager({ sessionId, workspaceId }: UseDat
       payload: DatabaseConnectorDraftPayload | UpdateDatabaseConnectorPayload,
     ): Promise<DatabaseConnector> => {
       setIsSaving(true);
+      setError(null);
       try {
         const savedConnector = editingConnector
           ? await updateDatabaseConnector(
@@ -135,6 +136,9 @@ export function useDatabaseConnectionsManager({ sessionId, workspaceId }: UseDat
         setIsDialogOpen(false);
         setEditingConnector(null);
         return savedConnector;
+      } catch (err) {
+        setError(getDatabaseConnectorErrorMessage(err, editingConnector ? "更新数据库连接失败" : "创建数据库连接失败"));
+        throw err;
       } finally {
         setIsSaving(false);
       }
@@ -145,10 +149,14 @@ export function useDatabaseConnectionsManager({ sessionId, workspaceId }: UseDat
   const handleSave = useCallback(
     async (payload: DatabaseConnectorDraftPayload | UpdateDatabaseConnectorPayload) => {
       const isEditing = Boolean(editingConnector);
-      await persistConnector(payload);
-      setNotice(isEditing ? "数据库连接已更新。" : "数据库连接已创建。");
-      emitDatabaseConnectorSync({ scope: "connectors", sessionId });
-      setReloadToken((current) => current + 1);
+      try {
+        await persistConnector(payload);
+        setNotice(isEditing ? "数据库连接已更新。" : "数据库连接已创建。");
+        emitDatabaseConnectorSync({ scope: "connectors", sessionId });
+        setReloadToken((current) => current + 1);
+      } catch {
+        // 错误已在 persistConnector 中写入 error 状态，对话框保持打开
+      }
     },
     [editingConnector, persistConnector, sessionId],
   );

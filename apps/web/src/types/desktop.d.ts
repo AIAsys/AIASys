@@ -16,12 +16,14 @@ declare global {
     __AIASYS_DESKTOP__?: {
       platform: "electron";
       mode: "dev" | "preview";
-      /** 注册托盘菜单动作回调 */
-      onTrayAction?(callback: (action: TrayAction) => void): void;
-      /** 注册后端崩溃回调（桌面版自动重启时触发） */
-      onBackendCrashed?(callback: () => void): void;
-      /** 注册后端重启就绪回调 */
-      onBackendReady?(callback: () => void): void;
+      /** 注册托盘菜单动作回调，返回取消订阅函数 */
+      onTrayAction?(callback: (action: TrayAction) => void): () => void;
+      /** 注册后端崩溃回调（桌面版自动重启时触发），返回取消订阅函数 */
+      onBackendCrashed?(callback: (info?: { exhausted?: boolean; error?: string; restartCount?: number; maxRestarts?: number }) => void): () => void;
+      /** 注册后端重启就绪回调，返回取消订阅函数 */
+      onBackendReady?(callback: () => void): () => void;
+      /** 注册自定义协议 deeplink 回调，返回取消订阅函数 */
+      onDeepLink?(callback: (url: string) => void): () => void;
       /** 选择本地文件夹（桌面版） */
       selectFolder?(options?: {
         title?: string;

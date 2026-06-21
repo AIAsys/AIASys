@@ -118,12 +118,13 @@ export function WorkspaceLayout({
   useEffect(() => {
     const desktop = window.__AIASYS_DESKTOP__;
     if (!desktop?.onTrayAction) return;
-    desktop.onTrayAction((action) => {
+    const unsubscribe = desktop.onTrayAction((action) => {
       if (action.type === "open-settings" && action.section) {
         setGlobalSettingsSection(action.section as import("@/components/settings/global-settings").SettingsSection);
         setIsGlobalSettingsOpen(true);
       }
     });
+    return unsubscribe;
   }, []);
 
   // 监听来自其他组件（如 NewWorkspaceDialog PreflightCheck）的全局设置打开请求

@@ -511,6 +511,7 @@ function ChatAreaList({
                     toolCallId: item.id,
                     scope,
                     patternKey: item.pattern_key,
+                    agentId: item.agent_id,
                   });
                   return true;
                 }}
@@ -520,6 +521,7 @@ function ChatAreaList({
                     sessionId: item.session_id,
                     toolCallId: item.id,
                     feedback,
+                    agentId: item.agent_id,
                   });
                   return true;
                 }}

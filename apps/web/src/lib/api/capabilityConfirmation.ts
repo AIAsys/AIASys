@@ -36,9 +36,11 @@ export async function resolveCapabilityConfirmation(
   sessionId: string,
   toolCallId: string,
   payload: ResolveCapabilityRequest,
+  agentId?: string,
 ): Promise<ResolveCapabilityResponse> {
+  const query = agentId ? `?agent_id=${encodeURIComponent(agentId)}` : "";
   return apiRequest(
-    `/api/${userId}/${sessionId}/approvals/${toolCallId}`,
+    `/api/${userId}/${sessionId}/approvals/${toolCallId}${query}`,
     {
       method: "POST",
       body: JSON.stringify(payload),

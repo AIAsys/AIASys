@@ -18,7 +18,7 @@
  * </WorkspaceSidebar>
  * ```
  */
-import { Suspense, lazy, useCallback, useEffect, useState } from "react";
+import { Suspense, lazy, useCallback, useEffect, useRef, useState } from "react";
 
 import { useAuthContext } from "@/contexts/AuthContext";
 import { useExecutionTree } from "@/hooks/useExecutionTree";

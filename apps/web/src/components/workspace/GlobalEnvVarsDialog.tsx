@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
 import { apiRequest } from "@/lib/api/httpClient";
+import { useFileUploadToast } from "@/components/file/FileUploadToast";
 
 interface GlobalEnvVarsDialogProps {
   userId: string;
@@ -12,20 +13,27 @@ interface GlobalEnvVarsDialogProps {
 export function GlobalEnvVarsDialog({
   userId,
 }: GlobalEnvVarsDialogProps) {
+  const { showError } = useFileUploadToast();
   const [envVars, setEnvVars] = useState<Record<string, string>>({});
   const [visibleKeys, setVisibleKeys] = useState<Set<string>>(new Set());
   const [newKey, setNewKey] = useState("");
   const [newValue, setNewValue] = useState("");
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!userId) return;
+    setError(null);
     apiRequest<{ env_vars: Record<string, string> }>(
       `/api/global-env-vars/${userId}`,
     )
       .then((res) => setEnvVars(res.env_vars ?? {}))
-      .catch(() => {});
-  }, [userId]);
+      .catch((err) => {
+        const message = err instanceof Error ? err.message : "加载失败";
+        setError(message);
+        showError(`加载全局环境变量失败：${message}`);
+      });
+  }, [userId, showError]);
 
   const toggleVisible = useCallback((key: string) => {
     setVisibleKeys((prev) => {
@@ -45,19 +53,29 @@ export function GlobalEnvVarsDialog({
           body: { env_vars: updated },
         });
         setEnvVars(updated);
+        setError(null);
+        return true;
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "保存失败";
+        setError(message);
+        showError(`保存全局环境变量失败：${message}`);
+        return false;
       } finally {
         setSaving(false);
       }
     },
-    [userId],
+    [userId, showError],
   );
 
   const handleAdd = useCallback(() => {
     const key = newKey.trim();
     if (!key || key in envVars) return;
-    save({ ...envVars, [key]: newValue });
-    setNewKey("");
-    setNewValue("");
+    save({ ...envVars, [key]: newValue }).then((ok) => {
+      if (ok) {
+        setNewKey("");
+        setNewValue("");
+      }
+    });
   }, [newKey, newValue, envVars, save]);
 
   const handleDelete = useCallback(
@@ -76,6 +94,12 @@ export function GlobalEnvVarsDialog({
       <p className="text-xs text-muted-foreground">
         对所有工作区生效，工作区级别的同名变量会覆盖此处的值。
       </p>
+
+      {error && (
+        <div className="text-xs text-destructive rounded-md border border-destructive/30 bg-destructive/10 p-2">
+          {error}
+        </div>
+      )}
 
       <div className="flex flex-col gap-2 max-h-80 overflow-y-auto">
         {entries.length === 0 && (

@@ -226,7 +226,7 @@ function WorkspaceAuthContextFallback({
             <div className="mt-2 space-y-1">
               <div>1. 先点“重新加载上下文”，不要只靠反复刷新页面。</div>
               {authMode === "local" ? (
-                <div>2. 如果仍失败，请确认本地后端 `13001` 的 `/health` 和 `/api/auth/session` 已恢复。</div>
+                <div>2. 如果仍失败，请确认本地后端的 `/health` 和 `/api/auth/session` 已恢复。</div>
               ) : null}
             </div>
           </div>

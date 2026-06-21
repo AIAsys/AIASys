@@ -14,6 +14,7 @@ import {
   type LLMProviderConfigWithMeta,
 } from "@/lib/api/llm";
 import { Settings2Icon } from "./chatShellIcons";
+import { useFileUploadToast } from "@/components/file/FileUploadToast";
 
 const PROVIDER_GRADIENTS: Record<string, { gradient: string; initial: string }> = {
   openai: { gradient: "from-foreground to-muted-foreground", initial: "O" },
@@ -105,6 +106,8 @@ export function ModelSelector({
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [providers, setProviders] = useState<LLMProviderConfigWithMeta[]>([]);
+  const [providersError, setProvidersError] = useState<string | null>(null);
+  const { showError } = useFileUploadToast();
   const [recentIds, setRecentIds] = useState<string[]>(getRecentModelIds);
   const selectorRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -116,9 +119,16 @@ export function ModelSelector({
 
   useEffect(() => {
     getProviders(true)
-      .then((res) => setProviders(res.providers))
-      .catch(() => {});
-  }, []);
+      .then((res) => {
+        setProviders(res.providers);
+        setProvidersError(null);
+      })
+      .catch((err) => {
+        const message = err instanceof Error ? err.message : "加载失败";
+        setProvidersError(message);
+        showError(`加载模型服务商失败：${message}`);
+      });
+  }, [showError]);
 
   useEffect(() => {
     if (!open) return;
@@ -306,6 +316,12 @@ export function ModelSelector({
             </div>
 
             <div className="max-h-[260px] overflow-y-auto p-1.5">
+              {providersError ? (
+                <div className="px-3 py-2 text-xs text-destructive rounded-md border border-destructive/30 bg-destructive/10 m-1">
+                  加载服务商失败：{providersError}
+                </div>
+              ) : null}
+
               {!search.trim() ? (
                 <div className="px-2.5 pt-2 pb-1 text-[11px] leading-5 text-muted-foreground">
                   这里只显示当前已配置并启用的模型。更多服务商或模型，请去设置里补充。

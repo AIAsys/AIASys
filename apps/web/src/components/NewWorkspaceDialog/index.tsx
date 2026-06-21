@@ -58,6 +58,7 @@ import {
 import { type NewTaskLifecycleState, type NewTaskStage } from "@/types/workspace";
 import { useAuthState } from "@/contexts/AuthContext";
 import { saveUserUISettings } from "@/lib/api/uiSettings";
+import { useFileUploadToast } from "@/components/file/FileUploadToast";
 import { TemplateSortableGrid } from "@/components/TemplateSortableGrid";
 
 import { NewWorkspaceProgressBanner } from "./NewWorkspaceProgressBanner";
@@ -121,6 +122,7 @@ export function NewWorkspaceDialog({
   onOpenGlobalSettings,
 }: NewWorkspaceDialogProps) {
   const [templates, setTemplates] = useState<WorkspaceTemplateItem[]>([]);
+  const { showError } = useFileUploadToast();
   const [isLoadingTemplates, setIsLoadingTemplates] = useState(false);
   const [templateLoadError, setTemplateLoadError] = useState<string | null>(null);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>("blank-workspace");
@@ -247,13 +249,16 @@ export function NewWorkspaceDialog({
 
   // 拖拽排序后保存
   const handleTemplateReorder = (newItems: WorkspaceTemplateItem[]) => {
-    setTemplates(newItems);
-    if (user?.id) {
-      const order = newItems.map((t) => t.template_id);
-      saveUserUISettings(user.id, { templateOrder: order }).catch(() => {
-        // 保存失败静默处理
-      });
-    }
+    setTemplates((prev) => {
+      if (user?.id) {
+        const order = newItems.map((t) => t.template_id);
+        saveUserUISettings(user.id, { templateOrder: order }).catch(() => {
+          showError("模板排序保存失败，已恢复之前的排序");
+          setTemplates(prev);
+        });
+      }
+      return newItems;
+    });
   };
 
   // 选择模板后只更新标题和描述，不覆盖环境

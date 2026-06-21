@@ -34,6 +34,7 @@ import * as React from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { exportConversation, importConversation } from "@/lib/api/sessions";
 import { useAuthContext } from "@/contexts/AuthContext";
+import { useFileUploadToast } from "@/components/file/FileUploadToast";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import type { TaskWorkspaceSummary, WorkspaceConversationSummary } from "../../types";
 
@@ -303,6 +304,7 @@ export function WorkspaceConversationPanel({
   } | null>(null);
   const [isDeletingConversation, setIsDeletingConversation] = useState(false);
   const { user } = useAuthContext();
+  const { showError } = useFileUploadToast();
   const currentUserId = user?.id;
   const isCollapsed = embedded ? false : collapsed;
   const edgeBorderClass =
@@ -493,12 +495,14 @@ export function WorkspaceConversationPanel({
       try {
         setIsDeletingConversation(true);
         await onDeleteConversation(sessionId);
+        setPendingDeletion(null);
+      } catch (err) {
+        showError(err instanceof Error ? err.message : "删除会话失败");
       } finally {
         setIsDeletingConversation(false);
-        setPendingDeletion(null);
       }
     })();
-  }, [onDeleteConversation, pendingDeletion]);
+  }, [onDeleteConversation, pendingDeletion, showError]);
 
   const handleDeleteDialogOpenChange = useCallback(
     (open: boolean) => {

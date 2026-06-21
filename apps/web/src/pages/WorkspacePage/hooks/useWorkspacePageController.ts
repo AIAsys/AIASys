@@ -176,13 +176,15 @@ export function useWorkspacePageController({
         sessionId: string;
         toolCallId: string;
         scope: "once" | "session";
+        agentId?: string;
       };
       try {
         await resolveCapabilityConfirmation(
           userId,
           payload.sessionId,
           payload.toolCallId,
-          { approved: true, scope: payload.scope }
+          { approved: true, scope: payload.scope },
+          payload.agentId,
         );
         updateSessionChatItems(payload.sessionId, (prev) =>
           prev.map((item) =>
@@ -201,13 +203,15 @@ export function useWorkspacePageController({
         sessionId: string;
         toolCallId: string;
         feedback: string;
+        agentId?: string;
       };
       try {
         await resolveCapabilityConfirmation(
           userId,
           payload.sessionId,
           payload.toolCallId,
-          { approved: false, feedback: payload.feedback }
+          { approved: false, feedback: payload.feedback },
+          payload.agentId,
         );
         updateSessionChatItems(payload.sessionId, (prev) =>
           prev.map((item) =>

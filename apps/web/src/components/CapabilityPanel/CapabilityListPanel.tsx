@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { useFileUploadToast } from "@/components/file/FileUploadToast";
 import {
   listWorkspaceCapabilities,
   listAvailableCapabilities,
@@ -100,6 +101,7 @@ export function CapabilityListPanel({
   const [searchQuery, setSearchQuery] = useState("");
   const [filterKind, setFilterKind] = useState<FilterKind>("all");
   const [filterStatus, setFilterStatus] = useState<FilterStatus>("all");
+  const { showError } = useFileUploadToast();
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -188,6 +190,8 @@ export function CapabilityListPanel({
         }
       }
       await load();
+    } catch (err) {
+      showError(err instanceof Error ? err.message : "切换能力状态失败");
     } finally {
       setProcessingId(null);
     }
@@ -202,6 +206,8 @@ export function CapabilityListPanel({
         await installCapability(workspaceId, capId);
       }
       await load();
+    } catch (err) {
+      showError(err instanceof Error ? err.message : "安装能力失败");
     } finally {
       setProcessingId(null);
     }
@@ -216,6 +222,8 @@ export function CapabilityListPanel({
         await uninstallCapability(workspaceId, capId);
       }
       await load();
+    } catch (err) {
+      showError(err instanceof Error ? err.message : "卸载能力失败");
     } finally {
       setProcessingId(null);
     }

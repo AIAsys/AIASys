@@ -92,11 +92,18 @@ export function WorkspaceMonitorPanel({ userId, sessionId }: WorkspaceMonitorPan
   void tick;
 
   const commandInputRef = useRef(commandInput);
-  commandInputRef.current = commandInput;
   const spawnTimeoutRef = useRef(spawnTimeout);
-  spawnTimeoutRef.current = spawnTimeout;
   const monitorsRef = useRef(monitors);
-  monitorsRef.current = monitors;
+
+  useEffect(() => {
+    commandInputRef.current = commandInput;
+  }, [commandInput]);
+  useEffect(() => {
+    spawnTimeoutRef.current = spawnTimeout;
+  }, [spawnTimeout]);
+  useEffect(() => {
+    monitorsRef.current = monitors;
+  }, [monitors]);
 
   const hasAutoExpanded = useRef(false);
   useEffect(() => {
@@ -117,11 +124,13 @@ export function WorkspaceMonitorPanel({ userId, sessionId }: WorkspaceMonitorPan
       setKillingId(monitorId);
       try {
         await doKill(monitorId);
+      } catch (err) {
+        showError(err instanceof Error ? err.message : "终止监控任务失败");
       } finally {
         setKillingId(null);
       }
     },
-    [doKill],
+    [doKill, showError],
   );
 
   // 复制监控输出到剪贴板，带成功/失败 toast 反馈
@@ -142,11 +151,13 @@ export function WorkspaceMonitorPanel({ userId, sessionId }: WorkspaceMonitorPan
       setRestartingId(monitorId);
       try {
         await doRestart(command);
+      } catch (err) {
+        showError(err instanceof Error ? err.message : "重启监控任务失败");
       } finally {
         setRestartingId(null);
       }
     },
-    [doRestart],
+    [doRestart, showError],
   );
 
   const handleDelete = useCallback(
@@ -154,19 +165,26 @@ export function WorkspaceMonitorPanel({ userId, sessionId }: WorkspaceMonitorPan
       setDeletingId(monitorId);
       try {
         await doDelete(monitorId);
+      } catch (err) {
+        showError(err instanceof Error ? err.message : "删除监控任务失败");
       } finally {
         setDeletingId(null);
       }
     },
-    [doDelete],
+    [doDelete, showError],
   );
 
   const handleClearAll = useCallback(async () => {
     const toDelete = monitorsRef.current.filter((m) => m.info.status !== "running");
     for (const m of toDelete) {
-      await doDelete(m.info.id);
+      try {
+        await doDelete(m.info.id);
+      } catch (err) {
+        showError(err instanceof Error ? err.message : "清理监控任务失败");
+        break;
+      }
     }
-  }, [doDelete]);
+  }, [doDelete, showError]);
 
   const handleSpawn = useCallback(async () => {
     const cmd = commandInputRef.current.trim();
@@ -183,10 +201,12 @@ export function WorkspaceMonitorPanel({ userId, sessionId }: WorkspaceMonitorPan
     try {
       await doSpawn(req);
       setCommandInput("");
+    } catch (err) {
+      showError(err instanceof Error ? err.message : "启动监控任务失败");
     } finally {
       setSpawning(false);
     }
-  }, [doSpawn, spawnMode]);
+  }, [doSpawn, spawnMode, showError]);
 
   const hasStopped = monitors.some((m) => m.info.status !== "running");
 
@@ -496,6 +516,8 @@ export function WorkspaceMonitorPanel({ userId, sessionId }: WorkspaceMonitorPan
                         setUpdatingModeId(m.info.id);
                         try {
                           await doUpdateMode(m.info.id, newMode);
+                        } catch (err) {
+                          showError(err instanceof Error ? err.message : "切换通知模式失败");
                         } finally {
                           setUpdatingModeId(null);
                         }
