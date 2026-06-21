@@ -4,7 +4,8 @@
 
 | 文件名 | 说明 | 拍摄日期 | 状态 |
 |--------|------|----------|------|
-| `home-hero.png` | 产品官网首页 / 入口页 | 2026-06-21 | 已更新至 v0.4.21 |
+| `home-hero.png` | 产品官网首页 / 入口页 | 2026-06-21 | 已更新至 v0.4.22 |
+| `workspace-layout.png` | 工作区三栏布局（Activity Bar / 主画布 / 当前工作区） | 2026-06-21 | 已新增 |
 | `aiasys-workspace-loop.png` | 工作区运行闭环示意 | 2026-06-17 | 可用 |
 | `demo-sales-overview.png` | 销售洞察分析工作区总览 | 2026-06-17 | 可用 |
 | `demo-sales-report.png` | 销售洞察分析报告 | 2026-06-17 | 可用 |
@@ -23,7 +24,7 @@
 | `demo-005-subagent-collaboration-subagent.png` | 子 Agent 详情 | 2026-06-19 | 可用 |
 | `demo-006-autotask-monitoring-overview.png` | AutoTask 自动化任务总览 | 2026-06-19 | 可用 |
 | `demo-006-autotask-monitoring-autotask.png` | AutoTask 任务详情 | 2026-06-19 | 可用 |
-| `demo-model-config-panel.png` | 模型配置弹窗（默认模型 + 服务商） | 2026-06-21 | 已更新至 v0.4.21 |
+| `demo-model-config-panel.png` | 模型配置弹窗（默认模型 + 服务商） | 2026-06-21 | 已更新至 v0.4.22 |
 | `demo-pdf-translation-dual.png` | PDF 翻译后双栏预览 | 2026-06-17 | 可用 |
 
 ## 待补充图（后续可补）

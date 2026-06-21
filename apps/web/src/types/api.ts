@@ -41,6 +41,8 @@ export interface SubagentContentEvent extends SSEEvent {
   text?: string;
   think?: string;
   task_tool_call_id: string;
+  subagent_name?: string;
+  subagent_type?: string;
 }
 
 /** SubAgent 包装事件（包含 payload） */
@@ -74,6 +76,8 @@ export interface SubagentToolCallEvent extends SSEEvent {
   tool_name: string;
   arguments: Record<string, unknown>;
   task_tool_call_id: string;
+  subagent_name?: string;
+  subagent_type?: string;
 }
 
 /** SubAgent 工具结果 */
@@ -84,6 +88,8 @@ export interface SubagentToolResultEvent extends SSEEvent {
   content: string;
   is_error: boolean;
   task_tool_call_id: string;
+  subagent_name?: string;
+  subagent_type?: string;
 }
 
 /** SubAgent 步骤开始 */
@@ -91,6 +97,8 @@ export interface SubagentStepEvent extends SSEEvent {
   type: "subagent_step_begin";
   step_n: number;
   task_tool_call_id: string;
+  subagent_name?: string;
+  subagent_type?: string;
 }
 
 /** Token 使用统计 */

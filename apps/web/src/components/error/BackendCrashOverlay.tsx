@@ -31,7 +31,7 @@ export function BackendCrashOverlay() {
     const unsubscribers: Array<() => void> = [];
     if (desktop.onBackendCrashed) {
       unsubscribers.push(
-        desktop.onBackendCrashed((info) => setDesktopCrashed(info ?? true)),
+        desktop.onBackendCrashed((info) => setDesktopCrashed(info ?? { exhausted: true })),
       );
     }
     if (desktop.onBackendReady) {
