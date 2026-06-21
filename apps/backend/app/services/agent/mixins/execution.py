@@ -1069,6 +1069,7 @@ class ExecutionMixin:
                     )
                     lifecycle_event: dict[str, Any] | None = None
                     if _is_run_cancelled_error(exc):
+                        execution_failed = False
                         host_terminal_event_emitted = True
                         lifecycle_event = build_worker_lifecycle_event(
                             scope="host",

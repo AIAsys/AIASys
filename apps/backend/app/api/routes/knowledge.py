@@ -4,10 +4,11 @@
 提供知识库管理、文档上传、检索等功能
 """
 
+import re
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.core.auth import UserInfo, get_current_user
 from app.knowledge import SQLiteKBService, get_sqlite_kb_service
@@ -211,7 +212,10 @@ async def query_knowledge_base(
 
 
 class RawQueryRequest(BaseModel):
-    sql: str
+    sql: str = Field(
+        max_length=4096,
+        description="仅允许 SELECT 查询，最大 4096 字符",
+    )
 
 
 class RawQueryResponse(BaseModel):
@@ -253,6 +257,9 @@ async def execute_kb_raw_query(
     kb = service.get_knowledge_base(user.user_id, kb_id)
     if not kb:
         raise HTTPException(status_code=404, detail="知识库不存在")
+    stripped = request.sql.strip()
+    if not re.match(r"^SELECT\b", stripped, re.IGNORECASE):
+        raise HTTPException(status_code=400, detail="仅允许 SELECT 查询")
     try:
         result = service.execute_raw_sql(user.user_id, kb_id, request.sql)
         return RawQueryResponse(**result)

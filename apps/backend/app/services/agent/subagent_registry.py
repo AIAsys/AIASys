@@ -13,8 +13,8 @@
 
 from __future__ import annotations
 
-import asyncio
 import logging
+import threading
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -38,7 +38,8 @@ class SubAgentRegistry:
         self._host_session_ids: dict[str, str] = {}
         self._status: dict[str, str] = {}
         self._launch_specs: dict[str, dict[str, Any]] = {}
-        self._lock = asyncio.Lock()
+        # 同步锁保护所有字典读写。注册表操作极快，使用线程锁不会明显阻塞事件循环。
+        self._lock = threading.RLock()
 
     async def try_register(
         self,
@@ -54,7 +55,7 @@ class SubAgentRegistry:
         如果指定了 max_threads 且当前并发数已达到上限，则返回 False 且不注册。
         否则注册并返回 True。
         """
-        async with self._lock:
+        with self._lock:
             if host_session_id and max_threads is not None and max_threads > 0:
                 active_count = sum(
                     1
@@ -89,7 +90,7 @@ class SubAgentRegistry:
         launch_spec: dict[str, Any] | None = None,
     ) -> None:
         """注册一个活跃子 Agent session（无并发检查，已被 try_register 替代）。"""
-        async with self._lock:
+        with self._lock:
             self._sessions[agent_id] = session
             if host_session_id:
                 self._host_session_ids[agent_id] = host_session_id
@@ -102,28 +103,33 @@ class SubAgentRegistry:
 
     def unregister(self, agent_id: str) -> None:
         """注销子 Agent session（运行结束后）"""
-        removed = self._sessions.pop(agent_id, None)
-        self._host_session_ids.pop(agent_id, None)
-        self._status.pop(agent_id, None)
-        self._launch_specs.pop(agent_id, None)
+        with self._lock:
+            removed = self._sessions.pop(agent_id, None)
+            self._host_session_ids.pop(agent_id, None)
+            self._status.pop(agent_id, None)
+            self._launch_specs.pop(agent_id, None)
         if removed is not None:
             logger.debug("SubAgent unregistered: agent_id=%s", agent_id)
 
     def get(self, agent_id: str) -> "AiasysRuntimeSession" | None:
         """获取活跃子 Agent session。"""
-        return self._sessions.get(agent_id)
+        with self._lock:
+            return self._sessions.get(agent_id)
 
     def is_active(self, agent_id: str) -> bool:
         """检查子 Agent 是否仍在活跃列表中。"""
-        return agent_id in self._sessions
+        with self._lock:
+            return agent_id in self._sessions
 
     def set_status(self, agent_id: str, status: str) -> None:
         """设置子 Agent 运行状态。"""
-        self._status[agent_id] = status
+        with self._lock:
+            self._status[agent_id] = status
 
     def get_status(self, agent_id: str) -> str | None:
         """获取子 Agent 运行状态。"""
-        return self._status.get(agent_id)
+        with self._lock:
+            return self._status.get(agent_id)
 
     def is_idle(self, agent_id: str) -> bool:
         """检查子 Agent 是否处于 idle 状态（可继续对话）。"""
@@ -131,11 +137,13 @@ class SubAgentRegistry:
 
     def set_launch_spec(self, agent_id: str, launch_spec: dict[str, Any]) -> None:
         """设置子 Agent launch_spec。"""
-        self._launch_specs[agent_id] = launch_spec
+        with self._lock:
+            self._launch_specs[agent_id] = launch_spec
 
     def get_launch_spec(self, agent_id: str) -> dict[str, Any] | None:
         """获取子 Agent launch_spec。"""
-        return self._launch_specs.get(agent_id)
+        with self._lock:
+            return self._launch_specs.get(agent_id)
 
     def cancel(self, agent_id: str) -> bool:
         """取消指定子 Agent。
@@ -143,7 +151,8 @@ class SubAgentRegistry:
         Returns:
             True 如果成功找到并取消了 session，False 如果 agent_id 不在注册表中。
         """
-        session = self._sessions.get(agent_id)
+        with self._lock:
+            session = self._sessions.get(agent_id)
         if session is None:
             logger.warning("尝试取消未注册的子 Agent: agent_id=%s", agent_id)
             return False
@@ -161,7 +170,8 @@ class SubAgentRegistry:
         Returns:
             True 如果成功关闭，False 如果 agent_id 不在注册表中或关闭失败。
         """
-        session = self._sessions.get(agent_id)
+        with self._lock:
+            session = self._sessions.get(agent_id)
         if session is None:
             return False
         try:
@@ -178,8 +188,10 @@ class SubAgentRegistry:
         Returns:
             被成功取消的 agent_id 列表。
         """
+        with self._lock:
+            sessions = list(self._sessions.items())
         cancelled: list[str] = []
-        for agent_id, session in list(self._sessions.items()):
+        for agent_id, session in sessions:
             try:
                 session.cancel()
                 cancelled.append(agent_id)
@@ -187,22 +199,50 @@ class SubAgentRegistry:
                 logger.exception("级联取消子 Agent 失败: agent_id=%s", agent_id)
         return cancelled
 
+    def cancel_all_for_host(self, host_session_id: str) -> list[str]:
+        """取消指定 Host session 下的所有活跃子 Agent。
+
+        Returns:
+            被成功取消的 agent_id 列表。
+        """
+        with self._lock:
+            sessions = [
+                (agent_id, session)
+                for agent_id, session in self._sessions.items()
+                if self._host_session_ids.get(agent_id) == host_session_id
+            ]
+        cancelled: list[str] = []
+        for agent_id, session in sessions:
+            try:
+                session.cancel()
+                cancelled.append(agent_id)
+            except Exception:
+                logger.exception(
+                    "级联取消子 Agent 失败: host=%s, agent_id=%s",
+                    host_session_id,
+                    agent_id,
+                )
+        return cancelled
+
     def list_active(self) -> list[str]:
         """列出所有活跃子 Agent ID。"""
-        return list(self._sessions.keys())
+        with self._lock:
+            return list(self._sessions.keys())
 
     def count_active_for_host(self, host_session_id: str) -> int:
         """统计指定 Host session 下的活跃子 Agent 数量。"""
-        return sum(
-            1 for aid in self._sessions if self._host_session_ids.get(aid) == host_session_id
-        )
+        with self._lock:
+            return sum(
+                1 for aid in self._sessions if self._host_session_ids.get(aid) == host_session_id
+            )
 
     def clear(self) -> None:
         """清空注册表（测试用）。"""
-        self._sessions.clear()
-        self._host_session_ids.clear()
-        self._status.clear()
-        self._launch_specs.clear()
+        with self._lock:
+            self._sessions.clear()
+            self._host_session_ids.clear()
+            self._status.clear()
+            self._launch_specs.clear()
 
 
 # 全局注册表实例

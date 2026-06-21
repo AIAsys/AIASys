@@ -11,7 +11,7 @@ from importlib import import_module
 
 logger = logging.getLogger(__name__)
 
-RunCancelled = None
+from app.services.agent.errors import RunCancelled
 
 __all__ = [
     "AgentService",

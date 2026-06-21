@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any
 
 from app.core.tool_result import ToolResult
+from app.services.agent.errors import RunCancelled
 from app.services.agent.authorization import (
     AuthorizationMode,
     CapabilityAuthorizationRequest,
@@ -811,6 +812,9 @@ class SessionStreamMixin:
 
         # ReAct 循环结束，清除当前 turn 标记
         self._current_turn_n = None
+
+        if self._cancel_event.is_set():
+            raise RunCancelled("会话运行已取消")
 
         if total_input_tokens or total_output_tokens:
             yield AgentRuntimeEvent(

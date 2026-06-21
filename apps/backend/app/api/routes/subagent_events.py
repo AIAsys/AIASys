@@ -122,11 +122,7 @@ def _sync_read_wire_records(
         if current_size <= last_size:
             return next_event_id, last_size, new_records
         with open(wire_file, "r", encoding="utf-8") as f:
-            f.seek(0)
-            for _ in range(event_id):
-                line = f.readline()
-                if not line:
-                    break
+            f.seek(last_size)
             for line in f:
                 line = line.strip()
                 if not line:

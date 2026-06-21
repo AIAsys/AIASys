@@ -193,6 +193,17 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f" 终端 PTY 清理失败（忽略）: {e}")
 
+    # 清理所有 Monitor 进程（后台 shell 监听器）
+    try:
+        from app.services.agent.runtime_backends.aiasys.tools.monitor_tool import (
+            get_monitor_service,
+        )
+
+        await get_monitor_service().cleanup_all()
+        logger.info(" Monitor 进程已清理")
+    except Exception as e:
+        logger.warning(f" Monitor 进程清理失败（忽略）: {e}")
+
     logger.info(f" {APP_NAME} 关闭")
 
 

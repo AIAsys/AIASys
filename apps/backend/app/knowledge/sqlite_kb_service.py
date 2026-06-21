@@ -1450,19 +1450,33 @@ class SQLiteKBService:
         cleaned = sql.strip()
         if not cleaned:
             raise ValueError("SQL 不能为空")
-        # 去除 SQL 行注释，再检测分号，防止注释绕过
+        # 去除 SQL 注释（行注释和块注释），再检测分号，防止注释绕过
         no_comments = re.sub(r"--[^\n]*", "", cleaned)
-        first_word = re.sub(r"^\s*", "", no_comments, flags=re.IGNORECASE).lstrip()
-        if not re.match(r"^SELECT\b", first_word, re.IGNORECASE) or re.search(r";", no_comments):
+        no_comments = re.sub(r"/\*.*?\*/", "", no_comments, flags=re.DOTALL)
+        first_word = re.sub(r"^\s*", "", no_comments, flags=re.IGNORECASE).lstrip().upper()
+        if not first_word.startswith("SELECT"):
             raise ValueError("只允许执行 SELECT 查询")
+        if re.search(r";", no_comments):
+            raise ValueError("不允许执行多条语句")
+        # 拦截危险关键字（即使以 SELECT 开头也可能包含子查询写入）
+        _DANGEROUS_KEYWORDS = re.compile(
+            r"\b(DROP|DELETE|INSERT|UPDATE|ALTER|CREATE|ATTACH|DETACH|PRAGMA|REINDEX|VACUUM)\b",
+            re.IGNORECASE,
+        )
+        if _DANGEROUS_KEYWORDS.search(no_comments):
+            raise ValueError("查询包含不允许的关键字")
 
         conn = self._get_conn(user_id, kb_id)
         try:
             conn.row_factory = sqlite3.Row
+            # 设置查询超时（毫秒）
+            conn.execute("PRAGMA query_timeout = 30000")
             cur = conn.execute(cleaned)
             rows = cur.fetchall()
             columns = [desc[0] for desc in cur.description] if cur.description else []
-            result_rows = [dict(row) for row in rows]
+            # 服务端强制行数上限
+            _MAX_ROWS = 10000
+            result_rows = [dict(row) for row in rows[:_MAX_ROWS]]
             return {
                 "columns": columns,
                 "rows": result_rows,

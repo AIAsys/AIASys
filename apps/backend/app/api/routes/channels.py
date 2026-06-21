@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel, Field
 
 from app.core.auth import require_auth
 from app.models.user import UserInfo
@@ -20,6 +21,35 @@ def _resolve_user_id(request_user_id: Optional[str], current_user: UserInfo) -> 
             raise HTTPException(status_code=403, detail="无权访问该用户数据")
         return request_user_id
     return current_user.user_id
+
+
+class CreateChannelRequest(BaseModel):
+    channel_id: str = Field(..., min_length=1)
+    platform: str = Field(..., min_length=1)
+    enabled: bool = False
+    name: str = ""
+    account_id: str = ""
+    token: str = ""
+    base_url: str = ""
+    home_chat_id: str = ""
+    allowed_users: list[str] = Field(default_factory=list)
+    app_id: str = ""
+    app_secret: str = ""
+
+
+class UpdateChannelRequest(BaseModel):
+    name: Optional[str] = None
+    account_id: Optional[str] = None
+    token: Optional[str] = None
+    base_url: Optional[str] = None
+    home_chat_id: Optional[str] = None
+    allowed_users: Optional[list[str]] = None
+    app_id: Optional[str] = None
+    app_secret: Optional[str] = None
+
+
+class SetChannelEnabledRequest(BaseModel):
+    enabled: bool
 
 
 # ── 频道 CRUD ──
@@ -68,7 +98,7 @@ async def list_channels(
 
 @router.post("")
 async def create_channel(
-    payload: dict[str, Any],
+    payload: CreateChannelRequest,
     user_id: Optional[str] = Query(None),
     current_user: UserInfo = Depends(require_auth()),
 ) -> dict[str, Any]:
@@ -76,13 +106,11 @@ async def create_channel(
     resolved_user_id = _resolve_user_id(user_id, current_user)
     cfg = get_channel_config(resolved_user_id)
 
-    channel_id = str(payload.get("channel_id", "")).strip()
-    if not channel_id:
-        raise HTTPException(status_code=400, detail="channel_id 不能为空")
+    channel_id = payload.channel_id.strip()
     if cfg.get_channel(channel_id):
         raise HTTPException(status_code=409, detail="频道已存在")
 
-    platform = str(payload.get("platform", "")).strip()
+    platform = payload.platform.strip()
     platform_item = get_claw_service().get_platform_catalog_item(platform)
     if platform_item is None:
         raise HTTPException(status_code=400, detail=f"未知的平台: {platform}")
@@ -92,15 +120,15 @@ async def create_channel(
     entry = ChannelEntry(
         channel_id=channel_id,
         platform=platform,
-        enabled=bool(payload.get("enabled", False)),
-        name=str(payload.get("name", "")).strip(),
-        account_id=str(payload.get("account_id", "")).strip(),
-        token=str(payload.get("token", "")).strip(),
-        base_url=str(payload.get("base_url", "")).strip(),
-        home_chat_id=str(payload.get("home_chat_id", "")).strip(),
-        allowed_users=list(payload.get("allowed_users", [])),
-        app_id=str(payload.get("app_id", "")).strip(),
-        app_secret=str(payload.get("app_secret", "")).strip(),
+        enabled=payload.enabled,
+        name=payload.name.strip(),
+        account_id=payload.account_id.strip(),
+        token=payload.token.strip(),
+        base_url=payload.base_url.strip(),
+        home_chat_id=payload.home_chat_id.strip(),
+        allowed_users=list(payload.allowed_users),
+        app_id=payload.app_id.strip(),
+        app_secret=payload.app_secret.strip(),
     )
     cfg.set_channel(entry)
     get_claw_service()._schedule_runtime_refresh(resolved_user_id)
@@ -125,7 +153,7 @@ async def get_channel(
 @router.patch("/{channel_id}")
 async def update_channel(
     channel_id: str,
-    payload: dict[str, Any],
+    payload: UpdateChannelRequest,
     user_id: Optional[str] = Query(None),
     current_user: UserInfo = Depends(require_auth()),
 ) -> dict[str, Any]:
@@ -136,22 +164,22 @@ async def update_channel(
     if entry is None:
         raise HTTPException(status_code=404, detail="频道不存在")
 
-    if "name" in payload:
-        entry.name = str(payload["name"]).strip()
-    if "account_id" in payload:
-        entry.account_id = str(payload["account_id"]).strip()
-    if "token" in payload:
-        entry.token = str(payload["token"]).strip()
-    if "base_url" in payload:
-        entry.base_url = str(payload["base_url"]).strip()
-    if "home_chat_id" in payload:
-        entry.home_chat_id = str(payload["home_chat_id"]).strip()
-    if "allowed_users" in payload:
-        entry.allowed_users = list(payload["allowed_users"])
-    if "app_id" in payload:
-        entry.app_id = str(payload["app_id"]).strip()
-    if "app_secret" in payload:
-        entry.app_secret = str(payload["app_secret"]).strip()
+    if payload.name is not None:
+        entry.name = payload.name.strip()
+    if payload.account_id is not None:
+        entry.account_id = payload.account_id.strip()
+    if payload.token is not None:
+        entry.token = payload.token.strip()
+    if payload.base_url is not None:
+        entry.base_url = payload.base_url.strip()
+    if payload.home_chat_id is not None:
+        entry.home_chat_id = payload.home_chat_id.strip()
+    if payload.allowed_users is not None:
+        entry.allowed_users = list(payload.allowed_users)
+    if payload.app_id is not None:
+        entry.app_id = payload.app_id.strip()
+    if payload.app_secret is not None:
+        entry.app_secret = payload.app_secret.strip()
 
     cfg.set_channel(entry)
     get_claw_service()._schedule_runtime_refresh(resolved_user_id)
@@ -161,15 +189,14 @@ async def update_channel(
 @router.patch("/{channel_id}/enabled")
 async def set_channel_enabled(
     channel_id: str,
-    payload: dict[str, Any],
+    payload: SetChannelEnabledRequest,
     user_id: Optional[str] = Query(None),
     current_user: UserInfo = Depends(require_auth()),
 ) -> dict[str, Any]:
     """启用/禁用频道。"""
     resolved_user_id = _resolve_user_id(user_id, current_user)
     cfg = get_channel_config(resolved_user_id)
-    enabled = bool(payload.get("enabled", False))
-    if not cfg.set_enabled(channel_id, enabled):
+    if not cfg.set_enabled(channel_id, payload.enabled):
         raise HTTPException(status_code=404, detail="频道不存在")
     entry = cfg.get_channel(channel_id)
     assert entry is not None

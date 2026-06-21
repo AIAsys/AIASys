@@ -11,6 +11,7 @@ import contextlib
 import json
 import logging
 import shutil
+import threading
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -46,6 +47,7 @@ _MISS_THRESHOLD_SECONDS = 60
 
 _auto_tasks_task: asyncio.Task | None = None
 _running_locks: dict[str, asyncio.Lock] = {}
+_running_locks_create_lock = threading.Lock()
 _continuous_event = asyncio.Event()
 # 全局并发上限：同时执行的自动任务不超过 8 个
 _MAX_CONCURRENT_TASKS = 8
@@ -53,9 +55,10 @@ _task_semaphore = asyncio.Semaphore(_MAX_CONCURRENT_TASKS)
 
 
 def _get_task_lock(task_id: str) -> asyncio.Lock:
-    if task_id not in _running_locks:
-        _running_locks[task_id] = asyncio.Lock()
-    return _running_locks[task_id]
+    with _running_locks_create_lock:
+        if task_id not in _running_locks:
+            _running_locks[task_id] = asyncio.Lock()
+        return _running_locks[task_id]
 
 
 def _cleanup_task_lock(task_id: str) -> None:

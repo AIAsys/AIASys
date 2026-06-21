@@ -8,6 +8,7 @@ import asyncio
 import hashlib
 import json
 import logging
+import weakref
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Optional
 
@@ -80,7 +81,11 @@ class SessionMixin:
     """会话管理功能"""
 
     def __init__(self):
-        self._session_locks: dict[str, asyncio.Lock] = {}
+        # 使用 WeakValueDictionary：锁不再被外部持有时自动回收，
+        # 避免已删除/结束会话的锁无限增长，同时保留运行中自动任务所需的引用。
+        self._session_locks: weakref.WeakValueDictionary[str, asyncio.Lock] = (
+            weakref.WeakValueDictionary()
+        )
 
     async def _get_session_lock(self: "AgentService", session_key: str) -> asyncio.Lock:
         """获取会话级别的锁，用于串行化同一会话的请求"""
