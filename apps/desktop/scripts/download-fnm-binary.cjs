@@ -52,14 +52,23 @@ function resolveRepoRoot() {
  */
 function curlDownload(url, dest) {
   console.log(`[download-fnm] 下载: ${url}`);
-  const result = spawnSync(
+  let result = spawnSync(
     "curl",
     ["-L", "-f", "--connect-timeout", "15", "--max-time", "300", "-o", dest, url],
     { encoding: "utf-8", stdio: "pipe", windowsHide: true }
   );
   if (result.status !== 0) {
-    const detail = result.stderr || result.error || `curl exit ${result.status}`;
-    throw new Error(`下载失败 (${url}): ${detail}`);
+    // Fallback to wget
+    console.log(`[download-fnm] curl 不可用，尝试 wget...`);
+    result = spawnSync(
+      "wget",
+      ["-q", "--timeout=15", "--tries=3", "-O", dest, url],
+      { encoding: "utf-8", stdio: "pipe", windowsHide: true }
+    );
+  }
+  if (result.status !== 0) {
+    const detail = result.stderr || result.error || `exit ${result.status}`;
+    throw new Error(`下载失败 (${url}): curl 和 wget 均不可用 (${detail})`);
   }
   const stat = fs.statSync(dest);
   console.log(`[download-fnm] 已保存: ${dest} (${(stat.size / 1024 / 1024).toFixed(1)} MB)`);
@@ -95,16 +104,23 @@ function resolvePython() {
 
 function unzip(zipPath, targetDir) {
   console.log(`[download-fnm] 解压: ${zipPath}`);
-  const result = spawnSync("unzip", ["-q", "-o", zipPath, "-d", targetDir], {
+  fs.mkdirSync(targetDir, { recursive: true });
+  // Windows 10+ 内置 tar 命令支持 zip 格式；Unix 上优先用 unzip，fallback 到 Python zipfile
+  const isWindows = process.platform === "win32";
+  const primaryCmd = isWindows ? "tar" : "unzip";
+  const primaryArgs = isWindows
+    ? ["-xf", zipPath, "-C", targetDir]
+    : ["-q", "-o", zipPath, "-d", targetDir];
+  const primaryResult = spawnSync(primaryCmd, primaryArgs, {
     encoding: "utf-8", stdio: "pipe", windowsHide: true,
   });
-  if (result.status === 0) return;
-  if (result.error && result.error.code === "ENOENT") {
+  if (primaryResult.status === 0) return;
+  if (primaryResult.error && primaryResult.error.code === "ENOENT") {
     const pyCmd = resolvePython();
     if (!pyCmd) {
       throw new Error("未找到可用的 Python 解释器（尝试 py/python3/python），无法解压 zip");
     }
-    console.log(`[download-fnm] 未找到 unzip，使用 ${pyCmd} zipfile 解压`);
+    console.log(`[download-fnm] 未找到 ${primaryCmd}，使用 ${pyCmd} zipfile 解压`);
     const pyResult = spawnSync(
       pyCmd,
       ["-m", "zipfile", "-e", zipPath, targetDir],
@@ -115,7 +131,7 @@ function unzip(zipPath, targetDir) {
     }
     return;
   }
-  throw new Error(`解压失败: ${result.stderr || result.error}`);
+  throw new Error(`解压失败: ${primaryResult.stderr || primaryResult.error}`);
 }
 
 async function downloadForPlatform(slug) {

@@ -40,13 +40,27 @@ function stopChild(reason = "SIGTERM") {
   requestedExitCode = reason === "SIGINT" ? 130 : 0;
 
   if (process.platform === "win32") {
-    // taskkill 是 Windows 控制台命令，必须隐藏黑窗
-    const killer = spawn("taskkill", ["/pid", String(child.pid), "/t", "/f"], {
-      stdio: "ignore",
-      windowsHide: true,
-    });
-    killer.once("exit", () => process.exit(requestedExitCode ?? 0));
-    killer.once("error", () => process.exit(requestedExitCode ?? 0));
+    // 先尝试通过 IPC 优雅退出，给 Electron 主进程清理后端的时间
+    if (child.connected) {
+      try {
+        child.send({ type: "shutdown", reason });
+      } catch {
+        // ignore and fall back to taskkill
+      }
+    }
+
+    forcedExitTimer = setTimeout(() => {
+      if (child.exitCode !== null) {
+        return;
+      }
+      // taskkill 是 Windows 控制台命令，必须隐藏黑窗
+      const killer = spawn("taskkill", ["/pid", String(child.pid), "/t", "/f"], {
+        stdio: "ignore",
+        windowsHide: true,
+      });
+      killer.once("exit", () => process.exit(requestedExitCode ?? 0));
+      killer.once("error", () => process.exit(requestedExitCode ?? 0));
+    }, 5000);
     return;
   }
 
