@@ -4,7 +4,7 @@
 
 这是 `docs/` 目录下唯一当前维护的部署入口。
 
-如果你需要先看产品怎么用，再回来部署，请先看 [基础使用教程](getting-started.md)。
+如果你需要先看产品怎么用，再回来部署，请先看 [基础使用教程](getting-started.md) 或 [快速启动指南](guides/getting-started/QUICKSTART.md)。
 
 ## 1. 已验证版本
 
