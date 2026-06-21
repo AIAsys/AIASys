@@ -45,14 +45,20 @@ jobs:
         id: resolve_tag
         shell: bash
         run: |
+          RELEASE_TYPE="${{ github.event.inputs.release_type || 'beta' }}"
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             VERSION=$(node -p "require('./apps/desktop/package.json').version")
-            TAG="v${VERSION}-beta.${GITHUB_RUN_NUMBER}"
+            if [ "$RELEASE_TYPE" = "stable" ]; then
+              TAG="v${VERSION}"
+            else
+              TAG="v${VERSION}-beta.${GITHUB_RUN_NUMBER}"
+            fi
           else
             TAG="${{ github.ref_name }}"
           fi
           echo "tag=$TAG" >> $GITHUB_OUTPUT
-          echo "Release tag: $TAG"
+          echo "release_type=$RELEASE_TYPE" >> $GITHUB_OUTPUT
+          echo "Release tag: $TAG (type: $RELEASE_TYPE)"
         env:
           GH_TOKEN: ${{ github.token }}
 
@@ -135,24 +141,20 @@ jobs:
             Remove-Item -Force $shim
             Write-Host "Removed python3.exe shim"
           }
-          $shim2 = "apps/desktop/dist/win-unpacked/resources/backend/.venv/python/python3.exe"
-          if (Test-Path $shim2) {
-            Remove-Item -Force $shim2
-            Write-Host "Removed python3.exe shim from unpacked"
-          }
 
       - name: Build desktop (${{ matrix.target }})
         run: cd apps/desktop && npm run ${{ matrix.script }}
         env:
           ELECTRON_MIRROR: https://npmmirror.com/mirrors/electron/
           ELECTRON_BUILDER_BINARIES_MIRROR: https://npmmirror.com/mirrors/electron-builder-binaries/
+          CSC_IDENTITY_AUTO_DISCOVERY: ${{ matrix.target == 'mac' && 'false' || '' }}
 
       - name: Upload to release
         uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ steps.resolve_tag.outputs.tag }}
-          name: "Beta ${{ steps.resolve_tag.outputs.tag }}"
+          name: "${{ steps.resolve_tag.outputs.release_type == 'stable' && 'Release' || 'Beta' }} ${{ steps.resolve_tag.outputs.tag }}"
           draft: false
-          prerelease: true
+          prerelease: ${{ steps.resolve_tag.outputs.release_type != 'stable' }}
           generate_release_notes: ${{ matrix.target == 'linux' }}
           files: ${{ matrix.files }}
