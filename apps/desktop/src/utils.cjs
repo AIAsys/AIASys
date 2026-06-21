@@ -219,8 +219,9 @@ async function canReuseService({
   }
 
   if (!processInfo || !processInfo.command) {
+    // 健康但无法识别进程归属时，保守地视为不可复用，避免误用其他 checkout/应用的服务
     return {
-      reusable: true,
+      reusable: false,
       reason: "healthy_unknown",
       processInfo,
     };
@@ -289,8 +290,30 @@ async function resolveDesiredPort({
   }
 
   if (inspection.reason === "not_running") {
+    // 探测工具可能失效导致误判，用实际绑定再复核一次
+    const actuallyFree = await probeFreePort(host, requestedPort);
+    if (actuallyFree) {
+      return {
+        port: requestedPort,
+        reuse: false,
+      };
+    }
+    // 端口实际被占用但探测工具未识别，降级到查找可用端口
+    if (locked) {
+      throw new Error(
+        `${label} 端口 ${requestedPort} 已被占用（复核确认），且当前通过环境变量锁定了该端口`,
+      );
+    }
+    const fallbackPort = await findAvailablePort(
+      host,
+      requestedPort + 1,
+      excludePorts,
+    );
+    console.warn(
+      `[aiasys-desktop] ${label} 端口 ${requestedPort} 复核发现已被占用，自动切换到 ${fallbackPort}`,
+    );
     return {
-      port: requestedPort,
+      port: fallbackPort,
       reuse: false,
     };
   }
@@ -300,8 +323,24 @@ async function resolveDesiredPort({
     `pid=${inspection.processInfo?.pid || "unknown"}`;
 
   if (inspection.reason === "occupied_current") {
+    // 属于当前 checkout 的异常进程，尝试自动终止后复用端口
+    const pid = inspection.processInfo?.pid;
+    if (pid) {
+      console.warn(
+        `[aiasys-desktop] ${label} 端口 ${requestedPort} 上存在当前 checkout 的异常进程，尝试终止: ${processCommand}`,
+      );
+      terminateProcessSync(pid);
+      // 终止后再复核端口是否真的释放
+      const actuallyFree = await probeFreePort(host, requestedPort);
+      if (actuallyFree) {
+        return {
+          port: requestedPort,
+          reuse: false,
+        };
+      }
+    }
     throw new Error(
-      `${label} 端口 ${requestedPort} 上存在当前 checkout 的异常进程，但健康检查未通过: ${processCommand}`,
+      `${label} 端口 ${requestedPort} 上存在当前 checkout 的异常进程，但健康检查未通过且无法自动终止: ${processCommand}`,
     );
   }
 
@@ -336,6 +375,111 @@ function probeFreePort(host, port) {
   });
 }
 
+/**
+ * 同步终止指定 PID 的进程。
+ * Unix：先 SIGTERM，短暂等待后若仍在运行则 SIGKILL。
+ * Windows：使用 taskkill /T /F。
+ */
+function terminateProcessSync(pid, graceMs = 1500) {
+  if (!pid || pid === "0") {
+    return;
+  }
+  const numericPid = Number(pid);
+  try {
+    if (process.platform === "win32") {
+      spawnSync("taskkill", ["/pid", String(pid), "/t", "/f"], {
+        stdio: "ignore",
+        windowsHide: true,
+      });
+      return;
+    }
+
+    process.kill(numericPid, "SIGTERM");
+
+    const deadline = Date.now() + graceMs;
+    while (Date.now() < deadline) {
+      try {
+        process.kill(numericPid, 0);
+      } catch {
+        // 进程已不存在
+        return;
+      }
+      // 短暂忙等，避免长时间占用事件循环
+      const now = Date.now();
+      while (Date.now() - now < 50) {
+        // no-op
+      }
+    }
+
+    // 兜底 SIGKILL
+    try {
+      process.kill(numericPid, "SIGKILL");
+    } catch {
+      // 进程可能刚好退出
+    }
+  } catch (error) {
+    console.warn(`[aiasys-desktop] 终止进程 ${pid} 失败: ${error.message}`);
+  }
+}
+
+/**
+ * 同步终止指定 PID 的进程树（包括子进程）。
+ * Unix：因为子进程以 detached 模式启动并自成进程组，优先向进程组发信号；
+ *       失败时降级到单独进程。
+ * Windows：使用 taskkill /T /F。
+ */
+function terminateProcessTreeSync(pid, graceMs = 1500) {
+  if (!pid || pid === "0") {
+    return;
+  }
+  const numericPid = Number(pid);
+  if (process.platform === "win32") {
+    try {
+      spawnSync("taskkill", ["/pid", String(pid), "/t", "/f"], {
+        stdio: "ignore",
+        windowsHide: true,
+      });
+    } catch (error) {
+      console.warn(`[aiasys-desktop] 终止进程树 ${pid} 失败: ${error.message}`);
+    }
+    return;
+  }
+
+  const killGroup = (signal) => {
+    try {
+      process.kill(-numericPid, signal);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  try {
+    // 优先终止整个进程组；失败时回退到单独进程
+    if (!killGroup("SIGTERM")) {
+      terminateProcessSync(pid, graceMs);
+      return;
+    }
+
+    const deadline = Date.now() + graceMs;
+    while (Date.now() < deadline) {
+      try {
+        process.kill(-numericPid, 0);
+      } catch {
+        return;
+      }
+      const now = Date.now();
+      while (Date.now() - now < 50) {
+        // no-op
+      }
+    }
+
+    killGroup("SIGKILL");
+  } catch (error) {
+    console.warn(`[aiasys-desktop] 终止进程树 ${pid} 失败: ${error.message}`);
+  }
+}
+
 async function findAvailablePort(host, startPort, excludePorts = []) {
   const blocked = new Set(excludePorts);
   for (let candidate = startPort; candidate < startPort + 200; candidate += 1) {
@@ -362,4 +506,6 @@ module.exports = {
   resolveDesiredPort,
   probeFreePort,
   findAvailablePort,
+  terminateProcessSync,
+  terminateProcessTreeSync,
 };

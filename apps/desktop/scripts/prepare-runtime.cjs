@@ -1,6 +1,7 @@
 const fs = require("fs");
 const path = require("path");
 const { spawnSync } = require("child_process");
+const tar = require("tar");
 
 const desktopRoot = path.resolve(__dirname, "..");
 const repoRoot = path.resolve(desktopRoot, "..", "..");
@@ -128,22 +129,21 @@ function resolveRealFile(linkPath, visited = new Set()) {
 }
 
 /**
- * 实体化 bin 目录中指向外部路径的符号链接。
+ * 实体化指定目录中指向外部路径的符号链接。
  * 递归解析符号链接链，用最终的实际文件替换链接本身。
  */
-function materializeBinSymlinks(embedPythonRoot) {
-  const binDir = path.join(embedPythonRoot, "bin");
-  if (!fs.existsSync(binDir)) return;
+function materializeDirectorySymlinks(targetDir) {
+  if (!fs.existsSync(targetDir)) return;
 
-  for (const entry of fs.readdirSync(binDir)) {
-    const entryPath = path.join(binDir, entry);
+  for (const entry of fs.readdirSync(targetDir)) {
+    const entryPath = path.join(targetDir, entry);
     const realFile = resolveRealFile(entryPath);
     if (realFile && realFile !== entryPath) {
       try {
         // 先删除符号链接，避免 copyFileSync 因权限问题无法覆盖只读链接
         fs.unlinkSync(entryPath);
         fs.copyFileSync(realFile, entryPath);
-        // 保持可执行权限
+        // 保持可执行权限（Unix 有效；Windows 上 .exe 复制后可直接执行）
         const mode = fs.statSync(realFile).mode;
         fs.chmodSync(entryPath, mode | 0o111);
         console.log(`[aiasys-desktop] 实体化符号链接: ${entry} -> ${realFile}`);
@@ -152,6 +152,15 @@ function materializeBinSymlinks(embedPythonRoot) {
       }
     }
   }
+}
+
+/**
+ * 实体化嵌入 Python 的 bin / Scripts 目录符号链接。
+ * Windows 上对应 Scripts 目录，macOS/Linux 对应 bin 目录。
+ */
+function materializeBinSymlinks(embedPythonRoot) {
+  materializeDirectorySymlinks(path.join(embedPythonRoot, "bin"));
+  materializeDirectorySymlinks(path.join(embedPythonRoot, "Scripts"));
 }
 
 /**
@@ -485,6 +494,9 @@ function prepareBackendRuntime() {
       // 修复 .venv/bin/python 符号链接，使其指向嵌入的 Python
       fixVenvPythonSymlink(path.join(backendStageRoot, ".venv"), embedPythonRoot);
 
+      // Windows: .venv/Scripts 中的入口可能是指向外部 Python 的符号链接，实体化后目标机器无需原始路径
+      materializeDirectorySymlinks(path.join(backendStageRoot, ".venv", "Scripts"));
+
       // Windows: 删除 python3.exe shim，避免 7-Zip 打包时报 "directory name is invalid"
       if (process.platform === "win32") {
         const python3Shim = path.join(embedPythonRoot, "python3.exe");
@@ -574,8 +586,6 @@ function fixVenvBinShebangs(backendStageRoot) {
     return;
   }
 
-  const embedPythonBinDir = path.join(backendStageRoot, ".venv", "python", "bin");
-  const embedPython = path.join(embedPythonBinDir, "python3");
   const fallbackShebang = "#!/usr/bin/env python3";
 
   let fixed = 0;
@@ -615,10 +625,9 @@ function fixVenvBinShebangs(backendStageRoot) {
       continue;
     }
 
-    // 优先使用嵌入 Python 的绝对路径（如果存在）
-    // 否则回退到 /usr/bin/env python3
-    const newShebang = fs.existsSync(embedPython) ? `#!${embedPython}` : fallbackShebang;
-    lines[0] = newShebang;
+    // 统一使用 /usr/bin/env python3，避免打包后的绝对路径在目标机器上失效，
+    // 也避免路径中的空格导致 Unix 内核无法解析 shebang。
+    lines[0] = fallbackShebang;
 
     try {
       fs.writeFileSync(filePath, lines.join("\n"), "utf-8");
@@ -666,6 +675,129 @@ function fixPyvenvCfgHome(backendStageRoot) {
   console.log(`[aiasys-desktop] 已修正 pyvenv.cfg home 路径: ${relativeHome} (相对于 .venv)`);
 }
 
+/**
+ * 统计 .venv 目录下的文件/目录条目总数，用于运行时解压进度百分比。
+ */
+function countVenvEntries(venvDir) {
+  if (!fs.existsSync(venvDir)) {
+    return 0;
+  }
+  // tar 归档包含 .venv 根目录本身，所以初始 count 为 1
+  let count = 1;
+  function walk(dir) {
+    const entries = fs.readdirSync(dir, { withFileTypes: true });
+    for (const entry of entries) {
+      count++;
+      if (entry.isDirectory()) {
+        walk(path.join(dir, entry.name));
+      }
+    }
+  }
+  walk(venvDir);
+  return count;
+}
+
+/**
+ * 把 staged .venv 压缩为 .venv.tar.gz，并生成 .venv.manifest.json。
+ * 压缩后删除原始 .venv 目录以减小安装包体积。
+ * 如果压缩失败，保留原始目录作为运行时降级路径。
+ */
+async function compressVenv(backendStageRoot) {
+  const venvDir = path.join(backendStageRoot, ".venv");
+  const archivePath = path.join(backendStageRoot, ".venv.tar.gz");
+  const manifestPath = path.join(backendStageRoot, ".venv.manifest.json");
+
+  if (!fs.existsSync(venvDir)) {
+    console.warn("[aiasys-desktop] 未找到 .venv，跳过压缩");
+    return;
+  }
+
+  console.log("[aiasys-desktop] 正在统计 .venv 条目数...");
+  const entries = countVenvEntries(venvDir);
+
+  console.log(`[aiasys-desktop] 正在压缩 .venv (${entries} 个条目)...`);
+  const start = Date.now();
+  try {
+    await tar.create(
+      {
+        gzip: true,
+        file: archivePath,
+        cwd: backendStageRoot,
+        portable: true,
+        // 保留符号链接，不要解引用；运行时解压再处理
+      },
+      [".venv"],
+    );
+
+    const archiveStat = fs.statSync(archivePath);
+    const originalSize = dirSize(venvDir);
+    const compressionRatio = Math.round((archiveStat.size / originalSize) * 100);
+    console.log(
+      `[aiasys-desktop] .venv 压缩完成: ${archivePath} ` +
+        `(原始 ${formatBytes(originalSize)}, 压缩后 ${formatBytes(archiveStat.size)}, ${compressionRatio}%) ` +
+        `耗时 ${Date.now() - start}ms`,
+    );
+
+    // 写入 manifest，供运行时计算解压进度
+    fs.writeFileSync(
+      manifestPath,
+      JSON.stringify({ entries, compressedSize: archiveStat.size }, null, 2),
+      "utf-8",
+    );
+
+    // 删除原始 .venv 目录，减小安装包体积
+    fs.rmSync(venvDir, { recursive: true, force: true });
+    console.log("[aiasys-desktop] 已删除 staged .venv 目录，使用压缩包");
+  } catch (error) {
+    console.warn(
+      `[aiasys-desktop] .venv 压缩失败，将保留原始目录: ${error.message}`,
+    );
+    // 清理可能不完整的压缩包
+    try {
+      if (fs.existsSync(archivePath)) {
+        fs.rmSync(archivePath, { force: true });
+      }
+      if (fs.existsSync(manifestPath)) {
+        fs.rmSync(manifestPath, { force: true });
+      }
+    } catch {
+      // ignore cleanup error
+    }
+  }
+}
+
+/**
+ * 计算目录总大小（字节）。
+ */
+function dirSize(dirPath) {
+  let total = 0;
+  if (!fs.existsSync(dirPath)) return total;
+  const entries = fs.readdirSync(dirPath, { withFileTypes: true });
+  for (const entry of entries) {
+    const fullPath = path.join(dirPath, entry.name);
+    if (entry.isDirectory()) {
+      total += dirSize(fullPath);
+    } else {
+      try {
+        total += fs.statSync(fullPath).size;
+      } catch {
+        // ignore
+      }
+    }
+  }
+  return total;
+}
+
+/**
+ * 格式化字节数为人类可读字符串。
+ */
+function formatBytes(bytes) {
+  if (bytes === 0) return "0 B";
+  const units = ["B", "KB", "MB", "GB"];
+  const i = Math.floor(Math.log(bytes) / Math.log(1024));
+  return `${(bytes / 1024 ** i).toFixed(1)} ${units[i]}`;
+}
+
 function pruneDevDependencies(backendStageRoot) {
   const venvRoot = path.join(backendStageRoot, ".venv");
   const sitePackagesPaths = [];
@@ -688,11 +820,12 @@ function pruneDevDependencies(backendStageRoot) {
 
   const devPackages = [
     "pytest", "_pytest", "ruff", "mypy", "mypy_extensions",
-    "black", "ipython", "ipykernel", "coverage", "pre_commit",
+    "black", "coverage", "pre_commit",
     "flake8", "pylint", "bandit", "isort", "autopep8",
     "pytest_xdist", "pytest_asyncio", "pytest_cov",
     "sphinx", "sphinx_rtd_theme", "mccabe", "pycodestyle",
-    "pyflakes", "typing_extensions",
+    "pyflakes",
+    // 注意：typing_extensions、ipython、ipykernel 是运行时依赖，不能删除
   ];
 
   let removed = 0;
@@ -768,7 +901,7 @@ function preBuildSanityChecks() {
   console.log("[aiasys-desktop] 构建前自检通过");
 }
 
-function main() {
+async function main() {
   console.log("[aiasys-desktop] 准备运行时...");
 
   // 清理 Python 缓存（在复制前清理源目录，避免复制到 staging）
@@ -788,10 +921,16 @@ function main() {
   // 再次清理 staging 目录中可能残留的缓存（防御性）
   cleanPycache(backendStageRoot);
 
+  // 压缩 .venv，运行时改为解压而非逐文件复制，显著减少首次启动 I/O
+  await compressVenv(backendStageRoot);
+
   // 构建前最终自检
   preBuildSanityChecks();
 
   console.log(`[aiasys-desktop] runtime prepared at ${runtimeRoot}`);
 }
 
-main();
+main().catch((error) => {
+  console.error("[aiasys-desktop] 准备运行时失败:", error);
+  process.exit(1);
+});

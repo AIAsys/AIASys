@@ -179,7 +179,7 @@ describe("canReuseService", () => {
     assert.strictEqual(result.reason, "occupied_foreign");
   });
 
-  it("healthy_unknown：URL 健康，但无法获取进程信息", async () => {
+  it("healthy_unknown：URL 健康，但无法获取进程信息时保守不可复用", async () => {
     const result = await canReuseService({
       url,
       port,
@@ -188,7 +188,7 @@ describe("canReuseService", () => {
       readListeningProcess: () => null,
       probeUrl: async () => true,
     });
-    assert.strictEqual(result.reusable, true);
+    assert.strictEqual(result.reusable, false);
     assert.strictEqual(result.reason, "healthy_unknown");
   });
 
@@ -272,29 +272,26 @@ describe("resolveDesiredPort", () => {
     assert.deepStrictEqual(result, { port: 13011, reuse: false });
   });
 
-  it("occupied_current：抛出错误", async () => {
-    await assert.rejects(
-      async () => {
-        await resolveDesiredPort({
-          requestedPort: 13011,
-          locked: false,
-          label,
-          expectedPaths,
-          urlFactory,
-          excludePorts: [],
-          host: "127.0.0.1",
-          findAvailablePort: async () => 13012,
-          canReuseService: async () => ({
-            reusable: false,
-            reason: "occupied_current",
-            processInfo: { pid: "1234", command: "/repo/apps/backend/.venv/bin/python3" },
-          }),
-          readListeningProcess: () => null,
-          probeUrl: async () => false,
-        });
-      },
-      /异常进程/,
-    );
+  it("occupied_current：自动终止异常进程并复用端口", async () => {
+    const result = await resolveDesiredPort({
+      requestedPort: 13011,
+      locked: false,
+      label,
+      expectedPaths,
+      urlFactory,
+      excludePorts: [],
+      host: "127.0.0.1",
+      findAvailablePort: async () => 13012,
+      canReuseService: async () => ({
+        reusable: false,
+        reason: "occupied_current",
+        processInfo: { pid: "1234", command: "/repo/apps/backend/.venv/bin/python3" },
+      }),
+      readListeningProcess: () => null,
+      probeUrl: async () => false,
+    });
+    // 终止异常进程后端口变为可用，应返回原端口
+    assert.deepStrictEqual(result, { port: 13011, reuse: false });
   });
 
   it("locked + 端口被占：抛出错误", async () => {

@@ -1,7 +1,10 @@
 const fs = require("fs");
 const net = require("net");
 const path = require("path");
+const crypto = require("crypto");
 const { spawn, spawnSync } = require("child_process");
+const tar = require("tar");
+const iconv = require("iconv-lite");
 
 const {
   resolveNpmCommand,
@@ -13,6 +16,7 @@ const {
   probeFreePort,
   findAvailablePort,
   probeUrl,
+  terminateProcessTreeSync,
 } = require("./utils.cjs");
 
 const HOST = process.env.AIASYS_DESKTOP_HOST || "127.0.0.1";
@@ -128,15 +132,67 @@ function prewarmVenvPython(pythonExecutable) {
 }
 
 /**
- * 将 AppImage 只读目录中的 .venv 复制到可写运行时目录，
- * 然后修复 pyvenv.cfg 和符号链接。
+ * 读取构建时生成的 .venv manifest，获取条目总数用于解压进度。
  */
-async function preparePackagedVenv(backendRoot, runtimeStateRoot) {
-  const writableVenv = path.join(runtimeStateRoot, ".venv");
-  if (fs.existsSync(writableVenv)) {
-    return; // 已复制过，直接复用
+function readVenvManifest(backendRoot) {
+  const manifestPath = path.join(backendRoot, ".venv.manifest.json");
+  try {
+    const content = fs.readFileSync(manifestPath, "utf-8");
+    const parsed = JSON.parse(content);
+    if (typeof parsed.entries === "number" && parsed.entries > 0) {
+      return parsed;
+    }
+  } catch {
+    // ignore
+  }
+  return null;
+}
+
+/**
+ * 从压缩包解压 .venv 到可写运行时目录，并报告进度。
+ */
+async function extractVenvArchive(archivePath, runtimeStateRoot, totalEntries, onProgress) {
+  const start = Date.now();
+  let extracted = 0;
+  let lastReportedPercent = -1;
+
+  function reportProgress(force = false) {
+    if (!onProgress) return;
+    const percent = totalEntries > 0
+      ? Math.min(100, Math.round((extracted / totalEntries) * 100))
+      : 0;
+    if (force || percent !== lastReportedPercent) {
+      lastReportedPercent = percent;
+      onProgress({ extracted, total: totalEntries, percent });
+    }
   }
 
+  console.log(`[aiasys-desktop] 解压 .venv: ${archivePath} -> ${runtimeStateRoot}`);
+  await tar.extract({
+    file: archivePath,
+    cwd: runtimeStateRoot,
+    preserveOwner: false,
+    noMtime: true,
+    onentry: () => {
+      extracted++;
+      reportProgress();
+    },
+  });
+
+  // 确保最终进度为 100%，即使 manifest entries 与实际不一致
+  reportProgress(true);
+
+  console.log(
+    `[aiasys-desktop] .venv 解压完成，${extracted} 个条目，耗时 ${Date.now() - start}ms`,
+  );
+}
+
+/**
+ * 降级路径：无压缩包时逐文件复制 .venv。
+ * 使用异步复制避免阻塞主进程事件循环。
+ */
+async function copyVenvFallback(backendRoot, runtimeStateRoot) {
+  const writableVenv = path.join(runtimeStateRoot, ".venv");
   const readOnlyVenv = path.join(backendRoot, ".venv");
   if (!fs.existsSync(readOnlyVenv)) {
     return;
@@ -144,14 +200,90 @@ async function preparePackagedVenv(backendRoot, runtimeStateRoot) {
 
   console.log(`[aiasys-desktop] 复制 .venv 到可写目录: ${writableVenv}`);
   const copyStart = Date.now();
-  fs.cpSync(readOnlyVenv, writableVenv, { recursive: true, dereference: true });
+  await fs.promises.cp(readOnlyVenv, writableVenv, { recursive: true, dereference: true });
   console.log(
     `[aiasys-desktop] .venv 复制完成，耗时 ${Date.now() - copyStart}ms`,
   );
+}
+
+/**
+ * 检查可写目录中的 .venv 是否完整可用。
+ * 通过校验平台相关的 Python 解释器入口是否存在来判断。
+ */
+function isVenvReady(writableVenv) {
+  if (!fs.existsSync(writableVenv)) {
+    return false;
+  }
+  const candidates =
+    process.platform === "win32"
+      ? [
+          path.join(writableVenv, "python", "python.exe"),
+          path.join(writableVenv, "Scripts", "python.exe"),
+        ]
+      : [
+          path.join(writableVenv, "bin", "python3"),
+          path.join(writableVenv, "bin", "python"),
+        ];
+  return candidates.some((candidate) => fs.existsSync(candidate));
+}
+
+/**
+ * 将 app bundle 中的 .venv 准备到可写运行时目录。
+ * 优先使用压缩包解压，失败或无压缩包时回退到逐文件复制。
+ */
+async function preparePackagedVenv(backendRoot, runtimeStateRoot, onProgress) {
+  const writableVenv = path.join(runtimeStateRoot, ".venv");
+  if (isVenvReady(writableVenv)) {
+    return; // 已存在且完整，直接复用
+  }
+
+  // 如果目录存在但不完整，清理后重新准备
+  if (fs.existsSync(writableVenv)) {
+    console.warn(
+      `[aiasys-desktop] .venv 目录存在但不完整，将重新准备: ${writableVenv}`,
+    );
+    try {
+      fs.rmSync(writableVenv, { recursive: true, force: true });
+    } catch (error) {
+      console.warn(`[aiasys-desktop] 清理不完整 .venv 失败: ${error.message}`);
+    }
+  }
+
+  const archivePath = path.join(backendRoot, ".venv.tar.gz");
+  const hasArchive = fs.existsSync(archivePath);
+
+  if (hasArchive) {
+    const manifest = readVenvManifest(backendRoot);
+    const totalEntries = manifest ? manifest.entries : 0;
+    try {
+      await extractVenvArchive(
+        archivePath,
+        runtimeStateRoot,
+        totalEntries,
+        onProgress,
+      );
+    } catch (error) {
+      console.warn(
+        `[aiasys-desktop] .venv 解压失败，回退到逐文件复制: ${error.message}`,
+      );
+      // 清理可能不完整的解压产物
+      try {
+        if (fs.existsSync(writableVenv)) {
+          fs.rmSync(writableVenv, { recursive: true, force: true });
+        }
+      } catch {
+        // ignore
+      }
+      await copyVenvFallback(backendRoot, runtimeStateRoot);
+    }
+  } else {
+    await copyVenvFallback(backendRoot, runtimeStateRoot);
+  }
+
   fixPyvenvHomeIfNeeded(writableVenv);
   console.log(`[aiasys-desktop] .venv 就绪（可写副本）`);
 
-  // macOS: 复制后的 Mach-O 二进制可能仍携带 quarantine 属性，尝试清理
+  // macOS: 复制/解压后的 Mach-O 二进制可能仍携带 quarantine 属性，尝试清理
   await removeMacVenvQuarantine(writableVenv);
 }
 
@@ -250,24 +382,12 @@ function readListeningProcess(port) {
 }
 
 function readListeningProcessUnix(port) {
-  const lsofResult = spawnSync(
-    "lsof",
-    ["-nP", `-iTCP:${port}`, "-sTCP:LISTEN", "-Fp"],
-    { encoding: "utf-8", timeout: 5000 },
-  );
+  // 尝试多种 Unix 端口探测工具，兼容不同发行版/容器环境
+  const pid =
+    readListeningProcessUnixLsof(port) ||
+    readListeningProcessUnixSs(port) ||
+    readListeningProcessUnixFuser(port);
 
-  if (lsofResult.status !== 0 || lsofResult.error) {
-    return null;
-  }
-
-  const pidLine = lsofResult.stdout
-    .split("\n")
-    .find((line) => line.startsWith("p"));
-  if (!pidLine) {
-    return null;
-  }
-
-  const pid = pidLine.slice(1).trim();
   if (!pid) {
     return null;
   }
@@ -283,6 +403,54 @@ function readListeningProcessUnix(port) {
     pid,
     command: psResult.stdout.trim(),
   };
+}
+
+function readListeningProcessUnixLsof(port) {
+  const lsofResult = spawnSync(
+    "lsof",
+    ["-nP", `-iTCP:${port}`, "-sTCP:LISTEN", "-Fp"],
+    { encoding: "utf-8", timeout: 5000 },
+  );
+
+  if (lsofResult.status !== 0 || lsofResult.error) {
+    return null;
+  }
+
+  const pidLine = lsofResult.stdout
+    .split("\n")
+    .find((line) => line.startsWith("p"));
+  return pidLine ? pidLine.slice(1).trim() : null;
+}
+
+function readListeningProcessUnixSs(port) {
+  const ssResult = spawnSync(
+    "ss",
+    ["-ltnp", `sport = :${port}`],
+    { encoding: "utf-8", timeout: 5000 },
+  );
+
+  if (ssResult.status !== 0 || ssResult.error) {
+    return null;
+  }
+
+  // 输出格式：LISTEN 0  128  127.0.0.1:13011  0.0.0.0:*  users:(("python",pid=12345,fd=3))
+  const match = ssResult.stdout.match(/pid=(\d+)/);
+  return match ? match[1] : null;
+}
+
+function readListeningProcessUnixFuser(port) {
+  const fuserResult = spawnSync(
+    "fuser",
+    [`${port}/tcp`],
+    { encoding: "utf-8", timeout: 5000 },
+  );
+
+  if (fuserResult.status !== 0 || fuserResult.error) {
+    return null;
+  }
+
+  const pid = fuserResult.stdout.trim().split(/\s+/)[0];
+  return pid || null;
 }
 
 function readListeningProcessWindows(port) {
@@ -314,12 +482,13 @@ function readListeningProcessWindows(port) {
     const state = parts[3];
     const candidatePid = parts[parts.length - 1];
 
-    if (
-      state === "LISTENING" &&
-      (localAddress === `${HOST}:${port}` || localAddress.endsWith(`:${port}`))
-    ) {
-      pid = candidatePid;
-      break;
+    if (state === "LISTENING") {
+      // 精确匹配端口，避免 13011 误匹配 xxx113011 或 127.0.0.1:11301
+      const localPort = localAddress.split(":").pop();
+      if (localPort === String(port)) {
+        pid = candidatePid;
+        break;
+      }
     }
   }
 
@@ -356,18 +525,53 @@ function readListeningProcessWindows(port) {
 
 
 
+function createAbortToken() {
+  const token = { aborted: false };
+  token.cancel = () => {
+    token.aborted = true;
+  };
+  return token;
+}
+
 /**
  * 等待 URL 就绪，同时监控子进程是否已崩溃退出。
  * 如果子进程在轮询期间崩溃，提前抛出错误，避免 90 秒干等。
+ *
+ * 支持两种模式：
+ * - 静态 childProcesses 数组（向后兼容）
+ * - options.getChildProcesses 动态获取当前子进程列表，便于追踪重启后的新进程
+ * - options.signal 取消令牌，用于重启时中止旧的等待 Promise
  */
-async function waitForUrl(url, label, timeoutMs = 90_000, childProcesses = []) {
+async function waitForUrl(url, label, timeoutMs = 90_000, childProcesses = [], options = {}) {
   const start = Date.now();
+  const getChildren =
+    typeof options.getChildProcesses === "function"
+      ? options.getChildProcesses
+      : () => childProcesses;
+  const signal = options.signal || null;
   while (Date.now() - start < timeoutMs) {
-    // 检查是否有子进程已崩溃
-    for (const child of childProcesses) {
-      if (child && child.exitCode !== null) {
+    if (signal && signal.aborted) {
+      throw new Error(`__CANCELLED__: ${label} 等待已取消`);
+    }
+
+    // 检查是否有子进程已崩溃或被终止
+    for (const child of getChildren()) {
+      if (!child) continue;
+      if (child.__spawnFailed) {
         throw new Error(
-          `${label} 子进程已崩溃退出（exitCode=${child.exitCode}），` +
+          `${label} 子进程启动失败，无法继续等待服务就绪: ${url}`,
+        );
+      }
+      if (child.exitCode !== null || child.signalCode !== null || child.killed) {
+        // 若子进程配置了自动重启且未耗尽，继续等待重启后的新进程替换旧引用
+        if (child.__autoRestart && !child.__restartExhausted) {
+          console.warn(
+            `[aiasys-desktop] ${label} 子进程已退出，但配置了自动重启，继续等待服务就绪: ${url}`,
+          );
+          continue;
+        }
+        throw new Error(
+          `${label} 子进程已退出（exitCode=${child.exitCode}, signal=${child.signalCode}），` +
             `无法继续等待服务就绪: ${url}`,
         );
       }
@@ -388,28 +592,58 @@ async function waitForUrl(url, label, timeoutMs = 90_000, childProcesses = []) {
 /**
  * 创建日志写入流，同时输出到控制台。
  */
+const MAX_LOG_FILE_BYTES = 10 * 1024 * 1024; // 10MB
+
+function rotateLogFile(logFilePath, maxBytes = MAX_LOG_FILE_BYTES) {
+  try {
+    const stat = fs.statSync(logFilePath);
+    if (stat.size < maxBytes) {
+      return;
+    }
+    const backupPath = `${logFilePath}.1`;
+    if (fs.existsSync(backupPath)) {
+      fs.rmSync(backupPath, { force: true });
+    }
+    fs.renameSync(logFilePath, backupPath);
+  } catch {
+    // ignore rotation errors
+  }
+}
+
 function createLogStream(logFilePath) {
   fs.mkdirSync(path.dirname(logFilePath), { recursive: true });
+  rotateLogFile(logFilePath);
   const stream = fs.createWriteStream(logFilePath, { flags: "a" });
+  stream.on("error", (error) => {
+    console.error(`[aiasys-desktop] 日志流写入失败 ${logFilePath}:`, error);
+  });
   const now = new Date().toISOString();
   stream.write(`\n[${now}] === 日志开始 ===\n`);
   return stream;
 }
 
 function decodeProcessOutput(data) {
-  if (Buffer.isBuffer(data)) {
-    // Try UTF-8 first, fall back to latin1 (never fails, preserves raw bytes)
-    try {
-      const str = data.toString("utf-8");
-      // Quick check: if it contains replacement characters, it might be a different encoding
-      if (!str.includes('\uFFFD')) return str;
-      // Fall through to latin1 which preserves all bytes
-      return data.toString("latin1");
-    } catch {
-      return data.toString("latin1");
-    }
+  if (!Buffer.isBuffer(data)) {
+    return String(data);
   }
-  return String(data);
+
+  // UTF-8 优先；出现替换字符时尝试中文 Windows 常见编码 GBK/cp936
+  const utf8 = data.toString("utf-8");
+  if (!utf8.includes("\uFFFD")) {
+    return utf8;
+  }
+
+  try {
+    const gbk = iconv.decode(data, "gbk");
+    if (!gbk.includes("\uFFFD")) {
+      return gbk;
+    }
+  } catch {
+    // ignore decoding errors
+  }
+
+  // 最后兜底：按字节保留原始内容，永不出错
+  return data.toString("latin1");
 }
 
 function logToBoth(stream, prefix, data) {
@@ -442,6 +676,10 @@ function spawnManagedProcess(name, command, args, options) {
       windowsHide: isWindows,
     });
 
+    // 附加元数据，供 waitForUrl 等调用方判断重启策略
+    child.__autoRestart = autoRestart;
+    child.__restartExhausted = false;
+
     // 日志流
     let logStream = null;
     if (options?.__logFilePath) {
@@ -466,8 +704,13 @@ function spawnManagedProcess(name, command, args, options) {
 
     child.once("error", (error) => {
       console.error(`[aiasys-desktop] ${name} 启动失败:`, error);
+      child.__spawnFailed = true;
       if (logStream && !logStream.destroyed) {
         logStream.write(`[${name}] 启动失败: ${error.message}\n`);
+      }
+      // 通知崩溃，让 waitForUrl 等调用方提前失败
+      if (typeof options?.onCrash === "function") {
+        options.onCrash({ error: error.message, restartCount, maxRestarts });
       }
     });
 
@@ -494,6 +737,11 @@ function spawnManagedProcess(name, command, args, options) {
         options.onCrash({ code, signal, restartCount, maxRestarts });
       }
 
+      // 自动重启前确保旧进程树（包括可能残留的孙子进程）被清理，避免端口/资源泄漏
+      if (child.pid) {
+        terminateProcessTreeSync(child.pid, 1000);
+      }
+
       // 自动重启
       if (autoRestart && restartCount < maxRestarts && canRestart()) {
         restartCount++;
@@ -509,6 +757,7 @@ function spawnManagedProcess(name, command, args, options) {
         setTimeout(() => {
           if (!canRestart()) {
             console.log(`[aiasys-desktop] ${name} 重启已取消（正在关闭）`);
+            child.__restartExhausted = true;
             return;
           }
           const newChild = spawnOnce();
@@ -520,6 +769,7 @@ function spawnManagedProcess(name, command, args, options) {
         console.error(
           `[aiasys-desktop] ${name} 已达最大重启次数 (${maxRestarts})，不再重启`,
         );
+        child.__restartExhausted = true;
         if (typeof options?.onCrash === "function") {
           options.onCrash({ code, signal, restartCount, maxRestarts, exhausted: true });
         }
@@ -578,7 +828,25 @@ async function terminateChild(child) {
     return;
   }
 
-  await new Promise((resolve) => setTimeout(resolve, 500));
+  // 等待进程退出，若仍未退出则发送 SIGKILL 兜底
+  const graceMs = 5000;
+  const pollMs = 200;
+  const start = Date.now();
+  while (Date.now() - start < graceMs) {
+    if (child.killed || child.exitCode !== null) {
+      return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, pollMs));
+  }
+
+  if (!child.killed && child.exitCode === null) {
+    console.warn(`[aiasys-desktop] 子进程 SIGTERM 未退出，发送 SIGKILL: ${child.pid}`);
+    try {
+      process.kill(-child.pid, "SIGKILL");
+    } catch {
+      // ignore
+    }
+  }
 }
 
 class DesktopServiceManager {
@@ -623,9 +891,24 @@ class DesktopServiceManager {
     // 外部回调，由 main.cjs 设置
     this.onBackendCrash = null;
     this.onBackendReady = null;
+    this.onStatusUpdate = null;
   }
 
-  preparePackagedRuntimeState() {
+  /**
+   * 向外部（main.cjs -> splash）报告启动进度。
+   * 失败不阻塞启动。
+   */
+  _emitStatus(status) {
+    try {
+      if (typeof this.onStatusUpdate === "function") {
+        this.onStatusUpdate(status);
+      }
+    } catch (e) {
+      // ignore
+    }
+  }
+
+  async preparePackagedRuntimeState() {
     if (!this.isPackaged) {
       return;
     }
@@ -634,7 +917,8 @@ class DesktopServiceManager {
 
     const packagedDataRoot = path.join(this.backendRoot, "data");
     if (fs.existsSync(packagedDataRoot) && !fs.existsSync(this.backendDataRoot)) {
-      fs.cpSync(packagedDataRoot, this.backendDataRoot, {
+      this._emitStatus({ message: "正在复制初始数据...", step: 1, total: 5 });
+      await fs.promises.cp(packagedDataRoot, this.backendDataRoot, {
         recursive: true,
         preserveTimestamps: true,
       });
@@ -665,6 +949,38 @@ class DesktopServiceManager {
       ? this.backendLogsRoot
       : path.join(this.backendRoot, "logs");
     return path.join(logsDir, `${name}-spawn.log`);
+  }
+
+  /**
+   * 确保有一个 persisted JWT Secret 供后端认证使用。
+   * 桌面打包版的 config.toml 位于只读资源目录，无法写入真实 secret，
+   * 因此通过环境变量注入，并把 secret 持久化到运行时目录，避免每次重启失效。
+   */
+  _ensureJwtSecret() {
+    const secretDir = path.join(this.runtimeStateRoot, ".aiasys");
+    const secretPath = path.join(secretDir, "jwt-secret");
+    try {
+      if (fs.existsSync(secretPath)) {
+        return fs.readFileSync(secretPath, "utf-8").trim();
+      }
+    } catch (error) {
+      console.warn(`[aiasys-desktop] 读取 JWT secret 失败: ${error.message}`);
+    }
+
+    const secret = crypto.randomBytes(32).toString("hex");
+    try {
+      fs.mkdirSync(secretDir, { recursive: true });
+      fs.writeFileSync(secretPath, secret, "utf-8");
+      // 限制文件权限（Unix 上仅所有者可读写）
+      try {
+        fs.chmodSync(secretPath, 0o600);
+      } catch {
+        // ignore on Windows
+      }
+    } catch (error) {
+      console.warn(`[aiasys-desktop] 持久化 JWT secret 失败: ${error.message}`);
+    }
+    return secret;
   }
 
   /**
@@ -774,6 +1090,7 @@ class DesktopServiceManager {
     const fnmDataEnv = fnmDataDir ? { AIASYS_FNM_DIR: fnmDataDir } : {};
     return this._buildPythonEnv({
       AIASYS_DESKTOP_MODE: "1",
+      AIASYS_AUTH_JWT_SECRET: this._ensureJwtSecret(),
       ...bundledUvEnv,
       ...bundledFnmEnv,
       ...fnmDataEnv,
@@ -819,14 +1136,29 @@ class DesktopServiceManager {
   }
 
   async ensureBackend() {
-    this.preparePackagedRuntimeState();
+    this._emitStatus({ message: "正在准备运行环境...", step: 1, total: 5 });
+    await this.preparePackagedRuntimeState();
 
     // 构建时已按平台修复（dylib/shebang/pyvenv.cfg）。
     // 运行时：打包模式下 backendRoot 只读，需复制 .venv 到可写运行时目录并修复。
     if (this.isPackaged) {
-      await preparePackagedVenv(this.backendRoot, this.runtimeStateRoot);
+      this._emitStatus({ message: "正在准备 Python 运行环境...", step: 1, total: 5 });
+      await preparePackagedVenv(
+        this.backendRoot,
+        this.runtimeStateRoot,
+        ({ percent }) => {
+          this._emitStatus({
+            message: `正在解压 Python 运行环境... ${percent}%`,
+            step: 1,
+            total: 5,
+            percent,
+          });
+        },
+      );
       fixPyvenvHomeIfNeeded(this.runtimeStateRoot);
     }
+
+    this._emitStatus({ message: "正在初始化本地工作区...", step: 2, total: 5 });
 
     const backendResolution = await this.resolveDesiredPort({
       requestedPort: this.backendPort,
@@ -847,12 +1179,16 @@ class DesktopServiceManager {
 
     // 首次复制 .venv 后预热 Python，强制系统安全软件（Gatekeeper / Defender）完成首次扫描，
     // 避免 backend 子进程启动时被挂起或延迟。
+    this._emitStatus({ message: "正在预热 Python 运行环境...", step: 2, total: 5 });
     await prewarmVenvPython(pythonExecutable);
 
+    this._emitStatus({ message: "正在启动本地服务...", step: 3, total: 5 });
     console.log("[aiasys-desktop] 启动 backend ...");
 
     // 用于跟踪当前 backend 子进程引用，重启后更新
     let currentBackendChild = null;
+    // 每次新的 backend 等待对应一个取消令牌，连续崩溃时先取消旧等待，避免并发/过期 Promise 误报
+    let backendReadyToken = null;
 
     const child = spawnManagedProcess(
       "backend",
@@ -880,8 +1216,18 @@ class DesktopServiceManager {
           }
           currentBackendChild = newChild;
 
+          // 取消上一个等待 Promise（如果还在进行），避免多次重启产生并发或过期通知
+          if (backendReadyToken) {
+            backendReadyToken.cancel();
+          }
+          backendReadyToken = createAbortToken();
+
           // 等待 backend 健康检查通过后通知渲染进程
-          waitForUrl(backendHealthUrl, "backend", 90_000, this.managedChildren)
+          // 只关注 backend 子进程，避免 frontend 退出干扰判断
+          waitForUrl(backendHealthUrl, "backend", 90_000, [], {
+            getChildProcesses: () => [currentBackendChild],
+            signal: backendReadyToken,
+          })
             .then(() => {
               console.log("[aiasys-desktop] backend 重启后已就绪");
               if (typeof this.onBackendReady === "function") {
@@ -889,6 +1235,10 @@ class DesktopServiceManager {
               }
             })
             .catch((err) => {
+              if (err && err.message && err.message.startsWith("__CANCELLED__")) {
+                // 旧的等待被新的重启取消，属于正常流程，不通知前端
+                return;
+              }
               console.error("[aiasys-desktop] backend 重启后健康检查失败:", err);
               if (typeof this.onBackendCrash === "function") {
                 this.onBackendCrash({ exitCode: null, signal: null, error: err.message });
@@ -899,10 +1249,14 @@ class DesktopServiceManager {
     );
     currentBackendChild = child;
     this.managedChildren.push(child);
-    await waitForUrl(backendHealthUrl, "backend", 90_000, this.managedChildren);
+    await waitForUrl(backendHealthUrl, "backend", 90_000, [], {
+      getChildProcesses: () => this.managedChildren,
+    });
   }
 
   async ensureFrontend() {
+    this._emitStatus({ message: "正在启动前端界面...", step: 4, total: 5 });
+
     const frontendResolution = await this.resolveDesiredPort({
       requestedPort: this.frontendPort,
       locked: this.frontendPortLocked,
@@ -934,11 +1288,14 @@ class DesktopServiceManager {
             AIASYS_PREVIEW_PORT: String(this.frontendPort),
             AIASYS_PREVIEW_BACKEND_URL: this.backendBaseUrl,
           }),
+          autoRestart: false,
           __logFilePath: this.getLogFilePath("frontend"),
         },
       );
       this.managedChildren.push(child);
-      await waitForUrl(frontendUrl, "frontend-preview", 90_000, this.managedChildren);
+      await waitForUrl(frontendUrl, "frontend-preview", 90_000, [], {
+        getChildProcesses: () => this.managedChildren,
+      });
       return;
     }
 
@@ -955,11 +1312,16 @@ class DesktopServiceManager {
           BROWSER: "none",
           VITE_API_TARGET: this.backendBaseUrl,
         },
+        autoRestart: false,
+        // Windows 上 spawn 需要 shell 才能执行 .cmd 文件
+        shell: process.platform === "win32",
         __logFilePath: this.getLogFilePath("frontend"),
       },
     );
     this.managedChildren.push(child);
-    await waitForUrl(frontendUrl, "frontend-dev", 90_000, this.managedChildren);
+    await waitForUrl(frontendUrl, "frontend-dev", 90_000, [], {
+      getChildProcesses: () => this.managedChildren,
+    });
   }
 
   ensureBuiltRenderer() {
@@ -976,4 +1338,8 @@ class DesktopServiceManager {
 
 module.exports = {
   DesktopServiceManager,
+  // 以下导出仅用于测试
+  _readVenvManifest: readVenvManifest,
+  _extractVenvArchive: extractVenvArchive,
+  _preparePackagedVenv: preparePackagedVenv,
 };
