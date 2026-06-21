@@ -7,6 +7,8 @@ import logging
 from datetime import datetime
 from typing import Optional
 
+from app.utils.path_utils import atomic_write_text
+
 logger = logging.getLogger(__name__)
 
 
@@ -47,9 +49,9 @@ class StatusMixin:
 
             session_dir = self._get_session_dir(session_id, user_id)
             meta_path = session_dir / "metadata.json"
-            meta_path.write_text(
+            atomic_write_text(
+                meta_path,
                 json.dumps(metadata.model_dump(), indent=2, ensure_ascii=False),
-                encoding="utf-8",
             )
             return True
         except Exception as e:
@@ -84,9 +86,9 @@ class StatusMixin:
 
             session_dir = self._get_session_dir(session_id, user_id)
             meta_path = session_dir / "metadata.json"
-            meta_path.write_text(
+            atomic_write_text(
+                meta_path,
                 json.dumps(metadata.model_dump(), indent=2, ensure_ascii=False),
-                encoding="utf-8",
             )
             return True
         except Exception as e:

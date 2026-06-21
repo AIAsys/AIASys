@@ -8,11 +8,12 @@ import logging
 from typing import Any, Dict, List, Optional, Set
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel, Field, SecretStr
+from pydantic import BaseModel, Field, SecretStr, field_validator
 
 logger = logging.getLogger(__name__)
 
 from app.core.auth import get_current_user
+from app.utils.llm_url_validator import validate_llm_base_url
 from app.models.llm_provider import (
     FetchModelsResult,
     LLMModelConfig,
@@ -77,6 +78,12 @@ class CreateProviderRequest(BaseModel):
     is_default: bool = Field(default=False, description="是否为默认")
     description: Optional[str] = Field(None, description="描述")
 
+    @field_validator("base_url")
+    @classmethod
+    def validate_base_url(cls, v: str) -> str:
+        validate_llm_base_url(v)
+        return v
+
 
 class UpdateProviderRequest(BaseModel):
     """更新服务商请求"""
@@ -89,6 +96,13 @@ class UpdateProviderRequest(BaseModel):
     enabled: Optional[bool] = None
     is_default: Optional[bool] = None
     description: Optional[str] = None
+
+    @field_validator("base_url")
+    @classmethod
+    def validate_base_url(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None:
+            validate_llm_base_url(v)
+        return v
 
 
 class CreateModelRequest(BaseModel):
@@ -232,7 +246,7 @@ async def create_provider(
         return _provider_to_response(result)
     except ValueError as e:
         logger.error("Provider creation failed: %s", e, exc_info=True)
-        raise HTTPException(status_code=400, detail="Invalid provider configuration")
+        raise HTTPException(status_code=400, detail="Invalid provider configuration") from e
 
 
 @router.patch("/providers/{provider_id}", response_model=ProviderConfigResponse)
@@ -352,7 +366,7 @@ async def create_model(
         return _model_to_response(result)
     except ValueError as e:
         logger.error("Provider creation failed: %s", e, exc_info=True)
-        raise HTTPException(status_code=400, detail="Invalid provider configuration")
+        raise HTTPException(status_code=400, detail="Invalid provider configuration") from e
 
 
 @router.patch("/models/{model_id}", response_model=ModelConfigResponse)
@@ -451,7 +465,7 @@ async def update_model_defaults(
         )
     except ValueError as e:
         logger.error("Provider creation failed: %s", e, exc_info=True)
-        raise HTTPException(status_code=400, detail="Invalid provider configuration")
+        raise HTTPException(status_code=400, detail="Invalid provider configuration") from e
 
 
 # ========== 远程模型获取 API ==========
@@ -487,7 +501,7 @@ async def batch_create_models(
         }
     except ValueError as e:
         logger.error("Provider creation failed: %s", e, exc_info=True)
-        raise HTTPException(status_code=400, detail="Invalid provider configuration")
+        raise HTTPException(status_code=400, detail="Invalid provider configuration") from e
 
 
 # ========== 测试 API ==========

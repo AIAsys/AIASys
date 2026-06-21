@@ -283,27 +283,13 @@ async def import_workspace(
     current_user: UserInfo = Depends(require_auth()),
 ):
     """从 ZIP 包导入工作区。"""
-    # 最大 500MB
-    _MAX_IMPORT_SIZE = 500 * 1024 * 1024
     if not file.filename or not file.filename.endswith(".zip"):
         raise HTTPException(status_code=400, detail="请上传 ZIP 文件")
-
-    if file.size is not None and file.size > _MAX_IMPORT_SIZE:
-        raise HTTPException(
-            status_code=413,
-            detail=f"文件过大，最大允许 {_MAX_IMPORT_SIZE // (1024 * 1024)}MB",
-        )
 
     try:
         contents = await file.read()
     except Exception as exc:
         raise HTTPException(status_code=400, detail=f"读取文件失败: {exc}") from exc
-
-    if len(contents) > _MAX_IMPORT_SIZE:
-        raise HTTPException(
-            status_code=413,
-            detail=f"文件过大，最大允许 {_MAX_IMPORT_SIZE // (1024 * 1024)}MB",
-        )
 
     registry = get_workspace_registry_service()
     import_service = WorkspaceImportService(registry=registry)

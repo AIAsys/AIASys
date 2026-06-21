@@ -251,7 +251,7 @@ async def stop_stream(request: AgentStopRequest, user: UserInfo = Depends(requir
         return {"success": True}
     except Exception as e:
         logger.error(f"中断执行失败: {e}")
-        raise HTTPException(status_code=500, detail="Internal execution error")
+        raise HTTPException(status_code=500, detail="Internal execution error") from e
 
 
 @router.get("/execution/{user_id}/{session_id}/flow")
@@ -313,4 +313,4 @@ async def get_execution_flow(
         return {"history": journal_history}
     except Exception as e:
         logger.error(f"获取执行流失败: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"获取执行流失败: {e}")
+        raise HTTPException(status_code=500, detail=f"获取执行流失败: {e}") from e

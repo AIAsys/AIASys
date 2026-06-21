@@ -904,7 +904,7 @@ async def get_session_metadata(
         raise
     except Exception as e:
         logger.error(f"获取会话元数据失败: {e}")
-        raise HTTPException(status_code=500, detail="Operation failed")
+        raise HTTPException(status_code=500, detail="Operation failed") from e
 
 
 @router.get(
@@ -990,7 +990,7 @@ async def update_session_title_endpoint(
         raise
     except Exception as e:
         logger.error(f"更新会话标题失败: {e}")
-        raise HTTPException(status_code=500, detail="Operation failed")
+        raise HTTPException(status_code=500, detail="Operation failed") from e
 
 
 @router.post("/{user_id}/{session_id}/task-profile")
@@ -1040,7 +1040,7 @@ async def update_session_task_profile(
         raise
     except Exception as e:
         logger.error(f"更新会话任务配置失败: {e}")
-        raise HTTPException(status_code=500, detail="Operation failed")
+        raise HTTPException(status_code=500, detail="Operation failed") from e
 
 
 @router.get("/available-draft")
@@ -1069,7 +1069,7 @@ async def list_sessions(user_id: str, current_user: UserInfo = Depends(require_a
         return {"sessions": sessions}
     except Exception as e:
         logger.error(f"列会话失败: {e}")
-        raise HTTPException(status_code=500, detail="Operation failed")
+        raise HTTPException(status_code=500, detail="Operation failed") from e
 
 
 @router.get("/", tags=["admin"])
@@ -1101,7 +1101,7 @@ async def list_all_sessions(
         }
     except Exception as e:
         logger.error(f"列所有会话失败: {e}")
-        raise HTTPException(status_code=500, detail="Operation failed")
+        raise HTTPException(status_code=500, detail="Operation failed") from e
 
 
 @router.post("/cleanup-drafts")
@@ -1208,7 +1208,7 @@ async def cleanup_draft_sessions(
         }
     except Exception as e:
         logger.error(f"清理草稿失败: {e}")
-        raise HTTPException(status_code=500, detail="Operation failed")
+        raise HTTPException(status_code=500, detail="Operation failed") from e
 
 
 @router.post("/mark-draft-for-cleanup")
@@ -1311,4 +1311,4 @@ async def delete_session(
         raise
     except Exception as e:
         logger.error(f"删除会话失败: {e}")
-        raise HTTPException(status_code=500, detail="Operation failed")
+        raise HTTPException(status_code=500, detail="Operation failed") from e

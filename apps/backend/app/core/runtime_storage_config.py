@@ -8,6 +8,8 @@ import tempfile
 from pathlib import Path
 from typing import Any, Mapping
 
+from app.utils.path_utils import as_system_path
+
 STORAGE_SETTINGS_ENV = "AIASYS_RUNTIME_STORAGE_CONFIG_PATH"
 STORAGE_SETTINGS_RELATIVE_PATH = Path(".config") / "runtime-storage.json"
 
@@ -42,10 +44,10 @@ def _normalize_stored_path(value: Any) -> str | None:
 def read_runtime_storage_paths(config_root: Path) -> dict[str, str]:
     """读取待生效存储路径；文件不存在或损坏时返回空配置。"""
     path = get_runtime_storage_config_path(config_root)
-    if not path.exists():
+    if not Path(as_system_path(path)).exists():
         return {}
     try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
+        payload = json.loads(Path(as_system_path(path)).read_text(encoding="utf-8"))
     except (json.JSONDecodeError, OSError):
         return {}
     if not isinstance(payload, dict):
@@ -79,12 +81,12 @@ def write_runtime_storage_paths(
         "_schema_version": 1,
         "paths": normalized_paths,
     }
-    config_path.parent.mkdir(parents=True, exist_ok=True)
-    fd, temp_path = tempfile.mkstemp(dir=config_path.parent, suffix=".tmp")
+    Path(as_system_path(str(config_path.parent))).mkdir(parents=True, exist_ok=True)
+    fd, temp_path = tempfile.mkstemp(dir=as_system_path(str(config_path.parent)), suffix=".tmp")
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as handle:
             handle.write(json.dumps(payload, indent=2, ensure_ascii=False))
-        os.replace(temp_path, config_path)
+        os.replace(temp_path, as_system_path(str(config_path)))
     except Exception:
         try:
             os.unlink(temp_path)

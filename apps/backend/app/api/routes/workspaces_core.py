@@ -564,11 +564,22 @@ async def preview_import_folder(
     current_user: UserInfo = Depends(require_auth()),
 ):
     """扫描本地文件夹并返回文件树，用于导入前预览。"""
+    import tempfile
+
     source_path_str = request.source_path
     if not source_path_str:
         raise HTTPException(status_code=400, detail="缺少 source_path")
 
     source_path = Path(source_path_str).expanduser().resolve()
+    allowed_roots = {Path.home().resolve(), Path(tempfile.gettempdir()).resolve()}
+    if not any(
+        source_path == root or source_path.is_relative_to(root) for root in allowed_roots
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail="source_path 必须位于用户主目录或系统临时目录下",
+        )
+
     try:
         preview = scan_folder(source_path)
     except ValueError as exc:

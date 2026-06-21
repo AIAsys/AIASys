@@ -158,7 +158,7 @@ def _read_file_database_schema(file_path: Path) -> FileDatabaseSchemaResponse:
         raise
     except Exception as e:
         logger.error(f"获取数据库 schema 失败: {e}")
-        raise HTTPException(status_code=500, detail="获取 schema 失败")
+        raise HTTPException(status_code=500, detail="获取 schema 失败") from e
 
 
 def _query_file_database(
@@ -207,7 +207,7 @@ def _query_file_database(
         raise
     except Exception as e:
         logger.error(f"数据库查询失败: {e}")
-        raise HTTPException(status_code=400, detail="查询失败")
+        raise HTTPException(status_code=400, detail="查询失败") from e
 
 
 @router.get("/schema/{user_id}/global/{filename:path}")

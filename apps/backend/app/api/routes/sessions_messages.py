@@ -43,7 +43,7 @@ async def add_message(
         return {"success": True}
     except Exception as e:
         logger.error(f"添加消息失败: {e}")
-        raise HTTPException(status_code=500, detail="Failed to add message")
+        raise HTTPException(status_code=500, detail="Failed to add message") from e
 
 
 @router.get("/{user_id}/{session_id}/messages")
@@ -64,7 +64,7 @@ async def get_messages(
         return {"messages": filtered_history}
     except Exception as e:
         logger.error(f"获取消息失败: {e}")
-        raise HTTPException(status_code=500, detail="Failed to retrieve messages")
+        raise HTTPException(status_code=500, detail="Failed to retrieve messages") from e
 
 
 @router.get("/{user_id}/{session_id}/file-snapshots")
@@ -89,4 +89,4 @@ async def get_file_snapshots(
         return {"snapshots": snapshots}
     except Exception as e:
         logger.error(f"获取文件快照失败: {e}")
-        raise HTTPException(status_code=500, detail="Failed to retrieve file snapshots")
+        raise HTTPException(status_code=500, detail="Failed to retrieve file snapshots") from e

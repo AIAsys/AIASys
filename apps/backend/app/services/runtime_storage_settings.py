@@ -63,12 +63,12 @@ class RuntimeStorageSettingsService:
 
     def _read_migration_status(self) -> dict[str, Any]:
         path = self._migration_status_path()
-        if not path.exists():
+        if not Path(as_system_path(path)).exists():
             return self._empty_migration_status()
         try:
             import json
 
-            payload = json.loads(path.read_text(encoding="utf-8"))
+            payload = json.loads(Path(as_system_path(path)).read_text(encoding="utf-8"))
         except Exception:
             return self._empty_migration_status(status="unknown")
         if not isinstance(payload, dict):
@@ -83,14 +83,14 @@ class RuntimeStorageSettingsService:
         import tempfile
 
         path = self._migration_status_path()
-        path.parent.mkdir(parents=True, exist_ok=True)
+        Path(as_system_path(str(path.parent))).mkdir(parents=True, exist_ok=True)
         payload = dict(payload)
         payload["updated_at"] = _now_iso()
-        fd, temp_path = tempfile.mkstemp(dir=path.parent, suffix=".tmp")
+        fd, temp_path = tempfile.mkstemp(dir=as_system_path(str(path.parent)), suffix=".tmp")
         try:
             with os.fdopen(fd, "w", encoding="utf-8") as handle:
                 handle.write(json.dumps(payload, indent=2, ensure_ascii=False))
-            os.replace(temp_path, path)
+            os.replace(temp_path, as_system_path(str(path)))
         except Exception:
             try:
                 os.unlink(temp_path)
@@ -171,7 +171,8 @@ class RuntimeStorageSettingsService:
             return False
 
     def _is_empty_dir(self, path: Path) -> bool:
-        return path.is_dir() and not any(path.iterdir())
+        system_path = Path(as_system_path(str(path)))
+        return system_path.is_dir() and not any(system_path.iterdir())
 
     def preview_migration(self, paths: dict[str, str | None]) -> dict[str, Any]:
         config_paths = self._build_config_paths(paths)
@@ -373,24 +374,24 @@ class RuntimeStorageSettingsService:
     def _copy_migration_item(self, item: dict[str, Any]) -> None:
         source = Path(str(item["source_path"])).expanduser()
         target = Path(str(item["target_path"])).expanduser()
-        target.parent.mkdir(parents=True, exist_ok=True)
+        Path(as_system_path(str(target.parent))).mkdir(parents=True, exist_ok=True)
         temp_target = target.parent / f".{target.name}.aiasys-migrating-{uuid4().hex[:8]}"
-        if temp_target.exists():
+        if Path(as_system_path(str(temp_target))).exists():
             shutil.rmtree(as_system_path(str(temp_target)))
 
-        if source.exists():
+        if Path(as_system_path(str(source))).exists():
             shutil.copytree(
                 as_system_path(str(source)), as_system_path(str(temp_target)), symlinks=True
             )
         else:
-            temp_target.mkdir(parents=True, exist_ok=True)
+            Path(as_system_path(str(temp_target))).mkdir(parents=True, exist_ok=True)
 
-        if target.exists():
+        if Path(as_system_path(str(target))).exists():
             if not self._is_empty_dir(target):
                 shutil.rmtree(as_system_path(str(temp_target)))
                 raise ValueError(f"目标目录不是空目录: {target}")
-            target.rmdir()
-        os.replace(temp_target, target)
+            Path(as_system_path(str(target))).rmdir()
+        os.replace(as_system_path(str(temp_target)), as_system_path(str(target)))
 
     def get_settings(self) -> dict[str, object]:
         pending_paths = self._read_pending_paths()
@@ -460,28 +461,29 @@ class RuntimeStorageSettingsService:
             }
 
         target = Path(text).expanduser()
+        system_target = Path(as_system_path(str(target)))
         created = False
         try:
-            if target.exists() and not target.is_dir():
+            if system_target.exists() and not system_target.is_dir():
                 return {
                     "path": str(target),
                     "ok": False,
                     "exists": True,
                     "is_directory": False,
-                    "readable": os.access(target, os.R_OK),
+                    "readable": os.access(system_target, os.R_OK),
                     "writable": False,
                     "created": False,
                     "message": "路径已存在但不是目录",
                 }
 
-            if not target.exists() and create:
-                target.mkdir(parents=True, exist_ok=True)
+            if not system_target.exists() and create:
+                system_target.mkdir(parents=True, exist_ok=True)
                 created = True
 
-            exists = target.exists()
-            is_directory = target.is_dir()
-            readable = exists and os.access(target, os.R_OK)
-            writable = exists and is_directory and os.access(target, os.W_OK)
+            exists = system_target.exists()
+            is_directory = system_target.is_dir()
+            readable = exists and os.access(system_target, os.R_OK)
+            writable = exists and is_directory and os.access(system_target, os.W_OK)
             ok = exists and is_directory and readable and writable
             message = "路径可用" if ok else "路径不可读写"
             return {

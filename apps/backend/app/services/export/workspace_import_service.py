@@ -163,13 +163,18 @@ class WorkspaceImportService:
         try:
             # 恢复 workspace_files/
             prefix = "workspace_files/"
+            workspace_dir_resolved = Path(as_system_path(workspace_dir)).resolve()
             for name in zf.namelist():
                 if name.startswith(prefix) and not name.endswith("/"):
                     relative = name[len(prefix) :]
-                    target = workspace_dir / relative
+                    if relative.startswith("/") or ".." in Path(relative).parts:
+                        raise WorkspaceImportError(f"ZIP 条目包含非法路径: {name}")
+                    target = (workspace_dir / relative).resolve()
+                    if not target.is_relative_to(workspace_dir_resolved):
+                        raise WorkspaceImportError(f"ZIP 条目试图逃逸出工作区: {name}")
                     os.makedirs(as_system_path(target.parent), exist_ok=True)
-                    with zf.open(name) as src, open(target, "wb") as dst:
-                        shutil.copyfileobj(as_system_path(str(src)), as_system_path(str(dst)))
+                    with zf.open(name) as src, open(as_system_path(target), "wb") as dst:
+                        shutil.copyfileobj(src, dst)
 
             # 写 workspace.json
             meta_dir = workspace_dir / ".aiasys" / "workspace"

@@ -113,6 +113,16 @@ from app.services.claw.adapters.status_shim import (  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
+
+def _log_task_exception(task: asyncio.Task) -> None:
+    """用于 fire-and-forget 任务的 done callback：记录未捕获异常。"""
+    if task.cancelled():
+        return
+    exc = task.exception()
+    if exc is not None:
+        logger.exception("[fire-and-forget task failed] %s", exc)
+
+
 # ---------------------------------------------------------------------------
 # Regex patterns
 # ---------------------------------------------------------------------------
@@ -2759,7 +2769,9 @@ class FeishuAdapter(BasePlatformAdapter):
         prior_task = task_map.get(key)
         if prior_task and not prior_task.done():
             prior_task.cancel()
-        task_map[key] = asyncio.create_task(flush_fn(key))
+        task = asyncio.create_task(flush_fn(key))
+        task.add_done_callback(_log_task_exception)
+        task_map[key] = task
 
     async def _flush_text_batch(self, key: str) -> None:
         """Flush a pending text batch after the quiet period.
@@ -3920,8 +3932,8 @@ def _post_registration(base_url: str, body: Dict[str, str]) -> dict:
         if body_bytes:
             try:
                 return json.loads(body_bytes.decode("utf-8"))
-            except (ValueError, json.JSONDecodeError):
-                raise exc from None
+            except (ValueError, json.JSONDecodeError) as parse_exc:
+                raise exc from parse_exc
         raise
 
 

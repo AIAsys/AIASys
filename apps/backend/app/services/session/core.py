@@ -81,7 +81,7 @@ class SessionManager(StatusMixin, HistoryMixin, FileSnapshotMixin):
                     json.dump(data, f, indent=2, ensure_ascii=False)
                     f.flush()
                     os.fsync(f.fileno())
-                os.replace(temp_path, meta_path)
+                os.replace(temp_path, as_system_path(str(meta_path)))
             except Exception:
                 try:
                     os.unlink(temp_path)

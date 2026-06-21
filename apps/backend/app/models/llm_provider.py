@@ -5,6 +5,8 @@ from typing import Any, Dict, List, Literal, Optional, Set
 
 from pydantic import BaseModel, Field, SecretStr, computed_field, field_validator
 
+from app.utils.llm_url_validator import validate_llm_base_url
+
 # ==================== 基础类型定义 ====================
 
 # 接口格式导向的 ProviderType
@@ -97,6 +99,12 @@ class LLMProviderConfig(BaseModel):
     @classmethod
     def set_headers_default(cls, v: Optional[Dict[str, str]]) -> Optional[Dict[str, str]]:
         return v if v is not None else None
+
+    @field_validator("base_url")
+    @classmethod
+    def validate_base_url(cls, v: str) -> str:
+        validate_llm_base_url(v)
+        return v
 
     def to_sdk_config(self) -> Dict[str, Any]:
         """转换为运行时配置格式"""

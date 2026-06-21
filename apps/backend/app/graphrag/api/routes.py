@@ -388,9 +388,9 @@ async def upload_document(
                     "hint": "Please configure LLM provider in system settings (Settings > LLM Config)",
                 },
             )
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
     except Exception as e:
         raise HTTPException(
             status_code=500, detail=f"File upload processing failed: {str(e)}"
@@ -439,7 +439,7 @@ async def create_entity(
         )
         return EntityResponse(**result)
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 @router.post("/relations", response_model=RelationResponse, status_code=201)
@@ -458,7 +458,7 @@ async def create_relation(
         )
         return RelationResponse(**result)
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 @router.get("/entities/{name}", response_model=EntityResponse)
@@ -663,6 +663,6 @@ async def execute_graph_raw_query(
         result = await service.graph_store.execute_raw_sql(request.sql)
         return RawQueryResponse(**result)
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"查询失败: {str(e)}") from e

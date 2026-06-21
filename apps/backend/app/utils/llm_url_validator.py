@@ -6,7 +6,6 @@
 import ipaddress
 from urllib.parse import urlparse
 
-
 # 明确禁止的 hostname（不区分大小写）
 _BLOCKED_HOSTS = {
     "localhost",

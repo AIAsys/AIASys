@@ -141,7 +141,9 @@ class UpdateEnabledToolsRequest(BaseModel):
 
 
 @router.get("/external-market/sources", response_model=list[ExternalMCPMarketSource])
-async def list_external_mcp_market_sources() -> list[ExternalMCPMarketSource]:
+async def list_external_mcp_market_sources(
+    current_user: UserInfo = Depends(get_current_user),
+) -> list[ExternalMCPMarketSource]:
     """获取外部 MCP 市场源列表。"""
     service = get_external_mcp_market_service()
     return service.list_sources()
@@ -153,6 +155,7 @@ async def list_external_mcp_market_items(
     search: Optional[str] = None,
     page_number: int = 1,
     page_size: int = 20,
+    current_user: UserInfo = Depends(get_current_user),
 ) -> ExternalMCPMarketListResponse:
     """获取外部 MCP 市场条目列表。"""
     service = get_external_mcp_market_service()
@@ -171,6 +174,7 @@ async def list_external_mcp_market_items(
 async def get_external_mcp_market_item_detail(
     source_id: str,
     item_id: str,
+    current_user: UserInfo = Depends(get_current_user),
 ) -> ExternalMCPMarketDetailResponse:
     """获取外部 MCP 市场条目详情。"""
     service = get_external_mcp_market_service()

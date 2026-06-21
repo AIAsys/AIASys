@@ -19,6 +19,15 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+def _log_task_exception(task: asyncio.Task) -> None:
+    """用于 fire-and-forget 任务的 done callback：记录未捕获异常。"""
+    if task.cancelled():
+        return
+    exc = task.exception()
+    if exc is not None:
+        logger.exception("[fire-and-forget task failed] %s", exc)
+
+
 # ─── Message Deduplication ────────────────────────────────────────────────────
 
 
@@ -121,7 +130,9 @@ class TextBatchAggregator:
         prior = self._pending_tasks.get(key)
         if prior and not prior.done():
             prior.cancel()
-        self._pending_tasks[key] = asyncio.create_task(self._flush(key))
+        task = asyncio.create_task(self._flush(key))
+        task.add_done_callback(_log_task_exception)
+        self._pending_tasks[key] = task
 
     async def _flush(self, key: str) -> None:
         """Wait then dispatch the batched event for *key*."""

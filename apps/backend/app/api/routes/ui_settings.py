@@ -57,7 +57,7 @@ async def get_ui_settings(
         return UISettingsResponse(data=data)
     except Exception as e:
         logger.error(f"读取用户 UI 设置失败: {e}")
-        raise HTTPException(status_code=500, detail="Failed to read UI settings")
+        raise HTTPException(status_code=500, detail="Failed to read UI settings") from e
 
 
 @router.put("/{user_id}", response_model=UISettingsResponse)
@@ -84,4 +84,4 @@ async def save_ui_settings(
         return UISettingsResponse(data=request.data)
     except Exception as e:
         logger.error(f"保存用户 UI 设置失败: {e}")
-        raise HTTPException(status_code=500, detail="Failed to save UI settings")
+        raise HTTPException(status_code=500, detail="Failed to save UI settings") from e

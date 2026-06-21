@@ -56,7 +56,7 @@ class MemoryStateRuntime:
 
     def __init__(self, db_path: Path):
         self.db_path = Path(db_path)
-        self.db_path.parent.mkdir(parents=True, exist_ok=True)
+        Path(as_system_path(str(self.db_path.parent))).mkdir(parents=True, exist_ok=True)
         self._ensure_schema()
 
     def _connect(self) -> sqlite3.Connection:

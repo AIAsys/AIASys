@@ -244,7 +244,7 @@ class SetTodoList(AiasysTool):
                     )
                 )
             try:
-                normalized = store.write_tasks(tasks, merge=params.merge)
+                normalized = await asyncio.to_thread(store.write_tasks, tasks, merge=params.merge)
             except Exception as exc:
                 return ToolResult(content=str(exc), is_error=True)
             return ToolResult(
@@ -289,7 +289,7 @@ class EnterPlanModeTool(AiasysTool):
         store, user_id, session_id = _resolve_store(ctx)
         # 保存进入 Plan Mode 前的权限模式，以便批准后恢复
         pre_mode = str(ctx.get("authorization_mode") or "smart") if ctx else "smart"
-        plan_state = store.enter_plan_mode(pre_plan_permission_mode=pre_mode)
+        plan_state = await asyncio.to_thread(store.enter_plan_mode, pre_plan_permission_mode=pre_mode)
         return ToolResult(
             content=json.dumps(
                 {
@@ -323,7 +323,8 @@ class ExitPlanModeTool(AiasysTool):
             plan_content = f"# {params.plan_filename}\n\n{plan_content}"
 
         try:
-            record = store.write_plan_file(
+            record = await asyncio.to_thread(
+                store.write_plan_file,
                 filename=params.plan_filename,
                 title=params.plan_filename,
                 content=plan_content,
@@ -387,7 +388,7 @@ class ExitPlanModeTool(AiasysTool):
         try:
             response = await asyncio.wait_for(future, timeout=request.timeout)
             if response.approved:
-                approved_record = store.approve_plan_file(record.filename)
+                approved_record = await asyncio.to_thread(store.approve_plan_file, record.filename)
                 final_payload = {
                     "session_id": session_id,
                     "user_id": user_id,
@@ -398,7 +399,7 @@ class ExitPlanModeTool(AiasysTool):
                 }
                 yield ToolResult(content=json.dumps(final_payload, ensure_ascii=False))
             else:
-                rejected_record = store.reject_plan_file(record.filename)
+                rejected_record = await asyncio.to_thread(store.reject_plan_file, record.filename)
                 final_payload = {
                     "session_id": session_id,
                     "user_id": user_id,
@@ -411,7 +412,7 @@ class ExitPlanModeTool(AiasysTool):
                     content=json.dumps(final_payload, ensure_ascii=False), is_error=True
                 )
         except asyncio.TimeoutError:
-            store.reject_plan_file(record.filename)
+            await asyncio.to_thread(store.reject_plan_file, record.filename)
             yield ToolResult(content="等待用户审批超时，计划仍保持待调整状态。", is_error=True)
         finally:
             store_obj.remove_request(request.request_id)

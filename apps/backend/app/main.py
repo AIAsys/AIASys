@@ -42,7 +42,7 @@ from app.core.config import (
     DEBUG,
     _check_data_format_version,
 )
-from app.core.database import init_db
+from app.core.database import engine, init_db
 from app.core.logging import setup_logging
 from app.core.vendor_binaries import ensure_vendor_binaries
 from app.services.runtime_storage_settings import is_runtime_storage_migration_in_progress
@@ -77,12 +77,10 @@ async def lifespan(app: FastAPI):
         logger.error(f" {e}")
         raise
 
-    # 初始化数据库
-    try:
-        init_db()
-        logger.info(" 数据库初始化成功")
-    except Exception as e:
-        logger.error(f" 数据库初始化失败: {e}")
+    # 初始化数据库。失败属于致命错误，必须阻止 lifespan 进入 yield，
+    # 否则桌面端会误判后端已就绪，实际所有 DB 依赖 API 都会失败。
+    init_db()
+    logger.info(" 数据库初始化成功")
 
     if AUTH_CONFIG.mode == "local":
         try:
@@ -90,6 +88,7 @@ async def lifespan(app: FastAPI):
             logger.info(" 默认本地用户已就绪: %s", local_user.id)
         except Exception as e:
             logger.error(f" 默认本地用户初始化失败: {e}")
+            raise
 
     # 同步 config.toml → 用户 LLM 配置（仅在用户配置为空时执行）
     try:
@@ -392,7 +391,25 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 @app.get("/health")
 async def health_check():
-    """健康检查端点"""
+    """健康检查端点，验证数据库可连接"""
+    try:
+        from sqlalchemy import text
+
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+    except Exception as exc:
+        logger.warning("/health 数据库检查失败: %s", exc)
+        return JSONResponse(
+            status_code=503,
+            content={
+                "status": "unhealthy",
+                "app": APP_NAME,
+                "version": APP_VERSION,
+                "auth_mode": AUTH_CONFIG.mode,
+                "error": "database_unavailable",
+            },
+        )
+
     return {
         "status": "ok",
         "app": APP_NAME,

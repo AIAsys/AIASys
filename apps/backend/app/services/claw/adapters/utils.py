@@ -10,21 +10,24 @@ import tempfile
 from pathlib import Path
 from typing import Any, Union
 
+from app.utils.path_utils import as_system_path
+
 
 def _preserve_file_mode(path: Path) -> "int | None":
     """Capture the permission bits of *path* if it exists, else None."""
     try:
-        return stat.S_IMODE(path.stat().st_mode) if path.exists() else None
+        system_path = Path(as_system_path(str(path)))
+        return stat.S_IMODE(system_path.stat().st_mode) if system_path.exists() else None
     except OSError:
         return None
 
 
-def _restore_file_mode(path: Path, mode: "int | None") -> None:
+def _restore_file_mode(path: "str | Path", mode: "int | None") -> None:
     """Re-apply *mode* to *path* after an atomic replace."""
     if mode is None:
         return
     try:
-        os.chmod(path, mode)
+        os.chmod(as_system_path(str(path)), mode)
     except OSError:
         pass
 
@@ -42,12 +45,12 @@ def atomic_json_write(
     left in a partially-written state.
     """
     path = Path(path)
-    path.parent.mkdir(parents=True, exist_ok=True)
+    Path(as_system_path(str(path.parent))).mkdir(parents=True, exist_ok=True)
 
     original_mode = _preserve_file_mode(path)
 
     fd, tmp_path = tempfile.mkstemp(
-        dir=str(path.parent),
+        dir=as_system_path(str(path.parent)),
         prefix=f".{path.stem}_",
         suffix=".tmp",
     )
@@ -62,8 +65,8 @@ def atomic_json_write(
             )
             f.flush()
             os.fsync(f.fileno())
-        os.replace(tmp_path, path)
-        _restore_file_mode(path, original_mode)
+        os.replace(tmp_path, as_system_path(str(path)))
+        _restore_file_mode(as_system_path(str(path)), original_mode)
     except BaseException:
         try:
             os.unlink(tmp_path)

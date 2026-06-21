@@ -75,7 +75,7 @@ async def install_template_market_item(
     try:
         result = service.install_item(request.source_id, current_user.user_id, request.item_id)
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     return result
 
 
@@ -191,6 +191,6 @@ async def export_workspace_template(
             include_env_vars=body.include_env_vars,
         )
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     return build_template_payload(template)

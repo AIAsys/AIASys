@@ -71,4 +71,4 @@ async def compact_session(
         raise
     except Exception as e:
         logger.error("压缩对话上下文失败: %s", e)
-        raise HTTPException(status_code=500, detail="Context compaction failed")
+        raise HTTPException(status_code=500, detail="Context compaction failed") from e

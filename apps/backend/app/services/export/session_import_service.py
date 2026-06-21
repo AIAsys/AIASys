@@ -119,10 +119,10 @@ class SessionImportService:
             return self.registry._build_conversation_summary(user_id, workspace_id, conv_payload)
         except Exception as exc:
             # 清理失败的半成品
-            if session_dir.exists():
+            if Path(as_system_path(str(session_dir))).exists():
                 import shutil
 
-                shutil.rmtree(session_dir, ignore_errors=True)
+                shutil.rmtree(as_system_path(str(session_dir)), ignore_errors=True)
             raise SessionImportError(f"恢复会话失败: {exc}") from exc
 
     def _parse_payload(self, json_bytes: bytes) -> Dict[str, Any]:
