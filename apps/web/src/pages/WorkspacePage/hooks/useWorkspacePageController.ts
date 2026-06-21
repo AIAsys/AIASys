@@ -238,7 +238,11 @@ export function useWorkspacePageController({
   } = useTaskWorkspaces({
     currentSessionId: sessionId || undefined,
   });
-  currentWorkspaceIdRef.current = currentWorkspaceId;
+
+  useEffect(() => {
+    currentWorkspaceIdRef.current = currentWorkspaceId;
+  }, [currentWorkspaceId]);
+
   const sessionBelongsToCurrentWorkspace = workspaceHasSession(
     currentWorkspace,
     sessionId,

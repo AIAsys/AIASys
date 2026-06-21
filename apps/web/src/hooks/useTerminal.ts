@@ -91,19 +91,11 @@ export function useTerminal(options: UseTerminalOptions): UseTerminalReturn {
   const expiredTerminalIdRef = useRef<string | null>(null);
   // 记录初始连接模式，用于 connect 时决定是否尝试 attach
   const initialModeRef = useRef(initialMode);
-  initialModeRef.current = initialMode;
 
   // 稳定引用：userId/sessionId/externalTerminalId 变化时更新 ref
   const userIdRef = useRef(userId);
   const sessionIdRef = useRef(sessionId);
   const externalTerminalIdRef = useRef<string | undefined | null>(externalTerminalId);
-  userIdRef.current = userId;
-  sessionIdRef.current = sessionId;
-
-  // 只在 prop 实际变化时更新 externalTerminalIdRef，且如果该 terminalId 已过期则忽略
-  if (externalTerminalId !== externalTerminalIdRef.current && externalTerminalId !== expiredTerminalIdRef.current) {
-    externalTerminalIdRef.current = externalTerminalId;
-  }
 
   // ref 存储回调，避免 StrictMode 下 ws.onmessage 使用旧闭包
   const onOutputRef = useRef(onOutput);
@@ -111,11 +103,36 @@ export function useTerminal(options: UseTerminalOptions): UseTerminalReturn {
   const onExitedRef = useRef(onExited);
   const onErrorRef = useRef(onError);
   const onAttachedRef = useRef(onAttached);
-  onOutputRef.current = onOutput;
-  onSpawnedRef.current = onSpawned;
-  onExitedRef.current = onExited;
-  onErrorRef.current = onError;
-  onAttachedRef.current = onAttached;
+
+  useEffect(() => {
+    initialModeRef.current = initialMode;
+    userIdRef.current = userId;
+    sessionIdRef.current = sessionId;
+
+    // 只在 prop 实际变化时更新 externalTerminalIdRef，且如果该 terminalId 已过期则忽略
+    if (
+      externalTerminalId !== externalTerminalIdRef.current &&
+      externalTerminalId !== expiredTerminalIdRef.current
+    ) {
+      externalTerminalIdRef.current = externalTerminalId;
+    }
+
+    onOutputRef.current = onOutput;
+    onSpawnedRef.current = onSpawned;
+    onExitedRef.current = onExited;
+    onErrorRef.current = onError;
+    onAttachedRef.current = onAttached;
+  }, [
+    initialMode,
+    userId,
+    sessionId,
+    externalTerminalId,
+    onOutput,
+    onSpawned,
+    onExited,
+    onError,
+    onAttached,
+  ]);
 
   // 同步 terminalIdRef
   useEffect(() => {
@@ -314,11 +331,20 @@ export function useTerminal(options: UseTerminalOptions): UseTerminalReturn {
     ws.onerror = () => {
       // 忽略来自旧 socket 的回调
       if (ws !== wsRef.current) return;
-      setState((prev) => ({
-        ...prev,
-        status: "error",
-        error: "WebSocket 连接失败",
-      }));
+
+      // 主动关闭时不自动重连
+      if (manualCloseRef.current) {
+        setState((prev) => ({
+          ...prev,
+          status: "error",
+          error: "WebSocket 连接失败",
+        }));
+        return;
+      }
+
+      // 意外错误：标记 disconnected 并交由指数退避重连
+      setState((prev) => ({ ...prev, status: "disconnected" }));
+      scheduleReconnect();
     };
   }, []);
 

@@ -12,6 +12,15 @@ import { API_ENDPOINTS } from "@/config/api";
 import { apiFetch } from "@/lib/api/httpClient";
 import type { AgentExecuteRequest, AgentEvent } from "@/types/api";
 
+/** 计算 SSE 重连延迟：指数退避 + 抖动，最大 30 秒 */
+function getReconnectDelay(attempt: number): number {
+  const base = 1000;
+  const maxDelay = 30000;
+  const exponential = base * 2 ** attempt;
+  const jitter = Math.random() * 1000;
+  return Math.min(exponential + jitter, maxDelay);
+}
+
 export interface AgentStreamState {
   isConnected: boolean;
   isRunning: boolean;
@@ -292,7 +301,7 @@ export function useAgentStream(): UseAgentStreamResult {
         // user_id 不传，后端会从当前本地用户上下文解析真实身份
       };
 
-      const MAX_RECONNECT = 2;
+      const MAX_RECONNECT = 5;
 
       for (let attempt = 0; attempt <= MAX_RECONNECT; attempt++) {
         const controller = new AbortController();
@@ -480,7 +489,9 @@ export function useAgentStream(): UseAgentStreamResult {
                 error: undefined,
               };
               syncIfActive(sessionId, entry.state);
-              await new Promise((resolve) => setTimeout(resolve, 3000));
+              await new Promise((resolve) =>
+                setTimeout(resolve, getReconnectDelay(attempt)),
+              );
               if (entry.requestId !== requestId || entry.userAborted) return;
               // 重连前清理上一轮残留的流式数据，避免后端重放导致内容重复
               callbacks?.onReconnect?.();
@@ -534,7 +545,9 @@ export function useAgentStream(): UseAgentStreamResult {
               error: undefined,
             };
             syncIfActive(sessionId, entry.state);
-            await new Promise((resolve) => setTimeout(resolve, 3000));
+            await new Promise((resolve) =>
+              setTimeout(resolve, getReconnectDelay(attempt)),
+            );
             if (entry.requestId !== requestId || entry.userAborted) return;
             // 重连前清理上一轮残留的流式数据，避免后端重放导致内容重复
             callbacks?.onReconnect?.();

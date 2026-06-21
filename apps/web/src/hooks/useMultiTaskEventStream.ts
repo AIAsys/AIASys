@@ -67,9 +67,12 @@ export function useMultiTaskEventStream(): UseMultiTaskEventStreamReturn {
   }, []);
 
   const stateRef = useRef(state);
-  stateRef.current = state;
   const workspaceFilesRef = useRef(workspaceFiles);
-  workspaceFilesRef.current = workspaceFiles;
+
+  useEffect(() => {
+    stateRef.current = state;
+    workspaceFilesRef.current = workspaceFiles;
+  }, [state, workspaceFiles]);
 
   const switchSession = useCallback(
     (fromId: string, toId: string) => {

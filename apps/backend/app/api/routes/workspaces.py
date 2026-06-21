@@ -16,13 +16,13 @@ from pydantic import BaseModel
 
 from app.core.auth import require_auth
 from app.models.user import UserInfo
-from app.utils.file_utils import sanitize_content_disposition_filename
 from app.services.export import (
     WorkspaceExportService,
     WorkspaceImportError,
     WorkspaceImportService,
 )
 from app.services.workspace_registry import get_workspace_registry_service
+from app.utils.file_utils import sanitize_content_disposition_filename
 
 logger = logging.getLogger(__name__)
 
@@ -271,7 +271,9 @@ async def export_workspace(
     return StreamingResponse(
         zip_buffer,
         media_type="application/zip",
-        headers={"Content-Disposition": f'attachment; filename="{sanitize_content_disposition_filename(filename)}"'},
+        headers={
+            "Content-Disposition": f'attachment; filename="{sanitize_content_disposition_filename(filename)}"'
+        },
     )
 
 
@@ -281,13 +283,27 @@ async def import_workspace(
     current_user: UserInfo = Depends(require_auth()),
 ):
     """从 ZIP 包导入工作区。"""
+    # 最大 500MB
+    _MAX_IMPORT_SIZE = 500 * 1024 * 1024
     if not file.filename or not file.filename.endswith(".zip"):
         raise HTTPException(status_code=400, detail="请上传 ZIP 文件")
+
+    if file.size is not None and file.size > _MAX_IMPORT_SIZE:
+        raise HTTPException(
+            status_code=413,
+            detail=f"文件过大，最大允许 {_MAX_IMPORT_SIZE // (1024 * 1024)}MB",
+        )
 
     try:
         contents = await file.read()
     except Exception as exc:
         raise HTTPException(status_code=400, detail=f"读取文件失败: {exc}") from exc
+
+    if len(contents) > _MAX_IMPORT_SIZE:
+        raise HTTPException(
+            status_code=413,
+            detail=f"文件过大，最大允许 {_MAX_IMPORT_SIZE // (1024 * 1024)}MB",
+        )
 
     registry = get_workspace_registry_service()
     import_service = WorkspaceImportService(registry=registry)

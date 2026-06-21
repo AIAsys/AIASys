@@ -130,11 +130,6 @@ export interface TurnBeginEvent extends SSEEvent {
   turn_n: number;
 }
 
-export interface ThinkEvent extends SSEEvent {
-  type: "think";
-  content: string;
-}
-
 /** Monitor 后台命令输出事件 */
 export interface MonitorOutputEvent extends SSEEvent {
   type: "monitor.output";

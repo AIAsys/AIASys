@@ -312,5 +312,5 @@ async def get_execution_flow(
         journal_history.sort(key=lambda x: x.get("timestamp", ""))
         return {"history": journal_history}
     except Exception as e:
-        logger.error(f"获取执行流失败: {e}")
-        return {"history": [], "error": str(e)}
+        logger.error(f"获取执行流失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"获取执行流失败: {e}")

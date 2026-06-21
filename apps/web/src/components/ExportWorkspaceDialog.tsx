@@ -102,7 +102,9 @@ export function ExportWorkspaceDialog({
   const [isPreviewLoading, setIsPreviewLoading] = useState(false);
 
   const workspaceTitleRef = useRef(workspaceTitle);
-  workspaceTitleRef.current = workspaceTitle;
+  useEffect(() => {
+    workspaceTitleRef.current = workspaceTitle;
+  }, [workspaceTitle]);
 
   // 打开弹窗时加载文件列表和 .exportignore
   useEffect(() => {

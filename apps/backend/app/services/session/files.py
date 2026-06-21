@@ -7,7 +7,7 @@ import logging
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from app.utils.file_utils import compare_files, scan_directory
+from app.utils.file_utils import _sync_scan_directory, compare_files
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +34,7 @@ class FileSnapshotMixin:
             return {"tool": tool_name, "files": []}
 
         try:
-            files_after = scan_directory(workspace_dir)
+            files_after = _sync_scan_directory(workspace_dir)
 
             if files_before is not None:
                 file_changes = compare_files(files_before, files_after)

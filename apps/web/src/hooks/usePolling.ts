@@ -20,7 +20,9 @@ export function usePolling(
 ): void {
   // 用 ref 持有最新 callback，避免 interval 因 callback 变化而重建
   const callbackRef = useRef(callback);
-  callbackRef.current = callback;
+  useEffect(() => {
+    callbackRef.current = callback;
+  }, [callback]);
 
   // 标记是否有请求正在进行，防止重叠
   const inFlightRef = useRef(false);

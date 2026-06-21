@@ -48,6 +48,14 @@ class LLMConfigService:
         }
 
         result = self._storage.create_provider(user_id, data)
+        logger.info(
+            "创建 LLM 服务商: user_id=%s provider_id=%s type=%s name=%s has_api_key=%s",
+            user_id,
+            config.id,
+            config.type,
+            config.name,
+            bool(data.get("api_key")),
+        )
         return self._dict_to_provider_config(result)
 
     def get_provider(self, user_id: str, provider_id: str) -> Optional[LLMProviderConfig]:
@@ -88,11 +96,20 @@ class LLMConfigService:
         if not result:
             return None
 
+        logger.info(
+            "更新 LLM 服务商: user_id=%s provider_id=%s fields=%s",
+            user_id,
+            provider_id,
+            sorted([k for k in updates.keys() if k != "api_key"]),
+        )
         return self._dict_to_provider_config(result)
 
     def delete_provider(self, user_id: str, provider_id: str) -> bool:
         """删除服务商配置（会级联删除关联的模型）"""
-        return self._storage.delete_provider(user_id, provider_id)
+        deleted = self._storage.delete_provider(user_id, provider_id)
+        if deleted:
+            logger.info("删除 LLM 服务商: user_id=%s provider_id=%s", user_id, provider_id)
+        return deleted
 
     # ========== Model 操作 ==========
 
@@ -123,6 +140,13 @@ class LLMConfigService:
             self._storage.unset_default_models(user_id, exclude_model_id=config.id)
 
         result = self._storage.create_model(user_id, data)
+        logger.info(
+            "创建 LLM 模型: user_id=%s model_id=%s provider=%s model_type=%s",
+            user_id,
+            config.id,
+            config.provider,
+            config.model_type,
+        )
         if config.is_default:
             self.update_model_defaults(
                 user_id,
@@ -158,6 +182,12 @@ class LLMConfigService:
         if not result:
             return None
 
+        logger.info(
+            "更新 LLM 模型: user_id=%s model_id=%s fields=%s",
+            user_id,
+            model_id,
+            sorted(updates.keys()),
+        )
         result_model = self._dict_to_model_config(result)
         if updates.get("is_default"):
             self.update_model_defaults(
@@ -173,7 +203,10 @@ class LLMConfigService:
 
     def delete_model(self, user_id: str, model_id: str) -> bool:
         """删除模型配置"""
-        return self._storage.delete_model(user_id, model_id)
+        deleted = self._storage.delete_model(user_id, model_id)
+        if deleted:
+            logger.info("删除 LLM 模型: user_id=%s model_id=%s", user_id, model_id)
+        return deleted
 
     def set_default_model(self, user_id: str, model_id: str) -> Optional[LLMModelConfig]:
         """设置默认模型，取消其他模型的默认状态"""

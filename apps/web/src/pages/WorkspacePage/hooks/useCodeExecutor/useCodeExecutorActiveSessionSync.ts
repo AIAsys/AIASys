@@ -43,10 +43,10 @@ export function useCodeExecutorActiveSessionSync({
   chatActiveSessionIdRef,
 }: UseCodeExecutorActiveSessionSyncProps) {
   const activeSessionIdRef = useRef<string>(sessionId || "");
-  activeSessionIdRef.current = sessionId || "";
 
   useEffect(() => {
     const currentSessionId = sessionId || "";
+    activeSessionIdRef.current = currentSessionId;
     setChatActiveSessionId(currentSessionId);
     setMultiTaskActiveSessionId(currentSessionId);
     setUploadActiveSessionId(currentSessionId);

@@ -19,6 +19,11 @@ if str(BACKEND_ROOT) not in sys.path:
 for _key in ("HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "all_proxy"):
     os.environ.pop(_key, None)
 
+# 测试用 JWT secret：避免测试依赖仓库中的真实/占位密钥
+os.environ.setdefault(
+    "AIASYS_AUTH_JWT_SECRET", "test-jwt-secret-do-not-use-in-production"
+)
+
 
 def _is_safe_test_database_url(database_url: str) -> bool:
     """只允许 pytest 使用内存库或系统临时目录下的临时 SQLite（跨平台兼容）。"""

@@ -52,7 +52,11 @@ class AuthConfig(BaseModel):
     )
 
     # CORS 配置
-    cors_origins: List[str] = Field(default_factory=lambda: ["*"], description="允许的跨域来源")
+    # 默认不再使用 "*"，避免与 allow_credentials=true 组合形成安全漏洞
+    cors_origins: List[str] = Field(
+        default_factory=lambda: ["http://localhost:13000", "http://127.0.0.1:13000"],
+        description="允许的跨域来源",
+    )
     cors_allow_credentials: bool = Field(default=True, description="允许跨域凭证")
 
     # 安全 Headers

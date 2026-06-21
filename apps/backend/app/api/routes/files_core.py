@@ -14,12 +14,12 @@ from fastapi.responses import FileResponse, StreamingResponse
 
 from app.core.auth import require_auth, require_role
 from app.models.user import UserInfo
-from app.utils.file_utils import sanitize_content_disposition_filename
 from app.services.export import (
     MarkdownExportDependencyError,
     MarkdownExportError,
     export_markdown_file,
 )
+from app.utils.file_utils import sanitize_content_disposition_filename
 from app.utils.path_utils import as_system_path
 
 from .files_utils import (
@@ -125,7 +125,7 @@ async def upload_file(
     except PermissionError:
         raise HTTPException(status_code=403, detail="Operation failed")
     except Exception as e:
-        logger.error(f"上传失败: {e}")
+        logger.error(f"上传失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Operation failed")
 
 
@@ -246,7 +246,9 @@ async def download_file(
             return FileResponse(
                 file_path,
                 media_type=media_type,
-                headers={"Content-Disposition": f'inline; filename="{sanitize_content_disposition_filename(file_path.name)}"'},
+                headers={
+                    "Content-Disposition": f'inline; filename="{sanitize_content_disposition_filename(file_path.name)}"'
+                },
             )
 
         return FileResponse(
@@ -259,7 +261,7 @@ async def download_file(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"下载失败: {e}")
+        logger.error(f"下载失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Operation failed")
 
 
@@ -316,7 +318,7 @@ async def delete_file(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"删除失败: {e}")
+        logger.error(f"删除失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Operation failed")
 
 
@@ -376,13 +378,15 @@ async def export_workspace(
         return StreamingResponse(
             _zip_chunks(zip_buffer),
             media_type="application/zip",
-            headers={"Content-Disposition": f'attachment; filename="{sanitize_content_disposition_filename(download_filename)}"'},
+            headers={
+                "Content-Disposition": f'attachment; filename="{sanitize_content_disposition_filename(download_filename)}"'
+            },
         )
 
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"导出失败: {e}")
+        logger.error(f"导出失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Operation failed")
 
 
@@ -439,7 +443,9 @@ async def export_markdown_document(
         return StreamingResponse(
             io.BytesIO(artifact.content),
             media_type=artifact.media_type,
-            headers={"Content-Disposition": f'attachment; filename="{sanitize_content_disposition_filename(artifact.filename)}"'},
+            headers={
+                "Content-Disposition": f'attachment; filename="{sanitize_content_disposition_filename(artifact.filename)}"'
+            },
         )
 
     except HTTPException:
@@ -451,7 +457,7 @@ async def export_markdown_document(
         logger.error("Markdown 导出失败: %s", e)
         raise HTTPException(status_code=500, detail="Operation failed")
     except Exception as e:
-        logger.error(f"Markdown 导出失败: {e}")
+        logger.error(f"Markdown 导出失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Operation failed")
 
 
@@ -502,7 +508,7 @@ async def get_file_content(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"读取文件内容失败: {e}")
+        logger.error(f"读取文件内容失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to read file")
 
 
@@ -666,7 +672,7 @@ async def update_file_content(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"更新文件内容失败: {e}")
+        logger.error(f"更新文件内容失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to save file")
 
 
@@ -850,5 +856,5 @@ async def list_all_files(
         }
 
     except Exception as e:
-        logger.error(f"列所有文件失败: {e}")
+        logger.error(f"列所有文件失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Operation failed")

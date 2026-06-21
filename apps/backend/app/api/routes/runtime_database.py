@@ -276,7 +276,7 @@ async def query_runtime_database(
     current_user: UserInfo = Depends(require_auth()),
 ):
     try:
-        return _broker_query(
+        return await _broker_query(
             user_id=current_user.user_id,
             session_id=payload.session_id,
             handle=payload.handle,

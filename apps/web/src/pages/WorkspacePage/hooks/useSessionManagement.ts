@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { API_ENDPOINTS, getCurrentUserId } from "@/config/api";
 
 import { ApiRequestError, apiRequest } from "@/lib/api/httpClient";
@@ -38,7 +38,9 @@ export function useSessionManagement({
   const hasLoadedHistoryRef = useRef(false);
   const isLoadingRef = useRef(false);
   const conversationsRef = useRef<Conversation[]>([]);
-  conversationsRef.current = conversations;
+  useEffect(() => {
+    conversationsRef.current = conversations;
+  }, [conversations]);
   const lastUpdatedTitleRef = useRef<Map<string, string>>(new Map());
 
   const loadConversations = useCallback(async () => {
@@ -94,7 +96,7 @@ export function useSessionManagement({
             auto_task_id: session.auto_task_id,
           }),
         );
-        
+
         const nextSessions = filterVisibleConversations(mappedSessions);
         setConversations((previousSessions) =>
           sessionsEqual(previousSessions, nextSessions)

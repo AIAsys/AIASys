@@ -37,6 +37,7 @@ def test_apply_secret_env_overrides_replaces_sensitive_values(monkeypatch):
 
 def test_apply_secret_env_overrides_leaves_unset_values_unchanged(monkeypatch):
     monkeypatch.delenv("AIASYS_LLM_PROVIDER_KIMI_API_KEY", raising=False)
+    monkeypatch.delenv("AIASYS_AUTH_JWT_SECRET", raising=False)
 
     config = {
         "llm": {"providers": {"kimi": {"api_key": "config-kimi"}}},

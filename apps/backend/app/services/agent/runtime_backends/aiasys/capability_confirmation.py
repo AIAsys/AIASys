@@ -71,6 +71,8 @@ class CapabilityConfirmationManager:
         # 按 pattern_key 记忆（如 "shell_command" / "global_write"），非工具名
         self._session_auto_approved: set[str] = set()
         self._lock = asyncio.Lock()
+        # resolve() / cancel_all() / list_pending() 等同步方法在 asyncio 单线程模型中
+        # 原子执行，无需额外锁。仅 wait_for_confirmation() 因包含 await 点需要 _lock 保护。
 
     # ------------------------------------------------------------------
     # 自动批准

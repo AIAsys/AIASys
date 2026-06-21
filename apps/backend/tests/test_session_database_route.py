@@ -60,6 +60,9 @@ class _FakeBroker:
             "applied_limit": kwargs.get("limit"),
         }
 
+    async def query_async(self, **kwargs):
+        return self.query(**kwargs)
+
     async def execute(self, **kwargs):
         self.execute_calls.append(kwargs)
         return {
@@ -76,17 +79,17 @@ class _FakeBroker:
 
 
 class _GrantDeniedBroker(_FakeBroker):
-    def query(self, **kwargs):
+    async def query_async(self, **kwargs):
         raise DatabaseConnectorGrantDeniedError("当前会话未获授权执行动作: data_read")
 
 
 class _AttachmentMissingBroker(_FakeBroker):
-    def query(self, **kwargs):
+    async def query_async(self, **kwargs):
         raise DatabaseConnectorAttachmentMissingError("会话未挂载该数据库连接器")
 
 
 class _InvalidHandleBroker(_FakeBroker):
-    def query(self, **kwargs):
+    async def query_async(self, **kwargs):
         raise ValueError("数据库连接器句柄缺少 connector_id")
 
 

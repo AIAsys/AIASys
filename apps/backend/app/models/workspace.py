@@ -150,7 +150,7 @@ class FolderImportPreviewResponse(BaseModel):
 
 
 class FolderImportPreviewRequest(BaseModel):
-    source_path: str = Field(..., min_length=1, description="源文件夹绝对路径")
+    source_path: str = Field(description="源文件夹绝对路径")
 
 
 class FolderImportProgressEvent(BaseModel):

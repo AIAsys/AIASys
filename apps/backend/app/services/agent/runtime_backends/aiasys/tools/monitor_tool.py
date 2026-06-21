@@ -100,6 +100,7 @@ class MonitorSession:
     process: asyncio.subprocess.Process | None = None
     stdout_f: Any | None = None
     stderr_f: Any | None = None
+    wait_task: asyncio.Task | None = None
     mode: str = "notify"  # notify | silent
 
     def read_new_output(self) -> str:
@@ -159,6 +160,14 @@ class MonitorService:
         self._monitors: dict[str, MonitorSession] = {}
         self._queues: dict[str, asyncio.Queue[dict[str, Any]]] = {}
         self._lock = asyncio.Lock()
+
+    @staticmethod
+    def _cancel_wait_task(session: MonitorSession) -> None:
+        """取消 monitor 的 wait_task，避免 kill/cleanup 后遗留后台 asyncio Task。"""
+        task = session.wait_task
+        if task is not None and not task.done():
+            task.cancel()
+        session.wait_task = None
 
     # ---- 持久化辅助方法 ----------------------------------------------------
 
@@ -366,6 +375,7 @@ class MonitorService:
             name=f"monitor-wait-{monitor_id}",
         )
         _wait_task.add_done_callback(_log_task_exception)
+        session.wait_task = _wait_task
 
         logger.info(
             "Monitor 启动: id=%s session_key=%s command=%r",
@@ -441,6 +451,7 @@ class MonitorService:
                 session.status,
                 session.exit_code,
             )
+            session.wait_task = None
 
     # ---- 按需读取 segments ----------------------------------------------------
 
@@ -679,6 +690,7 @@ class MonitorService:
         session.status = "killed"
         session.exit_code = -1
         session.completed_at = time.time()
+        self._cancel_wait_task(session)
         self._sync_segments_from_logs(session, is_ended=True)
         self._write_meta(session)
         self._emit(session.session_key, self._build_event(session))
@@ -745,6 +757,7 @@ class MonitorService:
                         await executor.kill_process_tree(session.process)
                     except Exception:
                         pass
+                self._cancel_wait_task(session)
                 self._sync_segments_from_logs(session, is_ended=True)
                 session.completed_at = time.time()
                 self._write_meta(session)
@@ -773,6 +786,7 @@ class MonitorService:
                     await executor.kill_process_tree(session.process)
                 except Exception:
                     pass
+            self._cancel_wait_task(session)
             self._sync_segments_from_logs(session, is_ended=True)
             session.completed_at = time.time()
             self._write_meta(session)
@@ -796,6 +810,7 @@ class MonitorService:
                     await executor.kill_process_tree(session.process)
                 except Exception:
                     pass
+            self._cancel_wait_task(session)
             # 清理文件
             if session.session_root is not None:
                 for suffix in (

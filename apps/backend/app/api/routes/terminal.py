@@ -82,6 +82,24 @@ async def terminal_websocket(
     active_terminals: dict[str, Any] = {}
     # 是否已断开
     disconnected = False
+    heartbeat_task: asyncio.Task | None = None
+
+    async def _heartbeat_loop() -> None:
+        """每 15 秒发送一次 ping，用于探测连接是否仍存活。"""
+        try:
+            while True:
+                await asyncio.sleep(15)
+                if disconnected:
+                    return
+                try:
+                    await websocket.send_json({"type": "ping"})
+                except Exception:
+                    return
+        except asyncio.CancelledError:
+            return
+
+    heartbeat_task = asyncio.create_task(_heartbeat_loop())
+    heartbeat_task.add_done_callback(_log_task_exception)
 
     def make_exit_handler(tid: str):
         def handler(exit_code: int) -> None:
@@ -152,6 +170,8 @@ async def terminal_websocket(
         """清理此连接：flush 剩余输出，取消回调绑定"""
         nonlocal disconnected
         disconnected = True
+        if heartbeat_task is not None:
+            heartbeat_task.cancel()
         # flush 所有剩余缓冲区
         for tid in list(_output_buffers.keys()):
             await _flush_output_buffer(tid)
@@ -290,6 +310,13 @@ async def terminal_websocket(
                             "pid": session.pid,
                         }
                     )
+
+            elif msg_type == "ping":
+                await websocket.send_json({"type": "pong"})
+
+            elif msg_type == "pong":
+                # 客户端心跳回应，无需处理
+                pass
 
             elif msg_type == "reduce_grace_time":
                 # no-op：不做超时清理，PTY 进程持续存活直到显式 kill 或后端关闭

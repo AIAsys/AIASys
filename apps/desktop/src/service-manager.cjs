@@ -80,6 +80,54 @@ function removeMacVenvQuarantine(writableVenv) {
 }
 
 /**
+ * 预热复制的 .venv 中的 Python 解释器。
+ *
+ * 首次启动时，从 app bundle 复制到用户目录的 Python 二进制会触发系统安全软件
+ *（macOS Gatekeeper、Windows Defender / AMSI）的首次扫描。直接在后台服务启动时
+ * 才第一次执行 Python，可能导致子进程被挂起或扫描耗时过长，进而出现白屏。
+ * 此处先执行一次轻量命令，强制完成扫描，同时验证解释器可用。
+ */
+function prewarmVenvPython(pythonExecutable) {
+  return new Promise((resolve) => {
+    if (!pythonExecutable || !fs.existsSync(pythonExecutable)) {
+      return resolve();
+    }
+    console.log(`[aiasys-desktop] 正在预热 Python 解释器: ${pythonExecutable}`);
+    const start = Date.now();
+    const child = spawn(pythonExecutable, ["-c", "import sys; print(sys.version)"], {
+      stdio: "ignore",
+      windowsHide: process.platform === "win32",
+      detached: true,
+    });
+    child.once("error", (error) => {
+      console.warn(`[aiasys-desktop] Python 预热失败: ${error.message}`);
+      resolve();
+    });
+    child.once("exit", (code) => {
+      if (code === 0) {
+        console.log(
+          `[aiasys-desktop] Python 预热完成，耗时 ${Date.now() - start}ms`,
+        );
+      } else {
+        console.warn(
+          `[aiasys-desktop] Python 预热退出码: ${code}，耗时 ${Date.now() - start}ms`,
+        );
+      }
+      resolve();
+    });
+    // 最多等待 30 秒；安全软件首次扫描可能较长
+    setTimeout(() => {
+      try {
+        child.kill();
+      } catch {
+        // ignore
+      }
+      resolve();
+    }, 30_000);
+  });
+}
+
+/**
  * 将 AppImage 只读目录中的 .venv 复制到可写运行时目录，
  * 然后修复 pyvenv.cfg 和符号链接。
  */
@@ -796,6 +844,11 @@ class DesktopServiceManager {
     }
 
     const pythonExecutable = resolvePythonExecutable(this._getVenvRoot());
+
+    // 首次复制 .venv 后预热 Python，强制系统安全软件（Gatekeeper / Defender）完成首次扫描，
+    // 避免 backend 子进程启动时被挂起或延迟。
+    await prewarmVenvPython(pythonExecutable);
+
     console.log("[aiasys-desktop] 启动 backend ...");
 
     // 用于跟踪当前 backend 子进程引用，重启后更新

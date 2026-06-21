@@ -83,8 +83,10 @@ export function useAskUser(options: UseAskUserOptions = {}) {
   const activeSessionIdRef = useRef<string>("");
   const currentRequestSessionIdRef = useRef<string>("");
 
-  responseCallbackRef.current = options.onResponse;
-  currentRequestRef.current = currentRequest;
+  useEffect(() => {
+    responseCallbackRef.current = options.onResponse;
+    currentRequestRef.current = currentRequest;
+  }, [options.onResponse, currentRequest]);
 
   const getQueue = useCallback((sessionId: string): AskUserRequest[] => {
     return requestQueueMapRef.current.get(sessionId) || [];

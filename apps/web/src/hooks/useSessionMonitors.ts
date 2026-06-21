@@ -49,7 +49,9 @@ export function useSessionMonitors(
   // 防止轮询周期重叠：上一轮 loadList + pollSegments 还在运行时跳过本轮
   const isPollingRef = useRef(false);
   const monitorsRef = useRef(monitors);
-  monitorsRef.current = monitors;
+  useEffect(() => {
+    monitorsRef.current = monitors;
+  }, [monitors]);
 
   // 页面不可见时暂停轮询，恢复可见时立即追赶
   const isVisible = useDocumentVisibility();

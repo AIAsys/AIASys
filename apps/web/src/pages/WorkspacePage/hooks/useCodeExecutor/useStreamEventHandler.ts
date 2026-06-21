@@ -62,15 +62,24 @@ export function useStreamEventHandler({
 }: UseStreamEventHandlerProps) {
   // 用 ref 持有频繁变化的外部回调，避免 handleStreamEvent 每帧重建
   const onAskUserRequestRef = useRef(onAskUserRequest);
-  onAskUserRequestRef.current = onAskUserRequest;
   const onSubAgentEventRef = useRef(onSubAgentEvent);
-  onSubAgentEventRef.current = onSubAgentEvent;
   const onCompactionEventRef = useRef(onCompactionEvent);
-  onCompactionEventRef.current = onCompactionEvent;
   const onTokenUsageShouldRefreshRef = useRef(onTokenUsageShouldRefresh);
-  onTokenUsageShouldRefreshRef.current = onTokenUsageShouldRefresh;
   const isSessionRunningRef = useRef(isSessionRunning);
-  isSessionRunningRef.current = isSessionRunning;
+
+  useEffect(() => {
+    onAskUserRequestRef.current = onAskUserRequest;
+    onSubAgentEventRef.current = onSubAgentEvent;
+    onCompactionEventRef.current = onCompactionEvent;
+    onTokenUsageShouldRefreshRef.current = onTokenUsageShouldRefresh;
+    isSessionRunningRef.current = isSessionRunning;
+  }, [
+    onAskUserRequest,
+    onSubAgentEvent,
+    onCompactionEvent,
+    onTokenUsageShouldRefresh,
+    isSessionRunning,
+  ]);
 
   // 流式过程中不排序，保持后端到达的原始时序
   // 历史恢复时排序由 AiMessageContent 和 sessionManagementHistory 各自处理
@@ -256,7 +265,7 @@ export function useStreamEventHandler({
           slot.taskEventsMap[hostTaskId] = [];
         slot.taskEventsMap[hostTaskId].push(toolCallEvent);
         addStreamEventsForSession(sessionId, hostTaskId, [toolCallEvent], "当前会话");
-        
+
         // 发送代码执行事件到执行记录
         eventBus.emit(EVENTS.CODE_EXECUTION_EVENT, {
           type: "tool_call",
@@ -309,7 +318,7 @@ export function useStreamEventHandler({
           slot.taskEventsMap[hostTaskId] = [];
         slot.taskEventsMap[hostTaskId].push(toolResultEvent);
         addStreamEventsForSession(sessionId, hostTaskId, [toolResultEvent], "当前会话");
-        
+
         // 发送代码执行结果事件到执行记录
         eventBus.emit(EVENTS.CODE_EXECUTION_EVENT, {
           type: "tool_result",
@@ -327,10 +336,10 @@ export function useStreamEventHandler({
     if (eventType === "subagent_event") {
       // 通知外部有 Sub Agent 事件（用于刷新执行树）
       onSubAgentEventRef.current?.(event);
-      
+
       // 通过事件总线通知执行树刷新
       eventBus.emit(EVENTS.SUBAGENT_EVENT, event);
-      
+
       const payload = event.payload;
       const taskId = event.task_tool_call_id;
       const subagentName = event.subagent_name || "专家";
@@ -372,7 +381,7 @@ export function useStreamEventHandler({
           slot.taskEventsMap[taskId] = [];
         slot.taskEventsMap[taskId].push(taskEvent);
         addStreamEventsForSession(sessionId, taskId, [taskEvent], subagentName);
-        
+
         // 发送代码执行事件到执行记录
         eventBus.emit(EVENTS.CODE_EXECUTION_EVENT, {
           type: "subagent_event",

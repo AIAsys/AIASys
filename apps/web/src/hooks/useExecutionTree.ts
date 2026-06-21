@@ -565,14 +565,14 @@ export function useExecutionTree(
   const onCodeExecutionEvent = useCallback((event: unknown) => {
     if (!loadCodeExecutionRecords || !event || typeof event !== "object" || event === null) return;
     const e = event as Record<string, unknown>;
-    
+
     const eventType = e.type as string | undefined;
-    
+
     // 处理 Host 或 SubAgent 的代码执行事件
     if (eventType === "subagent_event" || eventType === "tool_call" || eventType === "tool_result") {
       const payload = (e.payload as Record<string, unknown>) || e;
       const payloadType = payload.type as string | undefined;
-      
+
       // 工具调用开始 - 创建执行记录
       if (payloadType === "subagent_tool_call" || eventType === "tool_call") {
         const args = (payload.arguments || payload.tool_params || {}) as Record<string, unknown>;
@@ -604,13 +604,13 @@ export function useExecutionTree(
           return next;
         });
       }
-      
+
       // 工具调用结果 - 更新执行记录
       if (payloadType === "subagent_tool_result" || eventType === "tool_result") {
         const toolCallId = payload.tool_call_id as string | undefined;
         const content = (payload.content as string) || "";
         const isError = (payload.is_error as boolean) || false;
-        
+
         setCodeExecutionRecords((prev) => {
           if (!toolCallId || !prev.some((record) => record.record_id === toolCallId)) {
             return prev;
@@ -669,7 +669,9 @@ export function useExecutionTree(
 
   // 定时刷新（当 Host 正在运行时）
   // 使用 ref 避免 executionTree 变化导致频繁重建定时器
-  executionTreeRef.current = executionTree;
+  useEffect(() => {
+    executionTreeRef.current = executionTree;
+  }, [executionTree]);
 
   useEffect(() => {
     if (!enabled || !userId || !sessionId || !isVisible) return;

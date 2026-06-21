@@ -231,7 +231,7 @@ async def create_provider(
         result = service.create_provider(user_id, config)
         return _provider_to_response(result)
     except ValueError as e:
-        logger.error("Provider creation failed: %s", e)
+        logger.error("Provider creation failed: %s", e, exc_info=True)
         raise HTTPException(status_code=400, detail="Invalid provider configuration")
 
 
@@ -351,7 +351,7 @@ async def create_model(
         result = service.create_model(user_id, config)
         return _model_to_response(result)
     except ValueError as e:
-        logger.error("Provider creation failed: %s", e)
+        logger.error("Provider creation failed: %s", e, exc_info=True)
         raise HTTPException(status_code=400, detail="Invalid provider configuration")
 
 
@@ -450,7 +450,7 @@ async def update_model_defaults(
             )
         )
     except ValueError as e:
-        logger.error("Provider creation failed: %s", e)
+        logger.error("Provider creation failed: %s", e, exc_info=True)
         raise HTTPException(status_code=400, detail="Invalid provider configuration")
 
 
@@ -486,7 +486,7 @@ async def batch_create_models(
             "total": len(results),
         }
     except ValueError as e:
-        logger.error("Provider creation failed: %s", e)
+        logger.error("Provider creation failed: %s", e, exc_info=True)
         raise HTTPException(status_code=400, detail="Invalid provider configuration")
 
 
@@ -510,8 +510,10 @@ async def test_provider(
 
 
 @router.get("/templates")
-async def get_templates() -> Dict[str, Any]:
-    """获取服务商模板（仅作为前端默认值参考）"""
+async def get_templates(
+    user: UserInfo = Depends(get_current_user),
+) -> Dict[str, Any]:
+    """获取服务商模板（仅作为前端默认值参考，需登录）"""
     return get_provider_templates()
 
 

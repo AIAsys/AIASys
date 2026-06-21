@@ -142,7 +142,9 @@ export function SaveWorkspaceAsTemplateDialog({
 
   // 使用 ref 存储 workspaceTitle，避免作为 useEffect 依赖
   const workspaceTitleRef = useRef(workspaceTitle);
-  workspaceTitleRef.current = workspaceTitle;
+  useEffect(() => {
+    workspaceTitleRef.current = workspaceTitle;
+  }, [workspaceTitle]);
 
   useEffect(() => {
     if (workspaceFiles.length === 0) return;

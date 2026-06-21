@@ -75,82 +75,145 @@ export interface StreamSubagentEventsOptions {
   signal?: AbortSignal;
 }
 
+const MAX_RECONNECT_ATTEMPTS = 5;
+
+function getReconnectDelayMs(attempt: number): number {
+  const base = 1000;
+  const maxDelay = 30000;
+  const exponential = base * 2 ** attempt;
+  const jitter = Math.random() * 1000;
+  return Math.min(exponential + jitter, maxDelay);
+}
+
+function sleep(ms: number, signal: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal.aborted) {
+      reject(new Error("Aborted"));
+      return;
+    }
+    const timer = setTimeout(resolve, ms);
+    const onAbort = () => {
+      clearTimeout(timer);
+      reject(new Error("Aborted"));
+    };
+    signal.addEventListener("abort", onAbort, { once: true });
+  });
+}
+
 export function streamSubagentEvents(
   userId: string,
   sessionId: string,
   agentId: string,
   options: StreamSubagentEventsOptions = {},
 ): () => void {
-  const { lastEventId = 0, onEvent, onError, onDone, signal } = options;
+  const { onEvent, onError, onDone, signal } = options;
   const abortController = new AbortController();
 
   if (signal) {
     if (signal.aborted) {
       abortController.abort();
     } else {
-      signal.addEventListener("abort", () => abortController.abort(), { once: true });
+      signal.addEventListener("abort", () => abortController.abort(), {
+        once: true,
+      });
     }
   }
 
-  const path =
-    getSubagentBasePath(userId, sessionId, agentId) +
-    `/events?last_event_id=${lastEventId}`;
+  let currentLastEventId = options.lastEventId ?? 0;
+  let attempt = 0;
+  let finished = false;
+
+  const finish = () => {
+    if (finished) return;
+    finished = true;
+    onDone?.();
+  };
 
   (async () => {
-    try {
-      const response = await apiFetch(path, {
-        method: "GET",
-        signal: abortController.signal,
-        timeoutMs: 0,
-      });
+    while (!abortController.signal.aborted) {
+      const path =
+        getSubagentBasePath(userId, sessionId, agentId) +
+        `/events?last_event_id=${currentLastEventId}`;
 
-      if (!response.ok) {
-        onError?.(`HTTP ${response.status}`);
-        return;
-      }
+      try {
+        const response = await apiFetch(path, {
+          method: "GET",
+          signal: abortController.signal,
+          timeoutMs: 0,
+        });
 
-      const reader = response.body?.getReader();
-      const decoder = new TextDecoder();
-      let pendingLine = "";
-
-      if (!reader) {
-        onError?.("No response body");
-        return;
-      }
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) {
-          onDone?.();
-          break;
-        }
-
-        pendingLine += decoder.decode(value, { stream: true });
-        const lines = pendingLine.split(/\r?\n/);
-        pendingLine = lines.pop() ?? "";
-
-        for (const line of lines) {
-          if (!line.startsWith("data:")) continue;
-          const data = line.slice(5).trimStart();
-          if (data === "[DONE]") {
-            onDone?.();
+        if (!response.ok) {
+          if (response.status >= 400 && response.status < 500) {
+            onError?.(`HTTP ${response.status}`);
             return;
           }
-          try {
-            const event = JSON.parse(data) as Record<string, unknown>;
-            onEvent?.(event);
-          } catch (parseError) {
-            console.warn("子 Agent SSE 事件解析失败", line, parseError);
+          throw new Error(`HTTP ${response.status}`);
+        }
+
+        attempt = 0;
+        const reader = response.body?.getReader();
+        const decoder = new TextDecoder();
+        let pendingLine = "";
+
+        if (!reader) {
+          onError?.("No response body");
+          return;
+        }
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) {
+            finish();
+            return;
+          }
+
+          pendingLine += decoder.decode(value, { stream: true });
+          const lines = pendingLine.split(/\r?\n/);
+          pendingLine = lines.pop() ?? "";
+
+          for (const line of lines) {
+            if (!line.startsWith("data:")) continue;
+            const data = line.slice(5).trimStart();
+            if (data === "[DONE]") {
+              finish();
+              return;
+            }
+            try {
+              const event = JSON.parse(data) as Record<string, unknown>;
+              const eventId = event.event_id;
+              if (typeof eventId === "number") {
+                currentLastEventId = Math.max(currentLastEventId, eventId);
+              }
+              onEvent?.(event);
+            } catch (parseError) {
+              console.warn("子 Agent SSE 事件解析失败", line, parseError);
+            }
           }
         }
+      } catch (error: unknown) {
+        const err = error as Error;
+        if (err.name === "AbortError" || err.message === "Aborted") {
+          finish();
+          return;
+        }
+
+        if (finished || abortController.signal.aborted) {
+          return;
+        }
+
+        if (attempt >= MAX_RECONNECT_ATTEMPTS) {
+          onError?.(err.message || "子 Agent SSE 连接失败，已超出最大重连次数");
+          return;
+        }
+
+        try {
+          await sleep(getReconnectDelayMs(attempt), abortController.signal);
+        } catch {
+          finish();
+          return;
+        }
+        attempt += 1;
       }
-    } catch (error: unknown) {
-      const err = error as Error;
-      if (err.name === "AbortError") {
-        onDone?.();
-        return;
-      }
-      onError?.(err.message || "Unknown error");
     }
   })();
 

@@ -170,7 +170,7 @@ function getWindowIcon() {
   } catch (error) {
     console.warn(`[aiasys-desktop] 加载图标异常: ${error.message}`);
   }
-  return undefined;
+  return null;
 }
 
 let splashWindow = null;
@@ -252,6 +252,60 @@ function closeSplashWindow() {
   splashWindow = null;
 }
 
+/**
+ * 探测后端是否已能响应 API 请求。
+ * 只要返回任意 HTTP 状态码（包括 401/403）即认为后端可访问；
+ * 网络错误 / 连接拒绝才视为未就绪。
+ */
+function probeBackendSession(backendBaseUrl) {
+  return new Promise((resolve) => {
+    if (!backendBaseUrl) {
+      return resolve(false);
+    }
+    const url = new URL("/api/auth/session", backendBaseUrl);
+    const client = url.protocol === "https:" ? require("https") : require("http");
+    const request = client.get(
+      url,
+      { timeout: 3000 },
+      (response) => {
+        response.resume();
+        resolve(response.statusCode !== undefined);
+      },
+    );
+    request.on("error", () => resolve(false));
+    request.on("timeout", () => {
+      try {
+        request.destroy();
+      } catch {
+        // ignore
+      }
+      resolve(false);
+    });
+  });
+}
+
+/**
+ * 等待后端 API 真正可响应。
+ * 给首次启动时后端健康检查通过后仍存在的短暂初始化窗口一个兜底。
+ */
+async function waitForBackendSession(backendBaseUrl, timeoutMs = 15_000) {
+  const start = Date.now();
+  const intervalMs = 500;
+  while (Date.now() - start < timeoutMs) {
+    if (await probeBackendSession(backendBaseUrl)) {
+      console.log(
+        `[aiasys-desktop] 后端 API 已可响应，耗时 ${Date.now() - start}ms`,
+      );
+      return true;
+    }
+    await new Promise((resolve) => setTimeout(resolve, intervalMs));
+  }
+  console.warn(
+    `[aiasys-desktop] 后端 API 在 ${timeoutMs}ms 内未响应，继续显示主窗口`,
+  );
+  return false;
+}
+
 function createMainWindow(rendererBaseUrl) {
   const preloadPath = path.join(__dirname, "preload.cjs");
   const initialUrl = new URL(startPath, rendererBaseUrl).toString();
@@ -297,6 +351,15 @@ function createMainWindow(rendererBaseUrl) {
 
   mainWindow.webContents.on("render-process-gone", (_event, details) => {
     console.error("[aiasys-desktop] render process gone:", details);
+    dialog.showErrorBox(
+      "AIASys Desktop",
+      "渲染进程异常退出，应用将尝试重新加载页面。",
+    );
+    if (mainWindow && !mainWindow.isDestroyed() && serviceManager) {
+      mainWindow.loadURL(serviceManager.rendererBaseUrl).catch((err) => {
+        console.error("[aiasys-desktop] 重新加载渲染页面失败:", err);
+      });
+    }
   });
 
   mainWindow.webContents.on(
@@ -349,12 +412,69 @@ function createMainWindow(rendererBaseUrl) {
     }
   });
 
-  mainWindow.once("ready-to-show", () => {
-    closeSplashWindow();
-    mainWindow?.show();
-    if (openDevTools) {
-      mainWindow?.webContents.openDevTools({ mode: "detach" });
+  // 等页面真正加载完成且后端 API 可响应后，再关闭 splash 并展示主窗口，
+  // 避免首次启动时安全软件扫描 / 后端初始化未完成导致的白屏。
+  let windowReadyToShow = false;
+  let pageLoadFinished = false;
+  let showFinalized = false;
+
+  function finalizeMainWindowShow() {
+    if (showFinalized || !windowReadyToShow || !pageLoadFinished) {
+      return;
     }
+    if (!mainWindow || mainWindow.isDestroyed()) {
+      return;
+    }
+    showFinalized = true;
+
+    setSplashStatus("正在连接本地服务...");
+    waitForBackendSession(backendBaseUrl, 15_000)
+      .then((ready) => {
+        if (!ready) {
+          console.warn(
+            "[aiasys-desktop] 后端 API 未就绪，继续显示主窗口，由前端展示错误状态",
+          );
+        }
+        closeSplashWindow();
+        mainWindow.show();
+        if (openDevTools) {
+          mainWindow.webContents.openDevTools({ mode: "detach" });
+        }
+      })
+      .catch((error) => {
+        console.error("[aiasys-desktop] 等待后端 API 时异常:", error);
+        closeSplashWindow();
+        mainWindow.show();
+      });
+  }
+
+  // 兜底：窗口创建 30 秒后如果还没展示，强制展示，避免某个事件永远不触发导致卡死
+  const showFallbackTimeout = setTimeout(() => {
+    if (!showFinalized && mainWindow && !mainWindow.isDestroyed()) {
+      console.warn(
+        "[aiasys-desktop] 窗口展示超时，强制显示主窗口",
+      );
+      showFinalized = true;
+      closeSplashWindow();
+      mainWindow.show();
+      if (openDevTools) {
+        mainWindow.webContents.openDevTools({ mode: "detach" });
+      }
+    }
+  }, 30_000);
+
+  mainWindow.once("ready-to-show", () => {
+    windowReadyToShow = true;
+    finalizeMainWindowShow();
+  });
+
+  mainWindow.webContents.on("did-finish-load", () => {
+    pageLoadFinished = true;
+    finalizeMainWindowShow();
+  });
+
+  mainWindow.once("closed", () => {
+    clearTimeout(showFallbackTimeout);
   });
 
   mainWindowLoadRetryCount = 0;
@@ -371,6 +491,10 @@ function sendTrayAction(action) {
 
 function createTray() {
   const icon = getWindowIcon();
+  if (!icon) {
+    console.warn("[aiasys-desktop] 无法创建托盘：图标加载失败");
+    return;
+  }
   tray = new Tray(icon);
   tray.setToolTip("AIASys Desktop");
 
@@ -582,7 +706,12 @@ app.on("open-url", (_event, url) => {
 });
 
 app.on("activate", () => {
-  if (BrowserWindow.getAllWindows().length === 0 && serviceManager) {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    if (!mainWindow.isVisible()) {
+      mainWindow.show();
+    }
+    mainWindow.focus();
+  } else if (BrowserWindow.getAllWindows().length === 0 && serviceManager) {
     createMainWindow(serviceManager.rendererBaseUrl);
   }
 });
