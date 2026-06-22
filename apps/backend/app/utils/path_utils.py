@@ -53,14 +53,16 @@ def atomic_write_text(path: Path, content: str) -> None:
     路径会经过 as_system_path 处理以兼容 Windows 长路径。
     """
     path = Path(path)
+    sys_path = as_system_path(path)
     tmp_path = path.with_suffix(path.suffix + ".tmp")
+    sys_tmp_path = as_system_path(tmp_path)
     try:
-        tmp_path.write_text(content, encoding="utf-8")
-        os.replace(as_system_path(tmp_path), as_system_path(path))
+        Path(sys_tmp_path).write_text(content, encoding="utf-8")
+        os.replace(sys_tmp_path, sys_path)
     except BaseException:
         # 写入或替换失败时清理临时文件，避免残留
         try:
-            tmp_path.unlink(missing_ok=True)
+            Path(sys_tmp_path).unlink(missing_ok=True)
         except Exception:
             pass
         raise

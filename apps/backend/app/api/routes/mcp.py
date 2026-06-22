@@ -27,9 +27,15 @@ from app.models.mcp import (
     MCPServerConfig,
 )
 from app.models.user import UserInfo
+from app.api.routes._mcp_validation import validate_stdio_command
 from app.services.llm import get_mcp_config_service
 from app.services.llm.mcp_session_service import _resolve_env_placeholders
 from app.services.mcp_external_market_service import get_external_mcp_market_service
+from app.utils.validators import validate_id
+
+
+def _validate_workspace_id(workspace_id: str) -> None:
+    validate_id(workspace_id, "workspace_id")
 
 
 def _definition_to_server_config(definition: MCPServerDefinition) -> MCPServerConfig:
@@ -325,6 +331,8 @@ async def _test_mcp_server_connection(
             if not server_config.command:
                 raise ValueError("STDIO 类型必须提供 command")
 
+            validate_stdio_command(server_config.command, server_config.args or [])
+
             # 尝试启动进程并获取工具列表
             server_params = StdioServerParameters(
                 command=server_config.command, args=server_config.args, env=server_config.env
@@ -341,6 +349,7 @@ async def _test_mcp_server_connection(
 
         # 缓存工具列表到工作区
         if workspace_id and current_user:
+            _validate_workspace_id(workspace_id)
             mgr = get_mcp_manager()
             workspace_path = Path(WORKSPACE_DIR) / current_user.user_id / workspace_id
             mgr.cache_server_tools(
@@ -599,6 +608,7 @@ async def list_workspace_mcp_servers(
         scope: "effective" 返回三层合并后的生效配置（默认）；
                "workspace" 返回仅工作区配置中的 server。
     """
+    _validate_workspace_id(workspace_id)
     mgr = get_mcp_manager()
     workspace_path = Path(WORKSPACE_DIR) / current_user.user_id / workspace_id
 
@@ -640,6 +650,7 @@ async def add_workspace_mcp_server(
     current_user: UserInfo = Depends(get_current_user),
 ):
     """将全局 server 复制到工作区配置。"""
+    _validate_workspace_id(workspace_id)
     mgr = get_mcp_manager()
     workspace_path = Path(WORKSPACE_DIR) / current_user.user_id / workspace_id
     definition = mgr.get_server_definition(server_name, current_user.user_id)
@@ -658,6 +669,7 @@ async def remove_workspace_mcp_server(
     current_user: UserInfo = Depends(get_current_user),
 ):
     """从工作区配置中删除 server。"""
+    _validate_workspace_id(workspace_id)
     mgr = get_mcp_manager()
     workspace_path = Path(WORKSPACE_DIR) / current_user.user_id / workspace_id
     result = mgr.remove_workspace_server(server_name, workspace_path)
@@ -676,6 +688,7 @@ async def get_workspace_mcp_server_tools(
     current_user: UserInfo = Depends(get_current_user),
 ):
     """获取工作区 MCP server 的工具列表（含缓存和启用状态）。"""
+    _validate_workspace_id(workspace_id)
     mgr = get_mcp_manager()
     workspace_path = Path(WORKSPACE_DIR) / current_user.user_id / workspace_id
 
@@ -702,6 +715,7 @@ async def test_workspace_mcp_server_connection(
     current_user: UserInfo = Depends(get_current_user),
 ) -> TestConnectionResponse:
     """测试工作区生效 MCP server，并缓存工具列表到工作区。"""
+    _validate_workspace_id(workspace_id)
     mgr = get_mcp_manager()
     workspace_path = Path(WORKSPACE_DIR) / current_user.user_id / workspace_id
     server_config = None
@@ -732,6 +746,7 @@ async def update_workspace_mcp_server_enabled_tools(
     current_user: UserInfo = Depends(get_current_user),
 ):
     """更新工作区 MCP server 的启用工具列表。"""
+    _validate_workspace_id(workspace_id)
     mgr = get_mcp_manager()
     workspace_path = Path(WORKSPACE_DIR) / current_user.user_id / workspace_id
     result = mgr.set_workspace_server_enabled_tools(

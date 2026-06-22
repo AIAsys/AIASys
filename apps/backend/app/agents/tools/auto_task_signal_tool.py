@@ -11,6 +11,7 @@ from typing import Any
 from app.core.agent_tool import AiasysTool
 from app.core.tool_result import ToolResult
 from app.models.session import SessionMetadata, AutoTaskSignal as AutoTaskSignalModel
+from app.utils.path_utils import as_system_path
 
 logger = logging.getLogger(__name__)
 
@@ -21,10 +22,11 @@ def _metadata_path(session_root: Path) -> Path:
 
 def _load_metadata(session_root: Path) -> tuple[SessionMetadata | None, Path]:
     meta_path = _metadata_path(session_root)
-    if not meta_path.exists():
+    sys_meta_path = Path(as_system_path(meta_path))
+    if not sys_meta_path.exists():
         return None, meta_path
     try:
-        data = json.loads(meta_path.read_text(encoding="utf-8"))
+        data = json.loads(sys_meta_path.read_text(encoding="utf-8"))
         return SessionMetadata(**data), meta_path
     except Exception:
         logger.warning("读取 metadata.json 失败: %s", meta_path, exc_info=True)
@@ -32,7 +34,7 @@ def _load_metadata(session_root: Path) -> tuple[SessionMetadata | None, Path]:
 
 
 def _save_metadata(meta_path: Path, metadata: SessionMetadata) -> None:
-    meta_path.write_text(
+    Path(as_system_path(meta_path)).write_text(
         metadata.model_dump_json(indent=2),
         encoding="utf-8",
     )

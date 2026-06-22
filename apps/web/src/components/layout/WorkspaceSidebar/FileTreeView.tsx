@@ -827,7 +827,9 @@ export const FileTreeView: React.FC<FileTreeViewProps> = ({
   }, [folderMenu]);
 
   const filesRef = useRef(files);
-  filesRef.current = files;
+  useEffect(() => {
+    filesRef.current = files;
+  }, [files]);
 
   const imageSlides = useMemo<readonly FileTreeImageSlide[]>(() => {
     if (!sessionId) return [];

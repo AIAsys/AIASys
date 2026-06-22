@@ -30,6 +30,10 @@ import {
 import { useSkills } from "@/hooks/useSkills";
 import type { SkillEntryResponse } from "@/types/api";
 import {
+  useFileUploadToast,
+  FileUploadToast,
+} from "@/components/file/FileUploadToast";
+import {
   listWorkspaceCapabilities,
   listAvailableCapabilities,
   installCapability,
@@ -124,6 +128,7 @@ type FilterKind = (typeof KIND_FILTERS)[number]["id"];
 type FilterStatus = (typeof STATUS_FILTERS)[number]["id"];
 
 export function CapabilityPanel({ workspaceId, scope = "workspace", mode = "full" }: CapabilityPanelProps) {
+  const { showError, toasts } = useFileUploadToast();
   const isGlobal = scope === "global";
   const isWorkspaceConfig = mode === "workspace-config";
   const [workspaceCaps, setWorkspaceCaps] = useState<WorkspaceCapabilityItem[]>([]);
@@ -256,6 +261,9 @@ export function CapabilityPanel({ workspaceId, scope = "workspace", mode = "full
         await installCapability(workspaceId, capId, config);
       }
       await load();
+    } catch (err) {
+      console.error("安装能力失败", err);
+      showError(`安装能力失败: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setProcessingId(null);
     }
@@ -270,6 +278,9 @@ export function CapabilityPanel({ workspaceId, scope = "workspace", mode = "full
         await uninstallCapability(workspaceId, capId);
       }
       await load();
+    } catch (err) {
+      console.error("卸载能力失败", err);
+      showError(`卸载能力失败: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setProcessingId(null);
     }
@@ -292,6 +303,9 @@ export function CapabilityPanel({ workspaceId, scope = "workspace", mode = "full
         }
       }
       await load();
+    } catch (err) {
+      console.error("切换能力状态失败", err);
+      showError(`切换能力状态失败: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setProcessingId(null);
     }
@@ -306,6 +320,9 @@ export function CapabilityPanel({ workspaceId, scope = "workspace", mode = "full
         await verifyCapability(workspaceId, capId);
       }
       await load();
+    } catch (err) {
+      console.error("校验能力失败", err);
+      showError(`校验能力失败: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setProcessingId(null);
     }
@@ -426,6 +443,13 @@ export function CapabilityPanel({ workspaceId, scope = "workspace", mode = "full
 
   return (
     <div className="flex h-full">
+      {toasts.map((toast) => (
+        <FileUploadToast
+          key={toast.id}
+          message={toast.message}
+          type={toast.type}
+        />
+      ))}
       {/* 左侧列表 */}
       <div className="w-56 shrink-0 border-r flex flex-col">
         {/* 搜索 */}

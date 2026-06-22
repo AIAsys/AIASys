@@ -198,12 +198,12 @@ function ComponentCard({
         done = readerDone;
         if (value) {
           buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split("\n");
+          const lines = buffer.replace(/\r\n/g, "\n").split("\n");
           buffer = lines.pop() ?? "";
           for (const line of lines) {
             if (line.startsWith("data: ")) {
               try {
-                const event = JSON.parse(line.slice(6));
+                const event = JSON.parse(line.slice(6).replace(/\r$/, ""));
                 if (event.type === "progress" && event.total > 0) {
                   setProgress(Math.round((event.downloaded / event.total) * 100));
                 } else if (event.type === "done") {

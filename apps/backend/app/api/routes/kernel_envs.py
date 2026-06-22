@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 import shutil
@@ -13,14 +14,13 @@ import sys
 import tempfile
 from typing import Any
 
-from app.utils.path_utils import as_system_path
-
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from app.core.auth import require_auth
 from app.core.subprocess_utils import subprocess_kwargs
 from app.models.user import UserInfo
+from app.utils.path_utils import as_system_path
 
 router = APIRouter(prefix="/kernel-envs", tags=["kernel-envs"])
 
@@ -76,7 +76,7 @@ async def list_kernel_envs(
 ) -> dict[str, Any]:
     """列出所有已注册的 kernel spec。"""
     try:
-        all_specs = _get_kernel_specs()
+        all_specs = await asyncio.to_thread(_get_kernel_specs)
     except ImportError:
         raise HTTPException(status_code=500, detail="jupyter_client 未安装")
 
@@ -111,14 +111,32 @@ async def list_kernel_envs(
     return {"status": "success", "count": len(kernels), "kernels": kernels}
 
 
+def _install_kernel_spec_sync(name: str, kernel_json: dict[str, Any]) -> str:
+    """在线程池中完成 kernel spec 的目录清理、临时文件写入和安装，避免阻塞事件循环。"""
+    from jupyter_client.kernelspec import KernelSpecManager
+
+    existing = _find_kernel_spec_dir(name)
+    if existing is not None:
+        shutil.rmtree(as_system_path(str(existing)))
+
+    tmp_dir = tempfile.mkdtemp()
+    try:
+        json_path = os.path.join(tmp_dir, "kernel.json")
+        with open(json_path, "w", encoding="utf-8") as f:
+            json.dump(kernel_json, f, indent=1, ensure_ascii=False)
+
+        ksm = KernelSpecManager()
+        return ksm.install_kernel_spec(tmp_dir, kernel_name=name, user=True)
+    finally:
+        shutil.rmtree(as_system_path(str(tmp_dir)))
+
+
 @router.post("")
 async def register_kernel_env(
     request: RegisterKernelEnvRequest,
     current_user: UserInfo = Depends(require_auth()),
 ) -> dict[str, Any]:
     """注册一个新的 kernel 环境。"""
-    from jupyter_client.kernelspec import KernelSpecManager
-
     name = request.name.strip().lower()
     python_path = request.python_path.strip()
 
@@ -137,10 +155,10 @@ async def register_kernel_env(
     if not os.path.isfile(python_path):
         raise HTTPException(status_code=400, detail=f"Python 可执行文件不存在: {python_path}")
 
-    # 校验 ipykernel 是否已安装
-
+    # 校验 ipykernel 是否已安装（整段同步调用移到线程池，避免阻塞事件循环）
     try:
-        result = subprocess.run(
+        result = await asyncio.to_thread(
+            subprocess.run,
             [python_path, "-m", "ipykernel", "--version"],
             capture_output=True,
             timeout=10,
@@ -159,11 +177,6 @@ async def register_kernel_env(
             detail=f"Python 可执行文件无法执行: {python_path}",
         )
 
-    # 检查是否已存在
-    existing = _find_kernel_spec_dir(name)
-    if existing is not None:
-        shutil.rmtree(as_system_path(str(existing)))
-
     # 创建临时 kernel.json
     kernel_json = {
         "argv": [python_path, "-m", "ipykernel_launcher", "-f", "{connection_file}"],
@@ -171,16 +184,7 @@ async def register_kernel_env(
         "language": "python",
     }
 
-    tmp_dir = tempfile.mkdtemp()
-    try:
-        json_path = os.path.join(tmp_dir, "kernel.json")
-        with open(json_path, "w", encoding="utf-8") as f:
-            json.dump(kernel_json, f, indent=1, ensure_ascii=False)
-
-        ksm = KernelSpecManager()
-        dest = ksm.install_kernel_spec(tmp_dir, kernel_name=name, user=True)
-    finally:
-        shutil.rmtree(as_system_path(str(tmp_dir)))
+    dest = await asyncio.to_thread(_install_kernel_spec_sync, name, kernel_json)
 
     return {
         "status": "success",

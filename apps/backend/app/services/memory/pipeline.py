@@ -317,15 +317,17 @@ class MemoryPipelineService:
 
         try:
             layout = ensure_memory_layout(get_user_global_memory_dir(user_id))
-            memory_text = (
-                Path(as_system_path(layout.memory)).read_text(encoding="utf-8")
-                if os.path.exists(as_system_path(layout.memory))
-                else ""
+            memory_text = await asyncio.to_thread(
+                self._read_scope_memory_text,
+                user_id=user_id,
+                scope_key=scope_key,
+                layout=layout,
             )
-            summary_text = (
-                Path(as_system_path(layout.summary)).read_text(encoding="utf-8")
-                if os.path.exists(as_system_path(layout.summary))
-                else ""
+            summary_text = await asyncio.to_thread(
+                self._read_scope_summary_text,
+                user_id=user_id,
+                scope_key=scope_key,
+                layout=layout,
             )
 
             workspace_root = (
@@ -333,12 +335,14 @@ class MemoryPipelineService:
                 if is_user_default_global_workspace_scope(scope_key)
                 else self._resolve_workspace_root(user_id, scope_key)
             )
-            capacity_info = self.check_capacity(
+            capacity_info = await asyncio.to_thread(
+                self.check_capacity,
                 user_id=user_id,
                 layout=layout,
                 workspace_root=workspace_root,
             )
-            projected_capacity_info = self._project_stage2_append_capacity(
+            projected_capacity_info = await asyncio.to_thread(
+                self._project_stage2_append_capacity,
                 user_id=user_id,
                 records=records,
                 scope_key=scope_key,
@@ -360,12 +364,14 @@ class MemoryPipelineService:
                         scope_key=scope_key,
                     )
                     # consolidation 后重新读取
-                    memory_text = self._read_scope_memory_text(
+                    memory_text = await asyncio.to_thread(
+                        self._read_scope_memory_text,
                         user_id=user_id,
                         scope_key=scope_key,
                         layout=layout,
                     )
-                    summary_text = self._read_scope_summary_text(
+                    summary_text = await asyncio.to_thread(
+                        self._read_scope_summary_text,
                         user_id=user_id,
                         scope_key=scope_key,
                         layout=layout,
@@ -381,13 +387,15 @@ class MemoryPipelineService:
 
                 if not consolidated:
                     try:
-                        self._append_stage2_records_to_markdown(
+                        await asyncio.to_thread(
+                            self._append_stage2_records_to_markdown,
                             user_id=user_id,
                             records=records,
                             scope_key=scope_key,
                         )
                         appended = True
-                        memory_text = self._read_scope_memory_text(
+                        memory_text = await asyncio.to_thread(
+                            self._read_scope_memory_text,
                             user_id=user_id,
                             scope_key=scope_key,
                             layout=layout,
@@ -402,13 +410,15 @@ class MemoryPipelineService:
                             return 0
                         raise
             else:
-                self._append_stage2_records_to_markdown(
+                await asyncio.to_thread(
+                    self._append_stage2_records_to_markdown,
                     user_id=user_id,
                     records=records,
                     scope_key=scope_key,
                 )
                 appended = True
-                memory_text = self._read_scope_memory_text(
+                memory_text = await asyncio.to_thread(
+                    self._read_scope_memory_text,
                     user_id=user_id,
                     scope_key=scope_key,
                     layout=layout,
@@ -655,6 +665,56 @@ class MemoryPipelineService:
         projected["hard_limit_exceeded"] = hard_exceeded
         return projected
 
+    def _load_consolidation_inputs_sync(
+        self,
+        layout: MemoryLayout,
+        target_memory_path: Path,
+        target_summary_path: Path,
+        records: list[Stage1OutputRecord],
+    ) -> tuple[str, str, str, list[str]]:
+        """在线程中读取 consolidation 所需的全部文件内容。"""
+        current_memory = (
+            Path(as_system_path(target_memory_path)).read_text(encoding="utf-8")
+            if os.path.exists(as_system_path(target_memory_path))
+            else ""
+        )
+        current_summary = (
+            Path(as_system_path(target_summary_path)).read_text(encoding="utf-8")
+            if os.path.exists(as_system_path(target_summary_path))
+            else ""
+        )
+        raw_memories = (
+            Path(as_system_path(layout.raw_memories)).read_text(encoding="utf-8")
+            if os.path.exists(as_system_path(layout.raw_memories))
+            else ""
+        )
+
+        rollout_texts: list[str] = []
+        for record in records:
+            rollout_path = layout.rollout_summaries / f"{record.rollout_slug}.md"
+            if os.path.exists(as_system_path(rollout_path)):
+                rollout_texts.append(Path(as_system_path(rollout_path)).read_text(encoding="utf-8"))
+
+        return current_memory, current_summary, raw_memories, rollout_texts
+
+    def _write_consolidation_outputs_sync(
+        self,
+        target_memory_path: Path,
+        target_summary_path: Path,
+        new_memory: str,
+        new_summary: str | None,
+        target_memory_limit: int,
+    ) -> None:
+        """在线程中完成 consolidation 结果的原子写入，走 MemoryStore 安全扫描与容量检查。"""
+        memory_store = MemoryStore(target_memory_path)
+        memory_store.initialize()
+        memory_store.write_text(new_memory, max_size=target_memory_limit)
+
+        if new_summary is not None:
+            summary_store = MemoryStore(target_summary_path)
+            summary_store.initialize()
+            summary_store.write_text(new_summary, max_size=MAX_SUMMARY_SIZE)
+
     async def _run_consolidation(
         self,
         *,
@@ -683,28 +743,13 @@ class MemoryPipelineService:
             target_memory_limit = MAX_WORKSPACE_MEMORY_SIZE
 
         # 读取输入
-        current_memory = (
-            Path(as_system_path(target_memory_path)).read_text(encoding="utf-8")
-            if os.path.exists(as_system_path(target_memory_path))
-            else ""
+        current_memory, current_summary, raw_memories, rollout_texts = await asyncio.to_thread(
+            self._load_consolidation_inputs_sync,
+            layout,
+            target_memory_path,
+            target_summary_path,
+            records,
         )
-        current_summary = (
-            Path(as_system_path(target_summary_path)).read_text(encoding="utf-8")
-            if os.path.exists(as_system_path(target_summary_path))
-            else ""
-        )
-        raw_memories = (
-            Path(as_system_path(layout.raw_memories)).read_text(encoding="utf-8")
-            if os.path.exists(as_system_path(layout.raw_memories))
-            else ""
-        )
-
-        # 收集 rollout summaries
-        rollout_texts: list[str] = []
-        for record in records:
-            rollout_path = layout.rollout_summaries / f"{record.rollout_slug}.md"
-            if os.path.exists(as_system_path(rollout_path)):
-                rollout_texts.append(Path(as_system_path(rollout_path)).read_text(encoding="utf-8"))
 
         config = _get_memory_config(user_id)
         prompt = _build_consolidation_prompt(
@@ -761,14 +806,14 @@ class MemoryPipelineService:
 
         # 统一走 MemoryStore.write_text，经过安全扫描和容量检查
         try:
-            memory_store = MemoryStore(target_memory_path)
-            memory_store.initialize()
-            memory_store.write_text(new_memory, max_size=target_memory_limit)
-
-            if new_summary is not None:
-                summary_store = MemoryStore(target_summary_path)
-                summary_store.initialize()
-                summary_store.write_text(new_summary, max_size=MAX_SUMMARY_SIZE)
+            await asyncio.to_thread(
+                self._write_consolidation_outputs_sync,
+                target_memory_path,
+                target_summary_path,
+                new_memory,
+                new_summary,
+                target_memory_limit,
+            )
         except (MemorySecurityError, MemoryCapacityError) as exc:
             logger.error("Memory consolidation 写入失败: %s", exc)
             return False

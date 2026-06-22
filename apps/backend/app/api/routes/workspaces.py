@@ -4,14 +4,16 @@
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
 import logging
+import os
 from pathlib import Path
 from typing import Literal
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
-from fastapi.responses import StreamingResponse
+from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, UploadFile
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from app.core.auth import require_auth
@@ -23,6 +25,7 @@ from app.services.export import (
 )
 from app.services.workspace_registry import get_workspace_registry_service
 from app.utils.file_utils import sanitize_content_disposition_filename
+from app.utils.path_utils import as_system_path
 
 logger = logging.getLogger(__name__)
 
@@ -92,28 +95,31 @@ def _should_skip_scanned_path(path: Path, scan_root: Path) -> bool:
         for part in parts
     ):
         return True
-    if path.is_symlink():
+    sys_path = Path(as_system_path(path))
+    if sys_path.is_symlink():
         return True
-    return not path.is_file()
+    return not sys_path.is_file()
 
 
 def _build_file_snapshot(workspace_root: Path) -> dict[str, dict]:
     scan_root = workspace_root
-    if not scan_root.exists() or not scan_root.is_dir():
+    sys_scan_root = as_system_path(scan_root)
+    if not Path(sys_scan_root).exists() or not Path(sys_scan_root).is_dir():
         return {}
     snapshot: dict[str, dict] = {}
     for path in sorted(scan_root.rglob("*")):
         if _should_skip_scanned_path(path, scan_root=scan_root):
             continue
+        sys_path = as_system_path(path)
         try:
-            stat = path.stat()
+            stat = Path(sys_path).stat()
         except OSError:
             continue
         fingerprint: dict = {"size": stat.st_size, "mtime_ns": stat.st_mtime_ns}
         if stat.st_size <= MAX_HASH_BYTES:
             digest = hashlib.sha256()
             try:
-                with path.open("rb") as f:
+                with Path(sys_path).open("rb") as f:
                     for chunk in iter(lambda: f.read(1024 * 1024), b""):
                         digest.update(chunk)
                 fingerprint["sha256"] = digest.hexdigest()
@@ -165,6 +171,15 @@ def _diff_file_snapshots(
     return changes
 
 
+def _write_file_snapshot_state(state_path: Path, snapshot: dict) -> None:
+    """在线程池中持久化文件扫描快照，避免阻塞事件循环。"""
+    state_path.parent.mkdir(parents=True, exist_ok=True)
+    state_path.write_text(
+        json.dumps(snapshot, indent=2, ensure_ascii=False),
+        encoding="utf-8",
+    )
+
+
 @filescan_router.post("/{workspace_id}/file-scan", response_model=WorkspaceFileScanResponse)
 async def scan_workspace_files(
     workspace_id: str,
@@ -183,12 +198,8 @@ async def scan_workspace_files(
         except (json.JSONDecodeError, OSError):
             previous = {}
 
-    current = _build_file_snapshot(workspace_dir)
-    state_path.parent.mkdir(parents=True, exist_ok=True)
-    state_path.write_text(
-        json.dumps(current, indent=2, ensure_ascii=False),
-        encoding="utf-8",
-    )
+    current = await asyncio.to_thread(_build_file_snapshot, workspace_dir)
+    await asyncio.to_thread(_write_file_snapshot_state, state_path, current)
 
     changes = _diff_file_snapshots(previous, current)
     return WorkspaceFileScanResponse(
@@ -247,12 +258,14 @@ async def export_workspace(
         conv_data = json.loads(conv_path.read_text(encoding="utf-8"))
         if isinstance(conv_data, dict):
             conversations = conv_data.get("conversations") or []
-    except Exception:
+    except FileNotFoundError:
         pass
+    except Exception as exc:
+        logger.warning(f"读取 conversations.json 失败，导出的会话记录将不完整: {exc}")
 
     export_service = WorkspaceExportService()
     try:
-        zip_buffer, filename = export_service.build_archive(
+        zip_path, filename = export_service.build_archive(
             user_id=current_user.user_id,
             workspace_id=workspace_id,
             workspace_meta=workspace_meta,
@@ -268,12 +281,13 @@ async def export_workspace(
         logger.error("工作区导出失败: %s", exc)
         raise HTTPException(status_code=500, detail="Export failed") from exc
 
-    return StreamingResponse(
-        zip_buffer,
+    background_tasks = BackgroundTasks()
+    background_tasks.add_task(os.unlink, zip_path)
+    return FileResponse(
+        zip_path,
         media_type="application/zip",
-        headers={
-            "Content-Disposition": f'attachment; filename="{sanitize_content_disposition_filename(filename)}"'
-        },
+        filename=sanitize_content_disposition_filename(filename),
+        background=background_tasks,
     )
 
 
@@ -286,24 +300,43 @@ async def import_workspace(
     if not file.filename or not file.filename.endswith(".zip"):
         raise HTTPException(status_code=400, detail="请上传 ZIP 文件")
 
+    import tempfile
+
+    fd, tmp_path = tempfile.mkstemp(suffix=".zip")
     try:
-        contents = await file.read()
+        with os.fdopen(fd, "wb") as dst:
+            # 流式写入临时文件，避免把整个 ZIP 读入内存
+            chunk_size = 1024 * 1024  # 1 MB
+            while True:
+                chunk = await file.read(chunk_size)
+                if not chunk:
+                    break
+                dst.write(chunk)
     except Exception as exc:
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
         raise HTTPException(status_code=400, detail=f"读取文件失败: {exc}") from exc
 
     registry = get_workspace_registry_service()
     import_service = WorkspaceImportService(registry=registry)
 
     try:
-        new_workspace_id, workspace_meta = import_service.import_from_zip(
+        new_workspace_id, workspace_meta = import_service.import_from_zip_file(
             user_id=current_user.user_id,
-            zip_bytes=contents,
+            zip_path=tmp_path,
         )
     except WorkspaceImportError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
         logger.error("工作区导入失败: %s", exc)
         raise HTTPException(status_code=500, detail="Import failed") from exc
+    finally:
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
 
     # 返回新建工作区详情
     try:

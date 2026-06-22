@@ -353,8 +353,8 @@ async def add_document(
                     "message": str(e),
                     "hint": "Please configure LLM provider in system settings (Settings > LLM Config)",
                 },
-            )
-        raise HTTPException(status_code=400, detail=str(e))
+            ) from e
+        raise HTTPException(status_code=400, detail=str(e)) from e
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Processing failed: {str(e)}") from e
 

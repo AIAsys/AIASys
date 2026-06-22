@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from pathlib import Path
 from typing import Any, Literal, Optional, Sequence
@@ -749,7 +750,7 @@ files 参数可以传一个路径字符串，也可以传多个路径组成的�
                         raise FileNotFoundError(f"`{file_ref}` 不存在")
                     if not file_path.is_file():
                         raise ValueError(f"`{file_ref}` 不是文件")
-                    file_bytes = file_path.read_bytes()
+                    file_bytes = await asyncio.to_thread(file_path.read_bytes)
                     result = await self._kb_service.upload_document(
                         user_id=user_id,
                         kb_id=params.base_id,

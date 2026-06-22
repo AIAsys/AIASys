@@ -1,5 +1,6 @@
 const fs = require("fs");
 const path = require("path");
+const crypto = require("crypto");
 const { spawnSync } = require("child_process");
 
 const SQLITE_VEC_VERSION = "0.1.6";
@@ -48,17 +49,43 @@ function resolveRepoRoot() {
 
 function curlDownload(url, dest) {
   console.log(`[download-sqlite-vec] 下载: ${url}`);
-  const result = spawnSync(
+  let result = spawnSync(
     "curl",
     ["-L", "-f", "--connect-timeout", "15", "--max-time", "120", "-o", dest, url],
     { encoding: "utf-8", stdio: "pipe", windowsHide: true }
   );
   if (result.status !== 0) {
-    const detail = result.stderr || result.error || `curl exit ${result.status}`;
-    throw new Error(`下载失败 (${url}): ${detail}`);
+    // Fallback to wget（精简 CI/Windows Server Core 环境可能只有 wget）
+    console.log(`[download-sqlite-vec] curl 不可用，尝试 wget...`);
+    result = spawnSync(
+      "wget",
+      ["-q", "--timeout=15", "--tries=3", "-O", dest, url],
+      { encoding: "utf-8", stdio: "pipe", windowsHide: true }
+    );
+  }
+  if (result.status !== 0) {
+    const detail = result.stderr || result.error || `curl/wget exit ${result.status}`;
+    throw new Error(`下载失败 (${url}): curl 和 wget 均不可用 (${detail})`);
   }
   const stat = fs.statSync(dest);
   console.log(`[download-sqlite-vec] 已保存: ${dest} (${(stat.size / 1024).toFixed(1)} KB)`);
+}
+
+function verifySha256(filePath, expectedHash) {
+  let buf;
+  try {
+    buf = fs.readFileSync(filePath);
+  } catch (err) {
+    throw new Error(`[download-sqlite-vec] 读取文件失败，无法完成 SHA256 校验: ${err.message}`);
+  }
+  const actualHash = crypto.createHash("sha256").update(buf).digest("hex");
+  if (actualHash !== expectedHash) {
+    throw new Error(
+      `SHA256 校验失败: 期望 ${expectedHash}, 实际 ${actualHash}`
+    );
+  }
+  console.log("[download-sqlite-vec] SHA256 校验通过");
+  return true;
 }
 
 function resolvePython() {
@@ -115,6 +142,7 @@ async function downloadForPlatform(platformSlug) {
   }
 
   const assetName = `sqlite-vec-${SQLITE_VEC_VERSION}-loadable-${cfg.slug}.tar.gz`;
+  const shaName = `${assetName}.sha256`;
 
   const bases = [downloadBase()];
   if (bases[0] === "https://github.com") {
@@ -124,7 +152,9 @@ async function downloadForPlatform(platformSlug) {
   const downloadDir = path.join(vendorDir, ".download");
   fs.mkdirSync(downloadDir, { recursive: true });
   const archivePath = path.join(downloadDir, assetName);
+  const shaPath = path.join(downloadDir, shaName);
 
+  // 下载压缩包
   let lastErr;
   for (const base of bases) {
     const url = `${base}/${REPO}/releases/download/v${SQLITE_VEC_VERSION}/${assetName}`;
@@ -138,6 +168,24 @@ async function downloadForPlatform(platformSlug) {
     }
   }
   if (lastErr) throw lastErr;
+
+  // 下载 sha256 校验文件并校验（获取失败时降级为警告，不阻塞构建）
+  let expectedSha = null;
+  for (const base of bases) {
+    const url = `${base}/${REPO}/releases/download/v${SQLITE_VEC_VERSION}/${shaName}`;
+    try {
+      curlDownload(url, shaPath);
+      const content = fs.readFileSync(shaPath, "utf-8").trim();
+      expectedSha = content.split(/\s+/)[0];
+      break;
+    } catch {
+      console.warn("[download-sqlite-vec] 获取 sha256 文件失败，跳过校验");
+    }
+  }
+
+  if (expectedSha) {
+    verifySha256(archivePath, expectedSha);
+  }
 
   extractTarGz(archivePath, platformDir);
 

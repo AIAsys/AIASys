@@ -177,7 +177,7 @@ class ControlMixin:
         try:
             from app.services.agent.subagent_registry import get_subagent_registry
 
-            cancelled = get_subagent_registry().cancel_all_for_host(session_key)
+            cancelled = await get_subagent_registry().acancel_all_for_host(session_key)
             if cancelled:
                 logger.info(
                     "级联取消子 Agent: session=%s, count=%d, agents=%s",
@@ -232,8 +232,8 @@ class ControlMixin:
             from app.services.agent.subagent_registry import get_subagent_registry
 
             registry = get_subagent_registry()
-            if registry.is_active(agent_id):
-                cancelled = registry.cancel(agent_id)
+            if await registry.ais_active(agent_id):
+                cancelled = await registry.acancel(agent_id)
                 if cancelled:
                     return {
                         "status": "accepted",

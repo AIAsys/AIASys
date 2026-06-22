@@ -6,6 +6,7 @@ Schema 查看与 SQL 查询。
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import re
 import sqlite3
@@ -218,7 +219,9 @@ async def get_global_file_database_schema(
 ) -> FileDatabaseSchemaResponse:
     """获取用户默认层全局工作区数据库文件的表结构。"""
     _check_user_access(current_user, user_id)
-    return _read_file_database_schema(_get_global_file_path(user_id, filename))
+    return await asyncio.to_thread(
+        _read_file_database_schema, _get_global_file_path(user_id, filename)
+    )
 
 
 @router.post("/query/{user_id}/global/{filename:path}")
@@ -230,7 +233,9 @@ async def query_global_file_database(
 ) -> FileDatabaseQueryResponse:
     """查询用户默认层全局工作区数据库文件。"""
     _check_user_access(current_user, user_id)
-    return _query_file_database(_get_global_file_path(user_id, filename), request)
+    return await asyncio.to_thread(
+        _query_file_database, _get_global_file_path(user_id, filename), request
+    )
 
 
 @router.get("/schema/{user_id}/{session_id}/{filename:path}")
@@ -242,7 +247,9 @@ async def get_file_database_schema(
 ) -> FileDatabaseSchemaResponse:
     """获取数据库文件的表结构。"""
     _check_user_access(current_user, user_id)
-    return _read_file_database_schema(_get_file_path(user_id, session_id, filename))
+    return await asyncio.to_thread(
+        _read_file_database_schema, _get_file_path(user_id, session_id, filename)
+    )
 
 
 @router.post("/query/{user_id}/{session_id}/{filename:path}")
@@ -255,4 +262,6 @@ async def query_file_database(
 ) -> FileDatabaseQueryResponse:
     """对数据库文件执行 SQL 查询。"""
     _check_user_access(current_user, user_id)
-    return _query_file_database(_get_file_path(user_id, session_id, filename), request)
+    return await asyncio.to_thread(
+        _query_file_database, _get_file_path(user_id, session_id, filename), request
+    )

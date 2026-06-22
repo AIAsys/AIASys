@@ -108,8 +108,8 @@ export function DockHeader({
             task.status === "active" && (task.consecutive_errors ?? 0) > 0,
         ).length,
       );
-    } catch {
-      // 静默失败，不打扰用户
+    } catch (err) {
+      console.error("轮询全局 AutoTask 状态失败", err);
     }
   }, []);
 

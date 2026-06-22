@@ -578,6 +578,11 @@ export function useStreamEventHandler({
       onTokenUsageShouldRefreshRef.current?.();
     }
 
+    // Type: Budget Updated — 预算实时变化时刷新顶部预算/上下文占用显示
+    if (eventType === "budget_updated" && "text" in event) {
+      onTokenUsageShouldRefreshRef.current?.();
+    }
+
     // Type: Compaction
     if (eventType === "compaction") {
       const payload = event as {

@@ -6,9 +6,9 @@
 
 from __future__ import annotations
 
-import io
 import json
 import os
+import tempfile
 import zipfile
 from datetime import datetime
 from fnmatch import fnmatch
@@ -246,10 +246,11 @@ class WorkspaceExportService:
         include_conversations: bool = False,
         selected_files: list[str] | None = None,
         exclude_rules: list[str] | None = None,
-    ) -> tuple[io.BytesIO, str]:
+    ) -> tuple[str, str]:
         """构建工作区导出 ZIP 包。
 
-        返回 (zip_buffer, download_filename)。
+        返回 (zip_temp_file_path, download_filename)。
+        调用方负责在响应完成后删除临时文件。
         """
         workspace_dir = self._get_workspace_dir(user_id, workspace_id)
         if not os.path.exists(as_system_path(workspace_dir)):
@@ -301,42 +302,49 @@ class WorkspaceExportService:
             "entries": entries,
         }
 
-        zip_buffer = io.BytesIO()
-        with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
-            zf.writestr("manifest.json", json.dumps(manifest, indent=2, ensure_ascii=False))
-            zf.writestr("workspace.json", json.dumps(sanitized_meta, indent=2, ensure_ascii=False))
-            zf.writestr(
-                "conversations.json",
-                json.dumps(
-                    {"_schema_version": 1, "conversations": conversation_payloads},
-                    indent=2,
-                    ensure_ascii=False,
-                ),
-            )
+        fd, zip_path = tempfile.mkstemp(suffix=".zip")
+        os.close(fd)
+        try:
+            with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
+                zf.writestr("manifest.json", json.dumps(manifest, indent=2, ensure_ascii=False))
+                zf.writestr("workspace.json", json.dumps(sanitized_meta, indent=2, ensure_ascii=False))
+                zf.writestr(
+                    "conversations.json",
+                    json.dumps(
+                        {"_schema_version": 1, "conversations": conversation_payloads},
+                        indent=2,
+                        ensure_ascii=False,
+                    ),
+                )
 
-            for relative_path, abs_path in files:
-                zf.write(abs_path, f"workspace_files/{relative_path}")
+                for relative_path, abs_path in files:
+                    zf.write(abs_path, f"workspace_files/{relative_path}")
 
-            if conversation_exports:
-                for conv_id, messages in conversation_exports:
-                    zf.writestr(
-                        f"conversations/{conv_id}.json",
-                        json.dumps(
-                            {
-                                "_schema_version": 1,
-                                "conversation_id": conv_id,
-                                "message_count": len(messages),
-                                "messages": messages,
-                            },
-                            indent=2,
-                            ensure_ascii=False,
-                        ),
-                    )
+                if conversation_exports:
+                    for conv_id, messages in conversation_exports:
+                        zf.writestr(
+                            f"conversations/{conv_id}.json",
+                            json.dumps(
+                                {
+                                    "_schema_version": 1,
+                                    "conversation_id": conv_id,
+                                    "message_count": len(messages),
+                                    "messages": messages,
+                                },
+                                indent=2,
+                                ensure_ascii=False,
+                            ),
+                        )
+        except Exception:
+            try:
+                os.unlink(zip_path)
+            except OSError:
+                pass
+            raise
 
-        zip_buffer.seek(0)
         safe_title = "".join(
             c if c.isascii() and (c.isalnum() or c in "_-") else "_"
             for c in str(sanitized_meta.get("title") or workspace_id)
         )
         filename = f"workspace_{safe_title}_{workspace_id}.zip"
-        return zip_buffer, filename
+        return zip_path, filename

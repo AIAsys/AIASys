@@ -4,15 +4,27 @@
 ; ==================== 安装时 ====================
 
 !macro customInstall
-  ; 开启 Windows 长路径支持（需要重启生效）
+  ; 尝试开启 Windows 长路径支持（需要重启生效）
+  ; 由于 package.json 使用 asInvoker，标准用户没有管理员权限，HKLM 写入会失败。
+  ; 仅当实际拥有管理员权限时才写入，否则弹出提示引导用户手动启用。
+  UserInfo::GetAccountType
+  Pop $R1
+  StrCmp $R1 "Admin" hasAdmin
+
+  DetailPrint "当前未以管理员身份运行，跳过自动启用 Windows 长路径"
+  MessageBox MB_OK|MB_ICONINFORMATION "AIASys Desktop 建议启用 Windows 长路径支持以获得最佳兼容性。$\n当前安装未以管理员身份运行，无法自动开启。$\n安装完成后可手动设置注册表：$\nHKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\FileSystem$\nLongPathsEnabled = 1（DWORD）$\n修改后需要重启系统生效。"
+
+hasAdmin:
   WriteRegDWORD HKLM "SYSTEM\CurrentControlSet\Control\FileSystem" "LongPathsEnabled" 1
+  DetailPrint "已启用 Windows 长路径支持（需要重启生效）"
 !macroend
 
 ; ==================== 安装前 ====================
 
 !macro customInit
   ; 安装前检测应用窗口是否正在运行（FindWindow 为 NSIS 内置指令，无需插件）
-  FindWindow $R0 "" "AIASys_Desktop"
+  ; 窗口标题与 main.cjs 中 BrowserWindow.title 保持一致（带空格）
+  FindWindow $R0 "" "AIASys Desktop"
   IntCmp $R0 0 checkProcess
 
   MessageBox MB_OKCANCEL|MB_ICONEXCLAMATION "AIASys Desktop 正在运行。安装前需要关闭该应用。点击确定自动关闭并继续安装，点击取消退出安装程序。" IDOK closeApp IDCANCEL cancelInstall
@@ -41,7 +53,7 @@ continueInstall:
 
 !macro customUnInit
   ; 卸载前检测并终止正在运行的 AIASys Desktop 进程
-  FindWindow $R0 "" "AIASys_Desktop"
+  FindWindow $R0 "" "AIASys Desktop"
   IntCmp $R0 0 continueUninstall
     nsExec::ExecToStack 'taskkill /F /IM "AIASys_Desktop.exe" 2>NUL'
     Sleep 1000

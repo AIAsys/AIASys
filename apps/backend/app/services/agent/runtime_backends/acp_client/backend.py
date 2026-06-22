@@ -5,6 +5,8 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from app.utils.path_utils import as_system_path
+
 from ..base import RuntimeSessionCreateSpec
 from .session import AcpClientRuntimeSession
 
@@ -61,7 +63,7 @@ def _load_agent_manifest(agent_file: Any) -> dict[str, Any]:
     elif isinstance(agent_file, str):
         from pathlib import Path
 
-        data = tomllib.loads(Path(agent_file).read_text(encoding="utf-8")) or {}
+        data = tomllib.loads(Path(as_system_path(agent_file)).read_text(encoding="utf-8")) or {}
     else:
         data = {}
     return data.get("agent") or {}

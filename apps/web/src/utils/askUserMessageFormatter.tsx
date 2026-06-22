@@ -6,12 +6,15 @@ import React from "react";
 export function formatMessage(message: string): React.ReactNode {
   if (!message) return null;
 
-  const hasBulletList = message.includes("\n- ") || message.startsWith("- ");
-  const hasNumberList = /^\d+\./.test(message) || message.includes("\n1.");
+  // 统一 CRLF/孤立 CR 为 LF，避免 Windows 来源的消息分段失败
+  const normalized = message.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+
+  const hasBulletList = normalized.includes("\n- ") || normalized.startsWith("- ");
+  const hasNumberList = /^\d+\./.test(normalized) || normalized.includes("\n1.");
 
   if (!hasBulletList && !hasNumberList) {
-    const paragraphs = message.split("\n\n");
-    if (paragraphs.length === 1) return <span>{message}</span>;
+    const paragraphs = normalized.split("\n\n");
+    if (paragraphs.length === 1) return <span>{normalized}</span>;
 
     return (
       <div className="space-y-2">
@@ -25,7 +28,7 @@ export function formatMessage(message: string): React.ReactNode {
     );
   }
 
-  const lines = message.split("\n");
+  const lines = normalized.split("\n");
   const elements: React.ReactNode[] = [];
   let currentList: string[] = [];
   let listType: "bullet" | "number" | null = null;

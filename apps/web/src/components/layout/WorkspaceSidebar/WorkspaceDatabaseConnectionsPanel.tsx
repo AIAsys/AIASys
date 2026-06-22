@@ -64,9 +64,11 @@ export function WorkspaceDatabaseConnectionsPanel({
   const handleManage = onManageConnections;
 
   const selectedHandleRef = useRef(selectedHandle);
-  selectedHandleRef.current = selectedHandle;
   const handlesRef = useRef(handles);
-  handlesRef.current = handles;
+  useEffect(() => {
+    selectedHandleRef.current = selectedHandle;
+    handlesRef.current = handles;
+  }, [selectedHandle, handles]);
 
   const testConnections = useCallback(async (handlesToTest: RuntimeDatabaseHandleInfo[]) => {
     const newStatusMap = new Map<string, ConnectionStatusInfo>();

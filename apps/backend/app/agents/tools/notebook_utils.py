@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Any
 
 from app.services.history import current_session_root, current_workspace
+from app.utils.path_utils import as_system_path
 
 DEFAULT_NOTEBOOK_CELL_PREVIEW_CHARS = 120
 DEFAULT_NOTEBOOK_OUTPUT_PREVIEW_CHARS = 160
@@ -185,16 +186,18 @@ def ensure_notebook_shape(payload: dict[str, Any]) -> dict[str, Any]:
 
 
 def load_notebook(file_path: Path) -> dict[str, Any]:
-    if not file_path.exists():
+    sys_file_path = Path(as_system_path(file_path))
+    if not sys_file_path.exists():
         return default_notebook()
-    return ensure_notebook_shape(json.loads(file_path.read_text(encoding="utf-8")))
+    return ensure_notebook_shape(json.loads(sys_file_path.read_text(encoding="utf-8")))
 
 
 def write_notebook(file_path: Path, notebook: dict[str, Any]) -> str:
     normalized = ensure_notebook_shape(notebook)
-    file_path.parent.mkdir(parents=True, exist_ok=True)
+    sys_file_path = Path(as_system_path(file_path))
+    sys_file_path.parent.mkdir(parents=True, exist_ok=True)
     serialized = json.dumps(normalized, ensure_ascii=False, indent=2) + "\n"
-    file_path.write_text(serialized, encoding="utf-8")
+    sys_file_path.write_text(serialized, encoding="utf-8")
     return serialized
 
 

@@ -166,7 +166,7 @@ def _get_subagent_route_context(
         bound_host_session_id = getattr(metadata, "bound_host_session_id", None)
         conversation_type = getattr(metadata, "conversation_type", None)
     except Exception:
-        pass
+        logger.warning("读取会话元数据失败，将使用默认会话信息", exc_info=True)
 
     return {
         "session_id": session_id,

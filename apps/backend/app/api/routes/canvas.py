@@ -41,9 +41,7 @@ async def read_canvas(
     workspace_dir = service._get_workspace_dir(current_user.user_id, workspace_id)
     canvas_service = get_canvas_file_service()
     try:
-        canvas = await asyncio.to_thread(
-            canvas_service.read_canvas, workspace_dir, relative_path
-        )
+        canvas = await asyncio.to_thread(canvas_service.read_canvas, workspace_dir, relative_path)
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValueError as exc:

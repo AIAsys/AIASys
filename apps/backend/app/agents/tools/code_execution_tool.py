@@ -8,6 +8,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 from typing import Any
@@ -125,7 +126,7 @@ class ListKernelEnvs(AiasysTool):
             )
 
         ksm = KernelSpecManager()
-        all_specs = ksm.get_all_specs()
+        all_specs = await asyncio.to_thread(ksm.get_all_specs)
         kernels = []
         for name, spec in sorted(all_specs.items()):
             spec_data = spec.get("spec", {})
@@ -159,6 +160,46 @@ class ListKernelEnvs(AiasysTool):
 PROTECTED_KERNELS = frozenset({"python3"})
 
 
+def _register_kernel_env_sync(name: str, python_path: str) -> str:
+    """在线程池中完成 kernel spec 的目录清理、临时文件写入和安装，避免阻塞事件循环。"""
+    import os
+    import shutil
+    import tempfile
+
+    from jupyter_client.kernelspec import KernelSpecManager
+
+    ksm = KernelSpecManager()
+    save_native = ksm.ensure_native_kernel
+    try:
+        ksm.ensure_native_kernel = False
+        existing_specs = ksm.find_kernel_specs()
+    finally:
+        ksm.ensure_native_kernel = save_native
+    if name in existing_specs:
+        shutil.rmtree(as_system_path(str(existing_specs[name])))
+
+    kernel_json = {
+        "argv": [
+            python_path,
+            "-m",
+            "ipykernel_launcher",
+            "-f",
+            "{connection_file}",
+        ],
+        "display_name": f"Python ({name})",
+        "language": "python",
+    }
+
+    tmp_dir = tempfile.mkdtemp()
+    try:
+        json_path = os.path.join(tmp_dir, "kernel.json")
+        with open(json_path, "w", encoding="utf-8") as f:
+            json.dump(kernel_json, f, indent=1, ensure_ascii=False)
+        return ksm.install_kernel_spec(tmp_dir, kernel_name=name, user=True)
+    finally:
+        shutil.rmtree(as_system_path(str(tmp_dir)))
+
+
 class RegisterKernelEnvParams(BaseModel):
     name: str = Field(description="kernel 名称，需唯一，仅允许小写字母/数字/连字符")
     python_path: str = Field(description="Python 可执行文件的完整路径")
@@ -186,8 +227,6 @@ class RegisterKernelEnv(AiasysTool):
         **kwargs: Any,
     ) -> ToolResult:
         import os
-        import shutil
-        import tempfile
 
         params = RegisterKernelEnvParams.model_validate(kwargs)
         name = params.name.strip().lower()
@@ -213,44 +252,14 @@ class RegisterKernelEnv(AiasysTool):
             )
 
         try:
-            from jupyter_client.kernelspec import KernelSpecManager
+            from jupyter_client.kernelspec import KernelSpecManager  # noqa: F401
         except ImportError:
             return ToolResult(
                 content="jupyter_client 未安装，无法注册 kernel。",
                 is_error=True,
             )
 
-        ksm = KernelSpecManager()
-        # 若同名已存在，先删除
-        save_native = ksm.ensure_native_kernel
-        try:
-            ksm.ensure_native_kernel = False
-            existing_specs = ksm.find_kernel_specs()
-        finally:
-            ksm.ensure_native_kernel = save_native
-        if name in existing_specs:
-            shutil.rmtree(as_system_path(str(existing_specs[name])))
-
-        kernel_json = {
-            "argv": [
-                python_path,
-                "-m",
-                "ipykernel_launcher",
-                "-f",
-                "{connection_file}",
-            ],
-            "display_name": f"Python ({name})",
-            "language": "python",
-        }
-
-        tmp_dir = tempfile.mkdtemp()
-        try:
-            json_path = os.path.join(tmp_dir, "kernel.json")
-            with open(json_path, "w", encoding="utf-8") as f:
-                json.dump(kernel_json, f, indent=1, ensure_ascii=False)
-            dest = ksm.install_kernel_spec(tmp_dir, kernel_name=name, user=True)
-        finally:
-            shutil.rmtree(as_system_path(str(tmp_dir)))
+        dest = await asyncio.to_thread(_register_kernel_env_sync, name, python_path)
 
         return ToolResult(
             content=json.dumps(

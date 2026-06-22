@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from pathlib import Path
 from typing import Annotated
@@ -58,8 +59,8 @@ def _resolve_table_path(workspace_root: Path, table_path: str) -> Path:
     target = (root / table_path).resolve()
     try:
         target.relative_to(root)
-    except ValueError:
-        raise HTTPException(status_code=403, detail="Invalid table path")
+    except ValueError as exc:
+        raise HTTPException(status_code=403, detail="Invalid table path") from exc
     if target.suffix.lower() != ".db" or ".table." not in target.name:
         raise HTTPException(status_code=400, detail="Not a data table file")
     return target
@@ -204,7 +205,7 @@ async def create_workspace_data_table(
 ):
     """在工作区中创建一个新的多维数据表。"""
     workspace_root = _get_workspace_root(current_user.user_id, workspace_id)
-    return _create_table(workspace_root, request)
+    return await asyncio.to_thread(_create_table, workspace_root, request)
 
 
 @router.post(
@@ -218,7 +219,9 @@ async def create_global_workspace_data_table(
 ):
     """在用户默认层全局工作区中创建一个新的多维数据表。"""
     _get_workspace_root(current_user.user_id, workspace_id)
-    return _create_table(_get_global_workspace_root(current_user.user_id), request)
+    return await asyncio.to_thread(
+        _create_table, _get_global_workspace_root(current_user.user_id), request
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -239,7 +242,7 @@ async def get_data_table_schema(
 ):
     """获取数据表的 schema 定义。"""
     workspace_root = _get_workspace_root(current_user.user_id, workspace_id)
-    return _read_table_schema(workspace_root, table_path)
+    return await asyncio.to_thread(_read_table_schema, workspace_root, table_path)
 
 
 @router.get("/{workspace_id}/global-workspace/data-tables/{table_path:path}/schema")
@@ -250,7 +253,8 @@ async def get_global_data_table_schema(
 ):
     """获取用户默认层全局工作区数据表的 schema 定义。"""
     _get_workspace_root(current_user.user_id, workspace_id)
-    return _read_table_schema(
+    return await asyncio.to_thread(
+        _read_table_schema,
         _get_global_workspace_root(current_user.user_id),
         table_path,
     )
@@ -277,7 +281,8 @@ async def get_data_table_records(
 ):
     """获取数据表的记录列表。"""
     workspace_root = _get_workspace_root(current_user.user_id, workspace_id)
-    return _read_table_records(
+    return await asyncio.to_thread(
+        _read_table_records,
         workspace_root,
         table_path,
         limit=limit,
@@ -295,7 +300,8 @@ async def get_global_data_table_records(
 ):
     """获取用户默认层全局工作区数据表的记录列表。"""
     _get_workspace_root(current_user.user_id, workspace_id)
-    return _read_table_records(
+    return await asyncio.to_thread(
+        _read_table_records,
         _get_global_workspace_root(current_user.user_id),
         table_path,
         limit=limit,
@@ -326,7 +332,7 @@ async def post_data_table_records(
 ):
     """向数据表插入新记录。"""
     workspace_root = _get_workspace_root(current_user.user_id, workspace_id)
-    return _insert_records(workspace_root, table_path, request)
+    return await asyncio.to_thread(_insert_records, workspace_root, table_path, request)
 
 
 @router.post("/{workspace_id}/global-workspace/data-tables/{table_path:path}/records")
@@ -338,7 +344,8 @@ async def post_global_data_table_records(
 ):
     """向用户默认层全局工作区数据表插入新记录。"""
     _get_workspace_root(current_user.user_id, workspace_id)
-    return _insert_records(
+    return await asyncio.to_thread(
+        _insert_records,
         _get_global_workspace_root(current_user.user_id),
         table_path,
         request,
@@ -368,7 +375,9 @@ async def put_data_table_record(
 ):
     """更新数据表中的一条记录。"""
     workspace_root = _get_workspace_root(current_user.user_id, workspace_id)
-    return _update_record(workspace_root, table_path, record_id, request)
+    return await asyncio.to_thread(
+        _update_record, workspace_root, table_path, record_id, request
+    )
 
 
 @router.put("/{workspace_id}/global-workspace/data-tables/{table_path:path}/records/{record_id}")
@@ -381,7 +390,8 @@ async def put_global_data_table_record(
 ):
     """更新用户默认层全局工作区数据表中的一条记录。"""
     _get_workspace_root(current_user.user_id, workspace_id)
-    return _update_record(
+    return await asyncio.to_thread(
+        _update_record,
         _get_global_workspace_root(current_user.user_id),
         table_path,
         record_id,
@@ -407,7 +417,7 @@ async def delete_data_table_record_endpoint(
 ):
     """删除数据表中的一条记录。"""
     workspace_root = _get_workspace_root(current_user.user_id, workspace_id)
-    return _delete_record(workspace_root, table_path, record_id)
+    return await asyncio.to_thread(_delete_record, workspace_root, table_path, record_id)
 
 
 @router.delete("/{workspace_id}/global-workspace/data-tables/{table_path:path}/records/{record_id}")
@@ -419,7 +429,8 @@ async def delete_global_data_table_record_endpoint(
 ):
     """删除用户默认层全局工作区数据表中的一条记录。"""
     _get_workspace_root(current_user.user_id, workspace_id)
-    return _delete_record(
+    return await asyncio.to_thread(
+        _delete_record,
         _get_global_workspace_root(current_user.user_id),
         table_path,
         record_id,
@@ -462,7 +473,7 @@ async def add_column_endpoint(
 ):
     """向数据表添加一列。"""
     workspace_root = _get_workspace_root(current_user.user_id, workspace_id)
-    return _add_column(workspace_root, table_path, request)
+    return await asyncio.to_thread(_add_column, workspace_root, table_path, request)
 
 
 @router.post("/{workspace_id}/global-workspace/data-tables/{table_path:path}/schema/columns")
@@ -474,7 +485,8 @@ async def add_global_column_endpoint(
 ):
     """向用户默认层全局工作区数据表添加一列。"""
     _get_workspace_root(current_user.user_id, workspace_id)
-    return _add_column(
+    return await asyncio.to_thread(
+        _add_column,
         _get_global_workspace_root(current_user.user_id),
         table_path,
         request,
@@ -490,7 +502,7 @@ async def remove_column_endpoint(
 ):
     """从数据表删除一列。"""
     workspace_root = _get_workspace_root(current_user.user_id, workspace_id)
-    return _remove_column(workspace_root, table_path, column_name)
+    return await asyncio.to_thread(_remove_column, workspace_root, table_path, column_name)
 
 
 @router.delete(
@@ -504,7 +516,8 @@ async def remove_global_column_endpoint(
 ):
     """从用户默认层全局工作区数据表删除一列。"""
     _get_workspace_root(current_user.user_id, workspace_id)
-    return _remove_column(
+    return await asyncio.to_thread(
+        _remove_column,
         _get_global_workspace_root(current_user.user_id),
         table_path,
         column_name,
@@ -521,7 +534,9 @@ async def update_column_endpoint(
 ):
     """修改数据表的一列定义。"""
     workspace_root = _get_workspace_root(current_user.user_id, workspace_id)
-    return _update_column(workspace_root, table_path, column_name, request)
+    return await asyncio.to_thread(
+        _update_column, workspace_root, table_path, column_name, request
+    )
 
 
 @router.put(
@@ -536,7 +551,8 @@ async def update_global_column_endpoint(
 ):
     """修改用户默认层全局工作区数据表的一列定义。"""
     _get_workspace_root(current_user.user_id, workspace_id)
-    return _update_column(
+    return await asyncio.to_thread(
+        _update_column,
         _get_global_workspace_root(current_user.user_id),
         table_path,
         column_name,

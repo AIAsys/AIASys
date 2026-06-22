@@ -341,7 +341,7 @@ async def terminal_websocket(
                     continue
                 rows = max(1, min(500, int(payload.get("rows", 24))))
                 cols = max(1, min(1000, int(payload.get("cols", 80))))
-                ok = pty_manager.resize(terminal_id, rows, cols)
+                ok = await pty_manager.resize(terminal_id, rows, cols)
                 if not ok:
                     await websocket.send_json(
                         {

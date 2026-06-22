@@ -371,10 +371,8 @@ class ContextMixin:
             from app.services.agent.subagent_registry import get_subagent_registry
 
             registry = get_subagent_registry()
-            for agent_id in list(registry._host_session_ids.keys()):
-                if registry._host_session_ids.get(agent_id) == session_key:
-                    registry.cancel(agent_id)
-                    registry.unregister(agent_id)
+            await registry.acancel_all_for_host(session_key)
+            await registry.aunregister_all_for_host(session_key)
         except Exception:
             logger.warning("清理子 Agent registry 失败", exc_info=True)
 

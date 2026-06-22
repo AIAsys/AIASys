@@ -205,8 +205,12 @@ async def create_session(request: CreateSessionRequest, user: UserInfo = Depends
                 if workspace.runtime_binding:
                     env_id = workspace.runtime_binding.env_id
                     sandbox_mode = workspace.runtime_binding.sandbox_mode
-            except Exception:
-                pass
+            except FileNotFoundError as exc:
+                logger.warning(f"创建会话时指定的工作区不存在: {request.workspace_id}")
+                raise HTTPException(status_code=404, detail="Workspace not found") from exc
+            except Exception as exc:
+                logger.warning(f"读取工作区 runtime_binding 失败: {exc}")
+                raise HTTPException(status_code=500, detail="Failed to resolve workspace runtime binding") from exc
 
         validated_code_timeout = (
             validate_code_timeout(request.code_timeout, sandbox_mode or "local")
@@ -272,7 +276,7 @@ async def create_session(request: CreateSessionRequest, user: UserInfo = Depends
             code_timeout=metadata.code_timeout,
         )
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
     except Exception as e:
         logger.error(f"创建会话失败: {e}")
         raise HTTPException(status_code=500, detail="Failed to create session") from e

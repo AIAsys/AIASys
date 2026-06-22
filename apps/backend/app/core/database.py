@@ -180,6 +180,45 @@ class WorkspaceResourceDefaultORM(Base):
     updated_at = Column(DateTime, default=utc_now_naive, onupdate=utc_now_naive)
 
 
+def _sqlite_default_value(col) -> str | None:
+    """把 SQLAlchemy Column 的 Python default 转成 SQLite 可接受的字面量。
+
+    只处理标量默认值和常用的 list/dict 可调用默认值；复杂可调用对象
+    （如 utc_now_naive）无法静态翻译，返回 None，由调用方决定是否需要
+    降级为 NULLABLE。
+    """
+    if col.server_default is not None:
+        return str(col.server_default.arg)
+
+    default = col.default
+    if default is None:
+        return None
+
+    if getattr(default, "is_scalar", False):
+        val = default.arg
+        if isinstance(val, str):
+            return f"'{val.replace("'", "''")}'"
+        if isinstance(val, bool):
+            return "1" if val else "0"
+        if isinstance(val, (int, float)):
+            return str(val)
+        return None
+
+    if getattr(default, "is_callable", False):
+        try:
+            val = default.arg()
+            # JSON 字段常用 list/dict 作为默认值
+            if isinstance(val, list):
+                return "'[]'"
+            if isinstance(val, dict):
+                return "'{}'"
+        except Exception:
+            # 无法静态调用的可调用对象（如需要参数的工厂函数）跳过
+            pass
+
+    return None
+
+
 def _ensure_column(
     table_name: str, column_name: str, column_def: str, *, index_name: str | None = None
 ) -> None:
@@ -197,14 +236,84 @@ def _ensure_column(
             conn.commit()
 
 
+def _ensure_all_model_columns() -> None:
+    """自动补齐 Base 中所有已存在表的缺失列与索引。
+
+    设计约束：
+    - 不删除、不修改已有列；只做追加。
+    - 主键列缺失视为表结构严重异常，不自动处理（交给 create_all 重建新表）。
+    - 默认值仅使用 SQLite 字面量，避免可调用对象差异导致迁移失败。
+    """
+    from sqlalchemy import text
+    from sqlalchemy.dialects.sqlite.base import SQLiteDialect
+    from sqlalchemy.schema import CreateColumn, CreateIndex
+
+    dialect = SQLiteDialect()
+    with engine.connect() as conn:
+        for table in Base.metadata.sorted_tables:
+            table_name = table.name
+            existing_cols = {
+                r[1] for r in conn.execute(text(f"PRAGMA table_info({table_name})")).fetchall()
+            }
+            if not existing_cols:
+                # 表不存在，Base.metadata.create_all 会负责创建
+                continue
+
+            for col in table.columns:
+                if col.primary_key:
+                    continue
+                if col.name in existing_cols:
+                    continue
+
+                base_def = str(CreateColumn(col).compile(dialect=dialect))
+                default_sql = _sqlite_default_value(col)
+                parts = base_def.split()
+                has_not_null = "NOT" in parts and "NULL" in parts
+                if has_not_null:
+                    parts = [p for p in parts if p not in ("NOT", "NULL")]
+                    base_def = " ".join(parts)
+                if default_sql is not None:
+                    base_def += f" DEFAULT {default_sql}"
+                if has_not_null:
+                    base_def += " NOT NULL"
+
+                try:
+                    conn.execute(text(f"ALTER TABLE {table_name} ADD COLUMN {base_def}"))
+                    conn.commit()
+                    logger.info("自动迁移：表 %s 新增列 %s", table_name, col.name)
+                except Exception as e:
+                    logger.warning("自动迁移失败：表 %s 列 %s: %s", table_name, col.name, e)
+
+            existing_indexes = {
+                r[1] for r in conn.execute(text(f"PRAGMA index_list({table_name})")).fetchall()
+            }
+            for idx in table.indexes:
+                if idx.name in existing_indexes:
+                    continue
+                try:
+                    conn.execute(text(str(CreateIndex(idx).compile(dialect=dialect))))
+                    conn.commit()
+                    logger.info("自动迁移：表 %s 新增索引 %s", table_name, idx.name)
+                except Exception as e:
+                    logger.warning("自动迁移失败：表 %s 索引 %s: %s", table_name, idx.name, e)
+
+
 def init_db():
     """初始化数据库表，并对旧 schema 做兼容性补丁。"""
     Base.metadata.create_all(bind=engine)
+    _ensure_all_model_columns()
+    # 显式兜底：确保历史变更中关键列/索引存在
     _ensure_column(
         "database_connectors",
         "workspace_id",
         "VARCHAR",
         index_name="ix_database_connectors_workspace_id",
+    )
+    _ensure_column(
+        "database_connectors",
+        "scope",
+        "VARCHAR NOT NULL DEFAULT 'global'",
+        index_name="ix_database_connectors_scope",
     )
 
 

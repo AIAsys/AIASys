@@ -23,6 +23,7 @@ from app.api.routes.memory_schemas import (
 from app.core.auth import require_auth
 from app.core.config import WORKSPACE_DIR, get_user_global_memory_dir
 from app.models.user import UserInfo
+from app.utils.path_utils import as_system_path
 from app.services.memory.constants import (
     MAX_MEMORY_SIZE,
     MAX_SUMMARY_SIZE,
@@ -50,6 +51,7 @@ from app.services.memory.store import (
     MemoryStore,
 )
 from app.services.session.config_projection import read_runtime_config_state
+from app.utils.validators import validate_id
 
 router = APIRouter(prefix="/memory", tags=["memory"])
 
@@ -74,8 +76,9 @@ def _ensure_user_access(current_user: UserInfo, user_id: str) -> None:
 
 
 def _ensure_session_exists(user_id: str, session_id: str) -> Path:
+    validate_id(session_id, "session_id")
     session_dir = _get_session_dir(user_id, session_id)
-    if not session_dir.exists():
+    if not Path(as_system_path(session_dir)).exists():
         raise HTTPException(status_code=404, detail="会话不存在")
     return session_dir
 
@@ -87,6 +90,8 @@ def _resolve_workspace_context(
     workspace_id: str | None,
     required: bool,
 ):
+    if workspace_id is not None:
+        validate_id(workspace_id, "workspace_id")
     registry = _get_workspace_registry()
     normalized_workspace_id = str(workspace_id or "").strip() or None
     bound_workspace_id: str | None = None
@@ -190,7 +195,7 @@ async def refresh_memory_summary(
     if summary_path is None:
         raise HTTPException(status_code=404, detail="无可用 memory summary")
 
-    content = summary_path.read_text(encoding="utf-8")
+    content = Path(as_system_path(summary_path)).read_text(encoding="utf-8")
     return {"content": content}
 
 
@@ -317,7 +322,8 @@ async def get_workspace_memory_content(
     )
     assert workspace_root is not None
     memory_path = get_workspace_memory_file_path(workspace_root)
-    content = memory_path.read_text(encoding="utf-8") if memory_path.exists() else ""
+    sys_memory_path = Path(as_system_path(memory_path))
+    content = sys_memory_path.read_text(encoding="utf-8") if sys_memory_path.exists() else ""
     return WorkspaceMemoryContentResponse(
         content=content,
         workspace_id=resolved_workspace_id,
