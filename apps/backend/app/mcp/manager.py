@@ -345,17 +345,19 @@ class MCPManager:
     ) -> None:
         """保存工具缓存（原子写）。"""
         path = self._get_tools_cache_path(workspace_path)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        tmp_path = path.with_suffix(".tmp")
+        sys_path = as_system_path(path)
+        sys_parent = as_system_path(path.parent)
+        sys_tmp_path = as_system_path(path.with_suffix(".tmp"))
+        Path(sys_parent).mkdir(parents=True, exist_ok=True)
         try:
-            with open(tmp_path, "w", encoding="utf-8") as f:
+            with open(sys_tmp_path, "w", encoding="utf-8") as f:
                 f.write(json.dumps(cache, indent=2, ensure_ascii=False))
                 f.flush()
                 os.fsync(f.fileno())
-            os.replace(str(tmp_path), str(path))
+            os.replace(sys_tmp_path, sys_path)
         except Exception:
-            if tmp_path.exists():
-                tmp_path.unlink(missing_ok=True)
+            if Path(sys_tmp_path).exists():
+                Path(sys_tmp_path).unlink(missing_ok=True)
             raise
 
     def cache_server_tools(

@@ -231,6 +231,9 @@ export function WorkspaceContextPanel({
       return;
     }
 
+    document.body.style.setProperty("-webkit-user-select", "none");
+    document.body.style.setProperty("-moz-user-select", "none");
+    document.body.style.setProperty("-ms-user-select", "none");
     document.body.style.userSelect = "none";
     document.body.style.cursor = "col-resize";
 
@@ -251,6 +254,9 @@ export function WorkspaceContextPanel({
     document.addEventListener("mousemove", handleMouseMove);
     document.addEventListener("mouseup", handleMouseUp);
     return () => {
+      document.body.style.removeProperty("-webkit-user-select");
+      document.body.style.removeProperty("-moz-user-select");
+      document.body.style.removeProperty("-ms-user-select");
       document.body.style.userSelect = "";
       document.body.style.cursor = "";
       document.removeEventListener("mousemove", handleMouseMove);

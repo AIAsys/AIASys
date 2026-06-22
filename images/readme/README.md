@@ -6,26 +6,30 @@
 |--------|------|----------|------|
 | `home-hero.png` | 产品官网首页 / 入口页 | 2026-06-21 | 已更新至 v0.4.23 |
 | `workspace-layout.png` | 工作区三栏布局（Activity Bar / 主画布 / 当前工作区） | 2026-06-21 | 已新增 |
-| `aiasys-workspace-loop.png` | 工作区运行闭环示意 | 2026-06-17 | 可用 |
-| `demo-sales-overview.png` | 销售洞察分析工作区总览 | 2026-06-17 | 可用 |
-| `demo-sales-report.png` | 销售洞察分析报告 | 2026-06-17 | 可用 |
-| `demo-sales-chart.png` | 销售洞察图表预览 | 2026-06-17 | 可用 |
+| `panel-current-workspace.png` | Activity Bar「当前工作区」面板 | 2026-06-21 | 已新增 |
+| `panel-global-workspace.png` | Activity Bar「全局工作区」面板 | 2026-06-21 | 已新增 |
+| `panel-data-query.png` | Activity Bar「数据查询」面板 | 2026-06-21 | 已新增 |
+| `panel-file-search.png` | Activity Bar「文件搜索」面板 | 2026-06-21 | 已新增 |
+| `panel-subagents.png` | Activity Bar「专家协作节点」面板 | 2026-06-21 | 已新增 |
+| `panel-file-changes.png` | Activity Bar「文件变更」面板 | 2026-06-21 | 已新增 |
+| `panel-capability-management.png` | 全局控制面板「能力管理」页 | 2026-06-21 | 已新增 |
+| `aiasys-workspace-loop.png` | 工作区运行闭环示意 | 2026-06-22 | 已升采样至 3200x2000 |
+| `demo-sales-overview.png` | 销售洞察分析工作区总览 | 2026-06-22 | 已更新至 v0.4.23，高分辨率 2x |
+| `demo-sales-report.png` | 销售洞察分析报告 | 2026-06-22 | 已更新至 v0.4.23，高分辨率 2x |
+| `demo-sales-chart.png` | 销售洞察图表预览 | 2026-06-22 | 已更新至 v0.4.23，高分辨率 2x |
 | `demo-industrial-monitor.png` | 工业运行监控工作区 | 2026-06-19 | 可用 |
 | `demo-knowledge-graph-exploration.png` | 知识图谱实体关系探索 | 2026-06-19 | 可用 |
-| `demo-003-notebook-analysis-overview.png` | Notebook 代码执行与图表预览 | 2026-06-19 | 可用 |
-| `demo-003-notebook-analysis-notebook.png` | Notebook 编辑界面 | 2026-06-19 | 可用 |
-| `demo-env-vars-overview.png` | 环境变量注入面板 | 2026-06-17 | 可用 |
+| `demo-003-notebook-analysis-overview.png` | Notebook 代码执行与图表预览 | 2026-06-19 | 可用；建议后续重截真正的 Notebook 编辑界面 |
+| `demo-env-vars-overview.png` | 环境变量注入与验证 | 2026-06-22 | 已更新至 v0.4.23，高分辨率 2x |
 | `demo-008-knowledge-base-qa-overview.png` | 知识库问答总览 | 2026-06-19 | 可用 |
 | `demo-008-knowledge-base-qa-kb.png` | 知识库文档管理 | 2026-06-19 | 可用 |
-| `demo-canvas-workflow.png` | Canvas 工作流画布 | 2026-06-17 | 可用 |
-| `demo-data-table.png` | 多维表格实验记录 | 2026-06-17 | 可用 |
-| `demo-db-query-overview.png` | 工作区数据库 SQL 查询 | 2026-06-17 | 可用 |
+| `demo-canvas-workflow.png` | Canvas 工作流画布 | 2026-06-22 | 已更新至 v0.4.23，高分辨率 2x |
+| `demo-data-table.png` | 多维表格实验记录 | 2026-06-22 | 已更新至 v0.4.23，带真实数据，高分辨率 2x |
+| `demo-db-query-overview.png` | 工作区数据库 SQL 查询 | 2026-06-22 | 已更新至 v0.4.23，高分辨率 2x |
 | `demo-005-subagent-collaboration-overview.png` | 子 Agent 并行协作总览 | 2026-06-19 | 可用 |
-| `demo-005-subagent-collaboration-subagent.png` | 子 Agent 详情 | 2026-06-19 | 可用 |
 | `demo-006-autotask-monitoring-overview.png` | AutoTask 自动化任务总览 | 2026-06-19 | 可用 |
-| `demo-006-autotask-monitoring-autotask.png` | AutoTask 任务详情 | 2026-06-19 | 可用 |
 | `demo-model-config-panel.png` | 模型配置弹窗（默认模型 + 服务商） | 2026-06-21 | 已更新至 v0.4.23 |
-| `demo-pdf-translation-dual.png` | PDF 翻译后双栏预览 | 2026-06-17 | 可用 |
+| `demo-pdf-translation-dual.png` | PDF 翻译产物与过程说明 | 2026-06-22 | 已更新至 v0.4.23，高分辨率 2x |
 
 ## 待补充图（后续可补）
 
@@ -36,4 +40,4 @@
 
 ## 重截脚本
 
-需要重新生成首页或模型配置弹窗截图时，可复用 `apps/web/scripts/` 下的 Playwright 脚本（尚未沉淀为稳定脚本，建议按 `frontend-screenshot` Skill 的规范临时编写）。
+需要重新生成 L2 demo 展示图时，可复用 `apps/web/scripts/committed/capture-readme-demos.mjs`，用法见脚本头部注释。

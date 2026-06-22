@@ -6,12 +6,7 @@ subprocesses. Non-Windows platforms are a no-op.
 
 import os
 import subprocess
-import sys
-from typing import TYPE_CHECKING, Any
-
-if TYPE_CHECKING:
-    if os.name == "nt":
-        from subprocess import STARTUPINFO  # noqa: F811
+from typing import Any
 
 
 def _windows_startupinfo() -> Any:

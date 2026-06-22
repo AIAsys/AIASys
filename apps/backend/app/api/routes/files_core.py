@@ -6,11 +6,12 @@ import asyncio
 import io
 import logging
 import mimetypes
+import os
 import shutil
 import zipfile
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse, StreamingResponse
 
 from app.core.auth import require_auth, require_role
@@ -18,7 +19,7 @@ from app.models.user import UserInfo
 from app.services.export import (
     MarkdownExportDependencyError,
     MarkdownExportError,
-    export_markdown_file,
+    export_markdown_file_to_path,
 )
 from app.utils.file_utils import sanitize_content_disposition_filename
 from app.utils.path_utils import as_system_path
@@ -36,6 +37,7 @@ from .files_utils import (
     FileMoveRequest,
     FileMoveResponse,
     _check_user_access,
+    _copyfileobj_with_limit,
     _get_logical_workspace_root,
     _get_notebook_edit_lock_reason,
     _get_session_owner_user_id,
@@ -56,6 +58,14 @@ from .files_utils import (
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+
+def _save_upload_file_sync(file: UploadFile, file_path: Path) -> int:
+    """在线程池中完成上传文件的落盘与大小校验，避免阻塞事件循环。"""
+    Path(as_system_path(file_path.parent)).mkdir(parents=True, exist_ok=True)
+    with open(as_system_path(file_path), "wb") as f:
+        size = _copyfileobj_with_limit(file.file, f)
+    return size
 
 
 @router.post("/upload/{user_id}/{session_id}")
@@ -96,13 +106,9 @@ async def upload_file(
         # 统一保存到对应目录，对应容器内 /workspace/uploads/{filename}
         if relative_dir:
             file_path = work_dir / relative_dir / safe_filename
-            Path(as_system_path(file_path.parent)).mkdir(parents=True, exist_ok=True)
         else:
             file_path = work_dir / safe_filename
-        with open(as_system_path(file_path), "wb") as f:
-            from .files_utils import _copyfileobj_with_limit
-
-            _copyfileobj_with_limit(file.file, f)
+        size = await asyncio.to_thread(_save_upload_file_sync, file, file_path)
 
         workspace_path = (
             f"/workspace/{relative_dir}/{safe_filename}"
@@ -117,14 +123,14 @@ async def upload_file(
             "success": True,
             "filename": safe_filename,
             "path": workspace_path,
-            "size": file_path.stat().st_size,
+            "size": size,
             "uploaded_by": current_user.user_id,
         }
 
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Operation failed")
-    except PermissionError:
-        raise HTTPException(status_code=403, detail="Operation failed")
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail="Operation failed") from e
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail="Operation failed") from e
     except Exception as e:
         logger.error(f"上传失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Operation failed") from e
@@ -440,7 +446,9 @@ async def export_markdown_document(
                 filename=f"{file_path.stem}.md",
             )
 
-        artifact = export_markdown_file(file_path, normalized_format)
+        output_path, download_filename, media_type = await asyncio.to_thread(
+            export_markdown_file_to_path, file_path, normalized_format
+        )
         logger.info(
             "Markdown 转换导出: %s/%s/%s -> %s by %s",
             user_id,
@@ -449,25 +457,41 @@ async def export_markdown_document(
             normalized_format,
             current_user.user_id,
         )
-        return StreamingResponse(
-            io.BytesIO(artifact.content),
-            media_type=artifact.media_type,
-            headers={
-                "Content-Disposition": f'attachment; filename="{sanitize_content_disposition_filename(artifact.filename)}"'
-            },
+        background_tasks = BackgroundTasks()
+        background_tasks.add_task(os.unlink, output_path)
+        return FileResponse(
+            output_path,
+            media_type=media_type,
+            filename=sanitize_content_disposition_filename(download_filename),
+            background=background_tasks,
         )
 
     except HTTPException:
         raise
     except MarkdownExportDependencyError as e:
         logger.warning("Markdown 导出依赖缺失: %s", e)
-        raise HTTPException(status_code=503, detail="Operation failed")
+        raise HTTPException(status_code=503, detail="Operation failed") from e
     except MarkdownExportError as e:
         logger.error("Markdown 导出失败: %s", e)
-        raise HTTPException(status_code=500, detail="Operation failed")
+        raise HTTPException(status_code=500, detail="Operation failed") from e
     except Exception as e:
         logger.error(f"Markdown 导出失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Operation failed") from e
+
+
+def _read_text_file_sync(file_path: Path) -> tuple[str, int]:
+    """在线程中同步读取文本文件内容与大小。"""
+    content = Path(as_system_path(file_path)).read_text(encoding="utf-8")
+    file_size = file_path.stat().st_size
+    return content, file_size
+
+
+def _backup_file_sync(file_path: Path, backup_path: Path) -> None:
+    """在线程中同步备份文件内容。"""
+    Path(as_system_path(backup_path)).write_text(
+        Path(as_system_path(file_path)).read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
 
 
 @router.get("/content/{user_id}/{session_id}/{filename:path}", response_model=FileContentResponse)
@@ -501,8 +525,7 @@ async def get_file_content(
 
         # 读取文件内容
         try:
-            content = Path(as_system_path(file_path)).read_text(encoding="utf-8")
-            file_size = file_path.stat().st_size
+            content, file_size = await asyncio.to_thread(_read_text_file_sync, file_path)
         except UnicodeDecodeError:
             raise HTTPException(status_code=400, detail="文件不是有效的文本文件")
 
@@ -652,14 +675,12 @@ async def update_file_content(
         if file_path.exists():
             backup_path = file_path.with_suffix(f"{file_path.suffix}.backup")
             try:
-                Path(as_system_path(backup_path)).write_text(
-                    Path(as_system_path(file_path)).read_text(encoding="utf-8"), encoding="utf-8"
-                )
+                await asyncio.to_thread(_backup_file_sync, file_path, backup_path)
             except Exception:
                 pass  # 备份失败不影响主流程
 
         # 写入新内容
-        Path(as_system_path(file_path)).write_bytes(content_bytes)
+        await asyncio.to_thread(Path(as_system_path(file_path)).write_bytes, content_bytes)
 
         if _is_workspace_memory_mirror_path(normalized_path):
             _sync_workspace_memory_from_mirror(

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
 from datetime import datetime
@@ -495,16 +496,19 @@ async def build_runtime_config_projection(
     sandbox_mode: str | None,
     runtime_busy: bool,
 ) -> dict[str, Any]:
-    ensure_workspace_layout(session_dir)
-    state = read_runtime_config_state(session_dir)
+    await asyncio.to_thread(ensure_workspace_layout, session_dir)
+    state = await asyncio.to_thread(read_runtime_config_state, session_dir)
     current_agent_version = await compute_agent_config_version(
         user_id=user_id,
         session_id=session_id,
         sandbox_mode=sandbox_mode,
         session_dir=session_dir,
     )
-    current_capability_version = compute_capability_snapshot_version(session_dir)
-    memory_preview = resolve_session_memory_preview(
+    current_capability_version = await asyncio.to_thread(
+        compute_capability_snapshot_version, session_dir
+    )
+    memory_preview = await asyncio.to_thread(
+        resolve_session_memory_preview,
         session_dir=session_dir,
         user_id=user_id,
         session_id=session_id,
@@ -540,7 +544,9 @@ async def build_runtime_config_projection(
     if pending_memory_version:
         rebuild_required_reasons.append("memory_snapshot_updated")
 
-    capability_summary = build_workspace_capability_summary(session_dir)
+    capability_summary = await asyncio.to_thread(
+        build_workspace_capability_summary, session_dir
+    )
     config_sync_state = "pending" if rebuild_required_reasons else "aligned"
 
     return {

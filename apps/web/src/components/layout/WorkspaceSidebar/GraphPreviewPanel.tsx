@@ -134,6 +134,7 @@ export function GraphPreviewPanel({
   const [connectDescription, setConnectDescription] = useState("");
   const [relationCandidates, setRelationCandidates] = useState<GraphEntity[]>([]);
   const [isSearchingRelationTarget, setIsSearchingRelationTarget] = useState(false);
+  const [relationSearchError, setRelationSearchError] = useState<string | null>(null);
   const [isSavingRelation, setIsSavingRelation] = useState(false);
   const [relationSaveError, setRelationSaveError] = useState<string | null>(null);
   const [isDeleteNodeDialogOpen, setIsDeleteNodeDialogOpen] = useState(false);
@@ -745,14 +746,17 @@ export function GraphPreviewPanel({
         .searchEntities(query)
         .then((response) => {
           if (cancelled) return;
+          setRelationSearchError(null);
           setRelationCandidates(
             response.results.filter(
               (item) => getGraphEntityId(item) !== selectedGraphNode.id,
             ),
           );
         })
-        .catch(() => {
+        .catch((err) => {
           if (cancelled) return;
+          console.error("搜索关系目标实体失败", err);
+          setRelationSearchError("搜索失败，请重试");
           setRelationCandidates([]);
         })
         .finally(() => {
@@ -1518,7 +1522,11 @@ export function GraphPreviewPanel({
                           className="max-h-28 overflow-y-auto rounded-md border border-border bg-muted/20 p-1"
                           data-testid="graph-preview-connect-target-results"
                         >
-                          {connectTargetCandidates.length > 0 ? (
+                          {relationSearchError ? (
+                            <div className="px-2 py-1.5 text-[11px] text-destructive">
+                              {relationSearchError}
+                            </div>
+                          ) : connectTargetCandidates.length > 0 ? (
                             connectTargetCandidates.map((item) => {
                               const id = getGraphEntityId(item);
                               const selected = id === connectTargetNodeId;

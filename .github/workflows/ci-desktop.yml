@@ -32,6 +32,12 @@ jobs:
             files: |
               apps/desktop/dist/*.dmg
               apps/desktop/dist/*.zip
+          - os: macos-13
+            target: mac-x64
+            script: dist:ci:mac-x64
+            files: |
+              apps/desktop/dist/*.dmg
+              apps/desktop/dist/*.zip
           - os: windows-latest
             target: win
             script: dist:ci:win
@@ -156,5 +162,6 @@ jobs:
           name: "${{ steps.resolve_tag.outputs.release_type == 'stable' && 'Release' || 'Beta' }} ${{ steps.resolve_tag.outputs.tag }}"
           draft: false
           prerelease: ${{ steps.resolve_tag.outputs.release_type != 'stable' }}
-          generate_release_notes: ${{ matrix.target == 'linux' }}
+          # 所有 job 都开启自动生成 release notes，避免先到达的 job 创建 release 时遗漏 notes
+          generate_release_notes: true
           files: ${{ matrix.files }}

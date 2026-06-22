@@ -138,7 +138,7 @@ async function tokensToDocxElements(
       i = listElements.endIndex + 1;
     } else if (tok.type === "fence" || tok.type === "code_block") {
       // 代码块
-      const codeContent = tok.content || "";
+      const codeContent = (tok.content || "").replace(/\r\n/g, "\n");
       const lines = codeContent.split("\n");
 
       for (const line of lines) {

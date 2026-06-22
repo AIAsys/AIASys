@@ -131,8 +131,8 @@ class ModelScopeExternalMCPAdapter(ExternalMCPMarketAdapter):
 
         try:
             payload = response.json()
-        except Exception:
-            raise ValueError("外部 MCP 市场返回格式异常") from None
+        except Exception as exc:
+            raise ValueError("外部 MCP 市场返回格式异常") from exc
         if not payload.get("success", False):
             message = _string_or_none(payload.get("message")) or "外部 MCP 市场返回失败"
             raise ValueError(message)

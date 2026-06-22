@@ -967,7 +967,9 @@ class MonitorService:
         segments: list[dict[str, Any]] = []
         if Path(sys_segments_path).exists():
             try:
-                for line in Path(sys_segments_path).read_text(encoding="utf-8").strip().splitlines():
+                for line in (
+                    Path(sys_segments_path).read_text(encoding="utf-8").strip().splitlines()
+                ):
                     line = line.strip()
                     if line:
                         seg = json.loads(line)

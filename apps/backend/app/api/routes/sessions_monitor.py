@@ -101,7 +101,7 @@ async def spawn_session_monitor(
         try:
             cwd = str(get_workspace_registry_service().get_session_dir(user_id, session_id))
         except Exception:
-            pass
+            logger.warning("获取会话工作区目录失败，monitor 将使用默认 cwd", exc_info=True)
 
     session = await service.spawn(
         command=req.command,

@@ -16,6 +16,8 @@ process.on("uncaughtException", (error) => {
 
 const desktopMode =
   process.env.AIASYS_DESKTOP_MODE || (app.isPackaged ? "preview" : "dev");
+// 确保 renderer/preload 继承的 mode 与主进程计算结果一致
+process.env.AIASYS_DESKTOP_MODE = desktopMode;
 const openDevTools =
   desktopMode === "dev" && process.env.AIASYS_DESKTOP_OPEN_DEVTOOLS !== "0";
 const startPath = process.env.AIASYS_DESKTOP_START_PATH || "/analysis";
@@ -858,7 +860,18 @@ app.on("window-all-closed", () => {
 });
 
 app.on("will-quit", (event) => {
-  if (!serviceManager || shutdownStarted) {
+  if (!serviceManager) {
+    return;
+  }
+
+  // shutdown 已在进行中，等待其完成后再退出，避免后端子进程残留
+  if (shutdownStarted) {
+    if (signalShutdownPromise) {
+      event.preventDefault();
+      void signalShutdownPromise.finally(() => {
+        app.quit();
+      });
+    }
     return;
   }
 

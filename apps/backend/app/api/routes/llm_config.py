@@ -341,11 +341,11 @@ async def create_model(
             dimension = await service.probe_embedding_dimension(
                 user_id, request.provider, request.model
             )
-        except ValueError:
+        except ValueError as e:
             raise HTTPException(
                 status_code=400,
                 detail="Dimension not specified and auto-detection failed, please set it manually",
-            )
+            ) from e
 
     config = LLMModelConfig(
         id=request.id,
@@ -392,11 +392,11 @@ async def update_model(
                 updates["dimension"] = await service.probe_embedding_dimension(
                     user_id, provider_id, model_name
                 )
-            except ValueError:
+            except ValueError as e:
                 raise HTTPException(
                     status_code=400,
                     detail="Dimension not specified and auto-detection failed, please set it manually",
-                )
+                ) from e
 
     result = service.update_model(user_id, model_id, updates)
     if not result:

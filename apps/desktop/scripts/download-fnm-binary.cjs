@@ -80,8 +80,7 @@ function verifySha256(filePath, expectedHash) {
   try {
     buf = fs.readFileSync(filePath);
   } catch (err) {
-    console.warn(`[download-fnm] 读取文件失败，跳过校验: ${err.message}`);
-    return true;
+    throw new Error(`[download-fnm] 读取文件失败，无法完成 SHA256 校验: ${err.message}`);
   }
   const actualHash = crypto.createHash("sha256").update(buf).digest("hex");
   if (actualHash !== expectedHash) {

@@ -63,6 +63,7 @@ async function fetchExportIgnore(workspaceId: string): Promise<string[]> {
       API_ENDPOINTS.WORKSPACE_FILE_CONTENT(workspaceId, ".aiasys/.exportignore"),
     );
     return res.content
+      .replace(/\r\n/g, "\n")
       .split("\n")
       .map((line) => line.trim())
       .filter((line) => line.length > 0 && !line.startsWith("#"));

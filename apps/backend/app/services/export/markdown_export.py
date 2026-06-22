@@ -37,6 +37,74 @@ class ExportedArtifact:
     content: bytes
 
 
+def export_markdown_file_to_path(
+    source_path: Path, output_format: str
+) -> tuple[str, str, str]:
+    """导出 Markdown 到磁盘临时文件。
+
+    返回 (output_file_path, filename, media_type)。
+    调用方负责在响应完成后删除临时文件。
+    """
+    if source_path.suffix.lower() not in MARKDOWN_EXTENSIONS:
+        raise MarkdownExportError("仅支持导出 Markdown 文件")
+
+    pandoc = _require_binary("pandoc", "Pandoc")
+    source = source_path.resolve()
+    normalized_format = output_format.lower()
+
+    media_types = {
+        "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "pdf": "application/pdf",
+    }
+    if normalized_format not in media_types:
+        raise MarkdownExportError(f"不支持的导出格式: {output_format}")
+
+    temp_dir = tempfile.mkdtemp(prefix="aiasys-md-export-")
+    try:
+        output_path = Path(temp_dir) / f"{source.stem}.{normalized_format}"
+        command = [
+            pandoc,
+            str(source),
+            "--standalone",
+            "--from=markdown",
+            "--resource-path",
+            str(source.parent),
+            "--output",
+            str(output_path),
+        ]
+        if normalized_format == "pdf":
+            command.extend(["--pdf-engine", _select_pdf_engine()])
+
+        result = subprocess.run(
+            command,
+            cwd=source.parent,
+            capture_output=True,
+            timeout=120,
+            check=False,
+            **subprocess_kwargs(),
+        )
+        if result.returncode != 0:
+            from app.core.encoding_utils import smart_decode
+
+            stderr = smart_decode(result.stderr).strip() if result.stderr else ""
+            stdout = smart_decode(result.stdout).strip() if result.stdout else ""
+            detail = stderr or stdout or "Pandoc 未返回具体错误"
+            raise MarkdownExportError(f"Pandoc 导出失败: {detail}")
+
+        if not output_path.exists():
+            raise MarkdownExportError("导出结果不存在")
+
+        # 将结果移到独立的临时文件，便于调用方直接返回并清理
+        fd, final_path = tempfile.mkstemp(suffix=f".{normalized_format}")
+        os.close(fd)
+        shutil.move(str(output_path), final_path)
+        shutil.rmtree(temp_dir, ignore_errors=True)
+        return final_path, output_path.name, media_types[normalized_format]
+    except Exception:
+        shutil.rmtree(temp_dir, ignore_errors=True)
+        raise
+
+
 def _binary_candidates(command: str) -> list[str]:
     candidates: list[str] = []
     which_result = shutil.which(command)
@@ -94,56 +162,15 @@ def _select_pdf_engine() -> str:
 
 
 def export_markdown_file(source_path: Path, output_format: str) -> ExportedArtifact:
-    if source_path.suffix.lower() not in MARKDOWN_EXTENSIONS:
-        raise MarkdownExportError("仅支持导出 Markdown 文件")
-
-    pandoc = _require_binary("pandoc", "Pandoc")
-    source = source_path.resolve()
-    normalized_format = output_format.lower()
-
-    media_types = {
-        "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        "pdf": "application/pdf",
-    }
-    if normalized_format not in media_types:
-        raise MarkdownExportError(f"不支持的导出格式: {output_format}")
-
-    with tempfile.TemporaryDirectory(prefix="aiasys-md-export-") as temp_dir:
-        output_path = Path(temp_dir) / f"{source.stem}.{normalized_format}"
-        command = [
-            pandoc,
-            str(source),
-            "--standalone",
-            "--from=markdown",
-            "--resource-path",
-            str(source.parent),
-            "--output",
-            str(output_path),
-        ]
-        if normalized_format == "pdf":
-            command.extend(["--pdf-engine", _select_pdf_engine()])
-
-        result = subprocess.run(
-            command,
-            cwd=source.parent,
-            capture_output=True,
-            timeout=120,
-            check=False,
-            **subprocess_kwargs(),
-        )
-        if result.returncode != 0:
-            from app.core.encoding_utils import smart_decode
-
-            stderr = smart_decode(result.stderr).strip() if result.stderr else ""
-            stdout = smart_decode(result.stdout).strip() if result.stdout else ""
-            detail = stderr or stdout or "Pandoc 未返回具体错误"
-            raise MarkdownExportError(f"Pandoc 导出失败: {detail}")
-
-        if not output_path.exists():
-            raise MarkdownExportError("导出结果不存在")
-
-        return ExportedArtifact(
-            filename=output_path.name,
-            media_type=media_types[normalized_format],
-            content=output_path.read_bytes(),
-        )
+    """导出 Markdown 文件并返回内存中的内容（小文件场景，向后兼容）。"""
+    output_path, filename, media_type = export_markdown_file_to_path(
+        source_path, output_format
+    )
+    try:
+        content = Path(output_path).read_bytes()
+        return ExportedArtifact(filename=filename, media_type=media_type, content=content)
+    finally:
+        try:
+            os.unlink(output_path)
+        except OSError:
+            pass

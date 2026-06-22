@@ -49,9 +49,25 @@ def _repo_root() -> Path:
     return Path(__file__).resolve().parents[4]
 
 
-def _binary_paths(platform_slug: str) -> dict[str, Path]:
-    """返回当前平台下需要检查的 vendor 二进制路径。"""
+def _backend_root() -> Path:
+    """后端运行时根目录（即 BASE_DIR）。
+
+    app/core/vendor_binaries.py -> app/core -> app -> backend
+    在桌面版打包布局中即为 resources/backend/。
+    """
+    return Path(__file__).resolve().parents[2]
+
+
+def _binary_paths(platform_slug: str) -> dict[str, list[Path]]:
+    """返回当前平台下需要检查的 vendor 二进制候选路径列表。
+
+    支持三种目录布局：
+    - 源码布局：repo/apps/backend/vendor/...
+    - 桌面版 prepare-runtime 输出布局：.dist/backend/vendor/...
+    - 桌面版安装布局：resources/backend/vendor/...
+    """
     repo = _repo_root()
+    backend_root = _backend_root()
     # desktop 下载脚本对 uv 使用 windows-x64 / darwin-x64 等完整系统名，
     # 对 node/fnm 使用 win-x64 / darwin-arm64 等项目 slug。
     uv_subdir = {
@@ -63,15 +79,28 @@ def _binary_paths(platform_slug: str) -> dict[str, Path]:
     }.get(platform_slug, platform_slug)
     exe_ext = ".exe" if platform_slug == "win-x64" else ""
     return {
-        "uv": repo / "apps" / "backend" / "vendor" / "uv" / uv_subdir / f"uv{exe_ext}",
-        "fnm": repo / "apps" / "backend" / "vendor" / "node" / platform_slug / f"fnm{exe_ext}",
-        "sqlite-vec": repo
-        / "apps"
-        / "backend"
-        / "vendor"
-        / "sqlite-vec"
-        / _sqlite_vec_subdir(platform_slug)
-        / _sqlite_vec_filename(platform_slug),
+        "uv": [
+            repo / "apps" / "backend" / "vendor" / "uv" / uv_subdir / f"uv{exe_ext}",
+            backend_root / "vendor" / "uv" / uv_subdir / f"uv{exe_ext}",
+        ],
+        "fnm": [
+            repo / "apps" / "backend" / "vendor" / "node" / platform_slug / f"fnm{exe_ext}",
+            backend_root / "vendor" / "node" / platform_slug / f"fnm{exe_ext}",
+        ],
+        "sqlite-vec": [
+            repo
+            / "apps"
+            / "backend"
+            / "vendor"
+            / "sqlite-vec"
+            / _sqlite_vec_subdir(platform_slug)
+            / _sqlite_vec_filename(platform_slug),
+            backend_root
+            / "vendor"
+            / "sqlite-vec"
+            / _sqlite_vec_subdir(platform_slug)
+            / _sqlite_vec_filename(platform_slug),
+        ],
     }
 
 
@@ -100,7 +129,7 @@ def _sqlite_vec_filename(platform_slug: str) -> str:
 def _missing_binaries(platform_slug: str) -> list[str]:
     """返回缺失的 vendor 二进制名称列表。"""
     paths = _binary_paths(platform_slug)
-    return [name for name, path in paths.items() if not path.exists()]
+    return [name for name, candidates in paths.items() if not any(p.exists() for p in candidates)]
 
 
 def ensure_vendor_binaries() -> None:
@@ -130,7 +159,17 @@ def ensure_vendor_binaries() -> None:
         platform_slug,
     )
 
-    script = _repo_root() / "apps" / "backend" / "scripts" / "download_vendor_binaries.py"
+    script_candidates = [
+        _repo_root() / "apps" / "backend" / "scripts" / "download_vendor_binaries.py",
+        _repo_root() / "scripts" / "download_vendor_binaries.py",
+    ]
+    script = next((p for p in script_candidates if p.exists()), None)
+    if script is None:
+        logger.debug(
+            "打包/生产环境中未找到 vendor 下载脚本，跳过自动下载（期望由 prepare-runtime 预先嵌入）"
+        )
+        return
+
     try:
         result = subprocess.run(
             [sys.executable, str(script)],

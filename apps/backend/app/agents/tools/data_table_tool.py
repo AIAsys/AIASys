@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import sqlite3
 from pathlib import Path
@@ -98,6 +99,47 @@ def _resolve_table_path(
 
 def _format_scope(scope: DataTableScope) -> str:
     return "全局工作区" if scope == "global" else "当前工作区"
+
+
+def _execute_select_query(
+    table_file: Path, sql: str, max_rows: int, scope: DataTableScope, relative_path: str
+) -> ToolResult:
+    """在线程中执行 SQLite SELECT 查询（同步 I/O）。"""
+    conn = sqlite3.connect(as_system_path(str(table_file)))
+    conn.row_factory = sqlite3.Row
+    try:
+        # 安全：附加 LIMIT 防止超大结果
+        stripped = sql.strip()
+        if "LIMIT" not in stripped.upper():
+            stripped = f"{stripped} LIMIT {max_rows}"
+        rows = conn.execute(stripped).fetchall()
+        records = [dict(row) for row in rows]
+        columns = list(records[0].keys()) if records else []
+        lines = [
+            f"多维表路径: /{'global' if scope == 'global' else 'workspace'}/{relative_path}",
+            f"SQL: {sql}",
+            f"返回行数: {len(records)}",
+        ]
+        if records:
+            lines.extend(["", " | ".join(columns), "-" * max(1, len(" | ".join(columns)))])
+            for record in records:
+                lines.append(" | ".join(str(record.get(column, "")) for column in columns))
+        return ToolResult(
+            content="\n".join(lines),
+            artifacts=[
+                {
+                    "data_table_query": {
+                        "scope": scope,
+                        "relative_path": relative_path,
+                        "sql": sql,
+                        "records": records,
+                        "row_count": len(records),
+                    }
+                }
+            ],
+        )
+    finally:
+        conn.close()
 
 
 def _column_from_params(params: "DataTableColumnParams") -> DataTableColumnDef:
@@ -242,7 +284,8 @@ class CreateDataTable(AiasysTool):
         params = CreateDataTableParams.model_validate(kwargs)
         try:
             root = _resolve_root(params.scope)
-            result = create_data_table(
+            result = await asyncio.to_thread(
+                create_data_table,
                 root,
                 DataTableCreateRequest(
                     name=params.name,
@@ -297,7 +340,7 @@ class ReadDataTableSchema(AiasysTool):
         params = DataTablePathParams.model_validate(kwargs)
         try:
             _, table_file, scope, relative_path = _resolve_table_path(params.table_path)
-            schema = read_data_table_schema(table_file)
+            schema = await asyncio.to_thread(read_data_table_schema, table_file)
             columns = schema.get("columns", [])
             lines = [
                 f"多维表: {schema.get('metadata', {}).get('name') or relative_path}",
@@ -351,41 +394,14 @@ class QueryDataTable(AiasysTool):
         params = QueryDataTableParams.model_validate(kwargs)
         try:
             _, table_file, scope, relative_path = _resolve_table_path(params.table_path)
-            conn = sqlite3.connect(as_system_path(str(table_file)))
-            conn.row_factory = sqlite3.Row
-            try:
-                # 安全：附加 LIMIT 防止超大结果
-                sql = params.sql.strip()
-                if "LIMIT" not in sql.upper():
-                    sql = f"{sql} LIMIT {params.max_rows}"
-                rows = conn.execute(sql).fetchall()
-                records = [dict(row) for row in rows]
-                columns = list(records[0].keys()) if records else []
-                lines = [
-                    f"多维表路径: /{'global' if scope == 'global' else 'workspace'}/{relative_path}",
-                    f"SQL: {params.sql}",
-                    f"返回行数: {len(records)}",
-                ]
-                if records:
-                    lines.extend(["", " | ".join(columns), "-" * max(1, len(" | ".join(columns)))])
-                    for record in records:
-                        lines.append(" | ".join(str(record.get(column, "")) for column in columns))
-                return ToolResult(
-                    content="\n".join(lines),
-                    artifacts=[
-                        {
-                            "data_table_query": {
-                                "scope": scope,
-                                "relative_path": relative_path,
-                                "sql": params.sql,
-                                "records": records,
-                                "row_count": len(records),
-                            }
-                        }
-                    ],
-                )
-            finally:
-                conn.close()
+            return await asyncio.to_thread(
+                _execute_select_query,
+                table_file,
+                params.sql,
+                params.max_rows,
+                scope,
+                relative_path,
+            )
         except Exception as exc:
             logger.error("查询多维表失败: %s", exc, exc_info=True)
             return ToolResult(content=f"查询多维表失败: {exc}", is_error=True)
@@ -410,7 +426,9 @@ class InsertDataTableRecords(AiasysTool):
         params = InsertDataTableRecordsParams.model_validate(kwargs)
         try:
             _, table_file, scope, relative_path = _resolve_table_path(params.table_path)
-            inserted_ids = insert_data_table_records(table_file, params.records)
+            inserted_ids = await asyncio.to_thread(
+                insert_data_table_records, table_file, params.records
+            )
             return ToolResult(
                 content="\n".join(
                     [
@@ -454,7 +472,9 @@ class UpdateDataTableRecord(AiasysTool):
         params = UpdateDataTableRecordParams.model_validate(kwargs)
         try:
             _, table_file, scope, relative_path = _resolve_table_path(params.table_path)
-            updated = update_data_table_record(table_file, params.record_id, params.data)
+            updated = await asyncio.to_thread(
+                update_data_table_record, table_file, params.record_id, params.data
+            )
             return ToolResult(
                 content=(
                     f"多维表记录{'已更新' if updated else '未更新'}：{params.record_id}\n"
@@ -496,7 +516,9 @@ class DeleteDataTableRecord(AiasysTool):
         params = DeleteDataTableRecordParams.model_validate(kwargs)
         try:
             _, table_file, scope, relative_path = _resolve_table_path(params.table_path)
-            deleted = delete_data_table_record(table_file, params.record_id)
+            deleted = await asyncio.to_thread(
+                delete_data_table_record, table_file, params.record_id
+            )
             return ToolResult(
                 content=(
                     f"多维表记录{'已删除' if deleted else '未删除'}：{params.record_id}\n"
@@ -538,7 +560,8 @@ class AddDataTableColumn(AiasysTool):
         params = AddDataTableColumnParams.model_validate(kwargs)
         try:
             _, table_file, scope, relative_path = _resolve_table_path(params.table_path)
-            add_data_table_column(table_file, _column_from_params(params))
+            column = _column_from_params(params)
+            await asyncio.to_thread(add_data_table_column, table_file, column)
             return ToolResult(
                 content="\n".join(
                     [
@@ -552,7 +575,7 @@ class AddDataTableColumn(AiasysTool):
                         "data_table_column_add": {
                             "scope": scope,
                             "relative_path": relative_path,
-                            "column": _column_from_params(params).model_dump(),
+                            "column": column.model_dump(),
                         }
                     }
                 ],
@@ -583,7 +606,7 @@ class UpdateDataTableColumn(AiasysTool):
         try:
             _, table_file, scope, relative_path = _resolve_table_path(params.table_path)
             column = _column_from_params(params.column)
-            update_data_table_column(table_file, params.column_name, column)
+            await asyncio.to_thread(update_data_table_column, table_file, params.column_name, column)
             return ToolResult(
                 content="\n".join(
                     [
@@ -627,7 +650,7 @@ class RemoveDataTableColumn(AiasysTool):
         params = RemoveDataTableColumnParams.model_validate(kwargs)
         try:
             _, table_file, scope, relative_path = _resolve_table_path(params.table_path)
-            remove_data_table_column(table_file, params.column_name)
+            await asyncio.to_thread(remove_data_table_column, table_file, params.column_name)
             return ToolResult(
                 content="\n".join(
                     [

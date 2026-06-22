@@ -1,8 +1,8 @@
-import io
 import logging
+import os
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
-from fastapi.responses import StreamingResponse
+from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Query, UploadFile
+from fastapi.responses import FileResponse, StreamingResponse
 
 from app.core.auth import require_auth
 from app.core.config import WORKSPACE_DIR
@@ -67,22 +67,25 @@ async def export_session_artifact(
             )
 
         if scope == "workspace":
-            zip_buffer, download_filename = session_export_service.build_workspace_archive(
+            zip_path, download_filename = session_export_service.build_workspace_archive(
                 user_id=user_id,
                 session_id=session_id,
                 exported_by=current_user.user_id,
             )
         else:
-            zip_buffer, download_filename = session_export_service.build_bundle_archive(
+            zip_path, download_filename = session_export_service.build_bundle_archive(
                 user_id=user_id,
                 session_id=session_id,
                 exported_by=current_user.user_id,
             )
 
-        return StreamingResponse(
-            zip_buffer,
+        background_tasks = BackgroundTasks()
+        background_tasks.add_task(os.unlink, zip_path)
+        return FileResponse(
+            zip_path,
             media_type="application/zip",
-            headers={"Content-Disposition": f'attachment; filename="{sanitize_content_disposition_filename(download_filename)}"'},
+            filename=sanitize_content_disposition_filename(download_filename),
+            background=background_tasks,
         )
     except SessionExportNotFoundError:
         raise HTTPException(status_code=404, detail="Session export not found")

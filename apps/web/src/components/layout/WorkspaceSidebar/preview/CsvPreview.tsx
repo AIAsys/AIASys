@@ -61,7 +61,7 @@ const PAGE_SIZE_OPTIONS = [50, 100, 200, 500] as const;
 const COLUMN_LIMIT_OPTIONS = [20, 40, 80, 120] as const;
 
 function parseCsv(text: string): CsvData {
-  const lines = text.trim().split("\n");
+  const lines = text.replace(/\r\n/g, "\n").trim().split("\n");
   if (lines.length === 0 || (lines.length === 1 && lines[0] === "")) {
     return { headers: [], rows: [] };
   }

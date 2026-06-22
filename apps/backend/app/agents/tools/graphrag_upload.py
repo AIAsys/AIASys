@@ -6,6 +6,7 @@ GraphRAG 工具 — 文档上传到知识图谱
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from pathlib import Path
 from typing import Any
@@ -80,7 +81,7 @@ class UploadDocumentsToGraph(AiasysTool):
             for index, raw_path in enumerate(params.files, 1):
                 try:
                     display_path, file_path = _resolve_workspace_file_path(raw_path)
-                    file_bytes = file_path.read_bytes()
+                    file_bytes = await asyncio.to_thread(file_path.read_bytes)
                     doc_id = None
                     if params.doc_id_prefix:
                         safe_prefix = params.doc_id_prefix.strip()

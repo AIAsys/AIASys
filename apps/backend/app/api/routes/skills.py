@@ -255,7 +255,7 @@ async def import_skill_to_store(
 
         get_capability_manager()._source_registry.clear_cache()
     except Exception:
-        pass
+        logger.warning("安装 Skill 后刷新能力源缓存失败", exc_info=True)
     return SkillOperationResponse(
         success=result.success,
         skill_name=result.skill_name,
@@ -278,7 +278,7 @@ async def delete_store_skill(
 
         get_capability_manager()._source_registry.clear_cache()
     except Exception:
-        pass
+        logger.warning("删除 Skill 后刷新能力源缓存失败", exc_info=True)
     return SkillOperationResponse(
         success=result.success,
         skill_name=result.skill_name,
