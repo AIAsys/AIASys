@@ -8,6 +8,7 @@ interface NewTaskProgressBannerProps {
   stageLabel: string;
   errorMessage?: string | null;
   progress?: number;
+  message?: string;
 }
 
 export function NewWorkspaceProgressBanner({
@@ -16,6 +17,7 @@ export function NewWorkspaceProgressBanner({
   stageLabel,
   errorMessage,
   progress,
+  message,
 }: NewTaskProgressBannerProps) {
   if (!showProgress && !isError) {
     return null;
@@ -56,7 +58,7 @@ export function NewWorkspaceProgressBanner({
           <p className="text-xs text-muted-foreground">
             {isError
               ? errorMessage || "请检查当前工作区创建状态后重试。"
-              : "当前会话会保持可见，待目标会话准备完成后再切换。"}
+              : message || "当前会话会保持可见，待目标会话准备完成后再切换。"}
           </p>
         </div>
       </div>

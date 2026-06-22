@@ -736,6 +736,7 @@ export function NewWorkspaceDialog({
             stageLabel={effectiveLifecycleState.stageLabel || ""}
             errorMessage={effectiveLifecycleState.errorMessage ?? errorMessage}
             progress={effectiveLifecycleState.progress}
+            message={effectiveLifecycleState.message}
           />
 
           <div className="space-y-2">

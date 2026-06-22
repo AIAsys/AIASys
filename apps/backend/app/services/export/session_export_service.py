@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-import io
 import json
+import os
+import tempfile
 import zipfile
 from datetime import datetime
 from pathlib import Path
@@ -170,32 +171,39 @@ class SessionExportService:
         workspace_manifest: Dict[str, Any],
         workspace_files: List[tuple[str, Path]],
         conversation_messages: Optional[List[Dict[str, Any]]],
-    ) -> tuple[io.BytesIO, str]:
-        zip_buffer = io.BytesIO()
-        with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
-            zip_file.writestr(
-                "manifest.json",
-                json.dumps(manifest, indent=2, ensure_ascii=False),
-            )
-            zip_file.writestr(
-                "workspace_manifest.json",
-                json.dumps(workspace_manifest, indent=2, ensure_ascii=False),
-            )
-
-            if conversation_messages is not None:
+    ) -> tuple[str, str]:
+        fd, zip_path = tempfile.mkstemp(suffix=".zip")
+        os.close(fd)
+        try:
+            with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zip_file:
                 zip_file.writestr(
-                    "conversation.json",
-                    json.dumps(conversation_messages, indent=2, ensure_ascii=False),
+                    "manifest.json",
+                    json.dumps(manifest, indent=2, ensure_ascii=False),
+                )
+                zip_file.writestr(
+                    "workspace_manifest.json",
+                    json.dumps(workspace_manifest, indent=2, ensure_ascii=False),
                 )
 
-            if workspace_files:
-                for relative_path, file_path in workspace_files:
-                    zip_file.write(file_path, f"workspace/{relative_path}")
-            else:
-                zip_file.writestr("workspace/", "")
+                if conversation_messages is not None:
+                    zip_file.writestr(
+                        "conversation.json",
+                        json.dumps(conversation_messages, indent=2, ensure_ascii=False),
+                    )
 
-        zip_buffer.seek(0)
-        return zip_buffer, f"session_export_{session_id}_{scope}.zip"
+                if workspace_files:
+                    for relative_path, file_path in workspace_files:
+                        zip_file.write(file_path, f"workspace/{relative_path}")
+                else:
+                    zip_file.writestr("workspace/", "")
+        except Exception:
+            try:
+                os.unlink(zip_path)
+            except OSError:
+                pass
+            raise
+
+        return zip_path, f"session_export_{session_id}_{scope}.zip"
 
     def _build_manifest(
         self,

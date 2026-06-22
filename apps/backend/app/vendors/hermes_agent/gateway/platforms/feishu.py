@@ -26,7 +26,6 @@ import logging
 import mimetypes
 import os
 import re
-import threading
 import time
 import uuid
 from dataclasses import dataclass, field
@@ -1082,7 +1081,7 @@ class FeishuAdapter(BasePlatformAdapter):
         self._seen_message_ids: Dict[str, float] = {}  # message_id → seen_at (time.time())
         self._seen_message_order: List[str] = []
         self._dedup_state_path = get_hermes_home() / "feishu_seen_message_ids.json"
-        self._dedup_lock = threading.Lock()
+        self._dedup_lock = asyncio.Lock()
         self._sender_name_cache: Dict[str, tuple[str, float]] = {}  # sender_id → (name, expire_at)
         self._webhook_rate_counts: Dict[
             str, tuple[int, float]
@@ -1291,7 +1290,8 @@ class FeishuAdapter(BasePlatformAdapter):
 
         try:
             self._app_lock_identity = self._app_id
-            acquired, existing = acquire_scoped_lock(
+            acquired, existing = await asyncio.to_thread(
+                acquire_scoped_lock,
                 _FEISHU_APP_LOCK_SCOPE,
                 self._app_lock_identity,
                 metadata={"platform": self.platform.value},
@@ -1360,7 +1360,7 @@ class FeishuAdapter(BasePlatformAdapter):
         self._ws_thread_loop = None
         self._loop = None
         self._event_handler = None
-        self._persist_seen_message_ids()
+        await self._persist_seen_message_ids()
         await self._release_app_lock()
 
         self._mark_disconnected()
@@ -1679,17 +1679,20 @@ class FeishuAdapter(BasePlatformAdapter):
         try:
             import io as _io
 
-            with open(image_path, "rb") as f:
-                image_bytes = f.read()
-            # Wrap in BytesIO so lark SDK's MultipartEncoder can read .name and .tell()
-            image_file = _io.BytesIO(image_bytes)
-            image_file.name = os.path.basename(image_path)
-            body = self._build_image_upload_body(
-                image_type=_FEISHU_IMAGE_UPLOAD_TYPE,
-                image=image_file,
-            )
-            request = self._build_image_upload_request(body)
-            upload_response = await asyncio.to_thread(self._client.im.v1.image.create, request)
+            def _upload_image() -> Any:
+                with open(image_path, "rb") as f:
+                    image_bytes = f.read()
+                # Wrap in BytesIO so lark SDK's MultipartEncoder can read .name and .tell()
+                image_file = _io.BytesIO(image_bytes)
+                image_file.name = os.path.basename(image_path)
+                body = self._build_image_upload_body(
+                    image_type=_FEISHU_IMAGE_UPLOAD_TYPE,
+                    image=image_file,
+                )
+                request = self._build_image_upload_request(body)
+                return self._client.im.v1.image.create(request)
+
+            upload_response = await asyncio.to_thread(_upload_image)
             image_key = self._extract_response_field(upload_response, "image_key")
             if not image_key:
                 return self._response_error_result(
@@ -1863,7 +1866,7 @@ class FeishuAdapter(BasePlatformAdapter):
             return
 
         message_id = getattr(message, "message_id", None)
-        if not message_id or self._is_duplicate(message_id):
+        if not message_id or await self._is_duplicate(message_id):
             logger.debug("[Feishu] Dropping duplicate/missing message_id: %s", message_id)
             return
         if getattr(sender, "sender_type", "") == "bot":
@@ -2892,12 +2895,12 @@ class FeishuAdapter(BasePlatformAdapter):
         if not cached_path or not media_type.startswith("text/"):
             return ""
         try:
-            if os.path.getsize(cached_path) > _MAX_TEXT_INJECT_BYTES:
+            if await asyncio.to_thread(os.path.getsize, cached_path) > _MAX_TEXT_INJECT_BYTES:
                 return ""
             ext = Path(cached_path).suffix.lower()
             if ext not in {".txt", ".md"} and media_type not in {"text/plain", "text/markdown"}:
                 return ""
-            content = Path(cached_path).read_text(encoding="utf-8")
+            content = await asyncio.to_thread(Path(cached_path).read_text, encoding="utf-8")
             display_name = self._display_name_from_cached_path(cached_path)
             return f"[Content of {display_name}]:\n{content}"
         except (OSError, UnicodeDecodeError):
@@ -3381,9 +3384,9 @@ class FeishuAdapter(BasePlatformAdapter):
         self._seen_message_order = list(reversed(sorted_ids))
         self._seen_message_ids = {k: valid[k] for k in sorted_ids}
 
-    def _persist_seen_message_ids(self) -> None:
+    async def _persist_seen_message_ids(self) -> None:
         try:
-            self._dedup_state_path.parent.mkdir(parents=True, exist_ok=True)
+            await asyncio.to_thread(self._dedup_state_path.parent.mkdir, parents=True, exist_ok=True)
             recent = self._seen_message_order[-self._dedup_cache_size :]
             # Save as {msg_id: timestamp} so TTL filtering works across restarts.
             payload = {
@@ -3391,8 +3394,10 @@ class FeishuAdapter(BasePlatformAdapter):
                     k: self._seen_message_ids[k] for k in recent if k in self._seen_message_ids
                 }
             }
-            self._dedup_state_path.write_text(
-                json.dumps(payload, ensure_ascii=False), encoding="utf-8"
+            await asyncio.to_thread(
+                self._dedup_state_path.write_text,
+                json.dumps(payload, ensure_ascii=False),
+                encoding="utf-8",
             )
         except OSError:
             logger.warning(
@@ -3401,10 +3406,10 @@ class FeishuAdapter(BasePlatformAdapter):
                 exc_info=True,
             )
 
-    def _is_duplicate(self, message_id: str) -> bool:
+    async def _is_duplicate(self, message_id: str) -> bool:
         now = time.time()
         ttl = _FEISHU_DEDUP_TTL_SECONDS
-        with self._dedup_lock:
+        async with self._dedup_lock:
             seen_at = self._seen_message_ids.get(message_id)
             if seen_at is not None and (ttl <= 0 or now - seen_at < ttl):
                 return True
@@ -3414,7 +3419,7 @@ class FeishuAdapter(BasePlatformAdapter):
             while len(self._seen_message_order) > self._dedup_cache_size:
                 stale = self._seen_message_order.pop(0)
                 self._seen_message_ids.pop(stale, None)
-            self._persist_seen_message_ids()
+            await self._persist_seen_message_ids()
             return False
 
     # =========================================================================
@@ -3449,14 +3454,18 @@ class FeishuAdapter(BasePlatformAdapter):
             requested_message_type=outbound_message_type,
         )
         try:
-            with open(file_path, "rb") as file_obj:
-                body = self._build_file_upload_body(
-                    file_type=upload_file_type,
-                    file_name=display_name,
-                    file=file_obj,
-                )
-                request = self._build_file_upload_request(body)
-                upload_response = await asyncio.to_thread(self._client.im.v1.file.create, request)
+
+            def _upload_file() -> Any:
+                with open(file_path, "rb") as file_obj:
+                    body = self._build_file_upload_body(
+                        file_type=upload_file_type,
+                        file_name=display_name,
+                        file=file_obj,
+                    )
+                    request = self._build_file_upload_request(body)
+                    return self._client.im.v1.file.create(request)
+
+            upload_response = await asyncio.to_thread(_upload_file)
             file_key = self._extract_response_field(upload_response, "file_key")
             if not file_key:
                 return self._response_error_result(
@@ -3699,7 +3708,9 @@ class FeishuAdapter(BasePlatformAdapter):
         if not self._app_lock_identity:
             return
         try:
-            release_scoped_lock(_FEISHU_APP_LOCK_SCOPE, self._app_lock_identity)
+            await asyncio.to_thread(
+                release_scoped_lock, _FEISHU_APP_LOCK_SCOPE, self._app_lock_identity
+            )
         except Exception as exc:
             logger.warning("[Feishu] Failed to release app lock: %s", exc, exc_info=True)
         finally:

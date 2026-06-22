@@ -98,12 +98,12 @@ class SubAgentLifecycleManager:
         if isinstance(meta, dict):
             parent_tool_call_id = str(meta.get("last_task_id") or "")
         if not parent_tool_call_id:
-            launch_spec = self._registry.get_launch_spec(agent_id)
+            launch_spec = await self._registry.aget_launch_spec(agent_id)
             if isinstance(launch_spec, dict):
                 parent_tool_call_id = str(launch_spec.get("parent_tool_call_id") or "")
 
         try:
-            self._registry.set_status(agent_id, SubAgentRegistry.STATUS_RUNNING)
+            await self._registry.aset_status(agent_id, SubAgentRegistry.STATUS_RUNNING)
             prompt_iter = subagent_session.prompt(prompt).__aiter__()
             while True:
                 try:
@@ -126,7 +126,7 @@ class SubAgentLifecycleManager:
             final_is_error = True
             final_content = "子 Agent 执行被取消（可能是主会话断开或用户中止）"
             storage.update_status("cancelled")
-            self._registry.set_status(agent_id, SubAgentRegistry.STATUS_CANCELLED)
+            await self._registry.aset_status(agent_id, SubAgentRegistry.STATUS_CANCELLED)
             await self._registry.close(agent_id)
             raise
         except Exception as exc:
@@ -134,7 +134,7 @@ class SubAgentLifecycleManager:
             final_is_error = True
             final_content = f"子 Agent 执行异常: {exc}"
             storage.update_status("failed")
-            self._registry.set_status(agent_id, SubAgentRegistry.STATUS_FAILED)
+            await self._registry.aset_status(agent_id, SubAgentRegistry.STATUS_FAILED)
         finally:
             try:
                 await storage.flush()
@@ -165,13 +165,13 @@ class SubAgentLifecycleManager:
             if not keep_alive:
                 await self.close_agent(agent_id)
             else:
-                status = self._registry.get_status(agent_id)
+                status = await self._registry.aget_status(agent_id)
                 if status not in (
                     SubAgentRegistry.STATUS_CANCELLED,
                     SubAgentRegistry.STATUS_FAILED,
                     SubAgentRegistry.STATUS_CLOSED,
                 ):
-                    self._registry.set_status(agent_id, SubAgentRegistry.STATUS_IDLE)
+                    await self._registry.aset_status(agent_id, SubAgentRegistry.STATUS_IDLE)
                     if not final_is_error:
                         storage.update_status("idle")
 
@@ -212,7 +212,7 @@ class SubAgentLifecycleManager:
         Yields:
             AgentRuntimeEvent：子 Agent 产生的事件
         """
-        session = self._registry.get(agent_id)
+        session = await self._registry.aget(agent_id)
         if session is None or not session.is_active():
             logger.warning("尝试向未注册或已关闭的子 Agent 发送消息: agent_id=%s", agent_id)
             yield AgentRuntimeEvent(
@@ -221,7 +221,7 @@ class SubAgentLifecycleManager:
             )
             return
 
-        if not self._registry.is_idle(agent_id):
+        if not await self._registry.ais_idle(agent_id):
             yield AgentRuntimeEvent(
                 kind="system_warning",
                 text=f"子 Agent {agent_id} 当前不在可输入状态",
@@ -229,7 +229,7 @@ class SubAgentLifecycleManager:
             return
 
         # 恢复 storage 并记录用户消息
-        meta = self._registry.get_launch_spec(agent_id)
+        meta = await self._registry.aget_launch_spec(agent_id)
         if meta is None:
             yield AgentRuntimeEvent(
                 kind="system_warning",
@@ -277,7 +277,7 @@ class SubAgentLifecycleManager:
             logger.warning("设置子 Agent contextvar 失败", exc_info=True)
 
         subagent_name = str(meta.get("subagent_type") or meta.get("subagent_name") or "subagent")
-        self._registry.set_status(agent_id, SubAgentRegistry.STATUS_RUNNING)
+        await self._registry.aset_status(agent_id, SubAgentRegistry.STATUS_RUNNING)
         final_content = ""
         try:
             async for event in self._run_prompt_loop(
@@ -302,7 +302,7 @@ class SubAgentLifecycleManager:
         except Exception as exc:
             logger.exception("子 Agent 继续对话异常: agent_id=%s", agent_id)
             storage.update_status("failed")
-            self._registry.set_status(agent_id, SubAgentRegistry.STATUS_FAILED)
+            await self._registry.aset_status(agent_id, SubAgentRegistry.STATUS_FAILED)
             yield AgentRuntimeEvent(
                 kind="system_warning",
                 text=f"子 Agent 继续对话异常: {exc}",
@@ -326,14 +326,14 @@ class SubAgentLifecycleManager:
                     except Exception:
                         pass
 
-            status = self._registry.get_status(agent_id)
+            status = await self._registry.aget_status(agent_id)
             if status == SubAgentRegistry.STATUS_RUNNING:
-                self._registry.set_status(agent_id, SubAgentRegistry.STATUS_IDLE)
+                await self._registry.aset_status(agent_id, SubAgentRegistry.STATUS_IDLE)
                 storage.update_status("idle")
 
     async def close_agent(self, agent_id: str) -> bool:
         """显式关闭子 Agent。"""
-        launch_spec = self._registry.get_launch_spec(agent_id)
+        launch_spec = await self._registry.aget_launch_spec(agent_id)
         closed = await self._registry.close(agent_id)
         if closed and launch_spec:
             try:
@@ -366,7 +366,7 @@ class SubAgentLifecycleManager:
             logger.warning("恢复子 Agent 失败，launch_spec 不存在: %s", agent_id)
             return False
 
-        if self._registry.is_active(agent_id):
+        if await self._registry.ais_active(agent_id):
             logger.warning("恢复子 Agent 失败，该 agent 已在内存中活跃: %s", agent_id)
             return False
 
@@ -471,7 +471,7 @@ class SubAgentLifecycleManager:
             host_session_id=host_session_id,
             launch_spec=launch_spec,
         )
-        self._registry.set_status(agent_id, SubAgentRegistry.STATUS_IDLE)
+        await self._registry.aset_status(agent_id, SubAgentRegistry.STATUS_IDLE)
         storage.update_status("idle")
         logger.info("子 Agent 已恢复为可对话状态: agent_id=%s", agent_id)
         return True

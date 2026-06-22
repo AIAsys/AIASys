@@ -37,7 +37,7 @@ function parseUnifiedDiff(diff: string): DiffRow[] {
   let oldLine: number | null = null;
   let newLine: number | null = null;
 
-  normalized.split("\n").forEach((line, index) => {
+  normalized.replace(/\r\n/g, "\n").split("\n").forEach((line, index) => {
     const hunkMatch = HUNK_RE.exec(line);
     if (hunkMatch) {
       oldLine = Number(hunkMatch[1]);

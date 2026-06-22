@@ -14,12 +14,12 @@ from pathlib import Path
 from typing import Any
 
 from app.core.tool_result import ToolResult
-from app.services.agent.errors import RunCancelled
 from app.services.agent.authorization import (
     AuthorizationMode,
     CapabilityAuthorizationRequest,
     CapabilityAuthorizationService,
 )
+from app.services.agent.errors import RunCancelled
 from app.services.agent.message_content import (
     downgrade_message_content_for_history,
     hydrate_message_images,
@@ -107,7 +107,7 @@ class SessionStreamMixin:
         del merge_wire_messages
         if self._closed:
             raise RuntimeError("Runtime session is already closed")
-        if self._is_session_budget_blocked():
+        if await self._is_session_budget_blocked():
             yield AgentRuntimeEvent(
                 kind="budget_limited",
                 text=self._session_budget_limited_text(),
@@ -336,11 +336,11 @@ class SessionStreamMixin:
                 if isinstance(prompt_tokens, int) and prompt_tokens > 0:
                     self._estimated_token_count = prompt_tokens
                     self._reset_pending_token_estimate()
-                    self._save_context_tokens_to_metadata()
+                    await self._save_context_tokens_to_metadata()
 
             # Session 级预算检查（在 _estimated_token_count 修正之后）
             if self.budget is not None and self.budget.status == "active":
-                self._check_session_budget(input_tokens, output_tokens)
+                await self._check_session_budget(input_tokens, output_tokens)
 
             assistant_content = "".join(assistant_parts) or None
             assistant_reasoning_content = assistant_reasoning or ""

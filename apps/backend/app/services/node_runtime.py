@@ -61,6 +61,21 @@ def _safe_tail(text: str, limit: int = 8000) -> str:
     return text[-limit:]
 
 
+# 危险字符：可能引发 shell 注入或破坏命令行解析
+_INVALID_PACKAGE_CHARS = set(";|&$`\"'\n\r\x00")
+
+
+def _validate_npm_package_names(packages: list[str]) -> None:
+    """校验 npm 包名/版本规范，防止命令行选项注入或 shell 元字符注入。"""
+    for package in packages:
+        if not package or not isinstance(package, str):
+            raise ValueError("依赖包名不能为空")
+        if package.startswith("-"):
+            raise ValueError(f"非法的依赖包名（不能以 '-' 开头）: {package}")
+        if any(ch in _INVALID_PACKAGE_CHARS for ch in package):
+            raise ValueError(f"非法的依赖包名（包含危险字符）: {package}")
+
+
 def resolve_workspace_runtime_dir(workspace_dir: Path, *, create: bool = False) -> Path:
     runtime_dir = workspace_dir / WORKSPACE_RUNTIME_DIR_NAME
     if create:
@@ -588,6 +603,8 @@ class NodeRuntimeService:
             Path(as_system_path(version_file)).write_text(f"{normalized}\n", encoding="utf-8")
 
         # 安装 npm 包
+        if npm_packages:
+            _validate_npm_package_names(npm_packages)
         result: RuntimeEnvCommandResult | None = None
         if npm_packages:
             result = self._run_fnm(

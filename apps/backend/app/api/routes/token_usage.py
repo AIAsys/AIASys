@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from collections import defaultdict
@@ -88,24 +89,16 @@ def _read_usage_file(
     return daily, models
 
 
-@router.get("/heatmap")
-async def get_token_heatmap(
-    user: UserInfo = Depends(require_auth()),
-    workspace_id: str | None = Query(None),
-    model: str | None = Query(None),
-    from_date: str | None = Query(None, alias="from"),
-    to_date: str | None = Query(None, alias="to"),
-    granularity: str = Query("day"),
-):
-    """返回指定时间范围内的 token 消耗日聚合数据。
-
-    - 扫描用户所有 session 的 usage.jsonl，按天聚合 token 消耗量。
-    - 支持按 workspace_id、model 过滤，按 from/to 限定日期范围。
-    """
-    if granularity not in ("day", "week", "month"):
-        raise HTTPException(status_code=400, detail="granularity 只支持 day/week/month")
-
-    user_dir = WORKSPACE_DIR / user.user_id
+def _build_heatmap_sync(
+    user_id: str,
+    workspace_id: str | None,
+    model: str | None,
+    from_date: str | None,
+    to_date: str | None,
+    granularity: str,
+) -> dict[str, Any]:
+    """同步构建 token 热力图数据（在独立线程中运行，避免阻塞事件循环）。"""
+    user_dir = WORKSPACE_DIR / user_id
     sys_user_dir = as_system_path(str(user_dir))
     if not Path(sys_user_dir).exists():
         return {
@@ -212,3 +205,31 @@ async def get_token_heatmap(
         "models": sorted(all_models),
         "daily": daily_list,
     }
+
+
+@router.get("/heatmap")
+async def get_token_heatmap(
+    user: UserInfo = Depends(require_auth()),
+    workspace_id: str | None = Query(None),
+    model: str | None = Query(None),
+    from_date: str | None = Query(None, alias="from"),
+    to_date: str | None = Query(None, alias="to"),
+    granularity: str = Query("day"),
+):
+    """返回指定时间范围内的 token 消耗日聚合数据。
+
+    - 扫描用户所有 session 的 usage.jsonl，按天聚合 token 消耗量。
+    - 支持按 workspace_id、model 过滤，按 from/to 限定日期范围。
+    """
+    if granularity not in ("day", "week", "month"):
+        raise HTTPException(status_code=400, detail="granularity 只支持 day/week/month")
+
+    return await asyncio.to_thread(
+        _build_heatmap_sync,
+        user.user_id,
+        workspace_id,
+        model,
+        from_date,
+        to_date,
+        granularity,
+    )

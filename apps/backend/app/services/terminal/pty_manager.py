@@ -181,12 +181,11 @@ class PtyManager:
             raise PtyUnsupportedError("当前平台不支持 POSIX PTY 终端。")
 
         async with self._lock:
-            if terminal_id in self._sessions:
-                existing = self._sessions[terminal_id]
-                existing.close()
-                del self._sessions[terminal_id]
-                if existing.session_key:
-                    self._session_index.pop(existing.session_key, None)
+            existing = self._sessions.pop(terminal_id, None)
+            if existing is not None and existing.session_key:
+                self._session_index.pop(existing.session_key, None)
+        if existing is not None:
+            await asyncio.to_thread(existing.close)
 
         master_fd: int | None = None
         slave_fd: int | None = None
@@ -290,12 +289,11 @@ class PtyManager:
             )
 
         async with self._lock:
-            if terminal_id in self._sessions:
-                existing = self._sessions[terminal_id]
-                existing.close()
-                del self._sessions[terminal_id]
-                if existing.session_key:
-                    self._session_index.pop(existing.session_key, None)
+            existing = self._sessions.pop(terminal_id, None)
+            if existing is not None and existing.session_key:
+                self._session_index.pop(existing.session_key, None)
+        if existing is not None:
+            await asyncio.to_thread(existing.close)
 
         # 未指定或默认 /bin/bash 时，自动查找 Windows shell
         if not shell or shell == "/bin/bash":
@@ -359,22 +357,22 @@ class PtyManager:
             return False
 
         try:
-            encoded = data.encode("utf-8")
             if session._winpty_proc is not None:
-                # Windows path: pywinpty 的 write 接受 str
-                session._winpty_proc.write(data)
+                # Windows path: pywinpty 的 write 是同步调用，放到线程池避免阻塞事件循环。
+                await asyncio.to_thread(session._winpty_proc.write, data)
             else:
                 # POSIX path
                 if session.master_fd is None:
                     return False
-                os.write(session.master_fd, encoded)
+                encoded = data.encode("utf-8")
+                await asyncio.to_thread(os.write, session.master_fd, encoded)
             session.has_interaction = True
             return True
         except OSError as exc:
             logger.warning("PTY 写入失败: terminal_id=%s %s", terminal_id, exc)
             return False
 
-    def resize(self, terminal_id: str, rows: int, cols: int) -> bool:
+    async def resize(self, terminal_id: str, rows: int, cols: int) -> bool:
         """调整终端窗口大小"""
         session = self._sessions.get(terminal_id)
         if session is None or session._closed:
@@ -382,12 +380,12 @@ class PtyManager:
         try:
             if session._winpty_proc is not None:
                 # Windows path: pywinpty 3.0.3+ 使用 setwinsize
-                session._winpty_proc.setwinsize(cols, rows)
+                await asyncio.to_thread(session._winpty_proc.setwinsize, cols, rows)
             else:
                 # POSIX path
                 if session.master_fd is None:
                     return False
-                self._setwinsize(session.master_fd, rows, cols)
+                await asyncio.to_thread(PtyManager._setwinsize, session.master_fd, rows, cols)
             session.rows = rows
             session.cols = cols
             return True
@@ -461,7 +459,7 @@ class PtyManager:
                 self._session_index.pop(session.session_key, None)
         if session is None:
             return False
-        session.close()
+        await asyncio.to_thread(session.close)
         logger.info("PTY 终止: terminal_id=%s", terminal_id)
         return True
 
@@ -471,8 +469,11 @@ class PtyManager:
             sessions = list(self._sessions.values())
             self._sessions.clear()
             self._session_index.clear()
-        for session in sessions:
-            session.close()
+        if sessions:
+            await asyncio.gather(
+                *[asyncio.to_thread(session.close) for session in sessions],
+                return_exceptions=True,
+            )
         logger.info("PTY 全部终止: count=%d", len(sessions))
 
     def list_sessions(self) -> list[str]:
@@ -511,7 +512,7 @@ class PtyManager:
                         await asyncio.sleep(0)
                         continue
 
-                    data = os.read(master_fd, buf_size)
+                    data = await loop.run_in_executor(None, os.read, master_fd, buf_size)
                     if not data:
                         break
                     if session._pending_output is not None:

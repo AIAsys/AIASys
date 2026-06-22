@@ -17,6 +17,7 @@ export function buildNewTaskLifecycleState(
   stage: NewTaskStage,
   errorMessage: string | null,
   progress?: number,
+  message?: string,
 ): NewTaskLifecycleState {
   const isError = stage === "error" || Boolean(errorMessage);
 
@@ -28,5 +29,6 @@ export function buildNewTaskLifecycleState(
     isError,
     errorMessage,
     progress,
+    message,
   };
 }

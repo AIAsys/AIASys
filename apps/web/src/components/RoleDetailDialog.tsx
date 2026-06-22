@@ -40,9 +40,11 @@ export function RoleDetailDialog({
   // Source tree state for system roles
   const [sourceTreeLoading, setSourceTreeLoading] = useState(false);
   const [sourceTreeEntries, setSourceTreeEntries] = useState<CapabilitySourceTreeEntry[]>([]);
+  const [sourceTreeError, setSourceTreeError] = useState<string | null>(null);
   const [selectedSourceFile, setSelectedSourceFile] = useState<string>("");
   const [sourceFileContent, setSourceFileContent] = useState<string | null>(null);
   const [sourceFileLoading, setSourceFileLoading] = useState(false);
+  const [sourceFileError, setSourceFileError] = useState<string | null>(null);
 
   const visibilityLabel = !role
     ? ""
@@ -75,14 +77,18 @@ export function RoleDetailDialog({
   useEffect(() => {
     if (!open || !role || !isSystemRole) {
       setSourceTreeEntries([]);
+      setSourceTreeError(null);
       setSelectedSourceFile("");
       setSourceFileContent(null);
+      setSourceFileError(null);
       return;
     }
     setSourceTreeLoading(true);
     setSourceTreeEntries([]);
+    setSourceTreeError(null);
     setSelectedSourceFile("");
     setSourceFileContent(null);
+    setSourceFileError(null);
 
     listCapabilitySourceTree(role.name)
       .then((resp) => {
@@ -94,15 +100,24 @@ export function RoleDetailDialog({
         if (entry) {
           setSelectedSourceFile(entry.path);
           setSourceFileLoading(true);
+          setSourceFileError(null);
           getCapabilitySourceFile(role.name, entry.path)
             .then((fileResp) => {
               setSourceFileContent(fileResp?.content ?? "暂无内容");
             })
-            .catch(() => setSourceFileContent(null))
+            .catch((err) => {
+              console.error("加载能力源文件失败", err);
+              setSourceFileContent(null);
+              setSourceFileError("加载源文件失败");
+            })
             .finally(() => setSourceFileLoading(false));
         }
       })
-      .catch(() => setSourceTreeEntries([]))
+      .catch((err) => {
+        console.error("加载能力源码树失败", err);
+        setSourceTreeEntries([]);
+        setSourceTreeError("加载源码树失败");
+      })
       .finally(() => setSourceTreeLoading(false));
   }, [open, role, isSystemRole]);
 
@@ -111,11 +126,16 @@ export function RoleDetailDialog({
       if (!role || path === selectedSourceFile) return;
       setSelectedSourceFile(path);
       setSourceFileLoading(true);
+      setSourceFileError(null);
       getCapabilitySourceFile(role.name, path)
         .then((resp) => {
           setSourceFileContent(resp?.content ?? "暂无内容");
         })
-        .catch(() => setSourceFileContent(null))
+        .catch((err) => {
+          console.error("加载能力源文件失败", err);
+          setSourceFileContent(null);
+          setSourceFileError("加载源文件失败");
+        })
         .finally(() => setSourceFileLoading(false));
     },
     [role, selectedSourceFile],
@@ -213,6 +233,10 @@ export function RoleDetailDialog({
                   <Loader2 className="h-3 w-3 animate-spin" />
                   正在扫描文件...
                 </div>
+              ) : sourceTreeError ? (
+                <div className="rounded-xl border border-dashed border-destructive/50 bg-destructive/5 p-4 text-xs text-destructive">
+                  {sourceTreeError}
+                </div>
               ) : sourceTreeEntries.length === 0 ? (
                 <div className="rounded-xl border border-dashed border-border bg-muted/40 p-4 text-xs text-muted-foreground">
                   该能力源下暂无文件。
@@ -231,6 +255,10 @@ export function RoleDetailDialog({
                       <div className="flex items-center justify-center gap-2 py-8 text-xs text-muted-foreground">
                         <Loader2 className="h-3 w-3 animate-spin" />
                         正在加载...
+                      </div>
+                    ) : sourceFileError ? (
+                      <div className="flex items-center justify-center py-8 text-xs text-destructive">
+                        {sourceFileError}
                       </div>
                     ) : sourceFileContent !== null ? (
                       <pre className="p-3 text-[11px] leading-5 text-foreground whitespace-pre-wrap break-words">

@@ -1,3 +1,4 @@
+import asyncio
 import fnmatch
 import json
 import logging
@@ -611,7 +612,9 @@ async def get_workspace_resources_tree(
         raise HTTPException(status_code=404, detail="Operation failed") from exc
 
     workspace_root = service.get_workspace_root(current_user.user_id, workspace_id)
-    nodes = _scan_workspace_file_assets(workspace_root, workspace_id=workspace_id)
+    nodes = await asyncio.to_thread(
+        _scan_workspace_file_assets, workspace_root, workspace_id=workspace_id
+    )
     return WorkspaceResourcesTreeResponse(nodes=nodes)
 
 

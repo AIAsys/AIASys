@@ -14,8 +14,6 @@ import shutil
 import threading
 from datetime import datetime, timedelta
 from pathlib import Path
-
-from app.utils.path_utils import as_system_path
 from typing import Any
 
 from croniter import croniter
@@ -37,6 +35,7 @@ from app.services.auto_tasks.models import (
     TaskCategory,
     TaskStatus,
 )
+from app.utils.path_utils import as_system_path
 
 logger = logging.getLogger(__name__)
 
@@ -48,10 +47,19 @@ _MISS_THRESHOLD_SECONDS = 60
 _auto_tasks_task: asyncio.Task | None = None
 _running_locks: dict[str, asyncio.Lock] = {}
 _running_locks_create_lock = threading.Lock()
-_continuous_event = asyncio.Event()
+# 同步原语在 ensure_auto_tasks_running 中、有运行事件循环时再创建，
+# 避免模块导入时绑定到不存在/错误的事件循环。
+_continuous_event: asyncio.Event | None = None
 # 全局并发上限：同时执行的自动任务不超过 8 个
 _MAX_CONCURRENT_TASKS = 8
-_task_semaphore = asyncio.Semaphore(_MAX_CONCURRENT_TASKS)
+_task_semaphore: asyncio.Semaphore | None = None
+
+
+def _init_engine_sync_primitives() -> None:
+    """初始化需要绑定到当前事件循环的同步原语。"""
+    global _continuous_event, _task_semaphore
+    _continuous_event = asyncio.Event()
+    _task_semaphore = asyncio.Semaphore(_MAX_CONCURRENT_TASKS)
 
 
 def _get_task_lock(task_id: str) -> asyncio.Lock:
@@ -579,7 +587,8 @@ async def _execute_and_persist(
                 t = asyncio.create_task(_execute_and_persist(current_task))
                 t.add_done_callback(_log_task_exception)
             elif current_task.task_category == TaskCategory.continuous:
-                _continuous_event.set()
+                if _continuous_event is not None:
+                    _continuous_event.set()
 
             return result or _overlap_result("execution_returned_no_result")
     except Exception:
@@ -609,11 +618,17 @@ def _recover_missed_tasks() -> list[AutoTask]:
 
 async def _auto_task_loop() -> None:
     logger.info("自动任务引擎轮询启动，间隔=%s秒", _POLL_INTERVAL_SECONDS)
+    semaphore = _task_semaphore
+    event = _continuous_event
+    if semaphore is None or event is None:
+        logger.warning("自动任务同步原语未初始化，轮询退出")
+        return
+
     missed = _recover_missed_tasks()
     if missed:
         logger.info("恢复 %s 个错过的自动任务", len(missed))
         for task in missed:
-            async with _task_semaphore:
+            async with semaphore:
                 t = asyncio.create_task(_run_task_with_lock(task))
                 t.add_done_callback(_log_task_exception)
 
@@ -621,14 +636,14 @@ async def _auto_task_loop() -> None:
         try:
             for _, _, task in AutoTaskStore.all_tasks_across_workspaces():
                 if _is_task_due(task):
-                    async with _task_semaphore:
+                    async with semaphore:
                         t = asyncio.create_task(_run_task_with_lock(task))
                         t.add_done_callback(_log_task_exception)
         except Exception as exc:
             logger.error("自动任务轮询异常: %s", exc, exc_info=True)
         try:
-            await asyncio.wait_for(_continuous_event.wait(), timeout=_POLL_INTERVAL_SECONDS)
-            _continuous_event.clear()
+            await asyncio.wait_for(event.wait(), timeout=_POLL_INTERVAL_SECONDS)
+            event.clear()
         except asyncio.TimeoutError:
             pass
         except asyncio.CancelledError:
@@ -646,6 +661,7 @@ def ensure_auto_tasks_running() -> None:
     except RuntimeError:
         logger.warning("自动任务引擎启动时无运行中的事件循环，跳过")
         return
+    _init_engine_sync_primitives()
     _auto_tasks_task = loop.create_task(_auto_task_loop())
     _auto_tasks_task.add_done_callback(_log_task_exception)
     logger.info("自动任务引擎已启动")

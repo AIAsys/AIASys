@@ -14,7 +14,8 @@ from app.services import runtime_environment as runtime_environment_module
 from app.services import workspace_registry as workspace_registry_module
 from app.services.history import current_session_id, current_user_id, current_workspace
 from app.services.runtime.runtime_execution import resolve_runtime_execution_plan
-from app.services.runtime_environment import RuntimeEnvironmentService
+from app.services.node_runtime import _validate_npm_package_names
+from app.services.runtime_environment import RuntimeEnvironmentService, _validate_package_names
 from app.services.session import SessionManager
 from app.services.workspace_registry import WorkspaceRegistryService
 
@@ -229,3 +230,27 @@ def test_runtime_environment_tool_schema_is_registered() -> None:
     serialized = json.dumps(schema, ensure_ascii=False)
     assert "ensure_uv" in serialized
     assert "register_docker" not in serialized
+
+
+def test_validate_package_names_accepts_valid_specs() -> None:
+    # 常见 PEP 508 依赖规范应通过
+    _validate_package_names(["pandas==2.2.0", "numpy", "requests[security]>=2.0"])
+
+
+def test_validate_package_names_rejects_option_injection() -> None:
+    with pytest.raises(ValueError, match="不能以 '-' 开头"):
+        _validate_package_names(["--index-url", "https://evil.com"])
+
+
+def test_validate_package_names_rejects_shell_metacharacters() -> None:
+    with pytest.raises(ValueError, match="包含危险字符"):
+        _validate_package_names(["requests; rm -rf /"])
+
+
+def test_validate_npm_package_names_accepts_valid_specs() -> None:
+    _validate_npm_package_names(["lodash", "@types/node", "express@^4.0"])
+
+
+def test_validate_npm_package_names_rejects_option_injection() -> None:
+    with pytest.raises(ValueError, match="不能以 '-' 开头"):
+        _validate_npm_package_names(["--registry", "https://evil.com"])

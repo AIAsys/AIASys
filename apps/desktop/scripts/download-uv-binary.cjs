@@ -1,5 +1,6 @@
 const fs = require("fs");
 const path = require("path");
+const crypto = require("crypto");
 const { spawnSync } = require("child_process");
 
 const UV_VERSION = "0.11.21";
@@ -68,6 +69,23 @@ function curlDownload(url, dest) {
   }
   const stat = fs.statSync(dest);
   console.log(`[download-uv] 已保存: ${dest} (${(stat.size / 1024 / 1024).toFixed(1)} MB)`);
+}
+
+function verifySha256(filePath, expectedHash) {
+  let buf;
+  try {
+    buf = fs.readFileSync(filePath);
+  } catch (err) {
+    throw new Error(`[download-uv] 读取文件失败，无法完成 SHA256 校验: ${err.message}`);
+  }
+  const actualHash = crypto.createHash("sha256").update(buf).digest("hex");
+  if (actualHash !== expectedHash) {
+    throw new Error(
+      `SHA256 校验失败: 期望 ${expectedHash}, 实际 ${actualHash}`
+    );
+  }
+  console.log("[download-uv] SHA256 校验通过");
+  return true;
 }
 
 function resolvePython() {
@@ -152,6 +170,7 @@ async function downloadForPlatform(slug) {
   }
 
   const isZip = assetName.endsWith(".zip");
+  const shaName = `${assetName}.sha256`;
 
   const bases = [downloadBase()];
   if (bases[0] === "https://github.com") {
@@ -161,7 +180,9 @@ async function downloadForPlatform(slug) {
   const downloadDir = path.join(vendorDir, ".download");
   fs.mkdirSync(downloadDir, { recursive: true });
   const archivePath = path.join(downloadDir, assetName);
+  const shaPath = path.join(downloadDir, shaName);
 
+  // 下载压缩包
   let lastErr;
   for (const base of bases) {
     const url = `${base}/${REPO}/releases/download/${UV_VERSION}/${assetName}`;
@@ -175,6 +196,24 @@ async function downloadForPlatform(slug) {
     }
   }
   if (lastErr) throw lastErr;
+
+  // 下载 sha256 校验文件并校验（获取失败时降级为警告，不阻塞构建）
+  let expectedSha = null;
+  for (const base of bases) {
+    const url = `${base}/${REPO}/releases/download/${UV_VERSION}/${shaName}`;
+    try {
+      curlDownload(url, shaPath);
+      const content = fs.readFileSync(shaPath, "utf-8").trim();
+      expectedSha = content.split(/\s+/)[0];
+      break;
+    } catch {
+      console.warn("[download-uv] 获取 sha256 文件失败，跳过校验");
+    }
+  }
+
+  if (expectedSha) {
+    verifySha256(archivePath, expectedSha);
+  }
 
   const extractDir = path.join(downloadDir, "_extracted");
   extractArchive(archivePath, extractDir, isZip);

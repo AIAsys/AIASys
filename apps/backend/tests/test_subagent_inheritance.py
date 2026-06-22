@@ -986,7 +986,7 @@ class TestSubagentNestingProhibition:
             ) as mock_get_registry,
         ):
             mock_registry = MagicMock()
-            mock_registry.count_active_for_host.return_value = 1
+            mock_registry.acount_active_for_host = AsyncMock(return_value=1)
             mock_registry.try_register = AsyncMock(return_value=False)
             mock_get_registry.return_value = mock_registry
             async for item in tool.invoke_stream(
@@ -999,7 +999,7 @@ class TestSubagentNestingProhibition:
         assert results
         assert results[-1].is_error is True
         assert "并发数已达到上限 1" in results[-1].content
-        mock_registry.count_active_for_host.assert_called_once_with("host-s1")
+        mock_registry.acount_active_for_host.assert_called_once_with("host-s1")
         mock_storage_cls.assert_not_called()
 
     @pytest.mark.asyncio

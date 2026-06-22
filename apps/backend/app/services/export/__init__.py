@@ -8,6 +8,7 @@ from app.services.export.markdown_export import (
     MarkdownExportDependencyError,
     MarkdownExportError,
     export_markdown_file,
+    export_markdown_file_to_path,
 )
 from app.services.export.session_export_service import (
     SessionExportNotFoundError,
@@ -26,6 +27,7 @@ from app.services.export.workspace_import_service import (
 
 __all__ = [
     "export_markdown_file",
+    "export_markdown_file_to_path",
     "MarkdownExportError",
     "MarkdownExportDependencyError",
     "ExportedArtifact",

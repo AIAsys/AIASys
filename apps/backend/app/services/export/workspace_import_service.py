@@ -9,10 +9,11 @@ import io
 import json
 import os
 import shutil
+import tempfile
 import zipfile
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, Tuple
+from typing import Any, BinaryIO, Dict, Tuple
 
 from app.core.config import WORKSPACE_DIR
 from app.services.workspace_registry import WorkspaceRegistryService
@@ -92,12 +93,32 @@ class WorkspaceImportService:
         user_id: str,
         zip_bytes: bytes,
     ) -> Tuple[str, Dict[str, Any]]:
-        """从 ZIP 字节导入工作区。
+        """从 ZIP 字节导入工作区（兼容接口，内部写入临时文件避免内存中展开完整 ZIP）。
+
+        返回 (新 workspace_id, workspace_meta)。
+        """
+        fd, tmp_path = tempfile.mkstemp(suffix=".zip")
+        try:
+            with os.fdopen(fd, "wb") as f:
+                f.write(zip_bytes)
+            return self.import_from_zip_file(user_id=user_id, zip_path=tmp_path)
+        finally:
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
+
+    def import_from_zip_file(
+        self,
+        user_id: str,
+        zip_path: str | Path,
+    ) -> Tuple[str, Dict[str, Any]]:
+        """从 ZIP 文件路径导入工作区，避免把整个压缩包读入内存。
 
         返回 (新 workspace_id, workspace_meta)。
         """
         try:
-            with zipfile.ZipFile(io.BytesIO(zip_bytes), "r") as zf:
+            with zipfile.ZipFile(as_system_path(str(zip_path)), "r") as zf:
                 return self._import_from_zipfile(user_id, zf)
         except zipfile.BadZipFile as exc:
             raise WorkspaceImportError("无效的 ZIP 文件") from exc

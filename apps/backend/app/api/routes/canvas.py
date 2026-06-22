@@ -1,3 +1,5 @@
+import asyncio
+
 from fastapi import APIRouter, Depends, HTTPException
 
 from app.core.auth import require_auth
@@ -39,7 +41,7 @@ async def read_canvas(
     workspace_dir = service._get_workspace_dir(current_user.user_id, workspace_id)
     canvas_service = get_canvas_file_service()
     try:
-        canvas = canvas_service.read_canvas(workspace_dir, relative_path)
+        canvas = await asyncio.to_thread(canvas_service.read_canvas, workspace_dir, relative_path)
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValueError as exc:
@@ -69,7 +71,9 @@ async def write_canvas(
     workspace_dir = service._get_workspace_dir(current_user.user_id, workspace_id)
     canvas_service = get_canvas_file_service()
     try:
-        canvas = canvas_service.write_canvas(workspace_dir, relative_path, request.canvas)
+        canvas = await asyncio.to_thread(
+            canvas_service.write_canvas, workspace_dir, relative_path, request.canvas
+        )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return CanvasReadResponse(
@@ -97,7 +101,9 @@ async def add_canvas_node(
     workspace_dir = service._get_workspace_dir(current_user.user_id, workspace_id)
     canvas_service = get_canvas_file_service()
     try:
-        canvas = canvas_service.add_node(workspace_dir, relative_path, request.node)
+        canvas = await asyncio.to_thread(
+            canvas_service.add_node, workspace_dir, relative_path, request.node
+        )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return CanvasReadResponse(
@@ -126,7 +132,13 @@ async def update_canvas_node(
     workspace_dir = service._get_workspace_dir(current_user.user_id, workspace_id)
     canvas_service = get_canvas_file_service()
     try:
-        canvas = canvas_service.update_node(workspace_dir, relative_path, node_id, request.node)
+        canvas = await asyncio.to_thread(
+            canvas_service.update_node,
+            workspace_dir,
+            relative_path,
+            node_id,
+            request.node,
+        )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return CanvasReadResponse(
@@ -154,7 +166,9 @@ async def remove_canvas_node(
     workspace_dir = service._get_workspace_dir(current_user.user_id, workspace_id)
     canvas_service = get_canvas_file_service()
     try:
-        canvas = canvas_service.remove_node(workspace_dir, relative_path, node_id)
+        canvas = await asyncio.to_thread(
+            canvas_service.remove_node, workspace_dir, relative_path, node_id
+        )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return CanvasReadResponse(
@@ -182,7 +196,9 @@ async def add_canvas_edge(
     workspace_dir = service._get_workspace_dir(current_user.user_id, workspace_id)
     canvas_service = get_canvas_file_service()
     try:
-        canvas = canvas_service.add_edge(workspace_dir, relative_path, request.edge)
+        canvas = await asyncio.to_thread(
+            canvas_service.add_edge, workspace_dir, relative_path, request.edge
+        )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return CanvasReadResponse(
@@ -211,7 +227,13 @@ async def update_canvas_edge(
     workspace_dir = service._get_workspace_dir(current_user.user_id, workspace_id)
     canvas_service = get_canvas_file_service()
     try:
-        canvas = canvas_service.update_edge(workspace_dir, relative_path, edge_id, request.edge)
+        canvas = await asyncio.to_thread(
+            canvas_service.update_edge,
+            workspace_dir,
+            relative_path,
+            edge_id,
+            request.edge,
+        )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return CanvasReadResponse(
@@ -239,7 +261,9 @@ async def remove_canvas_edge(
     workspace_dir = service._get_workspace_dir(current_user.user_id, workspace_id)
     canvas_service = get_canvas_file_service()
     try:
-        canvas = canvas_service.remove_edge(workspace_dir, relative_path, edge_id)
+        canvas = await asyncio.to_thread(
+            canvas_service.remove_edge, workspace_dir, relative_path, edge_id
+        )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return CanvasReadResponse(
@@ -267,7 +291,8 @@ async def batch_canvas_operations(
     workspace_dir = service._get_workspace_dir(current_user.user_id, workspace_id)
     canvas_service = get_canvas_file_service()
     try:
-        canvas = canvas_service.batch_operations(
+        canvas = await asyncio.to_thread(
+            canvas_service.batch_operations,
             workspace_dir,
             relative_path,
             request.operations,

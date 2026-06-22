@@ -45,6 +45,7 @@ from app.models.workspace import (
     UpdateWorkspaceRequest,
     WorkspaceConversationSummary,
     WorkspaceDetailResponse,
+    WorkspaceInitializationStatus,
     WorkspaceListResponse,
     WorkspaceOverviewResponse,
     WorkspaceResourceLayerSummaryResponse,
@@ -456,20 +457,19 @@ async def list_workspaces(
         return val.default if hasattr(val, "default") else val
 
     service = get_workspace_registry_service()
-    # 先获取总数（不带分页限制），再获取分页数据
-    all_workspaces = service.list_workspaces(
-        current_user.user_id,
-        include_conversations=False,
-        summary_only=True,
-    )
-    total_count = len(all_workspaces)
-    workspaces = service.list_workspaces(
+    # 单次遍历获取全部工作区，再本地分页，避免重复目录遍历
+    all_workspaces = await asyncio.to_thread(
+        service.list_workspaces,
         current_user.user_id,
         include_conversations=False,
         summary_only=summary_only,
-        limit=_unwrap_query(limit),
-        offset=_unwrap_query(offset),
     )
+    total_count = len(all_workspaces)
+    offset_val = _unwrap_query(offset)
+    limit_val = _unwrap_query(limit)
+    workspaces = all_workspaces[offset_val:]
+    if limit_val is not None:
+        workspaces = workspaces[:limit_val]
     return WorkspaceListResponse(workspaces=workspaces, total=total_count)
 
 
@@ -669,7 +669,7 @@ async def import_folder_stream(
         yield f"data: {json.dumps({'stage': 'scanning', 'progress': 0, 'message': '正在扫描文件夹...'})}\n\n"
 
         # 在后台线程运行创建任务
-        asyncio.get_event_loop().run_in_executor(None, run_create_workspace)
+        future = asyncio.get_event_loop().run_in_executor(None, run_create_workspace)
 
         # 并发读取进度队列
         while True:
@@ -684,6 +684,14 @@ async def import_folder_stream(
                 break
 
             yield f"data: {json.dumps(event)}\n\n"
+
+        # 确保后台任务异常被消费；若 run_create_workspace 自身未捕获，补充到错误列表
+        if future.done() and not future.cancelled():
+            try:
+                future.result()
+            except BaseException as exc:  # noqa: BLE001
+                if not workspace_error:
+                    workspace_error.append(exc)
 
         if workspace_error:
             exc = workspace_error[0]
@@ -721,6 +729,26 @@ async def get_workspace(
             workspace_id,
             include_conversations=True,
         )
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="Operation failed") from exc
+
+
+@router.get(
+    "/{workspace_id}/initialization",
+    response_model=WorkspaceInitializationStatus,
+)
+async def get_workspace_initialization(
+    workspace_id: str,
+    current_user: UserInfo = Depends(require_auth()),
+):
+    """查询工作区运行时资源初始化状态与进度。"""
+    service = get_workspace_registry_service()
+    try:
+        raw = service._read_initialization_status(
+            current_user.user_id,
+            workspace_id,
+        )
+        return WorkspaceInitializationStatus(**raw)
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail="Operation failed") from exc
 

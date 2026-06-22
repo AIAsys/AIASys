@@ -1,7 +1,7 @@
 {
   "name": "aiasys-desktop",
   "private": true,
-  "version": "0.4.22",
+  "version": "0.4.23",
   "description": "Electron desktop shell for AIASys",
   "homepage": "https://aiasys.ai",
   "author": "AIASys <contact@aiasys.ai>",
@@ -17,6 +17,7 @@
     "dist:ci:linux": "npm run build:web && npm run prepare:runtime && electron-builder --linux AppImage deb --publish=never",
     "dist:ci:win": "npm run build:web && npm run prepare:runtime && electron-builder --win nsis --publish=never",
     "dist:ci:mac": "npm run build:web && npm run prepare:runtime && electron-builder --mac dmg zip --publish=never",
+    "dist:ci:mac-x64": "npm run build:web && npm run prepare:runtime && electron-builder --mac dmg zip --x64 --publish=never",
     "dist:mac:unsigned": "npm run build:web && npm run prepare:runtime && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac dmg --arm64 -c.mac.notarize=false -c.mac.identity=null",
     "test:unit": "node --test src/__tests__/*.test.cjs",
     "test:integration": "node --test scripts/integration-test.cjs",

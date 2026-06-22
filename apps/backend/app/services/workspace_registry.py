@@ -9,6 +9,7 @@ import logging
 import os
 import re
 import shutil
+import threading
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable, Optional
@@ -293,6 +294,224 @@ class WorkspaceRegistryService:
         )
         payload["_schema_version"] = payload.get("_schema_version", 1)
         self._write_json(self._get_workspace_meta_path(workspace_dir), payload)
+
+    def _read_initialization_status(
+        self,
+        user_id: str,
+        workspace_id: str,
+    ) -> dict[str, Any]:
+        """读取工作区初始化状态（不存在则返回默认值）。"""
+        try:
+            meta = self._read_workspace_meta(user_id, workspace_id)
+        except FileNotFoundError:
+            return {"status": "failed", "progress": 0, "message": "工作区不存在"}
+        init_status = meta.get("initialization") or {}
+        if not isinstance(init_status, dict):
+            init_status = {}
+        return init_status
+
+    def _update_initialization_status(
+        self,
+        user_id: str,
+        workspace_id: str,
+        *,
+        status: str | None = None,
+        progress: int | None = None,
+        message: str | None = None,
+        error: str | None = None,
+        started_at: str | None = None,
+        completed_at: str | None = None,
+    ) -> None:
+        """原子更新工作区初始化状态，不触碰其它 meta 字段。"""
+        try:
+            meta = self._read_workspace_meta(user_id, workspace_id)
+        except FileNotFoundError:
+            logger.warning("更新初始化状态时工作区不存在: %s", workspace_id)
+            return
+        init_status = dict(meta.get("initialization") or {})
+        if status is not None:
+            init_status["status"] = status
+        if progress is not None:
+            init_status["progress"] = max(0, min(100, progress))
+        if message is not None:
+            init_status["message"] = message
+        if error is not None:
+            init_status["error"] = error
+        if started_at is not None:
+            init_status["started_at"] = started_at
+        if completed_at is not None:
+            init_status["completed_at"] = completed_at
+        meta["initialization"] = init_status
+        self._write_workspace_meta(user_id, workspace_id, meta)
+
+    def _initialize_workspace_resources(
+        self,
+        user_id: str,
+        workspace_id: str,
+        normalized_runtime_binding: WorkspaceRuntimeBinding,
+        env_vars: dict[str, str] | None,
+    ) -> None:
+        """在后台线程中初始化 Python / Node 运行时资源并持久化进度。"""
+        resolved_resources = ExecutionResourceGroup(
+            python_env_id=normalized_runtime_binding.resources.python_env_id,
+            node_env_id=normalized_runtime_binding.resources.node_env_id,
+            docker_resource_id=normalized_runtime_binding.resources.docker_resource_id,
+        )
+
+        if resolved_resources.docker_resource_id:
+            self._update_initialization_status(
+                user_id,
+                workspace_id,
+                status="completed",
+                progress=100,
+                message="Docker 模式无需初始化运行环境",
+                completed_at=_now_iso(),
+            )
+            return
+
+        self._update_initialization_status(
+            user_id,
+            workspace_id,
+            status="running",
+            progress=0,
+            message="开始初始化运行环境",
+            started_at=_now_iso(),
+        )
+
+        try:
+            # Python 环境
+            if resolved_resources.python_env_id:
+                from app.services.runtime_environment import RuntimeEnvironmentService
+
+                runtime_env_service = RuntimeEnvironmentService(self.base_dir, self)
+                py_env_id = resolved_resources.python_env_id
+
+                self._update_initialization_status(
+                    user_id,
+                    workspace_id,
+                    progress=5,
+                    message="准备 Python 环境...",
+                )
+
+                if py_env_id != "workspace-default":
+                    runtime_env_service.inspect_env(
+                        user_id,
+                        workspace_id,
+                        py_env_id,
+                    )
+                    inspected = runtime_env_service.bind_workspace_env(
+                        user_id,
+                        workspace_id,
+                        py_env_id,
+                    )
+                    resolved_resources.python_env_id = inspected.env_id
+                else:
+                    self._update_initialization_status(
+                        user_id,
+                        workspace_id,
+                        progress=10,
+                        message="检查 / 安装 uv...",
+                    )
+                    inspected, _ = runtime_env_service.ensure_uv_env(
+                        user_id=user_id,
+                        workspace_id=workspace_id,
+                        env_id="workspace-default",
+                        create_venv=True,
+                        sync=True,
+                    )
+                    self._update_initialization_status(
+                        user_id,
+                        workspace_id,
+                        progress=55,
+                        message="绑定 Python 环境...",
+                    )
+                    inspected = runtime_env_service.bind_workspace_env(
+                        user_id,
+                        workspace_id,
+                        inspected.env_id,
+                    )
+                    resolved_resources.python_env_id = inspected.env_id
+
+                self._update_initialization_status(
+                    user_id,
+                    workspace_id,
+                    progress=60,
+                    message="Python 环境就绪",
+                )
+
+            # Node.js 环境
+            if resolved_resources.node_env_id:
+                from app.services.node_runtime import NodeRuntimeService
+
+                node_service = NodeRuntimeService(self.base_dir, self)
+                node_env_id = resolved_resources.node_env_id
+
+                self._update_initialization_status(
+                    user_id,
+                    workspace_id,
+                    progress=65,
+                    message="准备 Node.js 环境...",
+                )
+
+                if node_env_id != "node-default":
+                    inspected = node_service.bind_workspace_node_env(
+                        user_id,
+                        workspace_id,
+                        node_env_id,
+                    )
+                    resolved_resources.node_env_id = inspected.env_id
+                else:
+                    inspected = node_service.ensure_workspace_node_env(
+                        user_id=user_id,
+                        workspace_id=workspace_id,
+                        env_id="node-default",
+                        create_if_missing=True,
+                    )
+                    inspected = node_service.bind_workspace_node_env(
+                        user_id,
+                        workspace_id,
+                        inspected.env_id,
+                    )
+                    resolved_resources.node_env_id = inspected.env_id
+
+                self._update_initialization_status(
+                    user_id,
+                    workspace_id,
+                    progress=90,
+                    message="Node.js 环境就绪",
+                )
+
+            # 把最终绑定写回 meta
+            final_binding = WorkspaceRuntimeBinding(
+                env_vars=env_vars,
+                resources=resolved_resources,
+            )
+            meta = self._read_workspace_meta(user_id, workspace_id)
+            meta["runtime_binding"] = final_binding.model_dump(mode="json")
+            self._write_workspace_meta(user_id, workspace_id, meta)
+
+            self._update_initialization_status(
+                user_id,
+                workspace_id,
+                status="completed",
+                progress=100,
+                message="运行环境初始化完成",
+                completed_at=_now_iso(),
+            )
+        except Exception as exc:
+            logger.exception(
+                "工作区 %s 运行时资源初始化失败",
+                workspace_id,
+            )
+            self._update_initialization_status(
+                user_id,
+                workspace_id,
+                status="failed",
+                progress=0,
+                message="运行环境初始化失败",
+                error=str(exc),
+                completed_at=_now_iso(),
+            )
 
     def _read_conversation_payloads(
         self,
@@ -913,7 +1132,8 @@ class WorkspaceRegistryService:
             self._write_workspace_meta(user_id, resolved_workspace_id, meta)
             self._write_conversation_payloads(user_id, resolved_workspace_id, [])
 
-            # 解析执行资源组，按需初始化并绑定 Python / Node / Docker
+            # 解析执行资源组。Docker 沙盒模式直接清空本地运行时资源；
+            # Python / Node 环境放到后台线程初始化，避免阻塞 HTTP 响应。
             resolved_resources = ExecutionResourceGroup(
                 python_env_id=normalized_runtime_binding.resources.python_env_id,
                 node_env_id=normalized_runtime_binding.resources.node_env_id,
@@ -929,76 +1149,36 @@ class WorkspaceRegistryService:
                     env_vars=env_vars,
                     resources=resolved_resources,
                 )
-            else:
-                # Python 环境
-                if resolved_resources.python_env_id:
-                    from app.services.runtime_environment import RuntimeEnvironmentService
-
-                    runtime_env_service = RuntimeEnvironmentService(self.base_dir, self)
-                    py_env_id = resolved_resources.python_env_id
-
-                    if py_env_id != "workspace-default":
-                        runtime_env_service.inspect_env(
-                            user_id,
-                            resolved_workspace_id,
-                            py_env_id,
-                        )
-                        inspected = runtime_env_service.bind_workspace_env(
-                            user_id,
-                            resolved_workspace_id,
-                            py_env_id,
-                        )
-                        resolved_resources.python_env_id = inspected.env_id
-                    else:
-                        inspected, _ = runtime_env_service.ensure_uv_env(
-                            user_id=user_id,
-                            workspace_id=resolved_workspace_id,
-                            env_id="workspace-default",
-                            create_venv=True,
-                            sync=True,
-                        )
-                        inspected = runtime_env_service.bind_workspace_env(
-                            user_id,
-                            resolved_workspace_id,
-                            inspected.env_id,
-                        )
-                        resolved_resources.python_env_id = inspected.env_id
-
-                # Node.js 环境
-                if resolved_resources.node_env_id:
-                    from app.services.node_runtime import NodeRuntimeService
-
-                    node_service = NodeRuntimeService(self.base_dir, self)
-                    node_env_id = resolved_resources.node_env_id
-
-                    if node_env_id != "workspace-default":
-                        inspected = node_service.bind_workspace_node_env(
-                            user_id,
-                            resolved_workspace_id,
-                            node_env_id,
-                        )
-                        resolved_resources.node_env_id = inspected.env_id
-                    else:
-                        inspected = node_service.ensure_workspace_node_env(
-                            user_id=user_id,
-                            workspace_id=resolved_workspace_id,
-                            env_id="workspace-default",
-                            create_if_missing=True,
-                        )
-                        inspected = node_service.bind_workspace_node_env(
-                            user_id,
-                            resolved_workspace_id,
-                            inspected.env_id,
-                        )
-                        resolved_resources.node_env_id = inspected.env_id
-
-                normalized_runtime_binding = WorkspaceRuntimeBinding(
-                    env_vars=env_vars,
-                    resources=resolved_resources,
+                meta["runtime_binding"] = normalized_runtime_binding.model_dump(mode="json")
+                self._write_workspace_meta(user_id, resolved_workspace_id, meta)
+                self._update_initialization_status(
+                    user_id,
+                    resolved_workspace_id,
+                    status="completed",
+                    progress=100,
+                    message="Docker 模式无需初始化运行环境",
+                    completed_at=_now_iso(),
                 )
-
-            meta["runtime_binding"] = normalized_runtime_binding.model_dump(mode="json")
-            self._write_workspace_meta(user_id, resolved_workspace_id, meta)
+            else:
+                # 记录 pending 状态，启动后台线程完成真实环境创建
+                self._update_initialization_status(
+                    user_id,
+                    resolved_workspace_id,
+                    status="pending",
+                    progress=0,
+                    message="排队等待初始化运行环境",
+                )
+                thread = threading.Thread(
+                    target=self._initialize_workspace_resources,
+                    args=(
+                        user_id,
+                        resolved_workspace_id,
+                        normalized_runtime_binding,
+                        env_vars,
+                    ),
+                    daemon=True,
+                )
+                thread.start()
 
             self.create_conversation(
                 user_id=user_id,
@@ -1243,9 +1423,9 @@ class WorkspaceRegistryService:
 
         try:
             from app.core.database import (
+                DatabaseConnectorORM,
                 SubAgentConfigORM,
                 SubAgentInstanceORM,
-                DatabaseConnectorORM,
                 WorkspaceResourceDefaultORM,
                 db_session,
             )

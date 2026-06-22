@@ -16,6 +16,7 @@ import json
 import logging
 import os
 import re
+import threading
 import time
 import uuid
 from datetime import datetime
@@ -239,8 +240,10 @@ Kernel 索引规则：
     _kernel_managers: dict[str, MultiKernelManager] = {}
     _clients: dict[str, Any] = {}
     _last_activity: dict[str, float] = {}
-    _lock: asyncio.Lock = asyncio.Lock()
+    # 临界区只涉及字典读写，没有 await，使用 threading.Lock 避免跨事件循环绑定问题。
+    _lock: threading.Lock = threading.Lock()
     _IDLE_KERNEL_TTL_SECONDS: int = 30 * 60  # 30 分钟无活跃则自动关闭
+    _MAX_CACHED_KERNELS: int = 100
 
     def __init__(self):
         self.workspace: Optional[Path] = None
@@ -418,6 +421,29 @@ Kernel 索引规则：
         return f"{user_id}_{session_id or 'default_session'}#{kernel_name}"
 
     @classmethod
+    def _evict_oldest_kernel(cls) -> None:
+        """按最后活跃时间淘汰最旧的内核，防止类级缓存无限增长。"""
+        if not cls._last_activity:
+            return
+        oldest_key = min(cls._last_activity, key=cls._last_activity.get)
+        cls._shutdown_kernel_by_key(oldest_key)
+
+    @classmethod
+    def _shutdown_kernel_by_key(cls, key: str) -> None:
+        """按 key 关闭并移除缓存的内核（调用方需自行持锁）。"""
+        km = cls._kernel_managers.pop(key, None)
+        client = cls._clients.pop(key, None)
+        cls._last_activity.pop(key, None)
+        try:
+            if client:
+                client.stop_channels()
+            if km:
+                km.shutdown_kernel(now=True)
+            logger.info("[LocalIPythonBox] 缓存已满，淘汰旧内核: %s", key)
+        except Exception as exc:
+            logger.warning("[LocalIPythonBox] 淘汰旧内核失败 %s: %s", key, exc)
+
+    @classmethod
     def has_kernel(
         cls,
         session_id: str | None = None,
@@ -452,7 +478,7 @@ Kernel 索引规则：
         key = cls._get_kernel_key(session_id, notebook_path, user_id, kernel_name=kernel_name)
 
         # 先在锁内快速检查是否已有内核，避免重复创建
-        async with cls._lock:
+        with cls._lock:
             if key in cls._kernel_managers:
                 logger.info(f"[LocalIPythonBox] 复用现有内核: {key}")
                 cls._last_activity[key] = time.time()
@@ -498,8 +524,10 @@ Kernel 索引规则：
             logger.error(f"[LocalIPythonBox] 创建内核失败: {e}")
             raise RuntimeError(f"无法创建 IPython Kernel: {e}")
 
-        # 在锁内原子性地存储内核引用
-        async with cls._lock:
+        # 在锁内原子性地存储内核引用；超出上限时淘汰最旧的缓存
+        with cls._lock:
+            if len(cls._kernel_managers) >= cls._MAX_CACHED_KERNELS:
+                cls._evict_oldest_kernel()
             cls._kernel_managers[key] = kernel_manager
             cls._clients[key] = client
             cls._last_activity[key] = time.time()

@@ -63,6 +63,7 @@ export interface NewTaskLifecycleState {
   isError: boolean;
   errorMessage: string | null;
   progress?: number;
+  message?: string;
 }
 
 export interface WorkspaceRuntimeSummary {

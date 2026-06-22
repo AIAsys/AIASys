@@ -17,13 +17,15 @@ def manager():
 
 
 class TestAutoApprove:
-    def test_is_auto_approved_default_false(self, manager):
-        assert manager.is_auto_approved("Shell") is False
+    @pytest.mark.asyncio
+    async def test_is_auto_approved_default_false(self, manager):
+        assert await manager.is_auto_approved("Shell") is False
 
-    def test_add_auto_approved(self, manager):
-        manager.add_auto_approved("Shell")
-        assert manager.is_auto_approved("Shell") is True
-        assert manager.is_auto_approved("Write") is False
+    @pytest.mark.asyncio
+    async def test_add_auto_approved(self, manager):
+        await manager.add_auto_approved("Shell")
+        assert await manager.is_auto_approved("Shell") is True
+        assert await manager.is_auto_approved("Write") is False
 
 
 class TestWaitForConfirmation:
@@ -41,7 +43,7 @@ class TestWaitForConfirmation:
         # 给事件循环一点时间创建 future
         await asyncio.sleep(0.05)
 
-        resolved = manager.resolve("tc1", approved=True)
+        resolved = await manager.resolve("tc1", approved=True)
         assert resolved is True
 
         approved, feedback = await task
@@ -62,7 +64,7 @@ class TestWaitForConfirmation:
         )
         await asyncio.sleep(0.05)
 
-        resolved = manager.resolve("tc2", approved=False, feedback="don't touch this")
+        resolved = await manager.resolve("tc2", approved=False, feedback="don't touch this")
         assert resolved is True
 
         approved, feedback = await task
@@ -72,7 +74,7 @@ class TestWaitForConfirmation:
 
     @pytest.mark.asyncio
     async def test_auto_approved_skips_wait(self, manager):
-        manager.add_auto_approved("Shell")
+        await manager.add_auto_approved("Shell")
         approved, feedback = await manager.wait_for_confirmation(
             tool_call_id="tc3",
             tool_name="Shell",
@@ -97,7 +99,7 @@ class TestWaitForConfirmation:
 
     @pytest.mark.asyncio
     async def test_resolve_unknown_id_returns_false(self, manager):
-        assert manager.resolve("nope", approved=True) is False
+        assert await manager.resolve("nope", approved=True) is False
 
     @pytest.mark.asyncio
     async def test_resolve_already_resolved_returns_false(self, manager):
@@ -111,10 +113,10 @@ class TestWaitForConfirmation:
             )
         )
         await asyncio.sleep(0.05)
-        assert manager.resolve("tc5", approved=True) is True
+        assert await manager.resolve("tc5", approved=True) is True
         await task
         # 第二次 resolve 同一个 id 应该失败
-        assert manager.resolve("tc5", approved=True) is False
+        assert await manager.resolve("tc5", approved=True) is False
 
 
 class TestSessionScope:
@@ -131,7 +133,7 @@ class TestSessionScope:
             )
         )
         await asyncio.sleep(0.05)
-        manager.resolve("tc6", approved=True, scope="session")
+        await manager.resolve("tc6", approved=True, scope="session")
         await task
 
         # 第二次同工具名请求应该自动批准
@@ -158,7 +160,7 @@ class TestCancelAll:
             )
         )
         await asyncio.sleep(0.05)
-        manager.cancel_all("test cleanup")
+        await manager.cancel_all("test cleanup")
         approved, feedback = await task
         assert approved is False
         assert feedback == "test cleanup"
@@ -178,9 +180,9 @@ class TestListPending:
             )
         )
         await asyncio.sleep(0.05)
-        pending = manager.list_pending()
+        pending = await manager.list_pending()
         assert len(pending) == 1
         assert pending[0].tool_call_id == "tc9"
         assert pending[0].subagent_name == "coder"
-        manager.resolve("tc9", approved=True)
+        await manager.resolve("tc9", approved=True)
         await task

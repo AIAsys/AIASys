@@ -130,7 +130,7 @@ export function useCodeExecutor({
     removeSession: removeUploadSession,
     retryUpload,
     removeFailedUpload,
-  } = useAgentFileUpload({ onUploadError: showError });
+  } = useAgentFileUpload({ baseUrl: apiBaseUrl, onUploadError: showError });
   const uploadedFiles = uploadState.files;
   const isUploading = uploadState.isUploading;
   const uploadProgress = uploadState.uploadProgress;

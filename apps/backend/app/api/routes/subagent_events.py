@@ -260,7 +260,7 @@ async def send_message_to_subagent(
     if not message:
         raise HTTPException(status_code=400, detail="消息内容不能为空")
 
-    if not registry.is_active(agent_id):
+    if not await registry.ais_active(agent_id):
         raise HTTPException(status_code=409, detail="子 Agent 未运行或已关闭")
 
     lifecycle = get_subagent_lifecycle_manager()

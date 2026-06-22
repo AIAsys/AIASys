@@ -72,6 +72,22 @@ def _safe_tail(text: str, limit: int = 8000) -> str:
     return text[-limit:]
 
 
+# 危险字符：可能引发 shell 注入或破坏命令行解析
+_INVALID_PACKAGE_CHARS = set(";|&$`\"'\n\r\x00")
+
+
+def _validate_package_names(packages: list[str]) -> None:
+    """校验 UV 依赖包名/版本规范，防止命令行选项注入或 shell 元字符注入。"""
+    for package in packages:
+        if not package or not isinstance(package, str):
+            raise ValueError("依赖包名不能为空")
+        # uv add 会把以 '-' 开头的参数识别为选项，必须拒绝
+        if package.startswith("-"):
+            raise ValueError(f"非法的依赖包名（不能以 '-' 开头）: {package}")
+        if any(ch in _INVALID_PACKAGE_CHARS for ch in package):
+            raise ValueError(f"非法的依赖包名（包含危险字符）: {package}")
+
+
 def _python_bin_for_venv(venv_dir: Path) -> Path:
     if os.name == "nt":
         return venv_dir / "Scripts" / "python.exe"
@@ -209,6 +225,8 @@ class RuntimeEnvironmentService:
                 encoding="utf-8",
             )
 
+        if packages:
+            _validate_package_names(packages)
         result: RuntimeEnvCommandResult | None = None
         if packages:
             result = self._run_uv(
@@ -268,6 +286,7 @@ class RuntimeEnvironmentService:
             sync=False,
         )
         env_dir = self._env_dir(workspace_dir)
+        _validate_package_names(packages)
         command = ["uv", "add", *packages]
         if not sync:
             command.insert(2, "--no-sync")

@@ -6,6 +6,10 @@ import type { WorkspaceFile } from "@/types/task";
 import { apiRequest } from "@/lib/api/httpClient";
 import { cn } from "@/lib/utils";
 import {
+  useFileUploadToast,
+  FileUploadToast,
+} from "@/components/file/FileUploadToast";
+import {
   createGlobalWorkspacePreviewFile,
   createWorkspacePreviewFile,
 } from "@/utils/workspaceFiles";
@@ -686,6 +690,7 @@ const WorkspaceAssetPanelComponent: React.FC<WorkspaceAssetPanelProps> = ({
   onOpenWorkspaceSettings,
   surfaceMode = "workbench",
 }) => {
+  const { showError, toasts } = useFileUploadToast();
   const { session } = useAuthContext();
   const token = session?.token;
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -959,11 +964,14 @@ const WorkspaceAssetPanelComponent: React.FC<WorkspaceAssetPanelProps> = ({
           if (!workspaceId || !onUploadFiles) return;
           await onUploadFiles(fileArray);
         }
+      } catch (err) {
+        console.error("上传文件失败", err);
+        showError(`上传文件失败: ${err instanceof Error ? err.message : String(err)}`);
       } finally {
         setIsUploadingFiles(false);
       }
     },
-    [isGlobal, isUploadingFiles, workspaceId, token, onUploadFiles, fetchGlobalResources],
+    [isGlobal, isUploadingFiles, workspaceId, token, onUploadFiles, fetchGlobalResources, showError],
   );
 
   const handleFileInputChange = useCallback(
@@ -1302,11 +1310,14 @@ const WorkspaceAssetPanelComponent: React.FC<WorkspaceAssetPanelProps> = ({
     try {
       await onRefreshWorkspaceFiles();
       await fetchCurrentResourceTree();
+    } catch (err) {
+      console.error("刷新文件列表失败", err);
+      showError(`刷新文件列表失败: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       isRefreshingFilesRef.current = false;
       setIsRefreshingFiles(false);
     }
-  }, [fetchCurrentResourceTree, isGlobal, onRefreshWorkspaceFiles, fetchGlobalResources]);
+  }, [fetchCurrentResourceTree, isGlobal, onRefreshWorkspaceFiles, fetchGlobalResources, showError]);
 
   const historyRequestHeaders = useMemo<HeadersInit | undefined>(
     () => (isGlobal && token ? { Authorization: `Bearer ${token}` } : undefined),
@@ -1449,6 +1460,9 @@ const WorkspaceAssetPanelComponent: React.FC<WorkspaceAssetPanelProps> = ({
   // File tree resize
   useEffect(() => {
     if (!isResizingTree) return;
+    document.body.style.setProperty("-webkit-user-select", "none");
+    document.body.style.setProperty("-moz-user-select", "none");
+    document.body.style.setProperty("-ms-user-select", "none");
     document.body.style.userSelect = "none";
     document.body.style.cursor = "col-resize";
     treeResizeContainerRef.current =
@@ -1471,6 +1485,9 @@ const WorkspaceAssetPanelComponent: React.FC<WorkspaceAssetPanelProps> = ({
     document.addEventListener("mousemove", handleMouseMove);
     document.addEventListener("mouseup", handleMouseUp);
     return () => {
+      document.body.style.removeProperty("-webkit-user-select");
+      document.body.style.removeProperty("-moz-user-select");
+      document.body.style.removeProperty("-ms-user-select");
       document.body.style.userSelect = "";
       document.body.style.cursor = "";
       document.removeEventListener("mousemove", handleMouseMove);
@@ -1896,6 +1913,13 @@ const WorkspaceAssetPanelComponent: React.FC<WorkspaceAssetPanelProps> = ({
       onPasteCapture={handlePasteCapture}
       {...dragProps}
     >
+      {toasts.map((toast) => (
+        <FileUploadToast
+          key={toast.id}
+          message={toast.message}
+          type={toast.type}
+        />
+      ))}
       {isDragging ? (
         <div className="pointer-events-none absolute inset-0 z-20 flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-primary bg-background/90 px-6 text-center backdrop-blur-sm">
           <Upload className="mb-3 h-10 w-10 text-primary" />

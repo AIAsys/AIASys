@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import Any
 
@@ -116,12 +117,14 @@ async def resolve_approval(
     处理子 Agent 的能力确认时需传入 agent_id 参数。
     """
     try:
-        session = _get_runtime_session(user_id, session_id, agent_id=agent_id)
+        session = await asyncio.to_thread(
+            _get_runtime_session, user_id, session_id, agent_id=agent_id
+        )
     except HTTPException:
         raise
 
     manager = session._confirmation_manager
-    resolved = manager.resolve(
+    resolved = await manager.resolve(
         tool_call_id=tool_call_id,
         approved=body.approved,
         feedback=body.feedback,
@@ -160,13 +163,13 @@ async def list_pending_approvals(
     前端重连 SSE 后调用，恢复可能遗漏的确认弹窗。
     """
     try:
-        session = _get_runtime_session(user_id, session_id)
+        session = await asyncio.to_thread(_get_runtime_session, user_id, session_id)
     except HTTPException:
         # 会话未激活也返回空列表（可能是历史会话）
         return ApprovalListResponse(pending=[])
 
     manager = session._confirmation_manager
-    pending = manager.list_pending()
+    pending = await manager.list_pending()
 
     return ApprovalListResponse(
         pending=[

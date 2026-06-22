@@ -914,12 +914,7 @@ def cleanup_temp_agent_configs(max_age_hours: int = 24) -> int:
     max_age_seconds = max_age_hours * 3600
     temp_dirs: set[Path] = set()
     try:
-        workspace_root = getattr(
-            __import__("app.services.agent", fromlist=["WORKSPACE_DIR"]),
-            "WORKSPACE_DIR",
-            WORKSPACE_DIR,
-        )
-        runtime_config_dirs = (Path(workspace_root)).glob(
+        runtime_config_dirs = (Path(WORKSPACE_DIR)).glob(
             f"*/*/.aiasys/session/{RUNTIME_AGENT_CONFIG_DIR_NAME}"
         )
         temp_dirs.update(path for path in runtime_config_dirs if path.is_dir())

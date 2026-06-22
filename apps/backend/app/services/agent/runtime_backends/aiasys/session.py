@@ -360,14 +360,16 @@ class AiasysRuntimeSession(
         hash_path = snapshot_path.with_suffix(".hash")
         current_hash = hashlib.sha256(prompt.encode("utf-8")).hexdigest()[:16]
 
-        if hash_path.exists() and snapshot_path.exists():
-            stored_hash = hash_path.read_text(encoding="utf-8").strip()
+        sys_snapshot_path = Path(as_system_path(snapshot_path))
+        sys_hash_path = Path(as_system_path(hash_path))
+        if sys_hash_path.exists() and sys_snapshot_path.exists():
+            stored_hash = sys_hash_path.read_text(encoding="utf-8").strip()
             if stored_hash == current_hash:
-                return snapshot_path.read_text(encoding="utf-8")
+                return sys_snapshot_path.read_text(encoding="utf-8")
 
-        snapshot_path.parent.mkdir(parents=True, exist_ok=True)
-        snapshot_path.write_text(prompt, encoding="utf-8")
-        hash_path.write_text(current_hash, encoding="utf-8")
+        sys_snapshot_path.parent.mkdir(parents=True, exist_ok=True)
+        sys_snapshot_path.write_text(prompt, encoding="utf-8")
+        sys_hash_path.write_text(current_hash, encoding="utf-8")
         return prompt
 
     def _invalidate_system_prompt_snapshot(self) -> None:
@@ -380,8 +382,9 @@ class AiasysRuntimeSession(
         )
         hash_path = snapshot_path.with_suffix(".hash")
         for p in (snapshot_path, hash_path):
-            if p.exists():
-                p.unlink()
+            sys_p = Path(as_system_path(p))
+            if sys_p.exists():
+                sys_p.unlink()
 
     def _build_shell_environment_guidance(self) -> str:
         """根据当前实际 shell 环境给 Agent 追加分段提示。"""
@@ -569,10 +572,11 @@ class AiasysRuntimeSession(
             / ACTIVE_SESSION_STATE_DIR_NAME
             / HISTORY_SNAPSHOT_FILE_NAME
         )
-        if not history_path.exists():
+        sys_history_path = Path(as_system_path(history_path))
+        if not sys_history_path.exists():
             return []
         try:
-            payload = json.loads(history_path.read_text(encoding="utf-8"))
+            payload = json.loads(sys_history_path.read_text(encoding="utf-8"))
         except Exception as exc:
             logger.warning("读取持久化 history snapshot 失败: %s", exc)
             return []
@@ -646,7 +650,6 @@ class AiasysRuntimeSession(
             / HISTORY_SNAPSHOT_FILE_NAME
         )
         try:
-            history_path.parent.mkdir(parents=True, exist_ok=True)
             snapshot_messages = [
                 msg
                 for msg in messages
@@ -848,7 +851,7 @@ class AiasysRuntimeSession(
             return
         self._closed = True
         # 取消所有 pending 的能力确认请求
-        self._confirmation_manager.cancel_all("会话已关闭")
+        await self._confirmation_manager.cancel_all("会话已关闭")
         # 关闭 MCP 连接
         for mcp_client in self._mcp_clients:
             try:

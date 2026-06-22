@@ -453,41 +453,76 @@ function readListeningProcessUnixFuser(port) {
   return pid || null;
 }
 
-function readListeningProcessWindows(port) {
-  // 步骤 1: netstat -ano 找 PID
-  const netstatResult = spawnSync("netstat", ["-ano"], {
-    encoding: "utf-8",
-    windowsHide: true,
-  });
+/**
+ * 解码 Windows 子进程输出。
+ * 中文 Windows 上 powershell/netstat/tasklist 可能返回 GBK(cp936)，
+ * 直接按 utf-8 解码会出现乱码；这里优先 utf-8，出现替换字符时回退到 gbk。
+ */
+function decodeProcessOutput(buffer) {
+  if (!buffer || buffer.length === 0) {
+    return "";
+  }
+  const utf8 = iconv.decode(buffer, "utf-8");
+  if (!utf8.includes("\uFFFD")) {
+    return utf8;
+  }
+  return iconv.decode(buffer, "gbk");
+}
 
-  if (netstatResult.status !== 0 || !netstatResult.stdout) {
+function readListeningProcessWindows(port) {
+  const portNum = Number(port);
+  if (!Number.isInteger(portNum) || portNum <= 0 || portNum > 65535) {
     return null;
   }
 
-  // 解析 netstat 输出，匹配 "127.0.0.1:PORT" 或 "0.0.0.0:PORT" 的 LISTENING 行
-  const lines = netstatResult.stdout.split("\r\n").join("\n").split("\n");
+  // 优先使用 PowerShell Get-NetTCPConnection：状态枚举值不受系统语言影响
+  const psResult = spawnSync(
+    "powershell.exe",
+    [
+      "-NoProfile",
+      "-Command",
+      `Get-NetTCPConnection -LocalPort ${portNum} -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1 | ForEach-Object { $_.OwningProcess }`,
+    ],
+    { windowsHide: true, timeout: 5000 },
+  );
+
   let pid = null;
+  if (psResult.status === 0 && psResult.stdout) {
+    pid = decodeProcessOutput(psResult.stdout).trim();
+  }
 
-  for (const rawLine of lines) {
-    const line = rawLine.trim();
-    // 格式类似: TCP    127.0.0.1:13011    0.0.0.0:0    LISTENING    12345
-    if (!line.startsWith("TCP")) {
-      continue;
-    }
-    const parts = line.split(/\s+/);
-    if (parts.length < 5) {
-      continue;
-    }
-    const localAddress = parts[1];
-    const state = parts[3];
-    const candidatePid = parts[parts.length - 1];
+  // PowerShell 不可用或没有结果时，回退到 netstat -ano
+  // netstat 状态列随 Windows 语言变化，因此只通过固定列位置匹配，不依赖状态文本
+  if (!pid || pid === "0") {
+    const netstatResult = spawnSync("netstat", ["-ano"], {
+      windowsHide: true,
+    });
 
-    if (state === "LISTENING") {
-      // 精确匹配端口，避免 13011 误匹配 xxx113011 或 127.0.0.1:11301
-      const localPort = localAddress.split(":").pop();
-      if (localPort === String(port)) {
-        pid = candidatePid;
-        break;
+    if (netstatResult.status === 0 && netstatResult.stdout) {
+      const output = decodeProcessOutput(netstatResult.stdout);
+      const lines = output.split("\r\n").join("\n").split("\n");
+      for (const rawLine of lines) {
+        const line = rawLine.trim();
+        // 格式: TCP    <local>    <foreign>    <state>    <pid>
+        if (!line.startsWith("TCP")) {
+          continue;
+        }
+        const parts = line.split(/\s+/);
+        if (parts.length < 5) {
+          continue;
+        }
+        const localAddress = parts[1];
+        const candidatePid = parts[parts.length - 1];
+        // PID 应为纯数字；状态列不是数字，可作为额外校验
+        if (!/^\d+$/.test(candidatePid)) {
+          continue;
+        }
+        // 精确匹配端口
+        const localPort = localAddress.split(":").pop();
+        if (localPort === String(portNum)) {
+          pid = candidatePid;
+          break;
+        }
       }
     }
   }
@@ -496,24 +531,43 @@ function readListeningProcessWindows(port) {
     return null;
   }
 
-  // 步骤 2: tasklist /FI "PID eq xxx" /FO CSV 获取进程名
+  // 获取进程命令行，用于 canReuseService 判断进程是否属于当前 checkout
+  // tasklist /FO CSV 默认只返回 Image Name，无法做路径匹配；
+  // 改用 PowerShell Get-CimInstance Win32_Process 取 CommandLine
+  const psCommandResult = spawnSync(
+    "powershell.exe",
+    [
+      "-NoProfile",
+      "-Command",
+      `Get-CimInstance Win32_Process -Filter "ProcessId=${pid}" | Select-Object -ExpandProperty CommandLine`,
+    ],
+    { windowsHide: true, timeout: 5000 },
+  );
+
+  if (psCommandResult.status === 0 && psCommandResult.stdout) {
+    const commandLine = decodeProcessOutput(psCommandResult.stdout).trim();
+    if (commandLine) {
+      return { pid, command: commandLine };
+    }
+  }
+
+  // 降级：用 tasklist 取进程名，至少能判断是否有进程占用
   const tasklistResult = spawnSync(
     "tasklist",
     ["/FI", `PID eq ${pid}`, "/FO", "CSV", "/NH"],
-    { encoding: "utf-8", windowsHide: true },
+    { windowsHide: true },
   );
 
   if (tasklistResult.status !== 0 || !tasklistResult.stdout) {
     return { pid, command: "" };
   }
 
-  // CSV 格式: "python.exe","12345","Console","1","12,345 K"
-  const csvLine = tasklistResult.stdout.trim().split("\r\n").join("\n").split("\n")[0];
+  const tasklistOutput = decodeProcessOutput(tasklistResult.stdout);
+  const csvLine = tasklistOutput.trim().split("\r\n").join("\n").split("\n")[0];
   if (!csvLine) {
     return { pid, command: "" };
   }
 
-  // 简单解析 CSV：取第一个引号内的值为进程名
   const match = csvLine.match(/^"([^"]+)"/);
   const processName = match ? match[1] : csvLine.split(",")[0];
 
@@ -786,7 +840,7 @@ function spawnManagedProcess(name, command, args, options) {
 }
 
 async function terminateChild(child) {
-  if (!child || child.killed || child.exitCode !== null) {
+  if (!child || !child.pid || child.killed || child.exitCode !== null) {
     return;
   }
 

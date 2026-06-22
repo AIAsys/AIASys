@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from pathlib import Path
 from typing import Any, Literal
@@ -121,7 +122,10 @@ class ReadCanvas(AiasysTool):
         params = CanvasPathParams.model_validate(kwargs)
         try:
             scope, relative_path = _normalize_canvas_path(params.canvas_path)
-            canvas = get_canvas_file_service().read_canvas(_resolve_root(scope), relative_path)
+            canvas_service = get_canvas_file_service()
+            canvas = await asyncio.to_thread(
+                canvas_service.read_canvas, _resolve_root(scope), relative_path
+            )
             return ToolResult(
                 content="\n".join(
                     [
@@ -166,7 +170,9 @@ class WriteCanvas(AiasysTool):
         params = WriteCanvasParams.model_validate(kwargs)
         try:
             scope, relative_path = _normalize_canvas_path(params.canvas_path)
-            canvas = get_canvas_file_service().write_canvas(
+            canvas_service = get_canvas_file_service()
+            canvas = await asyncio.to_thread(
+                canvas_service.write_canvas,
                 _resolve_root(scope),
                 relative_path,
                 params.canvas,
@@ -232,7 +238,9 @@ class BatchCanvasOperations(AiasysTool):
         params = BatchCanvasOperationsParams.model_validate(kwargs)
         try:
             scope, relative_path = _normalize_canvas_path(params.canvas_path)
-            canvas = get_canvas_file_service().batch_operations(
+            canvas_service = get_canvas_file_service()
+            canvas = await asyncio.to_thread(
+                canvas_service.batch_operations,
                 _resolve_root(scope),
                 relative_path,
                 params.operations,

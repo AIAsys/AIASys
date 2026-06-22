@@ -1,4 +1,4 @@
-import { API_ENDPOINTS } from "@/config/api";
+import { API_BASE_URL, API_ENDPOINTS } from "@/config/api";
 import {
   DEFAULT_CONVERSATION_TITLE,
   getDefaultConversationTitle,
@@ -119,6 +119,15 @@ export interface FolderImportProgressEvent {
   message: string;
   workspace_id?: string;
   warnings?: string[];
+}
+
+export interface WorkspaceInitializationStatus {
+  status: "pending" | "running" | "completed" | "failed";
+  progress: number;
+  message: string;
+  started_at?: string;
+  completed_at?: string;
+  error?: string;
 }
 
 export interface CreateConversationPayload {
@@ -341,7 +350,7 @@ export async function uploadImportFolder(
     xhr.addEventListener("error", () => reject(new Error("上传请求失败")));
     xhr.addEventListener("abort", () => reject(new Error("上传已取消")));
 
-    xhr.open("POST", API_ENDPOINTS.WORKSPACES_IMPORT_FOLDER_UPLOAD);
+    xhr.open("POST", `${API_BASE_URL}${API_ENDPOINTS.WORKSPACES_IMPORT_FOLDER_UPLOAD}`);
     xhr.send(formData);
   });
 }
@@ -448,6 +457,18 @@ export async function getTaskWorkspace(
     },
   );
   return normalizeWorkspaceSummary(response);
+}
+
+export async function getWorkspaceInitialization(
+  workspaceId: string,
+): Promise<WorkspaceInitializationStatus> {
+  return apiRequest<WorkspaceInitializationStatus>(
+    API_ENDPOINTS.WORKSPACE_INITIALIZATION(workspaceId),
+    {
+      cache: "no-store",
+      timeoutMs: 10000,
+    },
+  );
 }
 
 export async function getWorkspaceOverview(
@@ -1076,12 +1097,15 @@ export async function exportWorkspace(
   workspaceId: string,
   payload?: ExportWorkspacePayload,
 ): Promise<Blob> {
-  const response = await fetch(API_ENDPOINTS.WORKSPACE_EXPORT(workspaceId), {
-    method: "POST",
-    credentials: "include",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload ?? {}),
-  });
+  const response = await fetch(
+    `${API_BASE_URL}${API_ENDPOINTS.WORKSPACE_EXPORT(workspaceId)}`,
+    {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload ?? {}),
+    },
+  );
   if (!response.ok) {
     const detail = await response.text().catch(() => "导出失败");
     throw new Error(detail);
@@ -1093,7 +1117,7 @@ export async function importWorkspace(file: File): Promise<WorkspaceDetailRespon
   const formData = new FormData();
   formData.append("file", file);
 
-  const response = await fetch(API_ENDPOINTS.WORKSPACE_IMPORT, {
+  const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.WORKSPACE_IMPORT}`, {
     method: "POST",
     body: formData,
     credentials: "include",

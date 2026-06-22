@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useFileUploadToast } from "@/components/file/FileUploadToast";
 import { apiRequest } from "@/lib/api/httpClient";
@@ -6,6 +6,7 @@ import { listKernelEnvs, type KernelEnvItem } from "@/lib/api/kernelEnvs";
 import {
   createImportFolderStream,
   createTaskWorkspace,
+  getWorkspaceInitialization,
   getWorkspaceRuntimeEnvironments,
   registerWorkspacePythonEnvironment,
 } from "@/lib/api/workspaces";
@@ -39,12 +40,14 @@ export function useWorkspaceRuntimeControls({
     null,
   );
   const [importProgress, setImportProgress] = useState<number>(0);
+  const [newWorkspaceMessage, setNewWorkspaceMessage] = useState<string | undefined>(undefined);
   const [isRestartingRuntime, setIsRestartingRuntime] = useState(false);
   const [boundWorkspaceEnv, setBoundWorkspaceEnv] =
     useState<WorkspaceRuntimeEnvironment | null>(null);
   const [registeredPythonEnvs, setRegisteredPythonEnvs] = useState<KernelEnvItem[]>([]);
   const [isLoadingRegisteredPythonEnvs, setIsLoadingRegisteredPythonEnvs] =
     useState(false);
+  const workspaceInitAbortControllerRef = useRef<AbortController | null>(null);
   const workspaceId = workspace?.workspace_id ?? null;
   const resources = workspace?.runtime_binding?.resources ?? null;
   const boundEnvId = resources?.python_env_id ?? null;
@@ -124,8 +127,8 @@ export function useWorkspaceRuntimeControls({
     newWorkspaceStage !== "idle" && newWorkspaceStage !== "error";
   const isInitializingEnvironment = isCreatingWorkspace;
   const newWorkspaceLifecycleState = useMemo(
-    () => buildNewTaskLifecycleState(newWorkspaceStage, newWorkspaceError, importProgress),
-    [newWorkspaceError, newWorkspaceStage, importProgress],
+    () => buildNewTaskLifecycleState(newWorkspaceStage, newWorkspaceError, importProgress, newWorkspaceMessage),
+    [newWorkspaceError, newWorkspaceStage, importProgress, newWorkspaceMessage],
   );
 
   const closeNewWorkspaceDialog = useCallback(() => {
@@ -136,12 +139,14 @@ export function useWorkspaceRuntimeControls({
     setNewWorkspaceStage("idle");
     setNewWorkspaceError(null);
     setImportProgress(0);
+    setNewWorkspaceMessage(undefined);
   }, [isCreatingWorkspace]);
 
   const openNewWorkspaceDialog = useCallback(() => {
     setNewWorkspaceError(null);
     setNewWorkspaceStage("idle");
     setImportProgress(0);
+    setNewWorkspaceMessage(undefined);
     setShowNewWorkspaceDialog(true);
   }, []);
 
@@ -172,6 +177,14 @@ export function useWorkspaceRuntimeControls({
     };
   }, [showNewWorkspaceDialog]);
 
+  // 组件卸载或对话框关闭时，取消正在进行的创建/轮询流程
+  useEffect(() => {
+    return () => {
+      workspaceInitAbortControllerRef.current?.abort();
+      workspaceInitAbortControllerRef.current = null;
+    };
+  }, []);
+
   const handleConfirmNewWorkspace = useCallback(
     async (
       title: string,
@@ -196,6 +209,22 @@ export function useWorkspaceRuntimeControls({
         tempUploadId,
         importFiles,
       } = options;
+
+      // 整个创建流程共享一个 AbortController，组件卸载或用户关闭对话框时可取消
+      const abortController = new AbortController();
+      workspaceInitAbortControllerRef.current = abortController;
+      const sleepWithAbort = (ms: number) =>
+        new Promise<void>((resolve, reject) => {
+          const timer = window.setTimeout(resolve, ms);
+          abortController.signal.addEventListener(
+            "abort",
+            () => {
+              window.clearTimeout(timer);
+              reject(new DOMException("新建工作区流程已取消", "AbortError"));
+            },
+            { once: true },
+          );
+        });
 
       try {
         const normalizedTitle = title.trim();
@@ -226,7 +255,6 @@ export function useWorkspaceRuntimeControls({
 
         if (sourceFolderPath || tempUploadId) {
           // 文件夹导入：通过 SSE 流式创建
-          const abortController = new AbortController();
           setNewWorkspaceStage("scanning_folder");
 
           await createImportFolderStream(
@@ -246,6 +274,9 @@ export function useWorkspaceRuntimeControls({
             },
             {
               onEvent: (event) => {
+                if (abortController.signal.aborted) {
+                  return;
+                }
                 setImportProgress(event.progress);
                 if (event.stage === "copying") {
                   setNewWorkspaceStage("copying_files");
@@ -256,6 +287,9 @@ export function useWorkspaceRuntimeControls({
                 }
               },
               onComplete: async (workspaceId, warnings) => {
+                if (abortController.signal.aborted) {
+                  return;
+                }
                 try {
                   if (
                     resources.pythonEnabled &&
@@ -277,6 +311,8 @@ export function useWorkspaceRuntimeControls({
                   setShowNewWorkspaceDialog(false);
                   setNewWorkspaceStage("idle");
                   setImportProgress(0);
+                  setNewWorkspaceMessage(undefined);
+                  workspaceInitAbortControllerRef.current = null;
                   showSuccess(
                     resources.dockerEnabled
                       ? "已创建新工作区并启用 Docker 沙盒"
@@ -337,6 +373,39 @@ export function useWorkspaceRuntimeControls({
             activate: true,
           });
         }
+
+        const needsRuntimeInit =
+          !resources.dockerEnabled &&
+          resources.pythonSource?.kind !== "registered" &&
+          (resources.pythonEnabled || resources.nodeEnabled);
+        if (needsRuntimeInit) {
+          setNewWorkspaceStage("waiting_runtime");
+          let status = await getWorkspaceInitialization(
+            createdWorkspace.workspace_id,
+          );
+          if (abortController.signal.aborted) {
+            return;
+          }
+          setImportProgress(status.progress);
+          setNewWorkspaceMessage(status.message);
+          while (status.status === "pending" || status.status === "running") {
+            await sleepWithAbort(800);
+            if (abortController.signal.aborted) {
+              return;
+            }
+            status = await getWorkspaceInitialization(
+              createdWorkspace.workspace_id,
+            );
+            setImportProgress(status.progress);
+            setNewWorkspaceMessage(status.message);
+          }
+          if (status.status === "failed") {
+            throw new Error(
+              status.error || status.message || "运行环境初始化失败",
+            );
+          }
+        }
+
         emitWorkspaceListRefreshEvent();
 
         await activatePreparedSession(preparedSessionId);
@@ -345,6 +414,8 @@ export function useWorkspaceRuntimeControls({
         setShowNewWorkspaceDialog(false);
         setNewWorkspaceStage("idle");
         setImportProgress(0);
+        setNewWorkspaceMessage(undefined);
+        workspaceInitAbortControllerRef.current = null;
         showSuccess(
           resources.dockerEnabled
             ? "已创建新工作区并启用 Docker 沙盒"
@@ -363,10 +434,18 @@ export function useWorkspaceRuntimeControls({
           }
         }
       } catch (error) {
+        if ((error as Error).name === "AbortError") {
+          // 用户取消或组件卸载，静默处理
+          return;
+        }
         const message = error instanceof Error ? error.message : "新建工作区失败";
         setNewWorkspaceError(message);
         setNewWorkspaceStage("error");
         showError(message);
+      } finally {
+        if (workspaceInitAbortControllerRef.current === abortController) {
+          workspaceInitAbortControllerRef.current = null;
+        }
       }
     },
     [

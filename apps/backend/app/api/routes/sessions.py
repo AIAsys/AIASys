@@ -443,7 +443,7 @@ def _get_model_context_window(
             session_id=session_id,
         )
     except Exception:
-        pass
+        logger.warning("推断上下文窗口大小时解析模型选择失败", exc_info=True)
 
     if not model_id:
         model_id = (

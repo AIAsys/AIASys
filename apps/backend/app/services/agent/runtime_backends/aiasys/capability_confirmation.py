@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import threading
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any
@@ -71,23 +70,23 @@ class CapabilityConfirmationManager:
         self._pending: dict[str, CapabilityConfirmationRecord] = {}
         # 按 pattern_key 记忆（如 "shell_command" / "global_write"），非工具名
         self._session_auto_approved: set[str] = set()
-        self._lock = threading.Lock()
+        self._lock = asyncio.Lock()
 
     # ------------------------------------------------------------------
     # 自动批准
     # ------------------------------------------------------------------
 
-    def is_auto_approved(self, pattern_key: str | None) -> bool:
+    async def is_auto_approved(self, pattern_key: str | None) -> bool:
         """检查指定 pattern 是否已在本会话自动批准。"""
         if pattern_key is None:
             return False
-        with self._lock:
+        async with self._lock:
             return pattern_key in self._session_auto_approved
 
-    def add_auto_approved(self, pattern_key: str | None) -> None:
+    async def add_auto_approved(self, pattern_key: str | None) -> None:
         """将 pattern 加入本会话自动批准列表。"""
         if pattern_key:
-            with self._lock:
+            async with self._lock:
                 self._session_auto_approved.add(pattern_key)
             logger.info("Pattern %s 已加入本会话自动批准列表", pattern_key)
 
@@ -124,11 +123,11 @@ class CapabilityConfirmationManager:
         """
         # 1. 检查会话级自动批准（pattern_key 为空时回退到 tool_name）
         check_key = pattern_key or tool_name
-        if self.is_auto_approved(check_key):
+        if await self.is_auto_approved(check_key):
             logger.debug("Pattern %s 已在本会话自动批准", check_key)
             return True, ""
 
-        with self._lock:
+        async with self._lock:
             # 重连场景：同 tool_call_id 已存在旧记录，先清理
             old = self._pending.pop(tool_call_id, None)
             if old and old._future and not old._future.done():
@@ -149,7 +148,7 @@ class CapabilityConfirmationManager:
 
         try:
             approved, feedback = await asyncio.wait_for(future, timeout=timeout)
-            with self._lock:
+            async with self._lock:
                 if tool_call_id in self._pending:
                     self._pending[tool_call_id].status = "approved" if approved else "denied"
                     self._pending[tool_call_id].feedback = feedback
@@ -162,14 +161,14 @@ class CapabilityConfirmationManager:
                 tool_name,
                 timeout,
             )
-            with self._lock:
+            async with self._lock:
                 if tool_call_id in self._pending:
                     self._pending[tool_call_id].status = "timeout"
             return False, "审批超时，操作已取消"
 
         finally:
             # 清理 future（保留记录供查询）
-            with self._lock:
+            async with self._lock:
                 if tool_call_id in self._pending:
                     self._pending[tool_call_id]._future = None
 
@@ -177,7 +176,7 @@ class CapabilityConfirmationManager:
     # 用户通过 API 确认 / 拒绝
     # ------------------------------------------------------------------
 
-    def resolve(
+    async def resolve(
         self,
         tool_call_id: str,
         approved: bool,
@@ -195,7 +194,7 @@ class CapabilityConfirmationManager:
         Returns:
             是否成功找到并处理了 pending 请求
         """
-        with self._lock:
+        async with self._lock:
             record = self._pending.get(tool_call_id)
             if record is None:
                 logger.warning("未找到待确认请求: tool_call_id=%s", tool_call_id)
@@ -220,15 +219,15 @@ class CapabilityConfirmationManager:
     # 查询 & 清理
     # ------------------------------------------------------------------
 
-    def list_pending(self) -> list[CapabilityConfirmationRecord]:
+    async def list_pending(self) -> list[CapabilityConfirmationRecord]:
         """列出所有 pending 状态的记录（供重连时恢复）。"""
-        with self._lock:
+        async with self._lock:
             return [r for r in self._pending.values() if r.status == "pending"]
 
-    def cancel_all(self, reason: str = "会话结束") -> None:
+    async def cancel_all(self, reason: str = "会话结束") -> None:
         """取消所有 pending 请求（Session 关闭时调用）。"""
         cancelled_count = 0
-        with self._lock:
+        async with self._lock:
             for _tool_call_id, record in list(self._pending.items()):
                 if record.status == "pending" and record._future and not record._future.done():
                     record._future.set_result((False, reason))

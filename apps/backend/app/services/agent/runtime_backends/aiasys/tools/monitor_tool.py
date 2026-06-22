@@ -303,13 +303,13 @@ class MonitorService:
         # 创建输出文件路径
         if session_root:
             monitors_dir = self._get_monitors_dir(session_root)
-            monitors_dir.mkdir(parents=True, exist_ok=True)
+            Path(as_system_path(str(monitors_dir))).mkdir(parents=True, exist_ok=True)
             stdout_path = monitors_dir / f"{monitor_id}.stdout.log"
             stderr_path = monitors_dir / f"{monitor_id}.stderr.log"
             out_file = stdout_path
         else:
             tmp_dir = Path(tempfile.gettempdir()) / "aiasys"
-            tmp_dir.mkdir(parents=True, exist_ok=True)
+            Path(as_system_path(str(tmp_dir))).mkdir(parents=True, exist_ok=True)
             stdout_path = tmp_dir / f"aiasys-monitor-{monitor_id}.stdout.log"
             stderr_path = tmp_dir / f"aiasys-monitor-{monitor_id}.stderr.log"
             out_file = stdout_path
@@ -581,13 +581,16 @@ class MonitorService:
         seen_ids: set[str] = set()
 
         # 扫描用户目录下所有 session 的 monitors 持久化
-        if user_dir.exists():
-            for candidate in user_dir.iterdir():
-                if not candidate.is_dir() or candidate.name.startswith("."):
+        sys_user_dir = as_system_path(user_dir)
+        if Path(sys_user_dir).exists():
+            for candidate in Path(sys_user_dir).iterdir():
+                sys_candidate = as_system_path(candidate)
+                if not Path(sys_candidate).is_dir() or candidate.name.startswith("."):
                     continue
                 session_id = candidate.name
                 monitors_dir = self._get_monitors_dir(candidate)
-                if not monitors_dir.exists():
+                sys_monitors_dir = as_system_path(monitors_dir)
+                if not Path(sys_monitors_dir).exists():
                     continue
 
                 session_key = f"{user_id}:{session_id}"
@@ -605,12 +608,14 @@ class MonitorService:
                 active_map = active_by_session.get(session_key, {})
 
                 for meta_path in sorted(
-                    monitors_dir.glob(f"*{META_FILE_SUFFIX}"),
-                    key=lambda p: p.stat().st_mtime,
+                    Path(sys_monitors_dir).glob(f"*{META_FILE_SUFFIX}"),
+                    key=lambda p: Path(as_system_path(str(p))).stat().st_mtime,
                     reverse=True,
                 ):
                     try:
-                        meta = json.loads(meta_path.read_text(encoding="utf-8"))
+                        meta = json.loads(
+                            Path(as_system_path(str(meta_path))).read_text(encoding="utf-8")
+                        )
                         mid = meta.get("id")
                         if not mid or mid in seen_ids:
                             continue
@@ -746,13 +751,16 @@ class MonitorService:
             return False
 
         meta_path = self._meta_path(session_root, monitor_id)
-        if not meta_path.exists():
+        sys_meta_path = as_system_path(str(meta_path))
+        if not Path(sys_meta_path).exists():
             return False
 
         try:
-            meta = json.loads(meta_path.read_text(encoding="utf-8"))
+            meta = json.loads(Path(sys_meta_path).read_text(encoding="utf-8"))
             meta["mode"] = mode
-            meta_path.write_text(json.dumps(meta, indent=2, ensure_ascii=False), encoding="utf-8")
+            Path(sys_meta_path).write_text(
+                json.dumps(meta, indent=2, ensure_ascii=False), encoding="utf-8"
+            )
             return True
         except Exception as exc:
             logger.warning("修改 monitor mode 失败: %s", exc)
@@ -775,11 +783,13 @@ class MonitorService:
                 self._write_meta(session)
                 # 保留持久化文件，只删除临时日志文件
                 for log_path in (session.stdout_path, session.stderr_path):
-                    if log_path and log_path.exists():
-                        try:
-                            log_path.unlink()
-                        except Exception:
-                            pass
+                    if log_path:
+                        sys_log_path = as_system_path(str(log_path))
+                        if Path(sys_log_path).exists():
+                            try:
+                                Path(sys_log_path).unlink()
+                            except Exception:
+                                pass
                 to_remove.append(monitor_id)
 
         for monitor_id in to_remove:
@@ -803,11 +813,13 @@ class MonitorService:
             session.completed_at = time.time()
             self._write_meta(session)
             for log_path in (session.stdout_path, session.stderr_path):
-                if log_path and log_path.exists():
-                    try:
-                        log_path.unlink()
-                    except Exception:
-                        pass
+                if log_path:
+                    sys_log_path = as_system_path(str(log_path))
+                    if Path(sys_log_path).exists():
+                        try:
+                            Path(sys_log_path).unlink()
+                        except Exception:
+                            pass
         self._monitors.clear()
         self._queues.clear()
 
@@ -832,9 +844,10 @@ class MonitorService:
                     ".stderr.log",
                 ):
                     path = self._get_monitors_dir(session.session_root) / f"{monitor_id}{suffix}"
-                    if path.exists():
+                    sys_path = as_system_path(str(path))
+                    if Path(sys_path).exists():
                         try:
-                            path.unlink()
+                            Path(sys_path).unlink()
                         except Exception:
                             pass
             self._monitors.pop(monitor_id, None)
@@ -865,9 +878,10 @@ class MonitorService:
                     ".stderr.log",
                 ):
                     path = self._get_monitors_dir(session.session_root) / f"{monitor_id}{suffix}"
-                    if path.exists():
+                    sys_path = as_system_path(str(path))
+                    if Path(sys_path).exists():
                         try:
-                            path.unlink()
+                            Path(sys_path).unlink()
                         except Exception:
                             pass
             self._monitors.pop(monitor_id, None)
@@ -886,9 +900,10 @@ class MonitorService:
         deleted = False
         for suffix in (META_FILE_SUFFIX, SEGMENTS_FILE_SUFFIX, ".stdout.log", ".stderr.log"):
             path = self._get_monitors_dir(session_root) / f"{monitor_id}{suffix}"
-            if path.exists():
+            sys_path = as_system_path(str(path))
+            if Path(sys_path).exists():
                 try:
-                    path.unlink()
+                    Path(sys_path).unlink()
                     deleted = True
                 except Exception:
                     pass
@@ -908,13 +923,14 @@ class MonitorService:
             return []
 
         monitors_dir = self._get_monitors_dir(session_root)
-        if not monitors_dir.exists():
+        sys_monitors_dir = as_system_path(str(monitors_dir))
+        if not Path(sys_monitors_dir).exists():
             return []
 
         results: list[dict[str, Any]] = []
-        for path in sorted(monitors_dir.glob(f"*{META_FILE_SUFFIX}")):
+        for path in sorted(Path(sys_monitors_dir).glob(f"*{META_FILE_SUFFIX}")):
             try:
-                raw = path.read_text(encoding="utf-8")
+                raw = Path(as_system_path(str(path))).read_text(encoding="utf-8")
                 meta = json.loads(raw)
                 if isinstance(meta, dict):
                     results.append(meta)
@@ -937,19 +953,23 @@ class MonitorService:
 
         meta_path = self._meta_path(session_root, monitor_id)
         segments_path = self._segments_path(session_root, monitor_id)
+        sys_meta_path = as_system_path(str(meta_path))
+        sys_segments_path = as_system_path(str(segments_path))
 
-        if not meta_path.exists():
+        if not Path(sys_meta_path).exists():
             return None
 
         try:
-            meta = json.loads(meta_path.read_text(encoding="utf-8"))
+            meta = json.loads(Path(sys_meta_path).read_text(encoding="utf-8"))
         except Exception:
             return None
 
         segments: list[dict[str, Any]] = []
-        if segments_path.exists():
+        if Path(sys_segments_path).exists():
             try:
-                for line in segments_path.read_text(encoding="utf-8").strip().splitlines():
+                for line in (
+                    Path(sys_segments_path).read_text(encoding="utf-8").strip().splitlines()
+                ):
                     line = line.strip()
                     if line:
                         seg = json.loads(line)
@@ -977,12 +997,13 @@ class MonitorService:
             return []
 
         segments_path = self._segments_path(session_root, monitor_id)
-        if not segments_path.exists():
+        sys_segments_path = as_system_path(str(segments_path))
+        if not Path(sys_segments_path).exists():
             return []
 
         results: list[dict[str, Any]] = []
         try:
-            for line in segments_path.read_text(encoding="utf-8").strip().splitlines():
+            for line in Path(sys_segments_path).read_text(encoding="utf-8").strip().splitlines():
                 line = line.strip()
                 if not line:
                     continue

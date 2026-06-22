@@ -231,6 +231,11 @@ class SubAgentStorage:
         await self._flush_wire()
         await self._flush_context()
 
+    def _append_lines_sync(self, path: Path, lines: list[str]) -> None:
+        """在线程中执行同步文件追加。"""
+        with open(as_system_path(path), "a", encoding="utf-8") as f:
+            f.write("".join(lines))
+
     async def _flush_wire(self) -> None:
         """将 wire 缓冲批量写入文件，失败时重试一次。"""
         if not self._wire_buffer:
@@ -239,8 +244,7 @@ class SubAgentStorage:
         self._wire_buffer.clear()
         async with self._lock:
             try:
-                with open(as_system_path(self.wire_file), "a", encoding="utf-8") as f:
-                    f.write("".join(lines))
+                await asyncio.to_thread(self._append_lines_sync, self.wire_file, lines)
             except Exception as first_err:
                 logger.warning(
                     "wire 批量写入失败，尝试重试: agent_id=%s err=%s",
@@ -248,8 +252,7 @@ class SubAgentStorage:
                     first_err,
                 )
                 try:
-                    with open(as_system_path(self.wire_file), "a", encoding="utf-8") as f:
-                        f.write("".join(lines))
+                    await asyncio.to_thread(self._append_lines_sync, self.wire_file, lines)
                 except Exception as second_err:
                     logger.error(
                         "wire 批量写入重试失败: agent_id=%s first=%s second=%s",
@@ -267,8 +270,7 @@ class SubAgentStorage:
         self._context_buffer.clear()
         async with self._lock:
             try:
-                with open(as_system_path(self.context_file), "a", encoding="utf-8") as f:
-                    f.write("".join(lines))
+                await asyncio.to_thread(self._append_lines_sync, self.context_file, lines)
             except Exception as first_err:
                 logger.warning(
                     "context 批量写入失败，尝试重试: agent_id=%s err=%s",
@@ -276,8 +278,7 @@ class SubAgentStorage:
                     first_err,
                 )
                 try:
-                    with open(as_system_path(self.context_file), "a", encoding="utf-8") as f:
-                        f.write("".join(lines))
+                    await asyncio.to_thread(self._append_lines_sync, self.context_file, lines)
                 except Exception as second_err:
                     logger.error(
                         "context 批量写入重试失败: agent_id=%s first=%s second=%s",

@@ -212,6 +212,8 @@ export const API_ENDPOINTS = {
   WORKSPACES_IMPORT_FOLDER_STREAM: "/api/workspaces/import-folder-stream",
   WORKSPACE_DETAIL: (workspaceId: string) =>
     `/api/workspaces/${encodeURIComponent(workspaceId)}`,
+  WORKSPACE_INITIALIZATION: (workspaceId: string) =>
+    `/api/workspaces/${encodeURIComponent(workspaceId)}/initialization`,
   WORKSPACE_OVERVIEW: (workspaceId: string) =>
     `/api/workspaces/${encodeURIComponent(workspaceId)}/overview`,
   WORKSPACE_RESOURCE_LAYERS: (workspaceId: string) =>

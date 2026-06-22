@@ -391,7 +391,7 @@ class TaskTool(AiasysTool):
 
         # 2a. 预检查并发限制（快速失败，避免创建不必要的 storage/session）
         if max_threads is not None:
-            active_count = registry.count_active_for_host(host_session_id)
+            active_count = await registry.acount_active_for_host(host_session_id)
             if active_count >= max_threads:
                 yield ToolResult(
                     content=(
@@ -596,7 +596,7 @@ class TaskTool(AiasysTool):
             "agent_path": str(child_path),
         }
         storage.update_launch_spec(full_launch_spec)
-        registry.set_launch_spec(agent_id, full_launch_spec)
+        await registry.aset_launch_spec(agent_id, full_launch_spec)
 
         # 9. 持久化初始用户指令
         await storage.append_context_message(
@@ -617,7 +617,7 @@ class TaskTool(AiasysTool):
                 prompt=prompt,
                 storage=storage,
                 keep_alive=True,
-                timeout_seconds=(registry.get_launch_spec(agent_id) or {}).get(
+                timeout_seconds=(await registry.aget_launch_spec(agent_id) or {}).get(
                     "timeout_seconds", 300
                 ),
                 workspace=workspace,

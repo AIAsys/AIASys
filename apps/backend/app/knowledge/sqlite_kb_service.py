@@ -5,6 +5,7 @@ SQLite + sqlite-vec 知识库服务
 元数据全部自包含在 {kb_id}.db 内部，不再依赖 aiasys.db。
 """
 
+import asyncio
 import json
 import logging
 import re
@@ -111,7 +112,7 @@ class SQLiteKBService:
     @staticmethod
     def _db_path(workspace_root: Path, kb_id: str) -> Path:
         kb_dir = workspace_root / ".aiasys" / "knowledge"
-        kb_dir.mkdir(parents=True, exist_ok=True)
+        Path(as_system_path(kb_dir)).mkdir(parents=True, exist_ok=True)
         return kb_dir / f"{kb_id}.db"
 
     @staticmethod
@@ -125,10 +126,10 @@ class SQLiteKBService:
     def _find_db_path(workspace_root: Path, user_id: str, kb_id: str) -> Path | None:
         """按优先级查找 .db 文件：新路径 > 旧全局路径。"""
         new_path = SQLiteKBService._db_path(workspace_root, kb_id)
-        if new_path.exists():
+        if Path(as_system_path(new_path)).exists():
             return new_path
         legacy = SQLiteKBService._legacy_db_path(user_id, kb_id)
-        if legacy.exists():
+        if Path(as_system_path(legacy)).exists():
             return legacy
         return None
 
@@ -144,12 +145,13 @@ class SQLiteKBService:
                 search_dirs.append(ws_root / ".aiasys" / "knowledge")
         else:
             user_ws_dir = _WS_DIR / user_id
-            if user_ws_dir.exists():
-                for ws_dir in sorted(user_ws_dir.iterdir()):
+            sys_user_ws_dir = Path(as_system_path(user_ws_dir))
+            if sys_user_ws_dir.exists():
+                for ws_dir in sorted(sys_user_ws_dir.iterdir()):
                     if ws_dir.is_dir() and ws_dir.name != "global_workspace":
                         search_dirs.append(ws_dir / ".aiasys" / "knowledge")
                 global_ws = user_ws_dir / "global_workspace"
-                if global_ws.exists():
+                if Path(as_system_path(global_ws)).exists():
                     search_dirs.append(global_ws / ".aiasys" / "knowledge")
 
         legacy_dir = get_user_global_resources_dir(user_id) / "knowledge"
@@ -158,9 +160,10 @@ class SQLiteKBService:
         seen_ids: set[str] = set()
         db_files: list[Path] = []
         for kb_dir in search_dirs:
-            if not kb_dir.exists():
+            sys_kb_dir = Path(as_system_path(kb_dir))
+            if not sys_kb_dir.exists():
                 continue
-            for db_file in sorted(kb_dir.glob("*.db")):
+            for db_file in sorted(sys_kb_dir.glob("*.db")):
                 kb_id = db_file.stem
                 if kb_id in seen_ids:
                     continue
@@ -199,7 +202,7 @@ class SQLiteKBService:
 
     def _get_conn(self, user_id: str, kb_id: str) -> sqlite3.Connection:
         db_file = self._find_db_file(user_id, kb_id)
-        if db_file and db_file.exists():
+        if db_file and Path(as_system_path(db_file)).exists():
             return ensure_vec_extension(db_file)
         # 新建知识库场景：fallback 到新路径
         workspace_root = self._resolve_workspace_root_for_kb(user_id, kb_id)
@@ -538,9 +541,9 @@ class SQLiteKBService:
     def _read_kb_metadata(self, user_id: str, kb_id: str) -> dict[str, str]:
         workspace_root = self._resolve_workspace_root_for_kb(user_id, kb_id)
         db_path = self._db_path(workspace_root, kb_id)
-        if not db_path.exists():
+        if not Path(as_system_path(db_path)).exists():
             legacy = self._legacy_db_path(user_id, kb_id)
-            if not legacy.exists():
+            if not Path(as_system_path(legacy)).exists():
                 return {}
         conn = self._get_conn(user_id, kb_id)
         try:
@@ -629,7 +632,13 @@ class SQLiteKBService:
             self._ensure_kb_schema(user_id, kb_id, None)
             info = self._read_kb_info(db_file)
             return KnowledgeBaseResponse(**info)
+        except FileNotFoundError:
+            return None
+        except sqlite3.DatabaseError as exc:
+            logger.warning("读取知识库信息失败（数据库错误）: %s", exc)
+            return None
         except Exception:
+            logger.exception("读取知识库信息时发生未知错误")
             return None
 
     def update_knowledge_base(
@@ -897,44 +906,26 @@ class SQLiteKBService:
                 extraction_mode = mapped_mode
 
         now = utc_now_naive().isoformat()
-        conn = self._get_conn(user_id, kb_id)
-        try:
-            conn.execute(
-                """
-                INSERT INTO kb_documents (id, filename, file_type, file_size, status, chunk_count, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                [
-                    doc_id,
-                    filename,
-                    file_type,
-                    len(file_bytes),
-                    DocumentStatus.PROCESSING.value,
-                    0,
-                    now,
-                    now,
-                ],
-            )
-            conn.commit()
-        finally:
-            conn.close()
+        await asyncio.to_thread(
+            self._insert_processing_document_sync,
+            user_id,
+            kb_id,
+            doc_id,
+            filename,
+            file_type,
+            file_bytes,
+            now,
+        )
 
         try:
-            extraction = get_document_extraction_service().extract(
-                Path(filename), file_bytes, mode=extraction_mode
+            extraction, chunks, chunk_ids = await asyncio.to_thread(
+                self._extract_and_chunk_sync,
+                doc_id,
+                filename,
+                file_bytes,
+                extraction_mode,
+                kb,
             )
-            content = extraction.text
-            if not content.strip():
-                raise ValueError("文档内容为空")
-
-            chunker = TextChunker(
-                chunk_size=kb.get("chunk_size", 512), chunk_overlap=kb.get("chunk_overlap", 50)
-            )
-            chunks = chunker.split_with_metadata(
-                content, doc_metadata={"doc_id": doc_id, "filename": filename}
-            )
-
-            chunk_ids = [str(uuid.uuid4()) for _ in chunks]
 
             # embedding 可用时生成向量，否则仅做全文索引
             embeddings: Optional[List[List[float]]] = None
@@ -950,86 +941,30 @@ class SQLiteKBService:
                         exc,
                     )
 
-            self._insert_chunks(user_id, kb_id, doc_id, chunk_ids, chunks, embeddings)
-
-            conn = self._get_conn(user_id, kb_id)
-            try:
-                for i, chunk in enumerate(chunks):
-                    conn.execute(
-                        """
-                        INSERT INTO kb_chunks (id, document_id, chunk_index, content, meta_json, chunk_id)
-                        VALUES (?, ?, ?, ?, ?, ?)
-                        """,
-                        [
-                            str(uuid.uuid4()),
-                            doc_id,
-                            chunk["index"],
-                            chunk["content"],
-                            json.dumps(chunk["metadata"]),
-                            chunk_ids[i],
-                        ],
-                    )
-                conn.execute(
-                    """
-                    UPDATE kb_documents SET status = ?, chunk_count = ?, updated_at = ? WHERE id = ?
-                    """,
-                    [
-                        DocumentStatus.COMPLETED.value,
-                        len(chunks),
-                        utc_now_naive().isoformat(),
-                        doc_id,
-                    ],
-                )
-                conn.commit()
-            finally:
-                conn.close()
-
-            self._sync_kb_runtime_metadata(
+            return await asyncio.to_thread(
+                self._finalize_upload_sync,
                 user_id,
                 kb_id,
+                doc_id,
+                filename,
+                chunks,
+                chunk_ids,
+                embeddings,
                 kb,
-                config_version=next_config_version,
-                last_indexed_config_version=next_config_version,
-                init_status=KnowledgeBaseInitStatus.READY,
-            )
-
-            return FileUploadResponse(
-                success=True,
-                document_id=doc_id,
-                filename=filename,
-                message="上传成功",
-                chunk_count=len(chunks),
-                extraction_mode=extraction.mode_used.value,
-                requested_extraction_mode=extraction.requested_mode.value,
-                search_mode=kb.get("default_search_mode", SearchMode.FULLTEXT.value),
-                embedding_model=kb.get("embedding_model"),
-                chunk_size=kb.get("chunk_size", 512),
-                chunk_overlap=kb.get("chunk_overlap", 50),
+                next_config_version,
+                extraction,
             )
         except Exception as e:
             logger.error(f"文档处理失败: {e}")
-            conn = self._get_conn(user_id, kb_id)
-            try:
-                conn.execute(
-                    """
-                    UPDATE kb_documents SET status = ?, error_message = ?, updated_at = ? WHERE id = ?
-                    """,
-                    [DocumentStatus.FAILED.value, str(e), utc_now_naive().isoformat(), doc_id],
-                )
-                conn.commit()
-            finally:
-                conn.close()
-            return FileUploadResponse(
-                success=False,
-                document_id=doc_id,
-                filename=filename,
-                message=f"处理失败: {e}",
-                extraction_mode=extraction_mode,
-                requested_extraction_mode=extraction_mode,
-                search_mode=kb.get("default_search_mode", SearchMode.FULLTEXT.value),
-                embedding_model=kb.get("embedding_model"),
-                chunk_size=kb.get("chunk_size", 512),
-                chunk_overlap=kb.get("chunk_overlap", 50),
+            return await asyncio.to_thread(
+                self._mark_document_failed_sync,
+                user_id,
+                kb_id,
+                doc_id,
+                filename,
+                e,
+                kb,
+                extraction_mode,
             )
 
     async def upload_documents(
@@ -1042,22 +977,28 @@ class SQLiteKBService:
         chunk_size: Optional[int] = None,
         chunk_overlap: Optional[int] = None,
         search_mode: Optional[SearchMode | str] = None,
+        max_concurrency: int = 3,
     ) -> BatchFileUploadResponse:
         batch_id = str(uuid.uuid4())
-        results: list[FileUploadResponse] = []
-        for filename, file_bytes in files:
-            result = await self.upload_document(
-                user_id=user_id,
-                kb_id=kb_id,
-                filename=filename,
-                file_bytes=file_bytes,
-                extraction_mode=extraction_mode,
-                embedding_model=embedding_model,
-                chunk_size=chunk_size,
-                chunk_overlap=chunk_overlap,
-                search_mode=search_mode,
-            )
-            results.append(result)
+        semaphore = asyncio.Semaphore(max_concurrency)
+
+        async def _upload_one(filename: str, file_bytes: bytes) -> FileUploadResponse:
+            async with semaphore:
+                return await self.upload_document(
+                    user_id=user_id,
+                    kb_id=kb_id,
+                    filename=filename,
+                    file_bytes=file_bytes,
+                    extraction_mode=extraction_mode,
+                    embedding_model=embedding_model,
+                    chunk_size=chunk_size,
+                    chunk_overlap=chunk_overlap,
+                    search_mode=search_mode,
+                )
+
+        results = await asyncio.gather(
+            *[_upload_one(filename, file_bytes) for filename, file_bytes in files]
+        )
 
         successful_count = sum(1 for item in results if item.success)
         failed_count = len(results) - successful_count
@@ -1098,32 +1039,203 @@ class SQLiteKBService:
     ) -> None:
         conn = self._get_conn(user_id, kb_id)
         try:
-            for i, chunk in enumerate(chunks):
-                # vec0 向量表（embedding 可用时）
-                if embeddings is not None:
-                    try:
-                        conn.execute(
-                            "INSERT INTO chunks(chunk_id, document_id, chunk_index, meta_json, embedding) VALUES (?, ?, ?, ?, ?)",
-                            [
-                                chunk_ids[i],
-                                doc_id,
-                                chunk["index"],
-                                json.dumps(chunk["metadata"]),
-                                json.dumps(embeddings[i]),
-                            ],
-                        )
-                    except sqlite3.OperationalError:
-                        # chunks 表不存在（无 embedding 配置时），忽略
-                        pass
-                # FTS5 全文表（始终插入）
-                tokenized = self._tokenize_for_fts(chunk["content"])
-                conn.execute(
-                    "INSERT INTO chunks_fts(chunk_id, document_id, content) VALUES (?, ?, ?)",
-                    [chunk_ids[i], doc_id, tokenized],
-                )
+            # vec0 向量表（embedding 可用时）
+            if embeddings is not None:
+                chunk_rows = [
+                    [
+                        chunk_ids[i],
+                        doc_id,
+                        chunk["index"],
+                        json.dumps(chunk["metadata"]),
+                        json.dumps(embeddings[i]),
+                    ]
+                    for i, chunk in enumerate(chunks)
+                ]
+                try:
+                    conn.executemany(
+                        "INSERT INTO chunks(chunk_id, document_id, chunk_index, meta_json, embedding) VALUES (?, ?, ?, ?, ?)",
+                        chunk_rows,
+                    )
+                except sqlite3.OperationalError:
+                    # chunks 表不存在（无 embedding 配置时），忽略
+                    pass
+
+            # FTS5 全文表（始终插入）
+            fts_rows = [
+                [chunk_ids[i], doc_id, self._tokenize_for_fts(chunk["content"])]
+                for i, chunk in enumerate(chunks)
+            ]
+            conn.executemany(
+                "INSERT INTO chunks_fts(chunk_id, document_id, content) VALUES (?, ?, ?)",
+                fts_rows,
+            )
             conn.commit()
         finally:
             conn.close()
+
+    def _insert_processing_document_sync(
+        self,
+        user_id: str,
+        kb_id: str,
+        doc_id: str,
+        filename: str,
+        file_type: str,
+        file_bytes: bytes,
+        now: str,
+    ) -> None:
+        """同步：在知识库中插入一条 processing 状态的文档记录。"""
+        conn = self._get_conn(user_id, kb_id)
+        try:
+            conn.execute(
+                """
+                INSERT INTO kb_documents (id, filename, file_type, file_size, status, chunk_count, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                [
+                    doc_id,
+                    filename,
+                    file_type,
+                    len(file_bytes),
+                    DocumentStatus.PROCESSING.value,
+                    0,
+                    now,
+                    now,
+                ],
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+    def _extract_and_chunk_sync(
+        self,
+        doc_id: str,
+        filename: str,
+        file_bytes: bytes,
+        extraction_mode: Optional[str],
+        kb: Dict[str, Any],
+    ) -> tuple[Any, List[Dict[str, Any]], List[str]]:
+        """同步：提取文档内容并分块。"""
+        extraction = get_document_extraction_service().extract(
+            Path(filename), file_bytes, mode=extraction_mode
+        )
+        content = extraction.text
+        if not content.strip():
+            raise ValueError("文档内容为空")
+
+        chunker = TextChunker(
+            chunk_size=kb.get("chunk_size", 512), chunk_overlap=kb.get("chunk_overlap", 50)
+        )
+        chunks = chunker.split_with_metadata(
+            content, doc_metadata={"doc_id": doc_id, "filename": filename}
+        )
+        chunk_ids = [str(uuid.uuid4()) for _ in chunks]
+        return extraction, chunks, chunk_ids
+
+    def _finalize_upload_sync(
+        self,
+        user_id: str,
+        kb_id: str,
+        doc_id: str,
+        filename: str,
+        chunks: List[Dict[str, Any]],
+        chunk_ids: List[str],
+        embeddings: Optional[List[List[float]]],
+        kb: Dict[str, Any],
+        next_config_version: int,
+        extraction: Any,
+    ) -> FileUploadResponse:
+        """同步：写入 chunks、更新文档状态、同步元数据。"""
+        self._insert_chunks(user_id, kb_id, doc_id, chunk_ids, chunks, embeddings)
+
+        conn = self._get_conn(user_id, kb_id)
+        try:
+            for i, chunk in enumerate(chunks):
+                conn.execute(
+                    """
+                    INSERT INTO kb_chunks (id, document_id, chunk_index, content, meta_json, chunk_id)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                    """,
+                    [
+                        str(uuid.uuid4()),
+                        doc_id,
+                        chunk["index"],
+                        chunk["content"],
+                        json.dumps(chunk["metadata"]),
+                        chunk_ids[i],
+                    ],
+                )
+            conn.execute(
+                """
+                UPDATE kb_documents SET status = ?, chunk_count = ?, updated_at = ? WHERE id = ?
+                """,
+                [
+                    DocumentStatus.COMPLETED.value,
+                    len(chunks),
+                    utc_now_naive().isoformat(),
+                    doc_id,
+                ],
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+        self._sync_kb_runtime_metadata(
+            user_id,
+            kb_id,
+            kb,
+            config_version=next_config_version,
+            last_indexed_config_version=next_config_version,
+            init_status=KnowledgeBaseInitStatus.READY,
+        )
+
+        return FileUploadResponse(
+            success=True,
+            document_id=doc_id,
+            filename=filename,
+            message="上传成功",
+            chunk_count=len(chunks),
+            extraction_mode=extraction.mode_used.value,
+            requested_extraction_mode=extraction.requested_mode.value,
+            search_mode=kb.get("default_search_mode", SearchMode.FULLTEXT.value),
+            embedding_model=kb.get("embedding_model"),
+            chunk_size=kb.get("chunk_size", 512),
+            chunk_overlap=kb.get("chunk_overlap", 50),
+        )
+
+    def _mark_document_failed_sync(
+        self,
+        user_id: str,
+        kb_id: str,
+        doc_id: str,
+        filename: str,
+        error: Exception,
+        kb: Dict[str, Any],
+        extraction_mode: Optional[str],
+    ) -> FileUploadResponse:
+        """同步：将文档标记为处理失败并返回错误响应。"""
+        conn = self._get_conn(user_id, kb_id)
+        try:
+            conn.execute(
+                """
+                UPDATE kb_documents SET status = ?, error_message = ?, updated_at = ? WHERE id = ?
+                """,
+                [DocumentStatus.FAILED.value, str(error), utc_now_naive().isoformat(), doc_id],
+            )
+            conn.commit()
+        finally:
+            conn.close()
+        return FileUploadResponse(
+            success=False,
+            document_id=doc_id,
+            filename=filename,
+            message=f"处理失败: {error}",
+            extraction_mode=extraction_mode,
+            requested_extraction_mode=extraction_mode,
+            search_mode=kb.get("default_search_mode", SearchMode.FULLTEXT.value),
+            embedding_model=kb.get("embedding_model"),
+            chunk_size=kb.get("chunk_size", 512),
+            chunk_overlap=kb.get("chunk_overlap", 50),
+        )
 
     def list_documents(
         self, user_id: str, kb_id: str, skip: int = 0, limit: int = 100

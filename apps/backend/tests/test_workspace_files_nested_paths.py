@@ -234,22 +234,22 @@ def test_export_markdown_document_supports_md_docx_pdf(monkeypatch, workspace_ca
     )
     assert Path(md_response.path) == workspace_case["nested_markdown"]
 
-    def fake_export_markdown_file(source_path: Path, output_format: str):
-        class _Artifact:
-            def __init__(self, filename: str, media_type: str, content: bytes):
-                self.filename = filename
-                self.media_type = media_type
-                self.content = content
-
-        return _Artifact(
-            filename=f"{source_path.stem}.{output_format}",
-            media_type="application/octet-stream",
-            content=f"{output_format}-binary".encode("utf-8"),
+    def fake_export_markdown_file_to_path(source_path: Path, output_format: str):
+        output_path = source_path.with_suffix(f".{output_format}")
+        output_path.write_bytes(f"{output_format}-binary".encode("utf-8"))
+        return (
+            output_path,
+            f"{source_path.stem}.{output_format}",
+            "application/octet-stream",
         )
 
     import app.api.routes.files_core as files_core_module
 
-    monkeypatch.setattr(files_core_module, "export_markdown_file", fake_export_markdown_file)
+    monkeypatch.setattr(
+        files_core_module,
+        "export_markdown_file_to_path",
+        fake_export_markdown_file_to_path,
+    )
 
     for export_format in ("docx", "pdf"):
         response = asyncio.run(
@@ -262,15 +262,7 @@ def test_export_markdown_document_supports_md_docx_pdf(monkeypatch, workspace_ca
             )
         )
 
-        body = b""
-
-        async def _read_body() -> bytes:
-            nonlocal body
-            async for chunk in response.body_iterator:
-                body += chunk
-            return body
-
-        payload = asyncio.run(_read_body())
+        payload = Path(response.path).read_bytes()
         assert payload == f"{export_format}-binary".encode("utf-8")
         assert response.headers["content-disposition"].endswith(f'"001_report.{export_format}"')
 

@@ -118,7 +118,7 @@ class GraphLock:
                 except asyncio.LockError:
                     return False
 
-    def release(self, key: str) -> bool:
+    async def release(self, key: str) -> bool:
         """释放锁"""
         lock_key = f"graphrag:lock:{key}"
         try:
@@ -128,7 +128,7 @@ class GraphLock:
                 if key in self._local_locks:
                     lock = self._local_locks[key]
                     if lock.locked():
-                        lock.release()
+                        await lock.release()
             return True
         except Exception as e:
             logger.error("Lock release error: %s", e)
@@ -141,7 +141,7 @@ class GraphLock:
             await self.acquire(key, timeout)
             yield
         finally:
-            self.release(key)
+            await self.release(key)
 
 
 # 全局锁实例

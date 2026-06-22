@@ -87,7 +87,8 @@ class AcpClientRuntimeSession:
         self._acp_cwd = str(Path(str(spec.work_dir)).resolve())
         self.session_id = spec.session_id
         self.mcp_configs = spec.mcp_configs
-        self._cancel_event = asyncio.Event()
+        # _run_prompt_sync 在线程池中运行，跨线程取消通知需要用线程安全的 Event。
+        self._cancel_event = threading.Event()
         self._closed = False
         self._active_process: subprocess.Popen[bytes] | None = None
         self._active_process_lock = threading.Lock()
@@ -97,45 +98,23 @@ class AcpClientRuntimeSession:
         proc: subprocess.Popen[bytes] | None
         with self._active_process_lock:
             proc = self._active_process
-        if proc is not None:
-            try:
-                if os.name == "nt":
-                    subprocess.run(
-                        ["taskkill", "/T", "/F", "/PID", str(proc.pid)],
-                        capture_output=True,
-                        timeout=5,
-                        **subprocess_kwargs(),
-                    )
-                else:
-                    proc.terminate()
-            except Exception:
-                pass
+        if proc is None:
+            return
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            # 没有运行中的事件循环，直接同步清理。
+            self._close_process()
+        else:
+            # cancel() 是协议中的同步方法，从异步上下文调用时不能阻塞事件循环。
+            loop.run_in_executor(None, self._close_process)
 
     async def close(self) -> None:
         if self._closed:
             return
         self._closed = True
-        proc: subprocess.Popen[bytes] | None
-        with self._active_process_lock:
-            proc = self._active_process
-            self._active_process = None
-        if proc is not None:
-            try:
-                if os.name == "nt":
-                    subprocess.run(
-                        ["taskkill", "/T", "/F", "/PID", str(proc.pid)],
-                        capture_output=True,
-                        timeout=5,
-                        **subprocess_kwargs(),
-                    )
-                else:
-                    proc.terminate()
-                    proc.wait(timeout=2)
-            except Exception:
-                try:
-                    proc.kill()
-                except Exception:
-                    pass
+        # close() 是异步方法，把同步的进程清理逻辑交给线程池执行。
+        await asyncio.to_thread(self._close_process)
 
     async def __aenter__(self) -> "AcpClientRuntimeSession":
         return self

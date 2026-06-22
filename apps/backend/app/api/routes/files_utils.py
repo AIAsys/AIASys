@@ -456,8 +456,8 @@ def _ensure_path_within_root(root: Path, relative_path: Path) -> Path:
     root_resolved = root.resolve()
     try:
         file_path.relative_to(root_resolved)
-    except ValueError:
-        raise HTTPException(status_code=403, detail="Access denied")
+    except ValueError as exc:
+        raise HTTPException(status_code=403, detail="Access denied") from exc
     return file_path
 
 
@@ -1006,5 +1006,5 @@ def _update_csv_preview_page(
 
     if temp_path is None:
         raise HTTPException(status_code=500, detail="CSV 保存失败")
-    temp_path.replace(file_path)
+    os.replace(as_system_path(temp_path), as_system_path(file_path))
     return updated_rows

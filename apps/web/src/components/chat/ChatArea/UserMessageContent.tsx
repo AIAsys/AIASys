@@ -111,7 +111,7 @@ export function UserMessageContent() {
 
   // 长消息折叠：超过阈值行数时默认折叠，提供展开/收起切换
   const isCollapsible = useMemo(
-    () => content.split("\n").length > COLLAPSE_LINE_THRESHOLD,
+    () => content.replace(/\r\n/g, "\n").split("\n").length > COLLAPSE_LINE_THRESHOLD,
     [content],
   );
   const [isCollapsed, setIsCollapsed] = useState(isCollapsible);

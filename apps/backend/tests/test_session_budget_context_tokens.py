@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 from pathlib import Path
 from unittest.mock import MagicMock
+
+import pytest
 
 from app.models.session import SessionBudget, SessionMetadata
 
@@ -30,7 +33,7 @@ def _read_metadata(work_dir: Path) -> SessionMetadata:
     return SessionMetadata(**data)
 
 
-def _call_save_context_tokens(work_dir: Path, estimated: int) -> None:
+async def _call_save_context_tokens(work_dir: Path, estimated: int) -> None:
     """直接调用 _save_context_tokens_to_metadata 静态方法。"""
     from app.services.agent.runtime_backends.aiasys.session_budget import (
         SessionBudgetMixin,
@@ -41,24 +44,26 @@ def _call_save_context_tokens(work_dir: Path, estimated: int) -> None:
     session._spec.work_dir = str(work_dir)
     session._estimated_token_count = estimated
     session.budget = None
-    session._metadata_lock = MagicMock()
+    session._metadata_lock = asyncio.Lock()
 
-    SessionBudgetMixin._save_context_tokens_to_metadata(session)
+    await SessionBudgetMixin._save_context_tokens_to_metadata(session)
 
 
-def test_save_context_tokens_when_budget_is_none(tmp_path: Path) -> None:
+@pytest.mark.asyncio
+async def test_save_context_tokens_when_budget_is_none(tmp_path: Path) -> None:
     """预算未开启时，不创建 budget 对象，避免污染初始化恢复路径。"""
     meta = _build_meta(budget=None)
     _write_metadata(tmp_path, meta)
 
-    _call_save_context_tokens(tmp_path, estimated=12345)
+    await _call_save_context_tokens(tmp_path, estimated=12345)
 
     updated = _read_metadata(tmp_path)
     # budget 为 None 时不创建对象，保持原始状态
     assert updated.budget is None
 
 
-def test_save_context_tokens_when_budget_exists(tmp_path: Path) -> None:
+@pytest.mark.asyncio
+async def test_save_context_tokens_when_budget_exists(tmp_path: Path) -> None:
     """预算已开启时，只更新 context_tokens，不影响其他字段。"""
     meta = _build_meta(
         budget=SessionBudget(
@@ -70,7 +75,7 @@ def test_save_context_tokens_when_budget_exists(tmp_path: Path) -> None:
     )
     _write_metadata(tmp_path, meta)
 
-    _call_save_context_tokens(tmp_path, estimated=88888)
+    await _call_save_context_tokens(tmp_path, estimated=88888)
 
     updated = _read_metadata(tmp_path)
     assert updated.budget is not None
@@ -80,19 +85,21 @@ def test_save_context_tokens_when_budget_exists(tmp_path: Path) -> None:
     assert updated.budget.status == "active"
 
 
-def test_save_context_tokens_skips_when_estimated_is_zero(tmp_path: Path) -> None:
+@pytest.mark.asyncio
+async def test_save_context_tokens_skips_when_estimated_is_zero(tmp_path: Path) -> None:
     """_estimated_token_count 为 0 时不写入，避免覆盖已有精确值。"""
     meta = _build_meta(budget=SessionBudget(context_tokens=99999))
     _write_metadata(tmp_path, meta)
 
-    _call_save_context_tokens(tmp_path, estimated=0)
+    await _call_save_context_tokens(tmp_path, estimated=0)
 
     updated = _read_metadata(tmp_path)
     assert updated.budget is not None
     assert updated.budget.context_tokens == 99999
 
 
-def test_save_context_tokens_noop_when_no_metadata(tmp_path: Path) -> None:
+@pytest.mark.asyncio
+async def test_save_context_tokens_noop_when_no_metadata(tmp_path: Path) -> None:
     """metadata.json 不存在时不报错。"""
     from app.services.agent.runtime_backends.aiasys.session_budget import (
         SessionBudgetMixin,
@@ -103,7 +110,7 @@ def test_save_context_tokens_noop_when_no_metadata(tmp_path: Path) -> None:
     session._spec.work_dir = str(tmp_path)
     session._estimated_token_count = 12345
     session.budget = None
-    session._metadata_lock = MagicMock()
+    session._metadata_lock = asyncio.Lock()
 
-    SessionBudgetMixin._save_context_tokens_to_metadata(session)
+    await SessionBudgetMixin._save_context_tokens_to_metadata(session)
     assert not (tmp_path / "metadata.json").exists()

@@ -177,7 +177,9 @@ export function SidebarProvider({
   );
 
   const isExportingRef = useRef(isExporting);
-  isExportingRef.current = isExporting;
+  useEffect(() => {
+    isExportingRef.current = isExporting;
+  }, [isExporting]);
 
   const exportWorkspace = useCallback(async () => {
     if (!sessionId || isExportingRef.current) return;

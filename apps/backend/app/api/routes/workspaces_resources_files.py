@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import mimetypes
 import os
@@ -56,8 +57,8 @@ from app.services.file_history import (
     file_history_service,
 )
 from app.services.workspace_registry import get_workspace_registry_service
-from app.utils.path_utils import as_system_path
 from app.utils.file_utils import sanitize_content_disposition_filename
+from app.utils.path_utils import as_system_path
 
 logger = logging.getLogger(__name__)
 
@@ -239,6 +240,25 @@ def _iter_workspace_files(
             yield relative_path, file_path
 
 
+def _collect_visible_workspace_files(
+    workspace_root: Path,
+    *,
+    directory: str = "",
+    recursive: bool = True,
+    max_depth: int | None = None,
+) -> list[dict[str, object]]:
+    """在线程中完成目录遍历和文件元信息收集，避免在 async 端点中阻塞事件循环。"""
+    return [
+        _build_visible_file_info(relative_path, file_path)
+        for relative_path, file_path in _iter_workspace_files(
+            workspace_root,
+            directory=directory,
+            recursive=recursive,
+            max_depth=max_depth,
+        )
+    ]
+
+
 def _ensure_path_within_root(root: Path, relative_path: Path) -> Path:
     """将相对路径解析到指定根目录并进行越界校验"""
     os.makedirs(_sys_path(root), exist_ok=True)
@@ -246,8 +266,8 @@ def _ensure_path_within_root(root: Path, relative_path: Path) -> Path:
     root_resolved = root.resolve()
     try:
         file_path.relative_to(root_resolved)
-    except ValueError:
-        raise HTTPException(status_code=403, detail="Access denied")
+    except ValueError as exc:
+        raise HTTPException(status_code=403, detail="Access denied") from exc
     return file_path
 
 
@@ -623,35 +643,28 @@ async def list_workspace_files(
     if normalized_directory:
         _normalize_relative_path(normalized_directory)
 
-    files: list[dict[str, object]] = []
-    total_seen = 0
-    next_offset = None
-    for relative_path, file_path in _iter_workspace_files(
+    all_files = await asyncio.to_thread(
+        _collect_visible_workspace_files,
         workspace_root,
         directory=normalized_directory,
         recursive=recursive,
         max_depth=max_depth,
-    ):
+    )
+
+    files: list[dict[str, object]] = []
+    total_seen = 0
+    next_offset = None
+    for file_info in all_files:
         if total_seen < offset:
             total_seen += 1
             continue
         if len(files) >= limit:
             next_offset = total_seen
             break
-        files.append(_build_visible_file_info(relative_path, file_path))
+        files.append(file_info)
         total_seen += 1
 
-    total = None
-    if include_total:
-        total = sum(
-            1
-            for _relative_path, _file_path in _iter_workspace_files(
-                workspace_root,
-                directory=normalized_directory,
-                recursive=recursive,
-                max_depth=max_depth,
-            )
-        )
+    total = len(all_files) if include_total else None
 
     return WorkspaceFileListResponse(
         files=[FileInfo(**file_info) for file_info in files],
@@ -687,10 +700,11 @@ async def get_workspace_file_content(
     if not file_path.exists() or not file_path.is_file():
         raise HTTPException(status_code=404, detail="文件不存在")
 
-    file_size = file_path.stat().st_size
-
     try:
-        content = smart_decode(file_path.read_bytes())
+        stat = await asyncio.to_thread(file_path.stat)
+        file_size = stat.st_size
+        content_bytes = await asyncio.to_thread(file_path.read_bytes)
+        content = smart_decode(content_bytes)
         if "\ufffd" in content and content.count("\ufffd") / max(len(content), 1) > 0.1:
             raise HTTPException(status_code=400, detail="文件不是有效的文本文件")
     except OSError:
@@ -1491,7 +1505,8 @@ async def get_global_workspace_resources_tree(
         config_module.WORKSPACE_DIR / current_user.user_id / config_module.GLOBAL_WORKSPACE_DIR_NAME
     )
     ensure_memory_layout(global_workspace_dir / config_module.GLOBAL_WORKSPACE_MEMORY_DIR_NAME)
-    nodes = _scan_workspace_file_assets(
+    nodes = await asyncio.to_thread(
+        _scan_workspace_file_assets,
         global_workspace_dir,
         workspace_id=workspace_id,
         logical_prefix="/global",
