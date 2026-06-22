@@ -18,8 +18,16 @@ RequestExecutionLevel admin
   Goto longPathDone
 
 hasAdmin:
+  ; 先读取当前值，避免重复写入/提示
+  ReadRegDWORD $R2 HKLM "SYSTEM\CurrentControlSet\Control\FileSystem" "LongPathsEnabled"
+  IntCmp $R2 1 longPathAlreadyEnabled
+
   WriteRegDWORD HKLM "SYSTEM\CurrentControlSet\Control\FileSystem" "LongPathsEnabled" 1
   DetailPrint "已启用 Windows 长路径支持（需要重启生效）"
+  Goto longPathDone
+
+longPathAlreadyEnabled:
+  DetailPrint "Windows 长路径支持已处于开启状态"
 
 longPathDone:
 !macroend
