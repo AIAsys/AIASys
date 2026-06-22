@@ -12,12 +12,7 @@
   StrCmp $R1 "Admin" hasAdmin
 
   DetailPrint "当前未以管理员身份运行，跳过自动启用 Windows 长路径"
-  MessageBox MB_OK|MB_ICONINFORMATION "AIASys Desktop 建议启用 Windows 长路径支持以获得最佳兼容性。$
-当前安装未以管理员身份运行，无法自动开启。$
-安装完成后可手动设置注册表：$
-HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\FileSystem$
-LongPathsEnabled = 1（DWORD）$
-修改后需要重启系统生效。"
+  MessageBox MB_OK|MB_ICONINFORMATION "AIASys Desktop 建议启用 Windows 长路径支持以获得最佳兼容性。$\n当前安装未以管理员身份运行，无法自动开启。$\n安装完成后可手动设置注册表：$\nHKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\FileSystem$\nLongPathsEnabled = 1（DWORD）$\n修改后需要重启系统生效。"
 
 hasAdmin:
   WriteRegDWORD HKLM "SYSTEM\CurrentControlSet\Control\FileSystem" "LongPathsEnabled" 1
