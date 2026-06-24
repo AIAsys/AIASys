@@ -1,5 +1,13 @@
 const fs = require("fs");
 const path = require("path");
+
+// Linux (Ubuntu 23.10+/AppArmor) 默认阻止 unprivileged user namespace，
+// 必须在 require('electron') 之前设置该环境变量，否则 zygote 初始化阶段会 FATAL。
+// 该环境变量在 Windows/macOS 上无实际作用，因此按平台隔离即可保持兼容。
+if (process.platform === "linux") {
+  process.env.ELECTRON_DISABLE_SANDBOX = process.env.ELECTRON_DISABLE_SANDBOX || "1";
+}
+
 const { app, BrowserWindow, dialog, ipcMain, shell, Tray, Menu, nativeImage } = require("electron");
 const { DesktopServiceManager } = require("./service-manager.cjs");
 
@@ -80,11 +88,12 @@ function isAgentMode() {
 
 if (process.platform === "linux") {
   app.commandLine.appendSwitch("no-sandbox");
-  if (isWSL()) {
-    // WSLg 下 Chromium zygote 无法访问 /dev/shm，需要关闭 namespace/setuid sandbox
-    app.commandLine.appendSwitch("disable-namespace-sandbox");
-    app.commandLine.appendSwitch("disable-setuid-sandbox");
-  }
+  // Ubuntu 23.10+ AppArmor 默认阻止 unprivileged user namespace，
+  // 同时关闭 namespace/setuid sandbox 避免 FATAL:zygote_linux。
+  app.commandLine.appendSwitch("disable-namespace-sandbox");
+  app.commandLine.appendSwitch("disable-setuid-sandbox");
+  // /dev/shm 在 WSLg/容器/低内存环境可能不足或不可写，显式禁用。
+  app.commandLine.appendSwitch("disable-dev-shm-usage");
 }
 
 // Windows 任务栏需要稳定的 AppUserModelID，否则运行中窗口会被识别为 Electron 默认图标

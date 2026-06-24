@@ -352,6 +352,9 @@ def ensure_uv_kernel_spec(plan: RuntimeExecutionPlan) -> str:
             "run",
             "--project",
             str(project_dir),
+            # kernel 进程的 cwd 也指向 UV 项目目录，避免把工作区根目录当作包搜索路径
+            "--directory",
+            str(project_dir),
             "--with",
             "ipykernel",
             "python",

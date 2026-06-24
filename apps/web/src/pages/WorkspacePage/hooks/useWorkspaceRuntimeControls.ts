@@ -20,6 +20,7 @@ import type {
   UseWorkspaceRuntimeControlsReturn,
 } from "./workspaceRuntimeControlsTypes";
 import { emitWorkspaceListRefreshEvent } from "./workspaceListRefreshEvent";
+import { navigateToAnalysisSession } from "./useCodeExecutor/useSessionOrchestratorHelpers";
 
 export function useWorkspaceRuntimeControls({
   userId,
@@ -304,7 +305,11 @@ export function useWorkspaceRuntimeControls({
                       activate: true,
                     });
                   }
+                  console.log("[NewWorkspace] folder import completed", { workspaceId, preparedSessionId });
                   emitWorkspaceListRefreshEvent();
+                  navigateToAnalysisSession(preparedSessionId, {
+                    workspaceId,
+                  });
                   await activatePreparedSession(preparedSessionId);
                   await refreshWorkspaceForSession(preparedSessionId, { force: true });
                   refreshSessionStatus();
@@ -349,6 +354,7 @@ export function useWorkspaceRuntimeControls({
         }
 
         setNewWorkspaceStage("creating_workspace");
+        console.log("[NewWorkspace] creating workspace", { preparedSessionId });
         const createdWorkspace = await createTaskWorkspace({
           title: normalizedTitle,
           description,
@@ -359,6 +365,10 @@ export function useWorkspaceRuntimeControls({
           templateId,
           installCapabilities,
           templateFiles,
+        });
+        console.log("[NewWorkspace] workspace created", {
+          workspaceId: createdWorkspace.workspace_id,
+          preparedSessionId,
         });
         if (
           resources.pythonEnabled &&
@@ -388,7 +398,15 @@ export function useWorkspaceRuntimeControls({
           }
           setImportProgress(status.progress);
           setNewWorkspaceMessage(status.message);
+          console.log("[NewWorkspace] runtime init status", status);
+          // 最多轮询 5 分钟，防止后端状态丢失时前端无限等待
+          let pollCount = 0;
+          const MAX_POLL_COUNT = 375; // 375 * 800ms = 300s
           while (status.status === "pending" || status.status === "running") {
+            if (pollCount >= MAX_POLL_COUNT) {
+              throw new Error("运行环境初始化超时，请检查后端日志或稍后重试");
+            }
+            pollCount += 1;
             await sleepWithAbort(800);
             if (abortController.signal.aborted) {
               return;
@@ -398,19 +416,28 @@ export function useWorkspaceRuntimeControls({
             );
             setImportProgress(status.progress);
             setNewWorkspaceMessage(status.message);
+            console.log("[NewWorkspace] runtime init status", status);
           }
           if (status.status === "failed") {
             throw new Error(
               status.error || status.message || "运行环境初始化失败",
             );
           }
+          console.log("[NewWorkspace] runtime init completed");
         }
 
         emitWorkspaceListRefreshEvent();
+        // 先同步路由上的 workspace_id，否则 activatePreparedSession 内部导航时无法取到新工作区
+        navigateToAnalysisSession(preparedSessionId, {
+          workspaceId: createdWorkspace.workspace_id,
+        });
+        console.log("[NewWorkspace] activating session", { preparedSessionId });
 
         await activatePreparedSession(preparedSessionId);
+        console.log("[NewWorkspace] refreshing workspace files", { preparedSessionId });
         await refreshWorkspaceForSession(preparedSessionId, { force: true });
         refreshSessionStatus();
+        console.log("[NewWorkspace] closing dialog");
         setShowNewWorkspaceDialog(false);
         setNewWorkspaceStage("idle");
         setImportProgress(0);
@@ -436,9 +463,11 @@ export function useWorkspaceRuntimeControls({
       } catch (error) {
         if ((error as Error).name === "AbortError") {
           // 用户取消或组件卸载，静默处理
+          console.log("[NewWorkspace] aborted");
           return;
         }
         const message = error instanceof Error ? error.message : "新建工作区失败";
+        console.error("[NewWorkspace] failed", error);
         setNewWorkspaceError(message);
         setNewWorkspaceStage("error");
         showError(message);
@@ -455,6 +484,7 @@ export function useWorkspaceRuntimeControls({
       refreshWorkspaceForSession,
       showError,
       showSuccess,
+      navigateToAnalysisSession,
     ],
   );
 

@@ -14,6 +14,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable, Optional
 
+import filelock
+
 logger = logging.getLogger(__name__)
 
 from app.core.config import WORKSPACE_DIR
@@ -157,6 +159,13 @@ class WorkspaceRegistryService:
         self.base_dir = Path(base_dir)
         os.makedirs(as_system_path(self.base_dir), exist_ok=True)
         self.session_manager = session_manager or SessionManager(self.base_dir)
+        # 保护 _write_json 中的 os.replace，避免 Windows 下并发写同一文件触发 PermissionError
+        self._meta_write_lock = None  # 延迟初始化，使用文件锁
+
+    def _get_write_lock(self, path: Path) -> filelock.FileLock:
+        lock_path = Path(str(path) + ".lock")
+        os.makedirs(as_system_path(lock_path.parent), exist_ok=True)
+        return filelock.FileLock(as_system_path(lock_path), timeout=10)
 
     def _get_user_dir(self, user_id: str) -> Path:
         _ensure_valid_id(user_id, "user_id")
@@ -240,6 +249,7 @@ class WorkspaceRegistryService:
 
     def _write_json(self, path: Path, payload: Any) -> None:
         import tempfile
+        import time
 
         os.makedirs(as_system_path(path.parent), exist_ok=True)
         data = json.dumps(payload, indent=2, ensure_ascii=False)
@@ -247,7 +257,23 @@ class WorkspaceRegistryService:
         try:
             with os.fdopen(fd, "w", encoding="utf-8") as f:
                 f.write(data)
-            os.replace(as_system_path(temp_path), as_system_path(path))
+            # 使用文件锁保护 os.replace，避免 Windows 下并发写同一文件触发 PermissionError
+            # 同时兼容 Uvicorn 多 worker / 多进程环境。
+            with self._get_write_lock(path):
+                last_error: Exception | None = None
+                for attempt in range(8):
+                    try:
+                        os.replace(as_system_path(temp_path), as_system_path(path))
+                        break
+                    except PermissionError as exc:
+                        last_error = exc
+                        if attempt == 7:
+                            raise
+                        # 指数退避：最多等约 1.275 秒
+                        time.sleep(0.015 * (2**attempt))
+                else:
+                    if last_error is not None:
+                        raise last_error
         except Exception:
             try:
                 os.unlink(as_system_path(temp_path))
@@ -1162,36 +1188,34 @@ class WorkspaceRegistryService:
             else:
                 # 无需初始化的资源：直接标记完成
                 if not resolved_resources.python_env_id and not resolved_resources.node_env_id:
-                    # 无需初始化的资源：直接标记完成
-                    if not resolved_resources.python_env_id and not resolved_resources.node_env_id:
-                        self._update_initialization_status(
+                    self._update_initialization_status(
+                        user_id,
+                        resolved_workspace_id,
+                        status="completed",
+                        progress=100,
+                        message="运行环境初始化完成",
+                        completed_at=_now_iso(),
+                    )
+                else:
+                    # 记录 pending 状态，启动后台线程完成真实环境创建
+                    self._update_initialization_status(
+                        user_id,
+                        resolved_workspace_id,
+                        status="pending",
+                        progress=0,
+                        message="排队等待初始化运行环境",
+                    )
+                    thread = threading.Thread(
+                        target=self._initialize_workspace_resources,
+                        args=(
                             user_id,
                             resolved_workspace_id,
-                            status="completed",
-                            progress=100,
-                            message="运行环境初始化完成",
-                            completed_at=_now_iso(),
-                        )
-                    else:
-                        # 记录 pending 状态，启动后台线程完成真实环境创建
-                        self._update_initialization_status(
-                            user_id,
-                            resolved_workspace_id,
-                            status="pending",
-                            progress=0,
-                            message="排队等待初始化运行环境",
-                        )
-                        thread = threading.Thread(
-                            target=self._initialize_workspace_resources,
-                            args=(
-                                user_id,
-                                resolved_workspace_id,
-                                normalized_runtime_binding,
-                                env_vars,
-                            ),
-                            daemon=True,
-                        )
-                        thread.start()
+                            normalized_runtime_binding,
+                            env_vars,
+                        ),
+                        daemon=True,
+                    )
+                    thread.start()
 
             self.create_conversation(
                 user_id=user_id,

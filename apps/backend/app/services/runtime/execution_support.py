@@ -154,9 +154,15 @@ def build_local_runtime_bootstrap_code(
     helper_dir = resolve_runtime_helper_dir()
 
     return f"""
-# 预导入常用库
+# 预导入常用库前先清理当前工作目录，避免工作区根目录下存在 numpy/pandas 等源码文件夹时
+# Python 优先加载源码目录而非已安装的包，导致 "you should not try to import numpy from
+# its source directory" 等错误。
 import os
 import sys
+for _aiasys_bad_path in ("", os.getcwd()):
+    while _aiasys_bad_path in sys.path:
+        sys.path.remove(_aiasys_bad_path)
+
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt

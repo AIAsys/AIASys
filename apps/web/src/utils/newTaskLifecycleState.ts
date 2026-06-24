@@ -10,6 +10,8 @@ const NEW_TASK_BUSY_STAGES = new Set<NewTaskStage>([
   "copying_files",
   "import_creating_workspace",
   "creating_workspace",
+  "binding_environment",
+  "waiting_runtime",
   "activating_session",
 ]);
 

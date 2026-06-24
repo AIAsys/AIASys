@@ -2,7 +2,12 @@
 
 from __future__ import annotations
 
+import asyncio
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, Query
+
+logger = logging.getLogger(__name__)
 
 from app.core.auth import require_auth
 from app.models.runtime_environment import (
@@ -53,6 +58,36 @@ def _node_service() -> NodeRuntimeService:
     return get_node_runtime_service()
 
 
+# 跟踪后台 uv sync 任务，避免重复触发。
+# key: "{user_id}:{workspace_id}:{env_id}"
+_uv_sync_tasks: dict[str, asyncio.Task] = {}
+
+
+def _uv_sync_task_key(user_id: str, workspace_id: str, env_id: str) -> str:
+    return f"{user_id}:{workspace_id}:{env_id}"
+
+
+async def _background_uv_sync(
+    service: RuntimeEnvironmentService,
+    user_id: str,
+    workspace_id: str,
+    env_id: str,
+) -> None:
+    """后台执行 uv sync，避免阻塞 HTTP 请求。"""
+    key = _uv_sync_task_key(user_id, workspace_id, env_id)
+    try:
+        await asyncio.to_thread(
+            service.sync_uv_env,
+            user_id,
+            workspace_id,
+            env_id=env_id,
+        )
+    except Exception:
+        logger.exception("后台 uv sync 失败: %s", key)
+    finally:
+        _uv_sync_tasks.pop(key, None)
+
+
 @router.get(
     "",
     response_model=WorkspaceRuntimeEnvRegistryResponse,
@@ -64,7 +99,9 @@ async def list_workspace_runtime_envs(
 ):
     """列出当前工作区登记的 UV 运行环境。"""
     try:
-        return _service().list_workspace_envs(
+        # inspect 时会调用 python -m pip list，可能耗时数秒，放到线程池避免阻塞事件循环
+        return await asyncio.to_thread(
+            _service().list_workspace_envs,
             current_user.user_id,
             workspace_id,
             inspect=inspect,
@@ -84,17 +121,51 @@ async def ensure_workspace_uv_env(
     request: EnsureWorkspaceUvEnvRequest,
     current_user: UserInfo = Depends(require_auth()),
 ):
-    """创建或刷新工作区默认 UV 环境登记。"""
+    """创建或刷新工作区默认 UV 环境登记。
+
+    如果请求包含 sync/create_venv，会立即返回 status=syncing，并在后台执行 uv sync，
+    避免首次环境准备耗时过长导致 HTTP 502/超时。
+    """
+    service = _service()
+    user_id = current_user.user_id
+    env_id = request.env_id
     try:
-        env, command_result = _service().ensure_uv_env(
-            current_user.user_id,
+        needs_sync = request.create_venv or request.sync
+        if needs_sync:
+            # 先快速创建 pyproject/registry 并标记为 syncing，立即响应前端
+            env = await asyncio.to_thread(
+                service.prepare_uv_env,
+                user_id,
+                workspace_id,
+                env_id=env_id,
+                display_name=request.display_name,
+                python_version=request.python_version,
+                packages=request.packages,
+            )
+
+            key = _uv_sync_task_key(user_id, workspace_id, env_id)
+            existing_task = _uv_sync_tasks.get(key)
+            if existing_task is None or existing_task.done():
+                task = asyncio.create_task(
+                    _background_uv_sync(service, user_id, workspace_id, env_id)
+                )
+                _uv_sync_tasks[key] = task
+            return RuntimeEnvActionResponse(
+                workspace_id=workspace_id,
+                env=env,
+                command_result=None,
+            )
+
+        env, command_result = await asyncio.to_thread(
+            service.ensure_uv_env,
+            user_id,
             workspace_id,
-            env_id=request.env_id,
+            env_id=env_id,
             display_name=request.display_name,
             python_version=request.python_version,
             packages=request.packages,
-            create_venv=request.create_venv,
-            sync=request.sync,
+            create_venv=False,
+            sync=False,
         )
         return RuntimeEnvActionResponse(
             workspace_id=workspace_id,
@@ -120,7 +191,8 @@ async def register_workspace_python_env(
 ):
     """把已登记或本机可用 Python 解释器登记到当前工作区。"""
     try:
-        env = _service().register_python_env(
+        env = await asyncio.to_thread(
+            _service().register_python_env,
             current_user.user_id,
             workspace_id,
             python_executable=request.python_executable,
@@ -130,7 +202,8 @@ async def register_workspace_python_env(
         )
         refresh_required = False
         if request.activate:
-            env = _service().bind_workspace_env(
+            env = await asyncio.to_thread(
+                _service().bind_workspace_env,
                 current_user.user_id,
                 workspace_id,
                 env.env_id,
@@ -161,7 +234,8 @@ async def install_workspace_uv_packages(
 ):
     """向工作区 UV 环境登记依赖包。"""
     try:
-        env, command_result = _service().install_workspace_packages(
+        env, command_result = await asyncio.to_thread(
+            _service().install_workspace_packages,
             current_user.user_id,
             workspace_id,
             env_id=env_id,
@@ -192,7 +266,8 @@ async def bind_workspace_runtime_env(
 ):
     """把登记环境设为工作区默认执行环境。"""
     try:
-        env = _service().bind_workspace_env(
+        env = await asyncio.to_thread(
+            _service().bind_workspace_env,
             current_user.user_id,
             workspace_id,
             request.env_id,
@@ -420,8 +495,12 @@ async def inspect_workspace_runtime_env(
     """查看单个登记环境的当前状态和材料文件。"""
     service = _service()
     try:
-        env = service.inspect_env(current_user.user_id, workspace_id, env_id)
-        workspace_dir = service.workspace_registry.get_workspace_root(
+        # inspect_env 会执行 python -m pip list，放到线程池避免阻塞
+        env = await asyncio.to_thread(
+            service.inspect_env, current_user.user_id, workspace_id, env_id
+        )
+        workspace_dir = await asyncio.to_thread(
+            service.workspace_registry.get_workspace_root,
             current_user.user_id,
             workspace_id,
         )
@@ -457,7 +536,8 @@ async def unregister_workspace_runtime_env(
 ):
     """从当前工作区取消运行环境登记。"""
     try:
-        env = _service().unregister_workspace_env(
+        env = await asyncio.to_thread(
+            _service().unregister_workspace_env,
             current_user.user_id,
             workspace_id,
             env_id,

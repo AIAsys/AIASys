@@ -11,16 +11,17 @@ from pathlib import Path
 from typing import Any
 
 from app.capabilities.models import CapabilityKind, CapabilityManifest
+from app.core.config import RUNTIME_ROOT
 
 logger = logging.getLogger(__name__)
 
-# 能力源根目录
+# 能力源根目录：builtin 为系统预装（只读），store 为用户导入（可写）
 _BUILTIN_SOURCES_DIR = Path(__file__).parent.parent.parent / "capability_sources" / "builtin"
-_STORE_SOURCES_DIR = Path(__file__).parent.parent.parent / "capability_sources" / "store"
+_STORE_SOURCES_DIR = RUNTIME_ROOT / "capability_sources" / "store"
 
 # skill 类型直接从 skills/ 目录扫描（消除与 capability_sources/ 的双轨）
 _SKILL_BUILTIN_DIR = Path(__file__).parent.parent.parent / "skills" / "builtin"
-_SKILL_STORE_DIR = Path(__file__).parent.parent.parent / "skills" / "store"
+_SKILL_STORE_DIR = RUNTIME_ROOT / "skills" / "store"
 
 _KIND_SUBDIRS: dict[CapabilityKind, str] = {
     CapabilityKind.SKILL_PACK: "skill",

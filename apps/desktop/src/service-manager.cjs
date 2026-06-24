@@ -1105,6 +1105,19 @@ class DesktopServiceManager {
       });
     }
 
+    // 用户导入的 skill / capability 源必须位于可写运行时目录（AppImage 等资源目录只读）
+    const writableSourceDirs = [
+      { src: path.join(this.backendRoot, "skills", "store"), dst: path.join(this.runtimeStateRoot, "skills", "store") },
+      { src: path.join(this.backendRoot, "capability_sources", "store"), dst: path.join(this.runtimeStateRoot, "capability_sources", "store") },
+    ];
+    for (const { src, dst } of writableSourceDirs) {
+      if (fs.existsSync(src) && !fs.existsSync(dst)) {
+        this._emitStatus({ message: `正在复制 ${path.basename(path.dirname(src))}...`, step: 2, total: 5 });
+        await fs.promises.cp(src, dst, { recursive: true, preserveTimestamps: true });
+      }
+      fs.mkdirSync(dst, { recursive: true });
+    }
+
     fs.mkdirSync(this.backendDataRoot, { recursive: true });
     fs.mkdirSync(this.backendLogsRoot, { recursive: true });
     fs.mkdirSync(this.backendWorkspacesRoot, { recursive: true });
@@ -1255,6 +1268,7 @@ class DesktopServiceManager {
     return this._buildPythonEnv({
       AIASYS_DESKTOP_MODE: "1",
       AIASYS_AUTH_JWT_SECRET: this._ensureJwtSecret(),
+      ELECTRON_DISABLE_SANDBOX: process.env.ELECTRON_DISABLE_SANDBOX || "1",
       ...bundledUvEnv,
       ...bundledFnmEnv,
       ...fnmDataEnv,

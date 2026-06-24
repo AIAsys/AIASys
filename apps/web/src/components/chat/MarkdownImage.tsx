@@ -7,41 +7,110 @@ import {
   type ImageLightboxSlide,
 } from "@/components/ui/image-lightbox";
 
+type WorkspaceImageScope = "workspace" | "global";
+
+interface ResolvedWorkspaceImage {
+  scope: WorkspaceImageScope;
+  path: string;
+}
+
 /**
- * 将 /workspace/ 路径转换为完整的下载 URL
- * 格式: /api/files/download/{userId}/{sessionId}/{filename}?user_id={userId}
+ * 解析工作区图片路径，支持以下前缀：
+ * - /workspace/, workspace/, ./workspace/
+ * - /global/, global/, ./global/
+ */
+function parseWorkspaceImagePath(src: string): ResolvedWorkspaceImage | null {
+  const normalized = src?.replace(/^file:\/\//, "").trim() ?? "";
+  if (!normalized) {
+    return null;
+  }
+
+  const workspacePrefixes = ["/workspace/", "workspace/", "./workspace/"];
+  for (const prefix of workspacePrefixes) {
+    if (normalized.toLowerCase().startsWith(prefix.toLowerCase())) {
+      return {
+        scope: "workspace",
+        path: normalized.slice(prefix.length),
+      };
+    }
+  }
+
+  const globalPrefixes = ["/global/", "global/", "./global/"];
+  for (const prefix of globalPrefixes) {
+    if (normalized.toLowerCase().startsWith(prefix.toLowerCase())) {
+      return {
+        scope: "global",
+        path: normalized.slice(prefix.length),
+      };
+    }
+  }
+
+  return null;
+}
+
+/**
+ * 从当前 URL 解析 workspaceId
+ */
+function inferWorkspaceIdFromUrl(): string | undefined {
+  const pathname = window.location.pathname;
+  const match = pathname.match(/\/workspace\/([^/]+)/);
+  return match?.[1];
+}
+
+/**
+ * 将 /workspace/ 或 workspace/ 等路径转换为完整的下载 URL
+ * 格式:
+ * - workspace: /api/files/download/{userId}/{sessionId}/{filename}?user_id={userId}
+ * - global: /api/workspaces/{workspaceId}/global-workspace/download/{assetPath}
  */
 function resolveWorkspaceImage(src: string, sessionId?: string): string {
-  // 防御式去除 file:// 前缀，避免 LLM transport 细节泄漏到展示层
-  const normalized = src?.replace(/^file:\/\//, "") ?? "";
-  if (!normalized.startsWith("/workspace/")) {
-    return normalized;
-  }
-  src = normalized;
+  let normalized = src?.replace(/^file:\/\//, "").trim() ?? "";
 
-  // 优先使用传入的 sessionId，否则尝试从 URL 解析
-  if (!sessionId) {
-    const pathname = window.location.pathname;
-    const match = pathname.match(/\/workspace\/([^/]+)/);
-    sessionId = match?.[1];
+  // LLM 可能只返回文件名（如 industrial_analysis_dashboard.png）。
+  // 如果看起来是纯文件名，兜底补全为 /workspace/{filename}。
+  const looksLikePlainFilename =
+    normalized.length > 0 &&
+    !normalized.includes("/") &&
+    !normalized.includes(":") &&
+    !normalized.startsWith("data:");
+  if (looksLikePlainFilename) {
+    normalized = `/workspace/${normalized}`;
   }
 
-  if (!sessionId) {
+  const resolved = parseWorkspaceImagePath(normalized);
+  if (!resolved) {
+    return src ?? "";
+  }
+
+  const workspaceId = inferWorkspaceIdFromUrl();
+
+  if (resolved.scope === "workspace") {
+    // 优先使用传入的 sessionId，否则尝试从 URL 解析
+    const resolvedSessionId = sessionId || workspaceId;
+
+    if (!resolvedSessionId) {
+      console.warn(
+        "[MarkdownImage] Cannot resolve workspace image: no sessionId",
+        { src },
+      );
+      return src;
+    }
+
+    const userId = getCurrentUserId();
+    return `${API_ENDPOINTS.FILES_DOWNLOAD(userId, resolvedSessionId, resolved.path)}?user_id=${userId}`;
+  }
+
+  // global scope
+  if (!workspaceId) {
     console.warn(
-      "[MarkdownImage] Cannot resolve workspace image: no sessionId",
+      "[MarkdownImage] Cannot resolve global workspace image: no workspaceId",
       { src },
     );
     return src;
   }
 
-  // 提取文件名
-  const filename = src.replace("/workspace/", "");
   const userId = getCurrentUserId();
-
-  // 构建完整 URL
-  const url =
-    `${API_ENDPOINTS.FILES_DOWNLOAD(userId, sessionId, filename)}?user_id=${userId}`;
-  return url;
+  return `${API_ENDPOINTS.GLOBAL_WORKSPACE_DOWNLOAD(workspaceId, resolved.path)}?user_id=${userId}`;
 }
 
 /**

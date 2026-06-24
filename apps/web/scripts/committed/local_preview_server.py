@@ -80,7 +80,8 @@ class PreviewHandler(http.server.SimpleHTTPRequestHandler):
     def _proxy(self) -> None:
         target = BACKEND + self.path
         length = int(self.headers.get("Content-Length", "0") or "0")
-        # 对于大请求体，直接流式转发 self.rfile，避免在内存中缓冲整个 body
+        # 先把请求体读入内存再转发；http.server 的 self.rfile 直接传给 urllib
+        # 在 Windows 上会导致 POST/PUT 请求挂起，因此显式读取。
         body = self.rfile.read(length) if length > 0 else None
 
         request = urllib.request.Request(target, data=body, method=self.command)

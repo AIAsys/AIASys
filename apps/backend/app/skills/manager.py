@@ -2,7 +2,9 @@
 Skill 管理器（全局存储 + 工作区复制启用模型）
 
 设计口径：
-- 全局 Skill 仓库：`apps/backend/skills/builtin/`（系统预装）+ `apps/backend/skills/store/`（用户导入）
+- 全局 Skill 仓库：`skills/builtin/`（系统预装，只读）+ `skills/store/`（用户导入，可写）
+  - 开发模式下位于 `apps/backend/skills/`
+  - 桌面打包模式下运行时重定向到 `AIASYS_RUNTIME_ROOT/skills/`
 - 工作区启用：`workspaces/{user_id}/{workspace_id}/.aiasys/skills/{name}` — 从全局仓库复制
 - Skill 配置：`workspaces/{user_id}/{workspace_id}/.aiasys/skills/{name}/config.json`
 - 版本管理：目录式 `skills/store/{skill}/.versions/{ver}/`（store 目录）
@@ -19,6 +21,7 @@ import time
 from pathlib import Path
 from typing import Optional
 
+from app.core.config import RUNTIME_ROOT
 from app.utils.path_utils import as_system_path
 
 from .models import SkillInfo, SkillMetaInfo, SkillOperationResult
@@ -58,7 +61,8 @@ class SkillManager(SkillEnablementMixin, SkillImportMixin):
 
     BACKEND_ROOT = Path(__file__).resolve().parents[2]
     SKILLS_BUILTIN_DIR = BACKEND_ROOT / "skills" / "builtin"
-    SKILLS_STORE_DIR = BACKEND_ROOT / "skills" / "store"
+    # 用户导入的 skill 必须写入可写运行时目录（桌面打包/AppImage 下代码目录只读）
+    SKILLS_STORE_DIR = RUNTIME_ROOT / "skills" / "store"
     WORKSPACE_SKILLS_DIR_NAME = ".aiasys/skills"
     CONFIG_EXAMPLE_NAME = "config.example.json"
     CONFIG_NAME = "config.json"

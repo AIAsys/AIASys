@@ -181,7 +181,8 @@ class AskUser(AiasysTool):
         # Agent 模式：自动批准所有 AskUser 请求
         if os.environ.get("AIASYS_AGENT_MODE") == "1":
             logger.debug("Agent 模式自动批准 AskUser: request_id=%s", request.request_id)
-            return ToolResult(content="agent_auto_approved", is_error=False), None
+            yield ToolResult(content="agent_auto_approved", is_error=False)
+            return
 
         future = self._store.create_request(
             request=request,

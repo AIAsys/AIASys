@@ -453,7 +453,7 @@ function installLinux(archivePath, targetDir) {
     "[Desktop Entry]",
     "Name=AIASys",
     "Comment=AI Agent System",
-    `Exec=${exePath} --no-sandbox`,
+    `Exec=env ELECTRON_DISABLE_SANDBOX=1 ${exePath} --no-sandbox`,
     "Type=Application",
     "Terminal=false",
   ];

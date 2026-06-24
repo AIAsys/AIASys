@@ -16,6 +16,7 @@ RuntimeEnvironmentStatus = Literal[
     "missing",
     "unavailable",
     "error",
+    "syncing",
 ]
 
 

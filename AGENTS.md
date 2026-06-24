@@ -230,7 +230,7 @@ Agent 在评估 Bug 和设计修复方案时，必须区分：
 
 ### 桌面打包约束
 
-- **数据隔离**：所有可变数据（数据库、日志、上传文件、会话历史）必须写入用户目录，代码目录（`resources/app`、`resources/backend`）在生产环境中视为只读
+- **数据隔离**：所有可变数据（数据库、日志、上传文件、会话历史、用户导入的 `skills/store/` 和 `capability_sources/store/`）必须写入用户目录，代码目录（`resources/app`、`resources/backend`）在生产环境中视为只读
 - **跨平台 .venv**：每个平台必须在对应平台上构建（或 CI 中使用对应平台 runner）。在 Linux 上交叉构建 Windows 安装包会产生含 Linux venv 的无效产物
 - **Windows 子进程**：`spawn` 必须设置 `windowsHide: true` + `stdio: "pipe"`，避免弹出 cmd 黑窗
 - **Windows Shell 选择**：对齐 Copilot，Windows 上 `ShellExecutor` 的 `interpreter=auto` 优先使用 Git Bash / WSL / busybox / PowerShell，**不再 fallback 到 `cmd.exe`**。Windows 10/11 默认已预装 PowerShell，视为最低要求。`cmd.exe` 已禁用：即使显式指定 `interpreter=cmd`，ShellExecutor 也自动降级到 PowerShell，不再真正调用 cmd.exe（cmd 的引号解析、不支持 POSIX 参数、WinError 267 等问题在显式调用场景同样存在）。完整设计见 `design-draft/design/design-thinking/windows-cross-platform-shell-strategy.md`
@@ -239,7 +239,7 @@ Agent 在评估 Bug 和设计修复方案时，必须区分：
 - **Windows 进程树终止**：Windows 无进程组语义，子进程树必须用 `taskkill /T /F /PID` 终止。**PTY Manager 在 Windows 上 `close()` 前必须 taskkill 杀进程树**，顺序是先杀进程树再关 winpty，否则子进程会残留为孤儿。ShellExecutor 超时走两阶段 taskkill（先 `/T` 优雅退出，grace 后 `/T /F` 强制），ACP Client 的 `cancel()`/`close()` 同样用 taskkill
 - **构建前清理**：`prepare-runtime.cjs` 自动清理 `__pycache__` 和 `.pyc`，避免工具类名变更后缓存不一致
 - **NSIS 配置**：`oneClick: false`（允许选目录）、`requestedExecutionLevel: "asInvoker"`（避免拖放文件失效）、安装前杀进程、卸载时询问是否删数据
-- **WSLg 下验证 Linux 包**：WSLg 启动 Electron 需追加 `--disable-gpu`（GPU 直通兼容性问题导致渲染进程 crash）和 `--disable-namespace-sandbox --disable-setuid-sandbox`（WSL2 PID namespace 隔离使 Chromium zygote 无法访问 /dev/shm，exitCode 133）。`main.cjs` 已处理 `--no-sandbox` 和 `AIASYS_DESKTOP_DISABLE_GPU=1`，namespace sandbox 参数需手动追加。仅在 WSLg 验证场景需要，真实 Linux 桌面不需要
+- **Linux sandbox 兼容**：Ubuntu 23.10+ 默认启用 AppArmor 并阻止 unprivileged user namespace，导致 Electron/Chromium zygote 初始化 FATAL。`main.cjs` 在 `require('electron')` 之前设置 `ELECTRON_DISABLE_SANDBOX=1`，并统一追加 `--no-sandbox`、`--disable-namespace-sandbox`、`--disable-setuid-sandbox`、`--disable-dev-shm-usage`，覆盖真实 Linux 桌面和 WSLg 场景，无需用户手动追加参数
 - **禁止删除 Electron 缓存**：`~/Library/Caches/electron/`（macOS）或 `~/.cache/electron/`（Linux）中缓存的 Electron 二进制不可随意删除。`npm install electron` 安装的是 npm 包（约 2MB 的 wrapper），实际 110MB+ 的 Electron Framework 二进制由 `postinstall` 下载并存入此缓存目录。`electron-builder` 打包时也从缓存读取，不会从 `node_modules/` 复制。清理后需再次花费数十分钟从 GitHub 下载，在网络受限环境中会导致构建反复失败
 
 ### 桌面 CI 发布产物
@@ -381,7 +381,7 @@ npm run dev        # 开发模式加载 http://localhost:13000
 注意点：
 - `node_modules` 不跨环境共享。WSL 侧的前端依赖和 Windows 侧的 desktop 依赖各自独立安装。
 - Electron 主进程代码在 WSL 里修改，Windows 侧通过 `\\wsl$\` 实时读取同一文件，修改后重启 Electron 即可。
-- 不要在 WSL 里跑 Electron GUI 做 Windows 行为验证。WSLg 能显示窗口，但行为和真实的 Windows 桌面环境不同，会掩盖真正的兼容性问题。Linux 桌面包可以在 WSLg 下做运行验证，但需追加 `--disable-gpu --disable-namespace-sandbox --disable-setuid-sandbox` 启动参数。
+- 不要在 WSL 里跑 Electron GUI 做 Windows 行为验证。WSLg 能显示窗口，但行为和真实的 Windows 桌面环境不同，会掩盖真正的兼容性问题。Linux 桌面包可以在 WSLg 下做运行验证，`main.cjs` 已自动处理 sandbox 参数，通常只需按需追加 `--disable-gpu`。
 
 **打包阶段：Windows 侧负责创建 Windows 产物**
 
@@ -427,8 +427,7 @@ npm run dist:linux:dir   # 生成 linux-unpacked 目录
 生成的包可在 WSLg 下启动验证：
 
 ```bash
-AIASYS_DESKTOP_DISABLE_GPU=1 ./dist/linux-unpacked/aiasys-desktop \
-  --disable-namespace-sandbox --disable-setuid-sandbox
+AIASYS_DESKTOP_DISABLE_GPU=1 ./dist/linux-unpacked/aiasys-desktop
 ```
 
 ### 三端支持要求

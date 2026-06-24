@@ -271,11 +271,13 @@ class ReadMediaFile(AiasysTool):
             )
 
         if file_type.kind == "image":
+            data = Path(as_system_path(host_path)).read_bytes()
+            data_url = _to_data_url(file_type.mime_type, data)
             content_parts: list[dict[str, Any]] = [
                 {"type": "text", "text": f"[image:{visible_path}]"},
                 {
                     "type": "image_url",
-                    "image_url": {"url": visible_path},
+                    "image_url": {"url": data_url},
                     "source_path": visible_path,
                 },
             ]

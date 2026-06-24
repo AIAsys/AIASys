@@ -10,13 +10,14 @@ from fastapi import HTTPException
 from starlette.datastructures import UploadFile
 
 from app.api.routes import skills as skills_route
+from app.core.config import RUNTIME_ROOT
 from app.models.user import UserInfo
 from app.skills.manager import SkillManager
 
 
-def test_skill_manager_store_dir_points_to_skills_store() -> None:
-    manager_file = Path(inspect.getfile(SkillManager)).resolve()
-    expected_dir = manager_file.parents[2] / "skills" / "store"
+def test_skill_manager_store_dir_points_to_runtime_root() -> None:
+    # 桌面打包模式下 AIASYS_RUNTIME_ROOT 指向用户可写目录，store 必须可写
+    expected_dir = RUNTIME_ROOT / "skills" / "store"
     assert SkillManager.SKILLS_STORE_DIR == expected_dir
     assert SkillManager.SKILLS_STORE_DIR.exists()
 

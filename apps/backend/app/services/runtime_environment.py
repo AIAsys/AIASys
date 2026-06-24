@@ -9,6 +9,7 @@ import re
 import subprocess
 import sys
 import tempfile
+import time
 from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -30,6 +31,10 @@ from app.models.runtime_environment import (
 from app.models.workspace import ExecutionResourceGroup, WorkspaceRuntimeBinding
 
 logger = logging.getLogger(__name__)
+
+# 服务重启后 _uv_sync_tasks 字典清空，但 env 状态可能仍为 syncing。
+# 超过此时间未更新的 syncing 状态视为 stale，自动标记为 error。
+_STALE_SYNC_TIMEOUT_SECONDS = 600  # 10 分钟
 
 
 DEFAULT_UV_ENV_ID = "workspace-default"
@@ -135,6 +140,39 @@ class RuntimeEnvironmentService:
 
             self.workspace_registry = WorkspaceRegistryService(self.workspace_root)
 
+    def _recover_stale_syncing_envs(self, workspace_dir: Path) -> None:
+        """恢复服务重启后残留的 syncing 状态。
+
+        服务重启后后台 sync 任务丢失，但 env registry 中可能仍标记为 syncing。
+        超过 _STALE_SYNC_TIMEOUT_SECONDS 的 syncing 状态视为 stale，自动标记为 error。
+        """
+        registry = self._read_registry(workspace_dir)
+        envs = registry.get("envs", [])
+        if not isinstance(envs, list):
+            return
+        changed = False
+        now = _now_iso()
+        for item in envs:
+            if not isinstance(item, dict):
+                continue
+            if item.get("status") != "syncing":
+                continue
+            updated_at = item.get("updated_at")
+            if not updated_at:
+                continue
+            try:
+                updated_dt = datetime.fromisoformat(updated_at)
+            except (ValueError, TypeError):
+                continue
+            if (datetime.now() - updated_dt).total_seconds() > _STALE_SYNC_TIMEOUT_SECONDS:
+                item["status"] = "error"
+                item["last_error"] = "后台同步中断（服务重启），请重试。"
+                item["updated_at"] = now
+                changed = True
+        if changed:
+            registry["updated_at"] = now
+            self._write_registry(workspace_dir, registry)
+
     def list_workspace_envs(
         self,
         user_id: str,
@@ -143,6 +181,7 @@ class RuntimeEnvironmentService:
         inspect: bool = True,
     ) -> WorkspaceRuntimeEnvRegistryResponse:
         workspace_dir = self._workspace_dir(user_id, workspace_id)
+        self._recover_stale_syncing_envs(workspace_dir)
         registry = self._read_registry(workspace_dir)
         envs = [
             (
@@ -176,6 +215,37 @@ class RuntimeEnvironmentService:
         create_venv: bool = False,
         sync: bool = False,
     ) -> tuple[WorkspaceRuntimeEnv, RuntimeEnvCommandResult | None]:
+        """同步完成 UV 环境准备（创建项目 + 可选 sync）。"""
+        workspace_dir = self._workspace_dir(user_id, workspace_id)
+        self._recover_stale_syncing_envs(workspace_dir)
+        env = self.prepare_uv_env(
+            user_id,
+            workspace_id,
+            env_id=env_id,
+            display_name=display_name,
+            python_version=python_version,
+            packages=packages,
+        )
+        if create_venv or sync:
+            return self.sync_uv_env(user_id, workspace_id, env_id=env.env_id)
+        inspected = self._inspect_uv_env(self._workspace_dir(user_id, workspace_id), env)
+        self._upsert_env(self._workspace_dir(user_id, workspace_id), inspected)
+        return inspected, None
+
+    def prepare_uv_env(
+        self,
+        user_id: str,
+        workspace_id: str,
+        *,
+        env_id: str = DEFAULT_UV_ENV_ID,
+        display_name: str = "Workspace UV",
+        python_version: str | None = None,
+        packages: list[str] | None = None,
+    ) -> WorkspaceRuntimeEnv:
+        """创建 pyproject/registry 并把状态标记为 syncing，不执行耗时 uv sync。
+
+        用于 HTTP 端点立即返回，避免 uv sync 阻塞 Uvicorn 事件循环。
+        """
         if not self.is_uv_available():
             # uv 缺失时自动安装，避免用户手动操作
             from app.core.uv_utils import install_uv, is_desktop_mode
@@ -227,8 +297,6 @@ class RuntimeEnvironmentService:
 
         if packages:
             _validate_package_names(packages)
-        result: RuntimeEnvCommandResult | None = None
-        if packages:
             result = self._run_uv(
                 ["uv", "add", "--no-sync", *packages],
                 cwd=env_dir,
@@ -236,17 +304,12 @@ class RuntimeEnvironmentService:
             if not result.ok:
                 raise RuntimeError(result.stderr or result.error or "uv add 失败")
 
-        if create_venv or sync:
-            result = self._run_uv(["uv", "sync"], cwd=env_dir)
-            if not result.ok:
-                raise RuntimeError(result.stderr or result.error or "uv sync 失败")
-
         existing = self._find_env(workspace_dir, env_id)
         env = WorkspaceRuntimeEnv(
             env_id=env_id,
             kind="uv",
             display_name=display_name.strip() or "Workspace UV",
-            status="registered",
+            status="syncing",
             active=bool(existing.active if existing else False),
             material_path=str(env_dir),
             python_version=python_version or self._read_python_version(env_dir),
@@ -259,6 +322,46 @@ class RuntimeEnvironmentService:
                 "pyproject": str(pyproject_path),
             },
         )
+        self._upsert_env(workspace_dir, env)
+        return env
+
+    def sync_uv_env(
+        self,
+        user_id: str,
+        workspace_id: str,
+        *,
+        env_id: str = DEFAULT_UV_ENV_ID,
+    ) -> tuple[WorkspaceRuntimeEnv, RuntimeEnvCommandResult | None]:
+        """执行 uv sync 并刷新环境状态。"""
+        env_id = _normalize_env_id(env_id, DEFAULT_UV_ENV_ID)
+        workspace_dir = self._workspace_dir(user_id, workspace_id)
+        env_dir = self._env_dir(workspace_dir)
+        result = self._run_uv(["uv", "sync"], cwd=env_dir)
+
+        existing = self._find_env(workspace_dir, env_id)
+        env = WorkspaceRuntimeEnv(
+            env_id=env_id,
+            kind="uv",
+            display_name=(existing.display_name if existing else "Workspace UV"),
+            status="registered",
+            active=bool(existing.active if existing else False),
+            material_path=str(env_dir),
+            python_version=self._read_python_version(env_dir),
+            python_executable=str(_python_bin_for_venv(env_dir / ".venv")),
+            created_at=existing.created_at if existing else _now_iso(),
+            updated_at=_now_iso(),
+            metadata={
+                **(existing.metadata if existing else {}),
+                "manager": "uv",
+                "pyproject": str(env_dir / "pyproject.toml"),
+            },
+        )
+        if not result.ok:
+            env.status = "error"
+            env.last_error = result.stderr or result.error or "uv sync 失败"
+            self._upsert_env(workspace_dir, env)
+            raise RuntimeError(env.last_error)
+
         inspected = self._inspect_uv_env(workspace_dir, env)
         self._upsert_env(workspace_dir, inspected)
         return inspected, result
@@ -509,10 +612,30 @@ class RuntimeEnvironmentService:
     def _write_registry(self, workspace_dir: Path, data: dict[str, Any]) -> None:
         path = self._registry_path(workspace_dir)
         os.makedirs(as_system_path(path.parent), exist_ok=True)
-        Path(as_system_path(path)).write_text(
-            json.dumps(data, indent=2, ensure_ascii=False),
-            encoding="utf-8",
-        )
+        json_data = json.dumps(data, indent=2, ensure_ascii=False)
+        fd, temp_path = tempfile.mkstemp(dir=as_system_path(path.parent), suffix=".tmp")
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                f.write(json_data)
+            last_error: Exception | None = None
+            for attempt in range(8):
+                try:
+                    os.replace(as_system_path(temp_path), as_system_path(path))
+                    break
+                except PermissionError as exc:
+                    last_error = exc
+                    if attempt == 7:
+                        raise
+                    time.sleep(0.015 * (2**attempt))
+            else:
+                if last_error is not None:
+                    raise last_error
+        except Exception:
+            try:
+                os.unlink(as_system_path(temp_path))
+            except FileNotFoundError:
+                pass
+            raise
 
     def _find_env(self, workspace_dir: Path, env_id: str) -> WorkspaceRuntimeEnv | None:
         registry = self._read_registry(workspace_dir)
@@ -604,6 +727,9 @@ class RuntimeEnvironmentService:
     def _run_uv(self, command: list[str], *, cwd: Path) -> RuntimeEnvCommandResult:
         env = dict(os.environ)
         env.setdefault("UV_CACHE_DIR", os.path.join(tempfile.gettempdir(), "uv-cache"))
+        # 禁止 Python 把当前工作目录加入 sys.path，避免工作区根目录下的源码文件夹
+        # shadow 已安装的包（如 numpy/pandas 源码目录）。
+        env.setdefault("PYTHONSAFEPATH", "1")
 
         # 确保 uv 可执行文件的目录在 PATH 中，避免桌面模式下后端 PATH 被截断
         from app.core.uv_utils import find_uv_binary

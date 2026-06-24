@@ -183,10 +183,17 @@ def test_wrap_uv_shell_command_uses_uv_project_and_workspace_directory(
     )
 
     assert cwd == workspace
-    assert f"uv run --project {project_dir}" in command
-    assert f"--directory {workspace}" in command
-    assert "sh -lc" in command
+    # Windows 上路径会被单引号包裹，断言时忽略引号差异
+    normalized_command = command.replace("'", "")
+    assert "uv run --project" in command
+    assert str(project_dir) in normalized_command
+    assert "--directory" in command
+    assert str(workspace) in normalized_command
     assert "python -c" in command
+    if os.name == "nt":
+        assert "powershell -NoProfile -Command" in command
+    else:
+        assert "sh -lc" in command
 
 
 @pytest.mark.skipif(os.name != "nt", reason="Windows Path 与文件系统行为只能在 Windows 真机验证")
@@ -253,10 +260,12 @@ def test_uv_kernel_spec_is_created_in_dynamic_kernel_dir(
     spec = json.loads(spec_path.read_text(encoding="utf-8"))
 
     assert kernel_name == "aiasys-uv-uv-env"
-    assert spec["argv"][:5] == [
+    assert spec["argv"][:7] == [
         "uv",
         "run",
         "--project",
+        str(tmp_path / "workspace" / "env"),
+        "--directory",
         str(tmp_path / "workspace" / "env"),
         "--with",
     ]

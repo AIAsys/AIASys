@@ -1099,6 +1099,10 @@ class SpawnMonitorTool(AiasysTool):
                 timeout = int(timeout)
             except (ValueError, TypeError):
                 timeout = None
+        # uv run 首次执行时可能需要数秒准备环境，避免 LLM 传入过小的 timeout
+        # 导致命令被过早 kill。设置 60 秒兜底，同时保留用户显式长超时。
+        if timeout is None or timeout < 60:
+            timeout = 60
         mode = str(kwargs.get("mode") or "notify").strip().lower()
         if mode not in ("notify", "silent"):
             mode = "notify"

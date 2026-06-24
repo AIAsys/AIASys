@@ -473,7 +473,9 @@ def hydrate_message_images(
                     image_url = part.get("image_url")
                     if isinstance(image_url, dict):
                         url = image_url.get("url", "")
-                        if isinstance(url, str) and url.startswith("file://"):
+                        if isinstance(url, str) and (
+                            url.startswith("file://") or _is_workspace_reference(url)
+                        ):
                             source_path = part.get("source_path", url)
                             try:
                                 host_path = _resolve_hydratable_image_path(
@@ -529,6 +531,8 @@ def _resolve_hydratable_image_path(
         candidates.append(source_path)
     if url.startswith("file://"):
         candidates.append(unquote(url[len("file://") :]))
+    elif _is_workspace_reference(url):
+        candidates.append(url)
 
     seen: set[str] = set()
     for raw_candidate in candidates:
@@ -563,7 +567,14 @@ def _resolve_hydratable_image_path(
 
 def _is_workspace_reference(raw_path: str) -> bool:
     candidate = str(raw_path or "").strip().replace("\\", "/")
-    return candidate.startswith("workspace:/") or candidate.startswith("/workspace/")
+    if candidate.startswith("workspace:/") or candidate.startswith("/workspace/"):
+        return True
+    # LLM 有时只返回文件名（如 industrial_analysis_dashboard.png），兜底视为工作区文件
+    # 但为了避免误判普通文件名或 URL，要求包含常见图片扩展名
+    if not candidate or "/" in candidate or ":" in candidate:
+        return False
+    lower = candidate.lower()
+    return lower.endswith((".png", ".jpg", ".jpeg", ".gif", ".webp"))
 
 
 def split_data_url(value: str) -> tuple[str | None, str | None]:
@@ -608,10 +619,21 @@ def _pick_image_path(
     source_path: Any,
     image_url: Any,
 ) -> str | None:
-    if isinstance(source_path, str) and source_path.startswith("/workspace/"):
-        return source_path
-    if isinstance(image_url, str) and image_url.startswith("/workspace/"):
-        return image_url
+    candidate = None
+    if isinstance(source_path, str):
+        candidate = source_path
+    elif isinstance(image_url, str):
+        candidate = image_url
+    if not candidate:
+        return None
+    candidate = str(candidate).strip().replace("\\", "/")
+    if candidate.startswith("/workspace/"):
+        return candidate
+    if candidate.startswith("workspace:/"):
+        return candidate[len("workspace:") :]
+    # LLM 有时只返回文件名，兜底补全为 /workspace/{filename}
+    if "/" not in candidate and ":" not in candidate:
+        return f"/workspace/{candidate}"
     return None
 
 

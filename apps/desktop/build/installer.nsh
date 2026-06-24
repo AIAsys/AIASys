@@ -15,7 +15,7 @@ RequestExecutionLevel admin
   StrCmp $R1 "Admin" hasAdmin
 
   ; Agent / 静默安装模式：跳过管理员权限提示
-  StrCmp $SILENT silentSkipAdmin
+  IfSilent silentSkipAdmin
 
   MessageBox MB_OK|MB_ICONINFORMATION "需要管理员权限才能自动启用 Windows 长路径支持。$\n请右键以管理员身份运行安装程序，或安装完成后手动设置注册表：$\nHKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\FileSystem$\nLongPathsEnabled = 1（DWORD）$\n修改后需要重启系统生效。"
   Goto longPathDone
@@ -56,7 +56,7 @@ checkProcess:
   StrCmp $R0 "0" 0 continueInstall
 
   ; Agent / 静默安装模式：自动关闭运行中的应用
-  StrCmp $SILENT silentCloseApp
+  IfSilent silentCloseApp
 
   MessageBox MB_OKCANCEL|MB_ICONEXCLAMATION "AIASys 正在运行。安装前需要关闭该应用。点击确定自动关闭并继续安装，点击取消退出安装程序。" IDOK closeApp IDCANCEL cancelInstall
 
@@ -92,7 +92,7 @@ continueInstall:
   ; 在卸载文件完成后，询问是否删除用户数据
   ; 注意：用户数据目录名由 Electron app name（package.json 的 name 字段）决定，
   ; 实际为 aiasys-desktop，不是 productName（AIASys），也不是带空格的 AIASys。
-  StrCmp $SILENT silentUninstallData
+  IfSilent silentUninstallData
 
   MessageBox MB_YESNO|MB_ICONQUESTION "是否同时删除用户数据（工作区文件、会话历史、日志、本地数据库）？选择「是」将彻底删除 %APPDATA%\aiasys-desktop 下的所有数据。选择「否」仅卸载程序，保留用户数据。" IDYES deleteData IDNO keepData
 
