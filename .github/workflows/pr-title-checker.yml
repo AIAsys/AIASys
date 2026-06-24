@@ -1,0 +1,27 @@
+name: PR Title Checker
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+jobs:
+  check-pr-title:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/pr-title-checker@v1
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          config: |
+            {
+              "LABEL": {
+                "name": "Invalid PR Title",
+                "color": "B60205"
+              },
+              "CHECKS": {
+                "regexp": "^(feat|fix|test|refactor|chore|style|docs|perf|build|ci|revert)(\(.*\))?:.*"
+              },
+              "MESSAGES": {
+                "failure": "The PR title is invalid. Please refer to https://www.conventionalcommits.org/en/v1.0.0/ for the convention. Format: type(scope): description"
+              }
+            }
