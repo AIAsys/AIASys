@@ -14,8 +14,6 @@ import threading
 from datetime import datetime
 from pathlib import Path
 from typing import Any, List, Optional
-
-from app.utils.path_utils import as_system_path
 from uuid import uuid4
 
 from app.models.session import (
@@ -36,6 +34,7 @@ from app.services.session.constants import (
 from app.services.session.files import FileSnapshotMixin
 from app.services.session.history import HistoryMixin
 from app.services.session.status import StatusMixin
+from app.utils.path_utils import as_system_path
 from app.utils.validators import validate_id
 
 logger = logging.getLogger(__name__)

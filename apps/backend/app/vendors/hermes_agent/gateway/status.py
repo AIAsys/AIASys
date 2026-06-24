@@ -18,12 +18,12 @@ import signal
 import subprocess
 import sys
 from datetime import datetime, timezone
-
-from app.core.subprocess_utils import subprocess_kwargs
 from pathlib import Path
 from typing import Any, Optional
 
 from hermes_constants import get_hermes_home
+
+from app.core.subprocess_utils import subprocess_kwargs
 
 _GATEWAY_KIND = "hermes-gateway"
 _RUNTIME_STATUS_FILE = "gateway_state.json"

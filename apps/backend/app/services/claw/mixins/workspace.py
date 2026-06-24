@@ -8,9 +8,8 @@ import re
 import shutil
 from pathlib import Path
 
-from app.utils.path_utils import as_system_path
-
 from app.models.claw import ClawAttachmentSummary
+from app.utils.path_utils import as_system_path
 
 from ._common import (
     _OUTBOUND_AIASYS_FILE_RE,

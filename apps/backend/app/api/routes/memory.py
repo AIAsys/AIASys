@@ -23,7 +23,6 @@ from app.api.routes.memory_schemas import (
 from app.core.auth import require_auth
 from app.core.config import WORKSPACE_DIR, get_user_global_memory_dir
 from app.models.user import UserInfo
-from app.utils.path_utils import as_system_path
 from app.services.memory.constants import (
     MAX_MEMORY_SIZE,
     MAX_SUMMARY_SIZE,
@@ -51,6 +50,7 @@ from app.services.memory.store import (
     MemoryStore,
 )
 from app.services.session.config_projection import read_runtime_config_state
+from app.utils.path_utils import as_system_path
 from app.utils.validators import validate_id
 
 router = APIRouter(prefix="/memory", tags=["memory"])

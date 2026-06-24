@@ -15,8 +15,6 @@ from collections import OrderedDict
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from app.utils.path_utils import as_system_path
-
 import jieba
 
 from app.core.sqlite_vec import ensure_vec_extension
@@ -24,6 +22,7 @@ from app.core.time import utc_now_naive
 from app.document_extraction import get_document_extraction_service
 from app.knowledge.models import DocumentStatus
 from app.services.llm import get_llm_config_service
+from app.utils.path_utils import as_system_path
 
 from .embedder import BaseEmbedder, OpenAIEmbedder
 from .models import (

@@ -8,13 +8,12 @@ from io import BytesIO
 from pathlib import Path
 from typing import Optional, Sequence
 
-from app.utils.path_utils import as_system_path
-
 from app.core.config import (
     DOCUMENT_EXTRACTION_DEFAULT_MODE,
     DOCUMENT_EXTRACTION_FALLBACK_MODES,
     DOCUMENT_EXTRACTION_PDF_PASSWORD,
 )
+from app.utils.path_utils import as_system_path
 
 from .models import (
     DocumentExtractionMode,

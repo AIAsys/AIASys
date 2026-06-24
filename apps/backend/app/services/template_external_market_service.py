@@ -11,8 +11,6 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any
 
-from app.utils.path_utils import as_system_path
-
 from app.core.templates import (
     _get_user_templates_dir,
     _is_safe_template_id,
@@ -26,6 +24,7 @@ from app.models.external_template_market import (
     ExternalTemplateMarketListResponse,
     ExternalTemplateMarketSource,
 )
+from app.utils.path_utils import as_system_path
 
 logger = logging.getLogger(__name__)
 

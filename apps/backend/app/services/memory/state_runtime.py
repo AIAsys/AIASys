@@ -14,13 +14,12 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
 
-from app.utils.path_utils import as_system_path
-
 from app.services.memory.constants import (
     USER_DEFAULT_GLOBAL_WORKSPACE_SCOPE,
     is_user_default_global_workspace_scope,
     normalize_memory_scope_key,
 )
+from app.utils.path_utils import as_system_path
 
 Stage1JobClaimStatus = Literal["claimed", "already_done", "leased", "throttled"]
 

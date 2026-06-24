@@ -13,7 +13,6 @@ from pydantic import BaseModel, Field, SecretStr, field_validator
 logger = logging.getLogger(__name__)
 
 from app.core.auth import get_current_user
-from app.utils.llm_url_validator import validate_llm_base_url
 from app.models.llm_provider import (
     FetchModelsResult,
     LLMModelConfig,
@@ -28,6 +27,7 @@ from app.models.llm_provider import (
 )
 from app.models.user import UserInfo
 from app.services.llm import LLMConfigService, get_llm_config_service
+from app.utils.llm_url_validator import validate_llm_base_url
 
 router = APIRouter(prefix="/llm", tags=["llm-config"])
 

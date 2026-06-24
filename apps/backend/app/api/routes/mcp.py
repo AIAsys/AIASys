@@ -11,6 +11,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
+from app.api.routes._mcp_validation import validate_stdio_command
 from app.core.auth import get_current_user
 from app.core.config import WORKSPACE_DIR
 from app.mcp import get_mcp_manager
@@ -27,7 +28,6 @@ from app.models.mcp import (
     MCPServerConfig,
 )
 from app.models.user import UserInfo
-from app.api.routes._mcp_validation import validate_stdio_command
 from app.services.llm import get_mcp_config_service
 from app.services.llm.mcp_session_service import _resolve_env_placeholders
 from app.services.mcp_external_market_service import get_external_mcp_market_service

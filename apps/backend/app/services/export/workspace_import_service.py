@@ -5,7 +5,6 @@
 
 from __future__ import annotations
 
-import io
 import json
 import os
 import shutil
@@ -13,7 +12,7 @@ import tempfile
 import zipfile
 from datetime import datetime
 from pathlib import Path
-from typing import Any, BinaryIO, Dict, Tuple
+from typing import Any, Dict, Tuple
 
 from app.core.config import WORKSPACE_DIR
 from app.services.workspace_registry import WorkspaceRegistryService

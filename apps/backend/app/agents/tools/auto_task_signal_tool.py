@@ -10,7 +10,8 @@ from typing import Any
 
 from app.core.agent_tool import AiasysTool
 from app.core.tool_result import ToolResult
-from app.models.session import SessionMetadata, AutoTaskSignal as AutoTaskSignalModel
+from app.models.session import AutoTaskSignal as AutoTaskSignalModel
+from app.models.session import SessionMetadata
 from app.utils.path_utils import as_system_path
 
 logger = logging.getLogger(__name__)

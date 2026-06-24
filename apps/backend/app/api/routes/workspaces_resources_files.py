@@ -150,6 +150,7 @@ def _sys_path(path: Path) -> str:
     """将 Path 转为带 Windows 长路径前缀的系统 IO 路径字符串。"""
     return as_system_path(path)
 
+
 def _resolve_unique_file_path(file_path: Path) -> Path:
     """如果文件已存在，返回带 -1、-2 ... 后缀的唯一路径。"""
     if not file_path.exists():
@@ -163,7 +164,6 @@ def _resolve_unique_file_path(file_path: Path) -> Path:
         if not candidate.exists():
             return candidate
         counter += 1
-
 
 
 def _is_pruned_workspace_path(relative_path: str) -> bool:

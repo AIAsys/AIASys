@@ -1,3 +1,4 @@
+import io
 import logging
 import os
 
@@ -7,7 +8,6 @@ from fastapi.responses import FileResponse, StreamingResponse
 from app.core.auth import require_auth
 from app.core.config import WORKSPACE_DIR
 from app.models.user import UserInfo
-from app.utils.file_utils import sanitize_content_disposition_filename
 from app.services.export import (
     SessionExportNotFoundError,
     SessionExportScope,
@@ -17,6 +17,7 @@ from app.services.export import (
 )
 from app.services.session import SessionManager
 from app.services.workspace_registry import WorkspaceRegistryService
+from app.utils.file_utils import sanitize_content_disposition_filename
 
 logger = logging.getLogger(__name__)
 session_manager = SessionManager(WORKSPACE_DIR)

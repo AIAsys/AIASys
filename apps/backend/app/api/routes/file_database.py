@@ -13,14 +13,13 @@ import sqlite3
 from pathlib import Path
 from typing import Any
 
-from app.utils.path_utils import as_system_path
-
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from app.core.auth import require_auth
 from app.core.config import get_user_global_workspace_dir
 from app.models.user import UserInfo
+from app.utils.path_utils import as_system_path
 
 from .files_utils import (
     _check_user_access,

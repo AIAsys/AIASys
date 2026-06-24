@@ -13,8 +13,6 @@ import shutil
 import tomllib
 from datetime import datetime
 from pathlib import Path
-
-from app.utils.path_utils import as_system_path
 from typing import Dict, List, Literal, Optional, Tuple
 
 from app.core.config import WORKSPACE_DIR
@@ -44,6 +42,7 @@ from app.services.runtime_tooling import (
     canonicalize_runtime_tool_name,
     probe_runtime_tool,
 )
+from app.utils.path_utils import as_system_path
 
 logger = logging.getLogger(__name__)
 

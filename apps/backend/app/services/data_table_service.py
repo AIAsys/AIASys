@@ -13,8 +13,9 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
-from app.utils.path_utils import as_system_path
 from pydantic import BaseModel, Field
+
+from app.utils.path_utils import as_system_path
 
 logger = logging.getLogger(__name__)
 

@@ -18,8 +18,8 @@ from pathlib import Path
 import httpx
 
 from app.core.config import DATA_DIR, RUNTIME_ROOT
-from app.core.subprocess_utils import subprocess_kwargs
 from app.core.encoding_utils import smart_decode
+from app.core.subprocess_utils import subprocess_kwargs
 from app.core.uv_utils import find_uv_binary, get_uv_version
 from app.services.shell_executor import ShellExecutor, get_shell_executor
 from app.utils.path_utils import as_system_path

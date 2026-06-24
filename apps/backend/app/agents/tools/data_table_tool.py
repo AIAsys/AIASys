@@ -8,8 +8,6 @@ import sqlite3
 from pathlib import Path
 from typing import Any, Literal
 
-from app.utils.path_utils import as_system_path
-
 from pydantic import BaseModel, Field, field_validator
 
 from app.core.agent_tool import AiasysTool
@@ -27,6 +25,7 @@ from app.services.data_table_service import (
     update_data_table_record,
 )
 from app.services.history import current_global_workspace, current_workspace
+from app.utils.path_utils import as_system_path
 
 logger = logging.getLogger(__name__)
 

@@ -10,14 +10,13 @@ from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List
 
-from app.utils.path_utils import as_system_path
-
 from app.core.config import WORKSPACE_DIR
 from app.services.agent.utils import get_work_dir
 from app.services.history import (
     apply_display_content_to_history,
     load_display_history_entries,
 )
+from app.utils.path_utils import as_system_path
 
 
 def _get_workspace_dir_for_session(user_id: str, session_id: str) -> Path:

@@ -14,13 +14,12 @@ import uuid
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, TypeVar
 
-from app.utils.path_utils import as_system_path
-
 import networkx as nx
 
 from app.core.config import (
     get_user_global_resources_dir,  # 保留用于 _legacy_db_path_for 和 _scan_graph_dirs 兼容旧数据扫描
 )
+from app.utils.path_utils import as_system_path
 
 from ..models.entity import Entity
 from ..models.relation import Relation
