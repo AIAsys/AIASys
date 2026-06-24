@@ -1,0 +1,193 @@
+name: PR Auto Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  auto-review:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v8.2.0
+        with:
+          enable-cache: true
+          cache-dependency-glob: "apps/backend/uv.lock"
+
+      - name: Install backend deps
+        run: |
+          cd apps/backend
+          uv python install 3.12
+          uv venv --python 3.12
+          uv sync --frozen
+
+      - name: Backend lint check
+        id: backend-lint
+        run: |
+          cd apps/backend
+          
+          FORMAT_FAILED="false"
+          CHECK_FAILED=""
+          FIX_CMDS=""
+          
+          if ! uv run ruff format --check app/ > /dev/null 2>&1; then
+            FORMAT_FAILED="true"
+            FIX_CMDS="cd apps/backend && uv run ruff format app/"
+          fi
+          
+          if ! uv run ruff check app/ > /dev/null 2>&1; then
+            CHECK_FAILED="ruff check"
+            FIX_CMDS="${FIX_CMDS:+${FIX_CMDS}
+}cd apps/backend && uv run ruff check --fix app/"
+          fi
+          
+          if ! uv run pylint --disable=R,C --exit-zero app/ > /dev/null 2>&1; then
+            CHECK_FAILED="${CHECK_FAILED:+${CHECK_FAILED}, }pylint"
+          fi
+          
+          echo "$FORMAT_FAILED" > format-failed.txt
+          echo "$CHECK_FAILED" > check-failed.txt
+          printf '%s' "$FIX_CMDS" > fix-cmds.txt
+        continue-on-error: true
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: apps/web/package-lock.json
+
+      - name: Web lint check
+        id: web-lint
+        run: |
+          cd apps/web
+          npm ci
+          
+          FAILED="false"
+          FIX_CMD=""
+          
+          if ! npm run lint; then
+            FAILED="true"
+            FIX_CMD="cd apps/web && npm run lint -- --fix"
+          fi
+          
+          echo "$FAILED" > web-failed.txt
+          echo "$FIX_CMD" > web-fix.txt
+        continue-on-error: true
+
+      - name: Security baseline check
+        id: security-check
+        run: |
+          BASE_REF="origin/${{ github.base_ref }}"
+          
+          SENSITIVE=()
+          DEBUG=()
+          
+          mapfile -t sensitive < <(git diff --name-only $BASE_REF...HEAD 2>/dev/null | grep -E '\.(env|pem|key|p12|pfx)$|(^|/)\.env$|^secrets/' || true)
+          
+          mapfile -t debug < <(git diff --name-only $BASE_REF...HEAD 2>/dev/null | grep -E '^apps/.*/(verify-|test-|inspect-).*\.(py|js|cjs|mjs|ts|ps1|sh)$' || true)
+          
+          printf '%s\n' "${sensitive[@]}" > sensitive-files.txt
+          printf '%s\n' "${debug[@]}" > debug-files.txt
+        continue-on-error: true
+
+      - name: Post auto-review comment
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const fs = require('fs');
+            
+            const formatFailed = fs.readFileSync('format-failed.txt', 'utf8').trim();
+            const checkFailed = fs.readFileSync('check-failed.txt', 'utf8').trim();
+            const fixCmds = fs.readFileSync('fix-cmds.txt', 'utf8').trim();
+            const webFailed = fs.readFileSync('web-failed.txt', 'utf8').trim();
+            const webFix = fs.readFileSync('web-fix.txt', 'utf8').trim();
+            const sensitive = fs.readFileSync('sensitive-files.txt', 'utf8').trim().split('\n').filter(Boolean);
+            const debug = fs.readFileSync('debug-files.txt', 'utf8').trim().split('\n').filter(Boolean);
+            
+            let body = "## PR Auto Review\n\n";
+            let hasIssues = false;
+            
+            const backendChecks = [];
+            if (formatFailed === 'true') backendChecks.push('ruff format');
+            if (checkFailed) backendChecks.push(...checkFailed.split(', '));
+            
+            if (backendChecks.length > 0) {
+              hasIssues = true;
+              body += "### Backend Lint\n\n";
+              body += "| Check | Status |\n|---|---|\n";
+              for (const check of backendChecks) {
+                body += "| " + check + " | ❌ Failed |\n";
+              }
+              if (fixCmds) {
+                body += "\n**Suggested fix commands:**\n```bash\n" + fixCmds + "\n```\n";
+              }
+              body += "\n";
+            }
+            
+            if (webFailed === 'true') {
+              hasIssues = true;
+              body += "### Web Lint\n\n";
+              body += "| Check | Status |\n|---|---|\n";
+              body += "| npm run lint | ❌ Failed |\n";
+              if (webFix) {
+                body += "\n**Suggested fix:**\n```bash\n" + webFix + "\n```\n";
+              }
+              body += "\n";
+            }
+            
+            if (sensitive.length > 0) {
+              hasIssues = true;
+              body += "### Security Baseline\n\n";
+              body += "⚠️ **Sensitive files detected:**\n";
+              for (const file of sensitive) {
+                body += "- `" + file + "`\n";
+              }
+              body += "\nPlease review before merging.\n\n";
+            }
+            
+            if (debug.length > 0) {
+              hasIssues = true;
+              body += "### Debug Files\n\n";
+              body += "⚠️ **Debug/temp files detected:**\n";
+              for (const file of debug) {
+                body += "- `" + file + "`\n";
+              }
+              body += "\nPlease remove before merging.\n\n";
+            }
+            
+            if (!hasIssues) {
+              body += "✅ All automated checks passed. No issues found.\n";
+            }
+            
+            const { data: comments } = await github.rest.issues.listComments({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+            });
+            
+            const botComment = comments.find(c => c.user.type === 'Bot' && c.body.includes('## PR Auto Review'));
+            
+            if (botComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body: body
+              });
+            } else {
+              await github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: body
+              });
+            }

@@ -1,0 +1,28 @@
+name: PR Title Checker
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+jobs:
+  check-pr-title:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Check PR title format
+        shell: bash
+        run: |
+          TITLE="${{ github.event.pull_request.title }}"
+          
+          # Conventional Commits regex: type(scope): description
+          # Types: feat, fix, test, refactor, chore, style, docs, perf, build, ci, revert
+          if [[ ! "$TITLE" =~ ^(feat|fix|test|refactor|chore|style|docs|perf|build|ci|revert)(\(.+\))?:\ .+ ]]; then
+            echo "::error title=Invalid PR Title::PR title does not follow Conventional Commits format."
+            echo "Title: $TITLE"
+            echo "Expected format: type(scope): description"
+            echo "Example: fix(workspace): avoid overwrite on duplicate uploads"
+            exit 1
+          fi
+          
+          echo "PR title is valid: $TITLE"
