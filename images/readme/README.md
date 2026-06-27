@@ -30,11 +30,19 @@
 | `demo-006-autotask-monitoring-overview.png` | AutoTask 自动化任务总览 | 2026-06-19 | 可用 |
 | `demo-model-config-panel.png` | 模型配置弹窗（默认模型 + 服务商） | 2026-06-21 | 已更新至 v0.4.23 |
 | `demo-pdf-translation-dual.png` | PDF 翻译产物与过程说明 | 2026-06-22 | 已更新至 v0.4.23，高分辨率 2x |
+| `panel-skill-management.png` | 「技能管理-已安装技能」页 | 2026-06-26 | v0.4.27 |
+| `panel-skill-management-2.png` | 「技能管理-外部技能市场」页 | 2026-06-26 | v0.4.27 |
+| `panel-monitor.png` | 监控任务面板 | 2026-06-26 | v0.4.27 |
+| `context window.png` | 上下文预算窗口 | 2026-06-26 | v0.4.27 |
+| `channel management.png` | 「频道管理」页 | 2026-06-26 | v0.4.27 |
+| `add_new_workspace.png` | 「新建工作区」页 | 2026-06-26 | v0.4.27 |
+| `save_as_self-defined_template.png` | 将工作区导出为自定义模板 | 2026-06-26 | v0.4.27 |
+| `demo-identity-image.png` |图像识别结果 | 2026-06-26 | v0.4.27 |
+| `demo-identity-image.png` |图表识别过程和产物 | 2026-06-26 | v0.4.27 |
 
 ## 待补充图（后续可补）
 
 - 能力市场 / MCP 市场 / Skill 市场入口
-- 监控任务（Monitor）面板
 - 终端面板
 - 桌面版系统托盘与原生窗口（Windows/macOS/Linux）
 
