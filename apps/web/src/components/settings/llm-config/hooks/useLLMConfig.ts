@@ -40,7 +40,7 @@ export type LoadingState = {
 };
 
 export interface UseLLMConfigOptions {
-  onModelsChange?: () => void;
+  onModelsChange?: () => void | Promise<void>;
 }
 
 export function useLLMConfig(options: UseLLMConfigOptions = {}) {
@@ -212,13 +212,14 @@ export function useLLMConfig(options: UseLLMConfigOptions = {}) {
       await deleteProvider(deleteProviderTarget);
       setSuccess("删除成功");
       await loadData();
+      await onModelsChange?.();
     } catch (err) {
       setError(err instanceof Error ? err.message : "删除失败");
     } finally {
       setLoading((prev) => ({ ...prev, delete: null }));
       setDeleteProviderTarget(null);
     }
-  }, [deleteProviderTarget, loadData]);
+  }, [deleteProviderTarget, loadData, onModelsChange]);
 
   // Model 操作
   const handleSaveModel = useCallback(async () => {
