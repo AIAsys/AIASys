@@ -241,7 +241,7 @@ curl -X PUT http://localhost:13001/api/sessions/default/session-id/budget \
 
 列出所有已配置的模型。
 
-### `POST /api/llm/models/{model_id}/default`
+### `POST /api/llm/models/by-id/default?model_id={model_id}`
 
 设为默认模型。
 

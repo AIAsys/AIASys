@@ -95,8 +95,10 @@ LLM 配置路由挂在 `/api/llm` 下。
 | `DELETE` | `/api/llm/providers/{provider_id}` | 删除服务商，并删除关联模型 |
 | `GET` | `/api/llm/models` | 列出模型 |
 | `POST` | `/api/llm/models` | 创建模型 |
-| `PATCH` | `/api/llm/models/{model_id}` | 更新模型 |
-| `DELETE` | `/api/llm/models/{model_id}` | 删除模型 |
+| `GET` | `/api/llm/models/by-id?model_id={model_id}` | 获取模型详情 |
+| `PATCH` | `/api/llm/models/by-id?model_id={model_id}` | 更新模型 |
+| `DELETE` | `/api/llm/models/by-id?model_id={model_id}` | 删除模型 |
+| `POST` | `/api/llm/models/by-id/default?model_id={model_id}` | 设为默认模型 |
 | `POST` | `/api/llm/providers/{provider_id}/test` | 测试服务商连接 |
 | `POST` | `/api/llm/providers/{provider_id}/fetch_models` | 从服务商获取模型列表 |
 | `POST` | `/api/llm/defaults` | 设置默认 Chat / Embedding 模型 |
