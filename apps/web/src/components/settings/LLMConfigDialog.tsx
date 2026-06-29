@@ -16,7 +16,7 @@ import LLMConfigPanel from "./llm-config";
 interface LLMConfigDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onModelsChange?: () => void;
+  onModelsChange?: () => void | Promise<void>;
 }
 
 export function LLMConfigDialog({
