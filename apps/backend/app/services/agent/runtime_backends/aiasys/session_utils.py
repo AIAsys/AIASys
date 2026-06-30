@@ -43,6 +43,38 @@ def safe_parse_json(raw_text: str) -> dict[str, Any]:
     return {"value": parsed}
 
 
+def parse_tool_arguments_json(raw_text: str) -> tuple[dict[str, Any], str | None]:
+    """Parse final tool arguments JSON with a repair fallback for recoverable model output."""
+
+    raw = raw_text or "{}"
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError as strict_error:
+        stripped = raw.strip()
+        if "{" not in stripped and "[" not in stripped:
+            logger.warning("解析 tool arguments 失败: %s raw=%s", strict_error, stripped[:200])
+            return {}, str(strict_error)
+        try:
+            import json_repair
+
+            parsed = json_repair.loads(raw)
+        except Exception as repair_error:
+            logger.warning(
+                "解析 tool arguments 失败: strict=%s repair=%s raw=%s",
+                strict_error,
+                repair_error,
+                stripped[:200],
+            )
+            return {}, str(strict_error)
+        if parsed in ("", None) and stripped:
+            logger.warning("JSON repair 未能恢复 tool arguments: raw=%s", stripped[:200])
+            return {}, str(strict_error)
+
+    if isinstance(parsed, dict):
+        return parsed, None
+    return {"value": parsed}, None
+
+
 def extract_usage_counts(usage: Any) -> tuple[int, int]:
     if not isinstance(usage, dict):
         return 0, 0

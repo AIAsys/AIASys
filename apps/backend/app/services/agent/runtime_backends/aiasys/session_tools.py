@@ -21,6 +21,8 @@ from app.services.history import (
 )
 from app.services.session import PLAN_MODE_ALLOWED_TOOL_NAMES, SessionTaskPlanStore
 
+from .session_utils import parse_tool_arguments_json
+
 logger = logging.getLogger(__name__)
 
 
@@ -181,9 +183,8 @@ class SessionToolsMixin:
     def _safe_parse_arguments(
         self, tool_name: str, arguments_text: str
     ) -> tuple[dict[str, Any], str | None]:
-        try:
-            parsed = json.loads(arguments_text or "{}")
-        except json.JSONDecodeError:
+        parsed, parse_error = parse_tool_arguments_json(arguments_text)
+        if parse_error:
             schema = self._tool_registry.get_tool(tool_name)
             schema_hint = schema.parameter_schema() if schema is not None else {"type": "object"}
             error_msg = (
@@ -191,9 +192,7 @@ class SessionToolsMixin:
                 f"Expected schema: {json.dumps(schema_hint, ensure_ascii=False)}"
             )
             return {}, error_msg
-        if isinstance(parsed, dict):
-            return parsed, None
-        return {"value": parsed}, None
+        return parsed, None
 
     def _check_loop_detection(self, tool_name: str, arguments: Any = "") -> str | None:
         """渐进式循环检测：先警告，后阻塞。
