@@ -260,12 +260,17 @@ export async function getModels(enabledOnly = false, providerId?: string): Promi
   return apiRequest("GET", endpoint, undefined);
 }
 
+function getModelByIdEndpoint(id: string, suffix = ""): string {
+  const params = new URLSearchParams({ model_id: id });
+  return `/api/llm/models/by-id${suffix}?${params.toString()}`;
+}
+
 /**
  * 获取模型详情
  */
 export async function getModel(
   id: string): Promise<LLMModelConfig> {
-  return apiRequest("GET", `/api/llm/models/${id}`, undefined);
+  return apiRequest("GET", getModelByIdEndpoint(id), undefined);
 }
 
 /**
@@ -282,7 +287,7 @@ export async function createModel(
 export async function updateModel(
   id: string,
   updates: Partial<Omit<LLMModelConfig, "id" | "created_at" | "updated_at">>): Promise<LLMModelConfig> {
-  return apiRequest("PATCH", `/api/llm/models/${id}`, updates);
+  return apiRequest("PATCH", getModelByIdEndpoint(id), updates);
 }
 
 /**
@@ -290,7 +295,7 @@ export async function updateModel(
  */
 export async function deleteModel(
   id: string): Promise<{ success: boolean }> {
-  return apiRequest("DELETE", `/api/llm/models/${id}`, undefined);
+  return apiRequest("DELETE", getModelByIdEndpoint(id), undefined);
 }
 
 /**
@@ -298,7 +303,7 @@ export async function deleteModel(
  */
 export async function setDefaultModel(
   id: string): Promise<LLMModelConfig> {
-  return apiRequest("POST", `/api/llm/models/${id}/default`, undefined)
+  return apiRequest("POST", getModelByIdEndpoint(id, "/default"), undefined)
 }
 
 export async function getModelDefaults(): Promise<LLMModelDefaults> {

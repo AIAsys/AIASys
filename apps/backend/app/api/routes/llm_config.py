@@ -13,7 +13,6 @@ from pydantic import BaseModel, Field, SecretStr, field_validator
 logger = logging.getLogger(__name__)
 
 from app.core.auth import get_current_user
-from app.utils.llm_url_validator import validate_llm_base_url
 from app.models.llm_provider import (
     FetchModelsResult,
     LLMModelConfig,
@@ -28,6 +27,7 @@ from app.models.llm_provider import (
 )
 from app.models.user import UserInfo
 from app.services.llm import LLMConfigService, get_llm_config_service
+from app.utils.llm_url_validator import validate_llm_base_url
 
 router = APIRouter(prefix="/llm", tags=["llm-config"])
 
@@ -309,9 +309,9 @@ async def list_models(
     }
 
 
-@router.get("/models/{model_id}", response_model=ModelConfigResponse)
+@router.get("/models/by-id", response_model=ModelConfigResponse)
 async def get_model(
-    model_id: str,
+    model_id: str = Query(..., min_length=1, description="模型配置唯一标识"),
     user: UserInfo = Depends(get_current_user),
     service: LLMConfigService = Depends(get_service),
 ) -> ModelConfigResponse:
@@ -369,10 +369,10 @@ async def create_model(
         raise HTTPException(status_code=400, detail="Invalid provider configuration") from e
 
 
-@router.patch("/models/{model_id}", response_model=ModelConfigResponse)
+@router.patch("/models/by-id", response_model=ModelConfigResponse)
 async def update_model(
-    model_id: str,
     request: UpdateModelRequest,
+    model_id: str = Query(..., min_length=1, description="模型配置唯一标识"),
     user: UserInfo = Depends(get_current_user),
     service: LLMConfigService = Depends(get_service),
 ) -> ModelConfigResponse:
@@ -405,9 +405,9 @@ async def update_model(
     return _model_to_response(result)
 
 
-@router.delete("/models/{model_id}")
+@router.delete("/models/by-id")
 async def delete_model(
-    model_id: str,
+    model_id: str = Query(..., min_length=1, description="模型配置唯一标识"),
     user: UserInfo = Depends(get_current_user),
     service: LLMConfigService = Depends(get_service),
 ) -> Dict[str, bool]:
@@ -421,9 +421,9 @@ async def delete_model(
     return {"success": True}
 
 
-@router.post("/models/{model_id}/default", response_model=ModelConfigResponse)
+@router.post("/models/by-id/default", response_model=ModelConfigResponse)
 async def set_default_model(
-    model_id: str,
+    model_id: str = Query(..., min_length=1, description="模型配置唯一标识"),
     user: UserInfo = Depends(get_current_user),
     service: LLMConfigService = Depends(get_service),
 ) -> ModelConfigResponse:

@@ -23,7 +23,7 @@ import { ProviderCard } from "./components/ProviderCard";
 import { DeleteConfirmDialog } from "./components/DeleteConfirmDialog";
 
 interface LLMConfigPanelProps {
-  onModelsChange?: () => void;
+  onModelsChange?: () => void | Promise<void>;
 }
 
 const NO_DEFAULT_MODEL = "__none__";
