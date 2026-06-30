@@ -1,6 +1,6 @@
 # AIASys 快速启动指南
 
-> 当前版本: v0.4.23
+> 当前版本: v0.4.27
 
 本指南用于帮助新协作者把当前仓库跑起来。当前后端运行配置使用 `apps/backend/config.toml`，前端默认从 `13000` 访问后端 `13001`。
 
@@ -255,3 +255,7 @@ npm run dev
 - 分析工作区：`http://localhost:13000/workspace`
 
 分析工作区是当前主界面，左侧 Activity Bar 默认提供当前工作区、全局工作区、数据查询、文件搜索、专家协作节点、文件变更六个入口；自动化任务、监控任务、终端、环境变量、能力管理等通过工作区工具菜单或设置面板进入。右侧聊天侧栏用于与 Agent 对话和查看执行上下文。
+
+![AIASys 首页和工作区入口](../../../images/readme/home-hero.png)
+
+![AIASys 工作区三栏布局](../../../images/readme/workspace-layout.png)
