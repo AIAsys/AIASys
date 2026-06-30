@@ -30,7 +30,8 @@
   <a href="docs/guides/getting-started/QUICKSTART.md">快速开始</a> ·
   <a href="docs/guides/getting-started/SYSTEM_USAGE.md">使用指南</a> ·
   <a href="docs/README.md">文档中心</a> ·
-  <a href="docs/changelog">更新日志</a>
+  <a href="docs/changelog">更新日志</a> ·
+  <a href="http://aiasys.cn/">官方网站</a>
 </p>
 
 ---
