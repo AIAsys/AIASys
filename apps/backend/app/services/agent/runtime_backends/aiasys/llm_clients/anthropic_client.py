@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 # Adaptive thinking was introduced with Opus 4.6 / Sonnet 4.6.
 _ADAPTIVE_MIN_VERSION: tuple[int, int] = (4, 6)
 _FAMILY_VERSION_RE = re.compile(r"(?:opus|sonnet|haiku)[.-](\d+)[.-](\d{1,2})(?!\d)")
-_ADAPTIVE_MARKERS: tuple[str, ...] = ("mythos",)
+_ADAPTIVE_MARKERS: tuple[str, ...] = ("fable-5", "mythos", "sonnet-5")
 
 
 def _supports_adaptive_thinking(model: str) -> bool:

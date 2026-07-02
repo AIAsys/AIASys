@@ -52,6 +52,58 @@ def test_openai_chat_disabled_uses_reasoning_effort_none() -> None:
     assert kwargs["reasoning_effort"] == "none"
 
 
+def test_openai_gpt_5_pro_uses_high_reasoning_effort_only() -> None:
+    kwargs: dict = {}
+
+    apply_openai_chat_thinking_options(
+        kwargs,
+        LlmRequestOptions(thinking_enabled=True, thinking_effort="low"),
+        base_url="https://api.openai.com/v1",
+        model="gpt-5-pro",
+    )
+
+    assert kwargs["reasoning_effort"] == "high"
+
+
+def test_openai_gpt_5_pro_disabled_keeps_required_high_reasoning_effort() -> None:
+    kwargs: dict = {}
+
+    apply_openai_chat_thinking_options(
+        kwargs,
+        LlmRequestOptions(thinking_disabled=True),
+        base_url="https://api.openai.com/v1",
+        model="gpt-5-pro",
+    )
+
+    assert kwargs["reasoning_effort"] == "high"
+
+
+def test_openai_older_gpt_5_disabled_does_not_send_unsupported_none() -> None:
+    kwargs: dict = {}
+
+    apply_openai_chat_thinking_options(
+        kwargs,
+        LlmRequestOptions(thinking_disabled=True),
+        base_url="https://api.openai.com/v1",
+        model="gpt-5",
+    )
+
+    assert "reasoning_effort" not in kwargs
+
+
+def test_openai_older_gpt_5_clamps_unsupported_reasoning_effort() -> None:
+    kwargs: dict = {}
+
+    apply_openai_chat_thinking_options(
+        kwargs,
+        LlmRequestOptions(thinking_enabled=True, thinking_effort="xhigh"),
+        base_url="https://api.openai.com/v1",
+        model="gpt-5",
+    )
+
+    assert kwargs["reasoning_effort"] == "medium"
+
+
 def test_qwen_chat_uses_enable_thinking_extra_body() -> None:
     kwargs: dict = {}
 
@@ -71,6 +123,80 @@ def test_qwen_chat_uses_enable_thinking_extra_body() -> None:
     assert kwargs["extra_body"]["thinking_budget"] == 8192
 
 
+def test_siliconflow_qwen_vl_thinking_does_not_send_enable_thinking() -> None:
+    kwargs: dict = {}
+
+    apply_openai_chat_thinking_options(
+        kwargs,
+        LlmRequestOptions(
+            thinking_enabled=True,
+            thinking_effort="high",
+            thinking_budget_tokens=8192,
+        ),
+        base_url="https://api.siliconflow.cn/v1",
+        model="Qwen/Qwen3-VL-30B-A3B-Thinking",
+    )
+
+    assert kwargs == {}
+
+
+def test_siliconflow_supported_qwen_can_use_enable_thinking() -> None:
+    kwargs: dict = {}
+
+    apply_openai_chat_thinking_options(
+        kwargs,
+        LlmRequestOptions(
+            thinking_enabled=True,
+            thinking_effort="high",
+            thinking_budget_tokens=8192,
+        ),
+        base_url="https://api.siliconflow.cn/v1",
+        model="Qwen/Qwen3-30B-A3B",
+    )
+
+    assert kwargs["extra_body"]["enable_thinking"] is True
+    assert kwargs["extra_body"]["thinking_budget"] == 8192
+
+
+def test_siliconflow_supported_deepseek_uses_enable_thinking_not_deepseek_shape() -> None:
+    kwargs: dict = {}
+
+    apply_openai_chat_thinking_options(
+        kwargs,
+        LlmRequestOptions(thinking_enabled=True, thinking_effort="high"),
+        base_url="https://api.siliconflow.cn/v1",
+        model="deepseek-ai/DeepSeek-V3.2",
+    )
+
+    assert kwargs == {"extra_body": {"enable_thinking": True}}
+
+
+def test_siliconflow_supported_glm_uses_enable_thinking() -> None:
+    kwargs: dict = {}
+
+    apply_openai_chat_thinking_options(
+        kwargs,
+        LlmRequestOptions(thinking_enabled=True, thinking_effort="medium"),
+        base_url="https://api.siliconflow.cn/v1",
+        model="Pro/zai-org/GLM-5V-Turbo",
+    )
+
+    assert kwargs == {"extra_body": {"enable_thinking": True}}
+
+
+def test_siliconflow_unsupported_deepseek_does_not_send_generic_thinking_params() -> None:
+    kwargs: dict = {}
+
+    apply_openai_chat_thinking_options(
+        kwargs,
+        LlmRequestOptions(thinking_enabled=True, thinking_effort="xhigh"),
+        base_url="https://api.siliconflow.cn/v1",
+        model="deepseek-ai/DeepSeek-V4-Flash",
+    )
+
+    assert kwargs == {}
+
+
 def test_kimi_openai_chat_can_disable_thinking() -> None:
     kwargs: dict = {}
 
@@ -79,6 +205,20 @@ def test_kimi_openai_chat_can_disable_thinking() -> None:
         LlmRequestOptions(thinking_disabled=True),
         base_url="https://api.moonshot.cn/v1",
         model="kimi-k2-thinking",
+    )
+
+    assert "reasoning_effort" not in kwargs
+    assert kwargs["extra_body"]["thinking"] == {"type": "disabled"}
+
+
+def test_deepseek_prefixed_model_can_disable_thinking() -> None:
+    kwargs: dict = {}
+
+    apply_openai_chat_thinking_options(
+        kwargs,
+        LlmRequestOptions(thinking_disabled=True),
+        base_url="https://api.deepseek.com/v1",
+        model="deepseek-ai/DeepSeek-V4-Pro",
     )
 
     assert "reasoning_effort" not in kwargs
@@ -144,3 +284,48 @@ def test_kimi_anthropic_compat_uses_kimi_thinking_shape() -> None:
     assert kwargs["temperature"] == 0.4
     assert kwargs["max_tokens"] == 4096
     assert "output_config" not in kwargs
+
+
+def test_claude_fable_5_uses_adaptive_thinking_not_budget_tokens() -> None:
+    kwargs: dict = {"max_tokens": 8192}
+
+    apply_anthropic_thinking_options(
+        kwargs,
+        LlmRequestOptions(thinking_enabled=True, thinking_effort="high"),
+        base_url="https://api.anthropic.com",
+        model="claude-fable-5-20260214",
+        is_native_anthropic_endpoint=True,
+    )
+
+    assert kwargs["thinking"] == {"type": "adaptive", "display": "summarized"}
+    assert kwargs["output_config"] == {"effort": "high"}
+
+
+def test_claude_sonnet_5_uses_adaptive_thinking_not_budget_tokens() -> None:
+    kwargs: dict = {"max_tokens": 8192}
+
+    apply_anthropic_thinking_options(
+        kwargs,
+        LlmRequestOptions(thinking_enabled=True, thinking_effort="medium"),
+        base_url="https://api.anthropic.com",
+        model="claude-sonnet-5-20260214",
+        is_native_anthropic_endpoint=True,
+    )
+
+    assert kwargs["thinking"] == {"type": "adaptive", "display": "summarized"}
+    assert kwargs["output_config"] == {"effort": "medium"}
+
+
+def test_claude_sonnet_5_removes_temperature_when_thinking_enabled() -> None:
+    kwargs: dict = {"max_tokens": 8192, "temperature": 0.5}
+
+    apply_anthropic_thinking_options(
+        kwargs,
+        LlmRequestOptions(thinking_enabled=True, thinking_effort="high"),
+        base_url="https://api.anthropic.com",
+        model="claude-sonnet-5-20260214",
+        is_native_anthropic_endpoint=True,
+    )
+
+    assert kwargs["thinking"] == {"type": "adaptive", "display": "summarized"}
+    assert "temperature" not in kwargs

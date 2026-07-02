@@ -516,6 +516,8 @@ class SessionStreamMixin:
             aggregated_tool_calls: dict[int, dict[str, Any]] = {}
             latest_finish_reason: str | None = None
             latest_usage: dict[str, Any] | None = None
+            request_options = self._resolve_request_options()
+            suppress_reasoning_content = bool(request_options.thinking_disabled)
 
             stream_error: Exception | None = None
             for retry_attempt in range(4):  # 1 次原始 + 3 次重试
@@ -537,7 +539,7 @@ class SessionStreamMixin:
                         self._prepare_tools_for_model(),
                         self._resolve_temperature(),
                         self._resolve_max_tokens(),
-                        request_options=self._resolve_request_options(),
+                        request_options=request_options,
                     ):
                         if self._cancel_event.is_set():
                             break
@@ -557,7 +559,7 @@ class SessionStreamMixin:
                                 text=delta.content,
                             )
 
-                        if delta.reasoning_content:
+                        if delta.reasoning_content and not suppress_reasoning_content:
                             assistant_reasoning = merge_stream_fragment(
                                 assistant_reasoning,
                                 delta.reasoning_content,
@@ -645,7 +647,7 @@ class SessionStreamMixin:
                     fallback_message: dict[str, Any] = {"role": "assistant"}
                     if fallback_content:
                         fallback_message["content"] = fallback_content
-                    if assistant_reasoning:
+                    if assistant_reasoning and not suppress_reasoning_content:
                         fallback_message["reasoning_content"] = assistant_reasoning
                     self._append_message(fallback_message)
                     yield AgentRuntimeEvent(
@@ -680,7 +682,9 @@ class SessionStreamMixin:
                 await self._check_session_budget(input_tokens, output_tokens)
 
             assistant_content = "".join(assistant_parts) or None
-            assistant_reasoning_content = assistant_reasoning or ""
+            assistant_reasoning_content = (
+                None if suppress_reasoning_content else assistant_reasoning or ""
+            )
             tool_calls = self._build_openai_tool_calls(aggregated_tool_calls)
 
             # Fallback: if no structured tool_calls but content has raw tags

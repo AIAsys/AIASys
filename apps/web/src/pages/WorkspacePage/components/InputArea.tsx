@@ -1,6 +1,8 @@
 import {
   ArrowUp,
   Brain,
+  Check,
+  ChevronDown,
   Container,
   FileText,
   FlaskConical,
@@ -12,6 +14,12 @@ import {
   X,
   AlertCircle,
 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import {
   type ChangeEvent,
@@ -46,6 +54,11 @@ interface UploadedFile {
 }
 
 const FILE_MENTION_RE = /@(\/(?:workspace|global)\/[^\s]+)/g;
+const THINKING_EFFORT_LABELS = {
+  low: "低",
+  medium: "中",
+  high: "高",
+} as const;
 
 interface FileMention {
   fullMatch: string;
@@ -634,35 +647,58 @@ export const InputArea = memo(function InputArea({
               }
             />
 
-            {selectedModelSupportsThinking && setThinkingEnabled ? (
-              <Tooltip>
-                <TooltipTrigger asChild>
+            {selectedModelSupportsThinking && setThinkingEnabled && setThinkingEffort ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
                   <button
                     type="button"
-                    onClick={() => setThinkingEnabled(!thinkingEnabled)}
                     disabled={
                       isRunning ||
                       isInitializingEnvironment ||
                       isPrewarming ||
                       isCompactingConversation
                     }
-                    className={`flex-shrink-0 inline-flex items-center justify-center rounded-md p-2 text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+                    className={cn(
+                      "flex-shrink-0 inline-flex h-9 items-center gap-1.5 rounded-md px-2.5 text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-50",
                       thinkingEnabled
                         ? "bg-primary/10 text-primary hover:bg-primary/20"
-                        : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
-                    }`}
-                    title={thinkingEnabled ? `Thinking 已开启 (${thinkingEffort})` : "Thinking 已关闭"}
-                    aria-label={thinkingEnabled ? `Thinking 已开启，强度 ${thinkingEffort}` : "Thinking 已关闭"}
+                        : "bg-secondary text-secondary-foreground hover:bg-secondary/80",
+                    )}
+                    title={thinkingEnabled ? `Thinking ${THINKING_EFFORT_LABELS[thinkingEffort]}` : "Thinking 关闭"}
+                    aria-label={thinkingEnabled ? `Thinking 已开启，强度 ${THINKING_EFFORT_LABELS[thinkingEffort]}` : "Thinking 已关闭"}
                   >
                     <Brain className="h-4 w-4" />
+                    <span className="min-w-4 text-left font-medium">
+                      {thinkingEnabled ? THINKING_EFFORT_LABELS[thinkingEffort] : "关"}
+                    </span>
+                    <ChevronDown className="h-3.5 w-3.5 opacity-70" />
                   </button>
-                </TooltipTrigger>
-                <TooltipContent side="top" sideOffset={6}>
-                  {thinkingEnabled
-                    ? `Thinking 已开启（强度 ${thinkingEffort}），点击关闭`
-                    : "Thinking 已关闭，点击开启"}
-                </TooltipContent>
-              </Tooltip>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" side="top" sideOffset={6} className="w-32">
+                  <DropdownMenuItem
+                    onClick={() => setThinkingEnabled(false)}
+                    className="flex items-center justify-between text-xs"
+                  >
+                    <span>关闭</span>
+                    {!thinkingEnabled ? <Check className="h-3.5 w-3.5" /> : null}
+                  </DropdownMenuItem>
+                  {(["low", "medium", "high"] as const).map((level) => (
+                    <DropdownMenuItem
+                      key={level}
+                      onClick={() => {
+                        setThinkingEnabled(true);
+                        setThinkingEffort(level);
+                      }}
+                      className="flex items-center justify-between text-xs"
+                    >
+                      <span>{THINKING_EFFORT_LABELS[level]}</span>
+                      {thinkingEnabled && thinkingEffort === level ? (
+                        <Check className="h-3.5 w-3.5" />
+                      ) : null}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
             ) : null}
 
             {onOpenToolConfig ? (

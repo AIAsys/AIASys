@@ -5,9 +5,27 @@ from typing import Any
 from .base import LlmRequestOptions
 
 _OPENAI_REASONING_EFFORTS = {"minimal", "low", "medium", "high", "xhigh"}
+_OPENAI_GPT_5_LEGACY_REASONING_EFFORTS = {"minimal", "low", "medium", "high"}
 _STEPFUN_REASONING_EFFORTS = {"low", "medium", "high"}
 _DEEPSEEK_REASONING_EFFORTS = {"high", "max"}
 _RESPONSES_REASONING_EFFORTS = {"minimal", "low", "medium", "high", "xhigh"}
+_SILICONFLOW_ENABLE_THINKING_MODELS = {
+    "deepseek-ai/deepseek-r1",
+    "deepseek-ai/deepseek-v3.1",
+    "deepseek-ai/deepseek-v3.2",
+    "pro/deepseek-ai/deepseek-v3.1",
+    "pro/deepseek-ai/deepseek-v3.2",
+    "pro/zai-org/glm-4.5v",
+    "pro/zai-org/glm-5v-turbo",
+    "pro/zai-org/glm-4.5",
+    "zai-org/glm-4.5-air",
+    "qwen/qwen3-8b",
+    "qwen/qwen3-14b",
+    "qwen/qwen3-30b-a3b",
+    "qwen/qwen3-32b",
+    "qwen/qwen3-235b-a22b",
+    "qwen/qwq-32b",
+}
 
 
 def apply_openai_chat_thinking_options(
@@ -25,13 +43,16 @@ def apply_openai_chat_thinking_options(
     extra_body = _provider_extra_body(
         request_options,
         provider=provider,
+        model=model,
         reasoning_format=reasoning_format,
     )
     if extra_body:
         kwargs.setdefault("extra_body", {}).update(extra_body)
 
     if request_options.thinking_disabled and provider == "openai":
-        kwargs["reasoning_effort"] = "none"
+        disabled_effort = _openai_disabled_effort(model)
+        if disabled_effort is not None:
+            kwargs["reasoning_effort"] = disabled_effort
         return
     if not request_options.thinking_enabled:
         return
@@ -40,6 +61,8 @@ def apply_openai_chat_thinking_options(
     if provider == "qwen":
         return
     if provider == "kimi":
+        return
+    if provider == "siliconflow":
         return
     if provider == "deepseek":
         kwargs["reasoning_effort"] = _deepseek_effort(effort)
@@ -51,8 +74,9 @@ def apply_openai_chat_thinking_options(
             default="high",
         )
         return
-    if effort in _OPENAI_REASONING_EFFORTS:
-        kwargs["reasoning_effort"] = effort
+    openai_effort = _openai_supported_effort(model, effort)
+    if openai_effort is not None:
+        kwargs["reasoning_effort"] = openai_effort
 
 
 def apply_responses_thinking_options(
@@ -125,6 +149,10 @@ def apply_anthropic_thinking_options(
     if _supports_adaptive_thinking(model):
         kwargs["thinking"] = {"type": "adaptive", "display": "summarized"}
         kwargs["output_config"] = {"effort": effort}
+        if _requires_default_sampling_for_thinking(model):
+            kwargs.pop("temperature", None)
+            kwargs.pop("top_p", None)
+            kwargs.pop("top_k", None)
         return
 
     budget = max(
@@ -146,6 +174,7 @@ def _provider_extra_body(
     request_options: LlmRequestOptions,
     *,
     provider: str,
+    model: str,
     reasoning_format: str | None,
 ) -> dict[str, Any]:
     extra_body: dict[str, Any] = {}
@@ -166,6 +195,16 @@ def _provider_extra_body(
             extra_body["thinking"] = {"type": "enabled"}
         return extra_body
 
+    if provider == "siliconflow":
+        if _siliconflow_supports_enable_thinking(model):
+            if request_options.thinking_disabled:
+                extra_body["enable_thinking"] = False
+            elif request_options.thinking_enabled:
+                extra_body["enable_thinking"] = True
+                if request_options.thinking_budget_tokens is not None:
+                    extra_body["thinking_budget"] = request_options.thinking_budget_tokens
+        return extra_body
+
     if provider == "deepseek":
         if request_options.thinking_disabled:
             extra_body["thinking"] = {"type": "disabled"}
@@ -180,7 +219,9 @@ def _provider_extra_body(
 def _detect_openai_compatible_provider(base_url: str | None, model: str) -> str:
     endpoint = (base_url or "").lower()
     model_name = model.lower()
-    if "dashscope.aliyuncs.com" in endpoint or model_name.startswith(("qwen", "qwq")):
+    if _is_siliconflow_endpoint(base_url):
+        return "siliconflow"
+    if "dashscope.aliyuncs.com" in endpoint:
         return "qwen"
     if "kimi" in endpoint or "moonshot" in endpoint or _is_kimi_model(model_name):
         return "kimi"
@@ -200,8 +241,43 @@ def _is_stepfun_endpoint(base_url: str | None) -> bool:
     return "stepfun" in (base_url or "").lower()
 
 
+def _is_siliconflow_endpoint(base_url: str | None) -> bool:
+    return "siliconflow" in (base_url or "").lower()
+
+
+def _siliconflow_supports_enable_thinking(model: str) -> bool:
+    return model.strip().lower() in _SILICONFLOW_ENABLE_THINKING_MODELS
+
+
 def _is_kimi_model(model: str) -> bool:
     return model.lower().startswith(("kimi", "moonshot"))
+
+
+def _openai_disabled_effort(model: str) -> str | None:
+    normalized = model.strip().lower()
+    if normalized.startswith("gpt-5-pro"):
+        return "high"
+    if normalized.startswith("gpt-5.1"):
+        return "none"
+    if normalized.startswith("gpt-5"):
+        return None
+    return "none"
+
+
+def _openai_supported_effort(model: str, effort: str) -> str | None:
+    normalized = model.strip().lower()
+    if normalized.startswith("gpt-5-pro"):
+        return "high"
+    if normalized.startswith("gpt-5.1"):
+        return effort if effort in _OPENAI_REASONING_EFFORTS else "high"
+    if normalized.startswith("gpt-5"):
+        return effort if effort in _OPENAI_GPT_5_LEGACY_REASONING_EFFORTS else "medium"
+    return effort if effort in _OPENAI_REASONING_EFFORTS else None
+
+
+def _requires_default_sampling_for_thinking(model: str) -> bool:
+    m = model.lower()
+    return any(marker in m for marker in ("fable-5", "mythos-5", "sonnet-5", "opus-4-7", "opus-4-8"))
 
 
 def _normalized_effort(effort: str | None) -> str:

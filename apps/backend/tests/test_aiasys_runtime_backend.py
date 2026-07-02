@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import time
 from pathlib import Path
+from typing import Any
 
 import pytest
 import tomli_w
@@ -98,6 +99,28 @@ class _SingleTurnClient:
         self.request_options.append(request_options)
         yield LlmChunk(
             delta=LlmDelta(content="ok"),
+            finish_reason="stop",
+            usage={"prompt_tokens": 2, "completion_tokens": 1},
+        )
+
+    async def aclose(self) -> None:
+        return None
+
+
+class _ReasoningDespiteDisabledClient:
+    def __init__(self) -> None:
+        self.calls: list[list[dict]] = []
+        self.request_options: list[LlmRequestOptions | None] = []
+
+    async def chat_stream(self, messages, tools, temperature, max_tokens, request_options=None):
+        del tools, temperature, max_tokens
+        self.calls.append([dict(message) for message in messages])
+        self.request_options.append(request_options)
+        yield LlmChunk(
+            delta=LlmDelta(
+                content="visible answer",
+                reasoning_content="hidden reasoning",
+            ),
             finish_reason="stop",
             usage={"prompt_tokens": 2, "completion_tokens": 1},
         )
@@ -1018,6 +1041,57 @@ async def test_aiasys_runtime_session_enables_thinking_for_thinking_model(tmp_pa
     assert options.thinking_enabled is True
     assert options.thinking_effort == "high"
     assert options.thinking_budget_tokens == 8192
+
+
+async def test_aiasys_runtime_session_hides_reasoning_when_thinking_disabled(tmp_path):
+    agent_file = _write_agent_files(tmp_path)
+    registry = ToolRegistry()
+    client = _ReasoningDespiteDisabledClient()
+
+    session = AiasysRuntimeSession(
+        RuntimeSessionCreateSpec(
+            work_dir=WorkspacePath(str(tmp_path)),
+            session_id="session-thinking-disabled",
+            config=AiasysLlmConfig(
+                default_model="test-model",
+                providers={
+                    "provider-1": LlmProviderConfig(
+                        api_key="secret",
+                        base_url="https://api.deepseek.com/v1",
+                    )
+                },
+                models={
+                    "test-model": LlmModelConfig(
+                        provider="provider-1",
+                        model="deepseek-ai/DeepSeek-V4-Pro",
+                        capabilities=["thinking"],
+                        thinking_disabled=True,
+                    )
+                },
+            ),
+            agent_file=agent_file,
+            skills_dir=None,
+            mcp_configs=None,
+            yolo=True,
+        ),
+        client,
+        registry,
+    )
+
+    events = [event async for event in session.prompt("hello")]
+
+    public_events = [event for event in events if getattr(event, "kind", None) != "turn_begin"]
+    assert [event.kind for event in public_events] == ["content", "token_usage"]
+    assert public_events[0].content_type == "text"
+    assert public_events[0].text == "visible answer"
+    assert client.request_options[0] is not None
+    assert client.request_options[0].thinking_disabled is True
+
+    assistant_messages = [message for message in session.messages if message.get("role") == "assistant"]
+    assert assistant_messages[-1]["content"] == "visible answer"
+    assert "reasoning_content" not in assistant_messages[-1]
+
+    await session.close()
 
 
 def test_get_backend_defaults_to_aiasys():
