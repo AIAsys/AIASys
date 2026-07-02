@@ -645,6 +645,13 @@ export const FileTreeView: React.FC<FileTreeViewProps> = ({
     );
   }, [copyFailure]);
 
+  const handleOpenInSystemExplorer = useCallback(async (targetPath: string) => {
+    const desktop = typeof window !== "undefined" ? window.__AIASYS_DESKTOP__ : undefined;
+    if (desktop?.openPath) {
+      await desktop.openPath(targetPath);
+    }
+  }, []);
+
   const rememberClipboardItem = useCallback(
     (item: FileTreeClipboardItem) => {
       onClipboardItemChange?.(item);
@@ -1445,6 +1452,7 @@ export const FileTreeView: React.FC<FileTreeViewProps> = ({
         isNotebookFile={isNotebookFile}
         isMarkdownFile={isMarkdownFile}
         onRefreshFiles={onRefreshFiles}
+        onOpenInSystemExplorer={handleOpenInSystemExplorer}
       />
 
       <FolderContextMenu
@@ -1465,6 +1473,7 @@ export const FileTreeView: React.FC<FileTreeViewProps> = ({
         requestDeleteMultiple={requestDeleteMultiple}
         closeFolderMenu={closeFolderMenu}
         onRefreshFiles={onRefreshFiles}
+        onOpenInSystemExplorer={handleOpenInSystemExplorer}
       />
 
       <AlertDialog

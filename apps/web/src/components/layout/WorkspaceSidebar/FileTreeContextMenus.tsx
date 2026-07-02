@@ -8,6 +8,7 @@ import {
   ExternalLink,
   FilePlus,
   FileText,
+  FolderOpen,
   FolderPlus,
   Globe,
   History,
@@ -68,6 +69,7 @@ interface FileContextMenuProps {
   isMarkdownFile: (filename: string) => boolean;
   onRefreshFiles?: () => Promise<void>;
   onOpenInBrowserTab?: (file: WorkspaceFile) => void;
+  onOpenInSystemExplorer?: (targetPath: string) => void;
 }
 
 export function FileContextMenu({
@@ -94,6 +96,7 @@ export function FileContextMenu({
   isMarkdownFile,
   onRefreshFiles: _onRefreshFiles,
   onOpenInBrowserTab,
+  onOpenInSystemExplorer,
 }: FileContextMenuProps) {
   if (!fileMenu) return null;
 
@@ -330,6 +333,22 @@ export function FileContextMenu({
               编辑文件
             </button>
           ) : null}
+          {onOpenInSystemExplorer && fileMenu.file.absolute_path ? (
+            <button
+              type="button"
+              role="menuitem"
+              className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs transition-colors hover:bg-accent focus:bg-accent focus:outline-none"
+              onClick={() => {
+                const absolutePath = fileMenu.file.absolute_path as string;
+                const parentDir = absolutePath.replace(/\\/g, "/").replace(/\/[^\/]*$/, "");
+                onOpenInSystemExplorer(parentDir);
+                closeFileMenu();
+              }}
+            >
+              <FolderOpen className="h-3.5 w-3.5 text-muted-foreground" />
+              打开文件所在目录
+            </button>
+          ) : null}
         </>
       )}
       {getFileCopyPathOptions(fileMenu.file).map((option) => {
@@ -463,6 +482,7 @@ interface FolderContextMenuProps {
   requestDeleteMultiple?: (files: WorkspaceFile[], folders: string[]) => void;
   closeFolderMenu: () => void;
   onRefreshFiles?: () => Promise<void>;
+  onOpenInSystemExplorer?: (targetPath: string) => void;
 }
 
 export function FolderContextMenu({
@@ -483,6 +503,7 @@ export function FolderContextMenu({
   requestDeleteMultiple,
   closeFolderMenu,
   onRefreshFiles: _onRefreshFiles2,
+  onOpenInSystemExplorer,
 }: FolderContextMenuProps) {
   if (!folderMenu) return null;
 
@@ -651,6 +672,20 @@ export function FolderContextMenu({
           {option.label}
         </button>
       ))}
+      {onOpenInSystemExplorer && folderMenu.absolutePath ? (
+        <button
+          type="button"
+          role="menuitem"
+          className="mt-1 flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs transition-colors hover:bg-accent focus:bg-accent focus:outline-none"
+          onClick={() => {
+            onOpenInSystemExplorer(folderMenu.absolutePath as string);
+            closeFolderMenu();
+          }}
+        >
+          <FolderOpen className="h-3.5 w-3.5 text-muted-foreground" />
+          在系统资源管理器中打开
+        </button>
+      ) : null}
       <div className="mt-1 border-t border-border pt-1">
         <button
           type="button"

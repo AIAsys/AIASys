@@ -150,21 +150,15 @@ export function useWorkspaceLifecycleActions({
 
     void (async () => {
       try {
-        await createAndActivateWorkspaceConversation({
-          workspaceId: currentWorkspaceId,
-          title: "新会话",
-          loadWorkspaces,
-          activatePreparedSession: executor.activatePreparedSession,
-        });
+        await executor.handleNewSession();
       } catch (error) {
-        console.error("Failed to create workspace conversation:", error);
+        console.error("Failed to create new session:", error);
       }
     })();
   }, [
     currentWorkspaceId,
     executor,
     leaveProjectWorkspace,
-    loadWorkspaces,
     runtimeControls,
   ]);
 
