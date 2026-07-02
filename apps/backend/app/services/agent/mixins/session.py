@@ -556,6 +556,7 @@ class SessionMixin:
                         if not isinstance(caps, list):
                             caps = list(caps) if isinstance(caps, (set, tuple)) else [str(caps)]
                         if thinking_enabled:
+                            mcfg.pop("thinking_disabled", None)
                             if "thinking" not in caps:
                                 caps = [*caps, "thinking"]
                             mcfg["capabilities"] = caps
@@ -566,6 +567,7 @@ class SessionMixin:
                                 c for c in caps if c not in ("thinking", "always_thinking")
                             ]
                             mcfg.pop("thinking_effort", None)
+                            mcfg["thinking_disabled"] = True
 
                 return AiasysLlmConfig(
                     default_model=selected_model_id or "",

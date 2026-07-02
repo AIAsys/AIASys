@@ -6,6 +6,7 @@ from typing import Any
 
 from .base import BaseLlmClient, LlmChunk, LlmDelta, LlmRequestOptions
 from .message_protocol import InternalMessage, to_responses_input_messages
+from .thinking_mapper import apply_responses_thinking_options
 
 logger = logging.getLogger(__name__)
 
@@ -51,13 +52,7 @@ class CodexChatClient(BaseLlmClient):
             kwargs["temperature"] = temperature
         if max_tokens is not None:
             kwargs["max_output_tokens"] = max_tokens
-        if request_options and request_options.thinking_enabled:
-            effort = (request_options.thinking_effort or "high").strip().lower()
-            if effort == "minimal":
-                effort = "low"
-            if effort in {"low", "medium", "high", "xhigh"}:
-                kwargs["reasoning"] = {"effort": effort, "summary": "auto"}
-                kwargs["include"] = ["reasoning.encrypted_content"]
+        apply_responses_thinking_options(kwargs, request_options)
 
         async for event in await self._client.responses.create(**kwargs):
             chunk = self._normalize_event(event)

@@ -739,6 +739,9 @@ class AiasysRuntimeSession(
         if model_config is None:
             return LlmRequestOptions()
 
+        if bool(read_config_value(model_config, "thinking_disabled")):
+            return LlmRequestOptions(thinking_disabled=True)
+
         capabilities = normalize_capabilities(read_config_value(model_config, "capabilities"))
         effort = normalize_thinking_effort(read_config_value(model_config, "thinking_effort"))
         thinking_enabled = (

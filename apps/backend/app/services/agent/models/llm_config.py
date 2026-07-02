@@ -96,6 +96,7 @@ class LlmModelConfig(BaseModel):
     max_tokens: int | None = None
     top_p: float | None = None
     thinking_effort: str | None = None
+    thinking_disabled: bool | None = None
     reasoning_key: str | None = Field(
         default=None,
         description="模型级别的 reasoning 字段名，覆盖 provider 级别的同名配置。"

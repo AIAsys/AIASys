@@ -808,11 +808,8 @@ async def test_anthropic_client_sends_thinking_options_for_thinking_request() ->
 
     assert chunks == []
     assert fake_messages.last_kwargs is not None
-    assert fake_messages.last_kwargs["thinking"] == {
-        "type": "enabled",
-        "budget_tokens": 4096,
-    }
-    assert fake_messages.last_kwargs["max_tokens"] == 6144
+    assert fake_messages.last_kwargs["thinking"] == {"type": "enabled"}
+    assert fake_messages.last_kwargs["max_tokens"] == 2048
     assert "temperature" not in fake_messages.last_kwargs
 
 

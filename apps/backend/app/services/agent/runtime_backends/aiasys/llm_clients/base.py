@@ -33,6 +33,7 @@ class LlmRequestOptions:
     thinking_enabled: bool = False
     thinking_effort: str | None = None
     thinking_budget_tokens: int | None = None
+    thinking_disabled: bool = False
 
 
 class BaseLlmClient(ABC):

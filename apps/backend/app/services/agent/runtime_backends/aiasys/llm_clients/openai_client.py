@@ -13,6 +13,7 @@ from openai.types.chat import ChatCompletionChunk
 
 from .base import BaseLlmClient, LlmChunk, LlmDelta, LlmRequestOptions
 from .message_protocol import InternalMessage, to_openai_chat_messages
+from .thinking_mapper import apply_openai_chat_thinking_options
 
 logger = logging.getLogger(__name__)
 
@@ -164,14 +165,13 @@ class OpenAIChatClient(BaseLlmClient):
             kwargs["temperature"] = temperature
         if max_tokens is not None:
             kwargs["max_tokens"] = max_tokens
-        if request_options and request_options.thinking_enabled:
-            effort = (request_options.thinking_effort or "high").strip().lower()
-            if effort in ("low", "medium", "high"):
-                kwargs["reasoning_effort"] = effort
-            if getattr(self, "_reasoning_format", None):
-                # OpenAI SDK 不识别 reasoning_format 参数，通过 extra_body 透传
-                extra_body = kwargs.setdefault("extra_body", {})
-                extra_body["reasoning_format"] = self._reasoning_format
+        apply_openai_chat_thinking_options(
+            kwargs,
+            request_options,
+            base_url=getattr(self, "_base_url", None),
+            model=self.model,
+            reasoning_format=getattr(self, "_reasoning_format", None),
+        )
         return kwargs
 
     async def _do_stream(self, **kwargs: Any) -> AsyncGenerator[LlmChunk, None]:

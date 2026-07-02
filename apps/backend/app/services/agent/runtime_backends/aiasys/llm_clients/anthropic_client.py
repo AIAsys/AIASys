@@ -12,6 +12,7 @@ from .message_protocol import (
     to_anthropic_messages,
     to_anthropic_tools,
 )
+from .thinking_mapper import apply_anthropic_thinking_options
 
 logger = logging.getLogger(__name__)
 
@@ -121,31 +122,13 @@ class AnthropicChatClient(BaseLlmClient):
             kwargs["tools"] = anthropic_tools
         if temperature is not None:
             kwargs["temperature"] = temperature
-        if request_options and request_options.thinking_enabled:
-            raw_effort = (request_options.thinking_effort or "high").strip().lower()
-            effort = _clamp_effort(raw_effort, self.model)
-
-            if _supports_adaptive_thinking(self.model):
-                # Opus 4.6+ / Sonnet 4.6+ / Mythos: adaptive thinking
-                # display: "summarized" 在 Opus 4.7+ 是必需的（默认已变为 omitted）
-                kwargs["thinking"] = {"type": "adaptive", "display": "summarized"}
-                kwargs["output_config"] = {"effort": effort}
-            else:
-                # Pre-4.6 models: legacy budget-based thinking
-                budget = max(
-                    int(request_options.thinking_budget_tokens or _effort_to_budget(effort)),
-                    1024,
-                )
-                kwargs["thinking"] = {"type": "enabled", "budget_tokens": budget}
-                kwargs["max_tokens"] = max(
-                    int(kwargs.get("max_tokens") or 8192),
-                    budget + 2048,
-                )
-                if self._is_native_anthropic_endpoint():
-                    # Legacy extended thinking requires temperature=1 on older models.
-                    kwargs["temperature"] = 1
-                if _supports_effort_param(self.model):
-                    kwargs["output_config"] = {"effort": effort}
+        apply_anthropic_thinking_options(
+            kwargs,
+            request_options,
+            base_url=self._base_url,
+            model=self.model,
+            is_native_anthropic_endpoint=self._is_native_anthropic_endpoint(),
+        )
 
         async with self._client.messages.stream(**kwargs) as stream:
             async for event in stream:
