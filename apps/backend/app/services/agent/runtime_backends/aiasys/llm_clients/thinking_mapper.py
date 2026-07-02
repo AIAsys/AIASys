@@ -277,7 +277,9 @@ def _openai_supported_effort(model: str, effort: str) -> str | None:
 
 def _requires_default_sampling_for_thinking(model: str) -> bool:
     m = model.lower()
-    return any(marker in m for marker in ("fable-5", "mythos-5", "sonnet-5", "opus-4-7", "opus-4-8"))
+    return any(
+        marker in m for marker in ("fable-5", "mythos-5", "sonnet-5", "opus-4-7", "opus-4-8")
+    )
 
 
 def _normalized_effort(effort: str | None) -> str:
