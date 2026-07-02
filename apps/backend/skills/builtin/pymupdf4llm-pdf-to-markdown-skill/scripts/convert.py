@@ -26,11 +26,13 @@ def get_workspace_root() -> Path:
 
 
 def resolve_path(raw: str, workspace_root: Path) -> Path:
-    p = Path(raw)
-    if p.is_absolute():
-        rel = Path(*p.parts[1:]) if str(p).startswith("/workspace") else p
+    normalized = raw.replace("\\", "/").strip()
+    if normalized.startswith("/workspace/"):
+        rel = Path(normalized[len("/workspace/") :])
+    elif normalized == "/workspace":
+        rel = Path(".")
     else:
-        rel = p
+        rel = Path(normalized)
     host = (workspace_root / rel).resolve()
     try:
         host.relative_to(workspace_root)
