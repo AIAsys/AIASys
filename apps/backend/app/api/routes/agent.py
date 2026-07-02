@@ -141,6 +141,22 @@ async def execute_stream(request: AgentExecuteRequest, user: UserInfo = Depends(
     """
     # 解析用户ID
     user_id = _resolve_user_id(request, user)
+
+    # 懒创建：如果 session 不存在且提供了 workspace_id，先创建 workspace conversation
+    # 这样前端可以支持"点击新会话不立即创建后端记录，发送首条消息时才持久化"
+    existing_metadata = agent_service._session_manager.get_session(request.session_id, user_id)
+    if not existing_metadata and request.workspace_id:
+        try:
+            get_workspace_registry_service().create_conversation(
+                user_id=user_id,
+                workspace_id=request.workspace_id,
+                title="新会话",
+                conversation_id=request.session_id,
+                make_current=True,
+            )
+        except Exception as e:
+            logger.warning(f"懒创建 workspace conversation 失败（继续执行）: {e}")
+
     _validate_workspace_binding(
         user_id=user_id,
         session_id=request.session_id,
