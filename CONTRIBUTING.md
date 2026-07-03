@@ -140,10 +140,18 @@ chore(desktop): 优化 prepare-runtime 打包前清理逻辑
 
 项目采用 Fork + PR 工作流：
 
-| 分支 | 角色 | 直接 push | PR 要求 |
-|------|------|-----------|---------|
-| `main` | 稳定发布分支 | 禁止 | 必须从 `dev` 合并，需 review |
-| `dev` | 开发分支 | 默认禁止 | 必须从 fork 的分支合并，需 review。特殊情况下（如批量同步、紧急 hotfix、已有 PR 的后续修正）可直接推送，但需在 PR 或 commit message 中说明例外原因 |
+| 改动类型 | 直接 push | PR 要求 |
+|---------|-----------|---------|
+| 社区贡献 | 禁止 | 必须从 fork 合并，需 review |
+| 核心功能/大改动 | 禁止 | 建议走 PR，保持 review 一致性 |
+| 文档/规范/CI/脚本 | 允许 | commit message 关联 issue |
+| 紧急 hotfix | 允许 | 标注 `[hotfix]` 及原因，事后补齐 PR 记录 |
+| 已有 PR 的后续修正 | 允许 | 在原 PR 上继续 |
+
+约束：
+- 社区贡献禁止直接 push 到 `main` 或 `dev`
+- 维护者直接 push 后，commit message 中必须关联 issue 或说明原因
+- 涉及用户可感知行为变更时，仍需走 PR
 
 流程：
 - **外部贡献者**：Fork → 创建分支 → 提交 PR 到 `AIASys/AIASys` 的 `dev`
