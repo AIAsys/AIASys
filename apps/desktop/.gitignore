@@ -4,6 +4,7 @@ node_modules/
 # Build outputs
 dist/
 .dist/
+dist-temp/
 
 # OS
 .DS_Store

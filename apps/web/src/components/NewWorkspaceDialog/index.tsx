@@ -147,6 +147,9 @@ export function NewWorkspaceDialog({
   // 模板文件勾选状态
   const [selectedTemplateFiles, setSelectedTemplateFiles] = useState<Set<string>>(new Set());
 
+  const hasUserEditedTitle = useRef(false);
+  const hasUserEditedDescription = useRef(false);
+
   // 文件夹导入状态
   type CreationMode = "blank" | "template" | "folder";
   const [creationMode, setCreationMode] = useState<CreationMode>("blank");
@@ -261,18 +264,24 @@ export function NewWorkspaceDialog({
     });
   };
 
-  // 选择模板后只更新标题和描述，不覆盖环境
+  // 选择模板后更新标题和描述（仅在用户未手动编辑时）
   useEffect(() => {
     if (creationMode !== "template") return;
     const template = templates.find((t) => t.template_id === selectedTemplateId);
     if (!template) return;
-    setTitle(template.default_title);
-    setDescription(template.default_description);
+    if (!hasUserEditedTitle.current) {
+      setTitle(template.default_title);
+    }
+    if (!hasUserEditedDescription.current) {
+      setDescription(template.default_description);
+    }
   }, [creationMode, selectedTemplateId, templates]);
 
   // 打开弹窗时重置（提交中不重置）
   useEffect(() => {
     if (isOpen && !isSubmitting) {
+      hasUserEditedTitle.current = false;
+      hasUserEditedDescription.current = false;
       setTitle("");
       setDescription("");
       setResources({
@@ -745,7 +754,10 @@ export function NewWorkspaceDialog({
               id="workspace-title"
               placeholder="例如：论文阅读、财报分析、代码重构"
               value={title}
-              onChange={(event) => setTitle(event.target.value)}
+              onChange={(event) => {
+                hasUserEditedTitle.current = true;
+                setTitle(event.target.value);
+              }}
               disabled={effectiveLifecycleState.isBusy}
               autoFocus
             />
@@ -757,7 +769,10 @@ export function NewWorkspaceDialog({
               id="workspace-description"
               placeholder="可选。简单说明这个工作区主要是做什么的。"
               value={description}
-              onChange={(event) => setDescription(event.target.value)}
+              onChange={(event) => {
+                hasUserEditedDescription.current = true;
+                setDescription(event.target.value);
+              }}
               disabled={effectiveLifecycleState.isBusy}
               rows={3}
             />

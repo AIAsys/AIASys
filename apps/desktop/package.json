@@ -25,7 +25,7 @@
     "test": "npm run test:unit && npm run test:integration"
   },
   "devDependencies": {
-    "electron": "41.2.0",
+    "electron": "42.5.2",
     "electron-builder": "26.0.12",
     "png-to-ico": "^3.0.1"
   },
