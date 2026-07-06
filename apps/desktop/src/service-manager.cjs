@@ -1185,7 +1185,13 @@ class DesktopServiceManager {
   _getVenvRoot() {
     // 构建时已按平台修复 pyvenv.cfg / dylib / shebang
     // 运行时：打包模式下 backendRoot 位于只读资源目录（AppImage squashfs、
-    // Windows Program Files、macOS app bundle），需把 .venv 复制到可写运行时目录。
+    // macOS app bundle），需把 .venv 复制到可写运行时目录。
+    // Windows 上 NSIS 默认安装到 %LOCALAPPDATA%，且 embed Python 会尝试写入 .pyc，
+    // 因此直接复用 backendRoot 下的 .venv，并通过 PYTHONDONTWRITEBYTECODE 禁止写 .pyc，
+    // 避免首次启动时逐文件复制/解压数万个小文件导致长时间卡住。
+    if (this.isPackaged && process.platform === "win32") {
+      return this.backendRoot;
+    }
     if (this.isPackaged) {
       return this.runtimeStateRoot;
     }
@@ -1203,6 +1209,8 @@ class DesktopServiceManager {
       PYTHONUNBUFFERED: "1",
       PYTHONIOENCODING: "utf-8",
       PYTHONUTF8: "1",
+      // Windows 上 .venv 位于只读 resources 目录，禁止写入 .pyc 避免权限错误与 IO 开销
+      PYTHONDONTWRITEBYTECODE: "1",
     };
 
     // 清除可能干扰嵌入 Python 的虚拟环境变量
@@ -1319,7 +1327,9 @@ class DesktopServiceManager {
 
     // 构建时已按平台修复（dylib/shebang/pyvenv.cfg）。
     // 运行时：打包模式下 backendRoot 只读，需复制 .venv 到可写运行时目录并修复。
-    if (this.isPackaged) {
+    // Windows 上 NSIS 默认安装到 %LOCALAPPDATA%，resources/backend 可写，
+    // 且 .venv 文件数极多，复制/解压耗时过长，因此直接复用 resources 中的 .venv。
+    if (this.isPackaged && process.platform !== "win32") {
       this._emitStatus({ message: "正在准备 Python 运行环境...", step: 1, total: 5 });
       await preparePackagedVenv(
         this.backendRoot,
@@ -1364,6 +1374,10 @@ class DesktopServiceManager {
     this._emitStatus({ message: "正在启动本地服务...", step: 3, total: 5 });
     console.log("[aiasys] 启动 backend ...");
 
+    const backendEnv = this.buildBackendEnv({
+      AIASYS_RUNTIME_ROOT: this.runtimeStateRoot || this.backendRoot,
+    });
+
     // 用于跟踪当前 backend 子进程引用，重启后更新
     let currentBackendChild = null;
     // 每次新的 backend 等待对应一个取消令牌，连续崩溃时先取消旧等待，避免并发/过期 Promise 误报
@@ -1375,9 +1389,7 @@ class DesktopServiceManager {
       ["-m", "uvicorn", "app.main:app", "--host", this.host, "--port", String(this.backendPort)],
       {
         cwd: fs.existsSync(this.backendRoot) ? this.backendRoot : this.runtimeStateRoot,
-        env: this.buildBackendEnv({
-          AIASYS_RUNTIME_ROOT: this.runtimeStateRoot || this.backendRoot,
-        }),
+        env: backendEnv,
         __logFilePath: this.getLogFilePath("backend"),
         autoRestart: true,
         canRestart: () => !this.isShuttingDown,

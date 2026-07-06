@@ -11,12 +11,36 @@ if (process.platform === "linux") {
 const { app, BrowserWindow, dialog, ipcMain, shell, Tray, Menu, nativeImage } = require("electron");
 const { DesktopServiceManager } = require("./service-manager.cjs");
 
+// Windows 打包应用启动后 stdout/stderr 可能已被重定向到关闭的管道，
+// 任何 console.* 写入都会触发 EPIPE，进而被 uncaughtException 捕获再次触发写入，
+// 形成死循环。这里忽略 stdout/stderr 的 EPIPE 错误，避免异常传播。
+for (const stream of [process.stdout, process.stderr]) {
+  if (stream && typeof stream.on === "function") {
+    stream.on("error", (err) => {
+      if (err && (err.code === "EPIPE" || err.code === "EOF")) {
+        return;
+      }
+      // 其他错误交给默认处理
+    });
+  }
+}
+
 process.on("unhandledRejection", (reason) => {
   logError("unhandled rejection", reason);
   // 未处理 Promise 拒绝说明主进程已处于不可预期状态，安全退出
   exitAfterShutdown(1);
 });
 process.on("uncaughtException", (error) => {
+  // 兜底：先把异常写入固定路径的紧急日志，防止 logError 也失败时丢失现场
+  try {
+    const emergencyLog = path.join(app.getPath("userData") || process.cwd(), "aiasys-crash.log");
+    fs.appendFileSync(
+      emergencyLog,
+      `[${new Date().toISOString()}] UNCAUGHT: ${error.stack || error.message}\n`,
+    );
+  } catch {
+    // ignore
+  }
   logError("uncaught exception", error);
   // 未捕获异常后进程状态不可信，记录日志后安全退出
   exitAfterShutdown(1);
@@ -189,7 +213,12 @@ function isSameOrigin(url, baseUrl) {
 }
 
 function logError(message, error) {
-  console.error(`[aiasys-desktop] ${message}:`, error);
+  // 打包后的 Windows 应用可能将 stdout/stderr 重定向到已关闭的管道，
+  // 任何 stderr 写入（console.error / process.stderr.write）都会触发 EPIPE，
+  // 而 EPIPE 又会被 uncaughtException 捕获并再次调用 logError，形成死循环。
+  // 因此 logError 内部不再向 stderr 写入，仅记录到日志文件。
+  const errorMessage = error instanceof Error ? error.stack || error.message : String(error);
+
   try {
     const logsDir = getLogsDir();
     fs.mkdirSync(logsDir, { recursive: true });
@@ -208,10 +237,9 @@ function logError(message, error) {
       // ignore rotation errors
     }
     const timestamp = new Date().toISOString();
-    const errorMessage = error instanceof Error ? error.stack || error.message : String(error);
     fs.appendFileSync(logPath, `[${timestamp}] ERROR: ${message}\n${errorMessage}\n\n`);
-  } catch (e) {
-    console.error("[aiasys-desktop] error log append failed:", e);
+  } catch {
+    // ignore
   }
 }
 
@@ -817,7 +845,6 @@ function createTray() {
 
 async function bootstrap() {
   console.log("[aiasys-desktop] bootstrap start");
-  console.log("[aiasys-desktop] bootstrap started");
 
   serviceManager = new DesktopServiceManager({
     mode: desktopMode,
