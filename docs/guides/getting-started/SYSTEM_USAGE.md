@@ -145,6 +145,8 @@ npm run dev -- --host 0.0.0.0 --port 13000
 
 ![文件搜索面板](../../../images/readme/panel-file-search.png)
 
+文件变更面板支持查看差异、恢复历史版本和追踪完整变更记录。
+
 ![文件变更历史面板](../../../images/readme/panel-file-changes.png)
 
 ### 5.2 资源库
@@ -181,6 +183,8 @@ AIASys 支持 JSON Canvas 格式的无限画布文件，可在工作区内直接
 - **切换会话**：点击会话名称
 - **会话名自动生成**：AI 根据对话内容自动摘要
 
+![会话管理](../../../images/readme/session-management.png)
+
 上下文窗口用于观察当前会话的上下文占用和预算情况，适合长任务推进时判断是否需要压缩、分支或整理资料。
 
 ![上下文预算窗口](../../../images/readme/context%20window.png)
@@ -192,6 +196,8 @@ AIASys 支持 JSON Canvas 格式的无限画布文件，可在工作区内直接
 - **全局**：对所有工作区生效
 - **工作区**：仅对当前工作区生效（覆盖全局）
 - **会话**：仅对当前会话会话生效（覆盖工作区）
+
+![模型选择](../../../images/readme/select-model.png)
 
 ### 6.4 附件上传
 
@@ -220,7 +226,7 @@ AIASys 支持 JSON Canvas 格式的无限画布文件，可在工作区内直接
 - 输出支持：文本、HTML、JSON、图片（PNG/SVG）、流式输出
 - 代码执行环境与工作区绑定
 
-![Notebook 代码执行与图表预览](../../../images/readme/demo-003-notebook-analysis-overview.png)
+![Notebook 代码执行与图表预览](../../../images/readme/run-notebook.png)
 
 ### 7.3 Inspector 面板
 
@@ -230,6 +236,8 @@ Notebook 提供四个检查面板：
 - **运行记录**：查看历史执行记录
 - **差异对比**：对比代码变更
 - **大纲**：Notebook 结构概览
+
+![Inspector 面板](../../../images/readme/notebook-inspector-panel.png)
 
 ---
 
@@ -309,7 +317,9 @@ Notebook 提供四个检查面板：
 3. 设置任务标题、描述和 Prompt
 4. 选择绑定当前会话或每次新建会话
 
-![AutoTask 自动化任务总览](../../../images/readme/demo-006-autotask-monitoring-overview.png)
+![AutoTask 自动化任务总览](../../../images/readme/create-auto-task1.png)
+
+![AutoTask 自动化任务总览](../../../images/readme/create-auto-task2.png)
 
 ### 10.2 查看执行记录
 

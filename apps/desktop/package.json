@@ -1,7 +1,7 @@
 {
   "name": "aiasys-desktop",
   "private": true,
-  "version": "0.4.30",
+  "version": "0.4.32",
   "description": "Electron desktop shell for AIASys",
   "homepage": "https://aiasys.ai",
   "author": "AIASys <contact@aiasys.ai>",
@@ -26,7 +26,7 @@
   },
   "devDependencies": {
     "electron": "42.5.2",
-    "electron-builder": "26.0.12",
+    "electron-builder": "26.15.6",
     "png-to-ico": "^3.0.1"
   },
   "build": {
@@ -54,7 +54,8 @@
       },
       {
         "from": ".dist/backend",
-        "to": "backend"
+        "to": "backend",
+        "filter": ["**/*", "!.venv", "!.venv/**", "!.venv/**/*"]
       },
       {
         "from": "../../LICENSE",
@@ -84,7 +85,8 @@
         "zip"
       ],
       "requestedExecutionLevel": "asInvoker",
-      "icon": "build/icon.ico"
+      "icon": "build/icon.ico",
+      "signExecutable": false
     },
     "nsis": {
       "oneClick": false,

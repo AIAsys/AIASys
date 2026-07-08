@@ -11,12 +11,36 @@ if (process.platform === "linux") {
 const { app, BrowserWindow, dialog, ipcMain, shell, Tray, Menu, nativeImage } = require("electron");
 const { DesktopServiceManager } = require("./service-manager.cjs");
 
+// Windows 打包应用启动后 stdout/stderr 可能已被重定向到关闭的管道，
+// 任何 console.* 写入都会触发 EPIPE，进而被 uncaughtException 捕获再次触发写入，
+// 形成死循环。这里忽略 stdout/stderr 的 EPIPE 错误，避免异常传播。
+for (const stream of [process.stdout, process.stderr]) {
+  if (stream && typeof stream.on === "function") {
+    stream.on("error", (err) => {
+      if (err && (err.code === "EPIPE" || err.code === "EOF")) {
+        return;
+      }
+      // 其他错误交给默认处理
+    });
+  }
+}
+
 process.on("unhandledRejection", (reason) => {
   logError("unhandled rejection", reason);
   // 未处理 Promise 拒绝说明主进程已处于不可预期状态，安全退出
   exitAfterShutdown(1);
 });
 process.on("uncaughtException", (error) => {
+  // 兜底：先把异常写入固定路径的紧急日志，防止 logError 也失败时丢失现场
+  try {
+    const emergencyLog = path.join(app.getPath("userData") || process.cwd(), "aiasys-crash.log");
+    fs.appendFileSync(
+      emergencyLog,
+      `[${new Date().toISOString()}] UNCAUGHT: ${error.stack || error.message}\n`,
+    );
+  } catch {
+    // ignore
+  }
   logError("uncaught exception", error);
   // 未捕获异常后进程状态不可信，记录日志后安全退出
   exitAfterShutdown(1);
@@ -39,7 +63,10 @@ const disableGpu = isSafeMode;
 const runtimeStateRoot = process.env.AIASYS_DESKTOP_HOME
   || path.join(app.getPath("userData"), "backend-runtime");
 
-let mainWindow = null;
+// 多窗口管理：主进程统一管理所有 BrowserWindow，避免独立启动第二个进程导致后端端口冲突。
+const windows = new Map();
+let nextWindowId = 1;
+let primaryWindowId = null;
 let tray = null;
 let serviceManager = null;
 let shutdownStarted = false;
@@ -48,6 +75,49 @@ let isQuitting = false;
 let mainWindowLoadRetryCount = 0;
 const MAX_MAIN_WINDOW_LOAD_RETRIES = 3;
 let pendingDeepLink = null;
+
+function getWindowById(id) {
+  return windows.get(id) ?? null;
+}
+
+function getPrimaryWindow() {
+  if (primaryWindowId !== null) {
+    const win = windows.get(primaryWindowId);
+    if (win && !win.isDestroyed()) {
+      return win;
+    }
+  }
+  for (const win of windows.values()) {
+    if (!win.isDestroyed()) {
+      return win;
+    }
+  }
+  return null;
+}
+
+function getAnyVisibleWindow() {
+  for (const win of windows.values()) {
+    if (!win.isDestroyed() && win.isVisible()) {
+      return win;
+    }
+  }
+  return null;
+}
+
+function sendToPrimaryWindow(channel, ...args) {
+  const win = getPrimaryWindow();
+  if (win && !win.isDestroyed()) {
+    win.webContents.send(channel, ...args);
+  }
+}
+
+function sendToAllWindows(channel, ...args) {
+  for (const win of windows.values()) {
+    if (!win.isDestroyed()) {
+      win.webContents.send(channel, ...args);
+    }
+  }
+}
 
 if (remoteDebuggingPort) {
   app.commandLine.appendSwitch("remote-debugging-port", remoteDebuggingPort);
@@ -112,7 +182,7 @@ if (!gotTheLock) {
   // 注意不要调用 shutdownApp()，否则会错误地停止主实例的后端进程。
   app.quit();
 } else {
-  // 收到第二个实例启动请求时，恢复并聚焦主窗口。
+  // 收到第二个实例启动请求时，由当前运行实例负责创建新窗口或聚焦已有窗口。
   app.on("second-instance", (_event, argv) => {
     // 处理通过 aiasys:// 协议传入的启动参数
     const rawDeepLink = argv.find((arg) => arg.startsWith("aiasys://"));
@@ -123,32 +193,46 @@ if (!gotTheLock) {
         return;
       }
       const deepLink = rawDeepLink;
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        if (mainWindow.isMinimized()) {
-          mainWindow.restore();
+      const targetWindow = getPrimaryWindow();
+      if (targetWindow) {
+        if (targetWindow.isMinimized()) {
+          targetWindow.restore();
         }
-        if (!mainWindow.isVisible()) {
-          mainWindow.show();
+        if (!targetWindow.isVisible()) {
+          targetWindow.show();
         }
-        mainWindow.focus();
-        mainWindow.webContents.send("deep-link", deepLink);
+        targetWindow.focus();
+        targetWindow.webContents.send("deep-link", deepLink);
       } else {
         pendingDeepLink = deepLink;
       }
       return;
     }
 
-    if (!mainWindow || mainWindow.isDestroyed()) {
-      // 主窗口尚未创建或已销毁（例如被最小化到托盘后关闭），无需处理
+    // 解析命令行参数中的 workspace_id / session_id，在已有实例中打开新窗口
+    const wsArg = argv.find((arg) => arg.startsWith("--workspace-id="));
+    const sessionArg = argv.find((arg) => arg.startsWith("--session-id="));
+    if (wsArg || sessionArg) {
+      const workspaceId = wsArg ? wsArg.slice("--workspace-id=".length) : undefined;
+      const sessionId = sessionArg ? sessionArg.slice("--session-id=".length) : undefined;
+      if (serviceManager) {
+        createWorkspaceWindow(serviceManager.rendererBaseUrl, { workspaceId, sessionId });
+      }
       return;
     }
-    if (mainWindow.isMinimized()) {
-      mainWindow.restore();
+
+    // 无参数时聚焦主窗口
+    const targetWindow = getPrimaryWindow();
+    if (!targetWindow) {
+      return;
     }
-    if (!mainWindow.isVisible()) {
-      mainWindow.show();
+    if (targetWindow.isMinimized()) {
+      targetWindow.restore();
     }
-    mainWindow.focus();
+    if (!targetWindow.isVisible()) {
+      targetWindow.show();
+    }
+    targetWindow.focus();
   });
 }
 
@@ -189,7 +273,12 @@ function isSameOrigin(url, baseUrl) {
 }
 
 function logError(message, error) {
-  console.error(`[aiasys-desktop] ${message}:`, error);
+  // 打包后的 Windows 应用可能将 stdout/stderr 重定向到已关闭的管道，
+  // 任何 stderr 写入（console.error / process.stderr.write）都会触发 EPIPE，
+  // 而 EPIPE 又会被 uncaughtException 捕获并再次调用 logError，形成死循环。
+  // 因此 logError 内部不再向 stderr 写入，仅记录到日志文件。
+  const errorMessage = error instanceof Error ? error.stack || error.message : String(error);
+
   try {
     const logsDir = getLogsDir();
     fs.mkdirSync(logsDir, { recursive: true });
@@ -208,10 +297,9 @@ function logError(message, error) {
       // ignore rotation errors
     }
     const timestamp = new Date().toISOString();
-    const errorMessage = error instanceof Error ? error.stack || error.message : String(error);
     fs.appendFileSync(logPath, `[${timestamp}] ERROR: ${message}\n${errorMessage}\n\n`);
-  } catch (e) {
-    console.error("[aiasys-desktop] error log append failed:", e);
+  } catch {
+    // ignore
   }
 }
 
@@ -478,12 +566,21 @@ async function waitForBackendSession(backendBaseUrl, timeoutMs = 15_000) {
   return false;
 }
 
-function createMainWindow(rendererBaseUrl) {
+function createWorkspaceWindow(rendererBaseUrl, options = {}) {
+  const { workspaceId, sessionId, isPrimary = false } = options;
   const preloadPath = path.join(__dirname, "preload.cjs");
   // 桌面版加载 dist 根路径，让前端路由自己处理 startPath；
   // 直接加载 /analysis 会导致绝对路径的 /assets/... 被浏览器相对于当前路径解析（或
   // preview server 把不存在的 /analysis/assets/... 回退成 index.html），页面白屏。
-  const initialUrl = new URL("/", rendererBaseUrl).toString();
+  // 指定工作区/会话时直接打开 /workspace，否则让前端路由按 startPath 处理首页。
+  const url = new URL(workspaceId || sessionId ? "/workspace" : "/", rendererBaseUrl);
+  if (workspaceId) {
+    url.searchParams.set("workspace_id", workspaceId);
+  }
+  if (sessionId) {
+    url.searchParams.set("session_id", sessionId);
+  }
+  const initialUrl = url.toString();
   // 把后端地址通过命令行参数注入 renderer，供 preload 暴露给前端。
   // 这样 WebSocket 等需要直连后端的场景不必依赖页面同源或 preview server 代理。
   const backendBaseUrl = serviceManager ? serviceManager.backendBaseUrl : "";
@@ -491,7 +588,7 @@ function createMainWindow(rendererBaseUrl) {
     ? [`--aiasys-backend-base-url=${backendBaseUrl}`]
     : [];
 
-  mainWindow = new BrowserWindow({
+  const win = new BrowserWindow({
     width: 1440,
     height: 900,
     minWidth: 1100,
@@ -508,7 +605,13 @@ function createMainWindow(rendererBaseUrl) {
     },
   });
 
-  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+  const windowId = nextWindowId++;
+  windows.set(windowId, win);
+  if (isPrimary || primaryWindowId === null) {
+    primaryWindowId = windowId;
+  }
+
+  win.webContents.setWindowOpenHandler(({ url }) => {
     if (isSameOrigin(url, rendererBaseUrl)) {
       return { action: "allow" };
     }
@@ -516,7 +619,7 @@ function createMainWindow(rendererBaseUrl) {
     return { action: "deny" };
   });
 
-  mainWindow.webContents.on("will-navigate", (event, url) => {
+  win.webContents.on("will-navigate", (event, url) => {
     if (isSameOrigin(url, rendererBaseUrl)) {
       return;
     }
@@ -524,7 +627,7 @@ function createMainWindow(rendererBaseUrl) {
     void shell.openExternal(url);
   });
 
-  mainWindow.webContents.on("render-process-gone", (_event, details) => {
+  win.webContents.on("render-process-gone", (_event, details) => {
     console.error("[aiasys-desktop] render process gone:", details);
     closeSplashWindow();
 
@@ -551,14 +654,14 @@ function createMainWindow(rendererBaseUrl) {
         "渲染进程异常退出，应用将尝试重新加载页面。",
       );
     }
-    if (mainWindow && !mainWindow.isDestroyed() && serviceManager) {
-      mainWindow.loadURL(serviceManager.rendererBaseUrl).catch((err) => {
+    if (!win.isDestroyed() && serviceManager) {
+      win.loadURL(serviceManager.rendererBaseUrl).catch((err) => {
         console.error("[aiasys-desktop] 重新加载渲染页面失败:", err);
       });
     }
   });
 
-  mainWindow.webContents.on(
+  win.webContents.on(
     "did-fail-load",
     (_event, errorCode, errorDescription, validatedUrl) => {
       // errorCode -3 为 ERR_ABORTED，通常是页面主动重导航或重载，不必重试
@@ -579,8 +682,8 @@ function createMainWindow(rendererBaseUrl) {
           `页面加载失败，正在重试 (${mainWindowLoadRetryCount}/${MAX_MAIN_WINDOW_LOAD_RETRIES})...`,
         );
         setTimeout(() => {
-          if (mainWindow && !mainWindow.isDestroyed()) {
-            void mainWindow.loadURL(validatedUrl || initialUrl);
+          if (!win.isDestroyed()) {
+            void win.loadURL(validatedUrl || initialUrl);
           }
         }, delay);
       } else {
@@ -600,20 +703,28 @@ function createMainWindow(rendererBaseUrl) {
     },
   );
 
-  mainWindow.on("closed", () => {
-    mainWindow = null;
+  win.on("closed", () => {
+    windows.delete(windowId);
+    if (primaryWindowId === windowId) {
+      primaryWindowId = null;
+    }
   });
 
-  mainWindow.on("close", (event) => {
-    if (!isQuitting) {
-      // 如果托盘未创建（图标加载失败等），隐藏后无法恢复，直接退出
-      if (!tray) {
-        isQuitting = true;
-        return;
-      }
-      event.preventDefault();
-      mainWindow.hide();
+  win.on("close", (event) => {
+    if (isQuitting) {
+      return;
     }
+    // 多窗口模式下，只要还有其它窗口，当前窗口可以直接关闭
+    if (windows.size > 1) {
+      return;
+    }
+    // 仅剩一个窗口时，保持原有托盘隐藏行为
+    if (!tray) {
+      isQuitting = true;
+      return;
+    }
+    event.preventDefault();
+    win.hide();
   });
 
   // 等页面真正加载完成且后端 API 可响应后，再关闭 splash 并展示主窗口，
@@ -622,80 +733,96 @@ function createMainWindow(rendererBaseUrl) {
   let pageLoadFinished = false;
   let showFinalized = false;
 
-  function finalizeMainWindowShow() {
+  function finalizeWindowShow() {
     if (showFinalized || !windowReadyToShow || !pageLoadFinished) {
       return;
     }
-    if (!mainWindow || mainWindow.isDestroyed()) {
+    if (win.isDestroyed()) {
       return;
     }
     showFinalized = true;
 
-    setSplashStatus({ message: "正在连接本地服务...", step: 5, total: 5 });
-    waitForBackendSession(backendBaseUrl, 15_000)
-      .then((ready) => {
-        if (!ready) {
-          console.warn(
-            "[aiasys-desktop] 后端 API 未就绪，继续显示主窗口，由前端展示错误状态",
-          );
-        }
-        closeSplashWindow();
-        mainWindow.show();
-        if (openDevTools) {
-          mainWindow.webContents.openDevTools({ mode: "detach" });
-        }
-      })
-      .catch((error) => {
-        console.error("[aiasys-desktop] 等待后端 API 时异常:", error);
-        closeSplashWindow();
-        mainWindow.show();
-      });
+    if (isPrimary) {
+      setSplashStatus({ message: "正在连接本地服务...", step: 5, total: 5 });
+      waitForBackendSession(backendBaseUrl, 15_000)
+        .then((ready) => {
+          if (!ready) {
+            console.warn(
+              "[aiasys-desktop] 后端 API 未就绪，继续显示主窗口，由前端展示错误状态",
+            );
+          }
+          closeSplashWindow();
+          win.show();
+          if (openDevTools) {
+            win.webContents.openDevTools({ mode: "detach" });
+          }
+        })
+        .catch((error) => {
+          console.error("[aiasys-desktop] 等待后端 API 时异常:", error);
+          closeSplashWindow();
+          win.show();
+        });
+    } else {
+      // 非主窗口（如新开工作区窗口）不需要等待 splash，直接显示
+      win.show();
+    }
   }
 
   // 兜底：窗口创建 30 秒后如果还没展示，强制展示，避免某个事件永远不触发导致卡死
   const showFallbackTimeout = setTimeout(() => {
-    if (!showFinalized && mainWindow && !mainWindow.isDestroyed()) {
+    if (!showFinalized && !win.isDestroyed()) {
       console.warn(
-        "[aiasys-desktop] 窗口展示超时，强制显示主窗口",
+        "[aiasys-desktop] 窗口展示超时，强制显示窗口",
       );
       showFinalized = true;
-      closeSplashWindow();
-      mainWindow.show();
-      if (openDevTools) {
-        mainWindow.webContents.openDevTools({ mode: "detach" });
+      if (isPrimary) {
+        closeSplashWindow();
+      }
+      win.show();
+      if (isPrimary && openDevTools) {
+        win.webContents.openDevTools({ mode: "detach" });
       }
     }
   }, 30_000);
 
-  mainWindow.once("ready-to-show", () => {
+  win.once("ready-to-show", () => {
     windowReadyToShow = true;
-    finalizeMainWindowShow();
+    finalizeWindowShow();
   });
 
-  mainWindow.webContents.on("did-finish-load", () => {
+  win.webContents.on("did-finish-load", () => {
     pageLoadFinished = true;
-    finalizeMainWindowShow();
+    finalizeWindowShow();
 
-    // 如果在窗口创建前收到 deeplink，此时补发给渲染进程
-    if (pendingDeepLink) {
-      mainWindow.webContents.send("deep-link", pendingDeepLink);
+    // 主窗口在创建前收到 deeplink，此时补发给渲染进程
+    if (isPrimary && pendingDeepLink) {
+      win.webContents.send("deep-link", pendingDeepLink);
       pendingDeepLink = null;
     }
   });
 
-  mainWindow.once("closed", () => {
+  win.once("closed", () => {
     clearTimeout(showFallbackTimeout);
   });
 
-  mainWindowLoadRetryCount = 0;
-  void mainWindow.loadURL(initialUrl);
+  if (isPrimary) {
+    mainWindowLoadRetryCount = 0;
+  }
+  void win.loadURL(initialUrl);
+
+  return win;
+}
+
+function createMainWindow(rendererBaseUrl) {
+  return createWorkspaceWindow(rendererBaseUrl, { isPrimary: true });
 }
 
 function sendTrayAction(action) {
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.webContents.send("tray-action", action);
-    mainWindow.show();
-    mainWindow.focus();
+  const targetWindow = getPrimaryWindow();
+  if (targetWindow && !targetWindow.isDestroyed()) {
+    targetWindow.webContents.send("tray-action", action);
+    targetWindow.show();
+    targetWindow.focus();
   }
 }
 
@@ -712,9 +839,10 @@ function createTray() {
     {
       label: "显示窗口",
       click: () => {
-        if (mainWindow) {
-          mainWindow.show();
-          mainWindow.focus();
+        const targetWindow = getPrimaryWindow();
+        if (targetWindow) {
+          targetWindow.show();
+          targetWindow.focus();
         } else if (serviceManager) {
           createMainWindow(serviceManager.rendererBaseUrl);
         }
@@ -780,7 +908,8 @@ function createTray() {
       label: "关于 AIASys",
       click: () => {
         const version = app.getVersion();
-        dialog.showMessageBox(mainWindow, {
+        const targetWindow = getPrimaryWindow();
+        dialog.showMessageBox(targetWindow, {
           type: "info",
           title: "关于 AIASys",
           message: `AIASys v${version}`,
@@ -802,12 +931,13 @@ function createTray() {
   tray.setContextMenu(contextMenu);
 
   tray.on("click", () => {
-    if (mainWindow) {
-      if (mainWindow.isVisible()) {
-        mainWindow.hide();
+    const targetWindow = getPrimaryWindow();
+    if (targetWindow) {
+      if (targetWindow.isVisible()) {
+        targetWindow.hide();
       } else {
-        mainWindow.show();
-        mainWindow.focus();
+        targetWindow.show();
+        targetWindow.focus();
       }
     } else if (serviceManager) {
       createMainWindow(serviceManager.rendererBaseUrl);
@@ -817,7 +947,6 @@ function createTray() {
 
 async function bootstrap() {
   console.log("[aiasys-desktop] bootstrap start");
-  console.log("[aiasys-desktop] bootstrap started");
 
   serviceManager = new DesktopServiceManager({
     mode: desktopMode,
@@ -826,18 +955,14 @@ async function bootstrap() {
     runtimeStateRoot,
   });
 
-  // 后端崩溃时通知渲染进程显示遮罩
+  // 后端崩溃时通知所有渲染进程显示遮罩
   serviceManager.onBackendCrash = (info) => {
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send("backend:crashed", info);
-    }
+    sendToAllWindows("backend:crashed", info);
   };
 
-  // 后端重启就绪后通知渲染进程隐藏遮罩
+  // 后端重启就绪后通知所有渲染进程隐藏遮罩
   serviceManager.onBackendReady = () => {
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send("backend:ready");
-    }
+    sendToAllWindows("backend:ready");
   };
 
   // 启动进度透传到 splash
@@ -894,8 +1019,28 @@ ipcMain.handle("aiasys:open-external", async (_event, url) => {
   }
 });
 
-ipcMain.handle("aiasys:select-folder", async (_event, options = {}) => {
-  if (!mainWindow || mainWindow.isDestroyed()) {
+// 注册 IPC：在新窗口打开指定工作区
+ipcMain.handle("aiasys:open-workspace-window", (_event, options = {}) => {
+  if (!serviceManager) {
+    return { success: false, error: "service not ready" };
+  }
+  const { workspaceId, sessionId } = options;
+  createWorkspaceWindow(serviceManager.rendererBaseUrl, {
+    workspaceId: typeof workspaceId === "string" ? workspaceId : undefined,
+    sessionId: typeof sessionId === "string" ? sessionId : undefined,
+  });
+  return { success: true };
+});
+
+ipcMain.handle("aiasys:select-folder", async (event, options = {}) => {
+  // 优先使用触发该 IPC 的窗口作为对话框父窗口，回退到主窗口
+  const sourceWindow = event.sender
+    ? BrowserWindow.fromWebContents(event.sender)
+    : null;
+  const parentWindow = sourceWindow && !sourceWindow.isDestroyed()
+    ? sourceWindow
+    : getPrimaryWindow();
+  if (!parentWindow) {
     return { canceled: true, filePaths: [] };
   }
   // Agent 模式：不阻塞等待用户选择，直接返回取消
@@ -903,7 +1048,7 @@ ipcMain.handle("aiasys:select-folder", async (_event, options = {}) => {
     console.log("[aiasys-desktop] agent mode: auto-cancel select-folder");
     return { canceled: true, filePaths: [] };
   }
-  const result = await dialog.showOpenDialog(mainWindow, {
+  const result = await dialog.showOpenDialog(parentWindow, {
     properties: ["openDirectory"],
     title: options.title || "选择文件夹",
     defaultPath: options.defaultPath,
@@ -982,26 +1127,28 @@ app.on("open-url", (_event, url) => {
     console.warn(`[aiasys-desktop] 忽略非法 deeplink (${validation.reason}): ${String(url).slice(0, 100)}`);
     return;
   }
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    if (mainWindow.isMinimized()) {
-      mainWindow.restore();
+  const targetWindow = getPrimaryWindow();
+  if (targetWindow) {
+    if (targetWindow.isMinimized()) {
+      targetWindow.restore();
     }
-    if (!mainWindow.isVisible()) {
-      mainWindow.show();
+    if (!targetWindow.isVisible()) {
+      targetWindow.show();
     }
-    mainWindow.focus();
-    mainWindow.webContents.send("deep-link", url);
+    targetWindow.focus();
+    targetWindow.webContents.send("deep-link", url);
   } else {
     pendingDeepLink = url;
   }
 });
 
 app.on("activate", () => {
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    if (!mainWindow.isVisible()) {
-      mainWindow.show();
+  const targetWindow = getPrimaryWindow();
+  if (targetWindow) {
+    if (!targetWindow.isVisible()) {
+      targetWindow.show();
     }
-    mainWindow.focus();
+    targetWindow.focus();
   } else if (BrowserWindow.getAllWindows().length === 0 && serviceManager) {
     createMainWindow(serviceManager.rendererBaseUrl);
   }

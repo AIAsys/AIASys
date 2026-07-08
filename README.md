@@ -105,7 +105,11 @@ cd ../..
 启动开发环境：
 
 ```bash
+# Linux/macOS/WSL (Git Bash)
 ./dev.sh
+
+# Windows PowerShell
+.\dev.ps1
 ```
 
 默认地址：

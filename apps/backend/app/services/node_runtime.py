@@ -61,6 +61,26 @@ def _safe_tail(text: str, limit: int = 8000) -> str:
     return text[-limit:]
 
 
+def _parse_fnm_list_versions(stdout: str) -> list[str]:
+    """从 fnm list 输出中提取已安装的版本号。
+
+    支持输出格式如：
+      * v22.15.0 default
+      * v20.15.1
+      v18.20.4
+    返回的版本号不带前导 'v'，与 _normalize_node_version 保持一致。
+    """
+    versions = []
+    for line in stdout.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        match = re.search(r"v?\d+\.\d+\.\d+", line)
+        if match:
+            versions.append(match.group(0).lstrip("v"))
+    return versions
+
+
 # 危险字符：可能引发 shell 注入或破坏命令行解析
 _INVALID_PACKAGE_CHARS = set(";|&$`\"'\n\r\x00")
 
@@ -88,9 +108,12 @@ def _normalize_node_version(version: str) -> str:
     text = str(version or "").strip()
     if not text:
         raise ValueError("Node.js 版本不能为空")
-    # fnm accepts "20", "20.11", "20.11.0", "lts", "lts/iron", etc.
-    # Strip leading 'v' if present; fnm handles both forms
+    # fnm accepts "20", "20.11", "20.11.0", "lts/*", "lts-iron", etc.
+    # Strip leading 'v' if present; fnm handles both forms.
+    # Windows  bundled fnm 1.39.0 不识别裸 "lts" 别名，统一归一化为 "lts/*"。
     text = text.lstrip("v")
+    if text == "lts":
+        text = "lts/*"
     if not text:
         raise ValueError(f"无效的 Node.js 版本: {version}")
     return text
@@ -181,10 +204,11 @@ class NodeRuntimeService:
         env_id = _normalize_env_id(env_id, DEFAULT_NODE_ENV_ID)
         workspace_dir = self._workspace_dir(user_id, workspace_id)
 
-        # 先安装 Node.js 版本
+        # 先安装 Node.js 版本（首次下载可能耗时较长，给予更宽裕的超时）
         result = self._run_fnm(
             ["install", normalized_version],
             workspace_dir=workspace_dir,
+            timeout=600,
         )
         if not result.ok:
             raise RuntimeError(
@@ -196,10 +220,36 @@ class NodeRuntimeService:
             ["list"],
             workspace_dir=workspace_dir,
         )
-        version_installed = normalized_version in (list_result.stdout or "")
+        installed_versions = _parse_fnm_list_versions(list_result.stdout or "")
+        actual_version = normalized_version
+
+        if installed_versions:
+            if _VERSION_PATTERN.match(normalized_version):
+                # 具体版本号：查找前缀匹配的已安装版本（如 20 匹配 20.15.0）
+                matched = next(
+                    (v for v in installed_versions if v.startswith(normalized_version)),
+                    None,
+                )
+                if matched:
+                    actual_version = matched
+                    version_installed = True
+                else:
+                    version_installed = False
+            else:
+                # 别名（如 lts / lts-iron）：取已安装的第一个版本作为实际版本
+                actual_version = installed_versions[0]
+                version_installed = True
+                logger.info(
+                    "将 Node.js 别名 %s 解析为实际版本 %s",
+                    normalized_version,
+                    actual_version,
+                )
+        else:
+            # 解析失败时回退到原始字符串匹配
+            version_installed = normalized_version in (list_result.stdout or "")
 
         if not version_installed:
-            # fnm install 返回 0 但版本不在列表中，可能是 lts 标签解析失败
+            # fnm install 返回 0 但版本不在列表中，可能是安装实际未完成
             logger.warning(
                 "fnm install returned success but version %s not found in list",
                 normalized_version,
@@ -212,10 +262,10 @@ class NodeRuntimeService:
         env = NodeRuntimeEnv(
             env_id=env_id,
             kind="fnm",
-            display_name=display_name or f"Node.js {normalized_version}",
+            display_name=display_name or f"Node.js {actual_version}",
             status="ready" if version_installed else "registered",
             active=bool(existing.active if existing else False),
-            node_version=normalized_version,
+            node_version=actual_version,
             created_at=existing.created_at if existing else now,
             updated_at=now,
             metadata={
@@ -742,6 +792,7 @@ class NodeRuntimeService:
         args: list[str],
         *,
         workspace_dir: Path,
+        timeout: int = 300,
     ) -> RuntimeEnvCommandResult:
         """执行 fnm 命令。
 
@@ -778,9 +829,18 @@ class NodeRuntimeService:
                 cwd=str(workspace_dir),
                 env=env,
                 capture_output=True,
-                timeout=300,
+                timeout=timeout,
                 check=False,
                 **subprocess_kwargs(),
+            )
+        except subprocess.TimeoutExpired as exc:
+            return RuntimeEnvCommandResult(
+                ok=False,
+                command=command,
+                cwd=str(workspace_dir),
+                error=f"fnm 命令执行超时（{timeout}s），通常是首次下载 Node.js 二进制时网络较慢。",
+                stdout=_safe_tail(smart_decode(exc.stdout or b"")),
+                stderr=_safe_tail(smart_decode(exc.stderr or b"")),
             )
         except Exception as exc:
             return RuntimeEnvCommandResult(

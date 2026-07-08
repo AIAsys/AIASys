@@ -268,6 +268,7 @@ describe("resolveDesiredPort", () => {
       }),
       readListeningProcess: () => null,
       probeUrl: async () => false,
+      probeFreePort: async () => true,
     });
     assert.deepStrictEqual(result, { port: 13011, reuse: false });
   });
@@ -289,6 +290,7 @@ describe("resolveDesiredPort", () => {
       }),
       readListeningProcess: () => null,
       probeUrl: async () => false,
+      probeFreePort: async () => true,
     });
     // 终止异常进程后端口变为可用，应返回原端口
     assert.deepStrictEqual(result, { port: 13011, reuse: false });
@@ -346,7 +348,11 @@ describe("resolveDesiredPort", () => {
 
 describe("validatePythonExecutable", () => {
   it("有效 Python 解释器返回 ok=true", () => {
-    const result = validatePythonExecutable("python3");
+    // 使用仓库 backend venv 中的 Python，避免依赖系统 PATH 中的 python/python3
+    const pythonCmd = process.platform === "win32"
+      ? path.join(__dirname, "..", "..", "..", "backend", ".venv", "Scripts", "python.exe")
+      : path.join(__dirname, "..", "..", "..", "backend", ".venv", "bin", "python3");
+    const result = validatePythonExecutable(pythonCmd);
     assert.strictEqual(result.ok, true);
     assert.ok(result.version.startsWith("Python "), `version should start with Python: ${result.version}`);
   });

@@ -34,6 +34,12 @@ export function useTaskWorkspaces({
   // 否则 /workspace?workspace_id=... 会在首帧被误判成无效路由并提前清掉。
   const [isLoadingWorkspaces, setIsLoadingWorkspaces] = useState(true);
   const latestLoadRequestRef = useRef(0);
+  const loadingPromiseRef = useRef<Promise<TaskWorkspaceSummary[]> | null>(null);
+  const lastLoadedAtRef = useRef(0);
+  const workspacesRef = useRef<TaskWorkspaceSummary[]>([]);
+  useEffect(() => {
+    workspacesRef.current = workspaces;
+  }, [workspaces]);
   const routeWorkspaceId =
     typeof window === "undefined" ||
     window.location.pathname.replace(/\/+$/, "") !== "/workspace"
@@ -49,31 +55,46 @@ export function useTaskWorkspaces({
   );
 
   const loadWorkspaces = useCallback(async (): Promise<TaskWorkspaceSummary[]> => {
+    if (loadingPromiseRef.current) {
+      return loadingPromiseRef.current;
+    }
+    // 150ms 内重复触发视为同一次刷新，防止状态震荡导致请求风暴
+    if (Date.now() - lastLoadedAtRef.current < 150) {
+      return workspacesRef.current;
+    }
+
     const requestId = latestLoadRequestRef.current + 1;
     latestLoadRequestRef.current = requestId;
 
-    setIsLoadingWorkspaces(true);
-    try {
-      const next = await fetchWorkspaces();
+    const run = async (): Promise<TaskWorkspaceSummary[]> => {
+      setIsLoadingWorkspaces(true);
+      try {
+        const next = await fetchWorkspaces();
 
-      next.sort(
-        (left, right) => getWorkspaceActivityTimestamp(right) - getWorkspaceActivityTimestamp(left),
-      );
-      if (requestId === latestLoadRequestRef.current) {
-        setWorkspaces(next);
+        next.sort(
+          (left, right) => getWorkspaceActivityTimestamp(right) - getWorkspaceActivityTimestamp(left),
+        );
+        if (requestId === latestLoadRequestRef.current) {
+          setWorkspaces(next);
+        }
+        return next;
+      } catch (error) {
+        console.error("Failed to load workspaces:", error);
+        if (requestId === latestLoadRequestRef.current) {
+          setWorkspaces([]);
+        }
+        return [];
+      } finally {
+        if (requestId === latestLoadRequestRef.current) {
+          setIsLoadingWorkspaces(false);
+        }
+        loadingPromiseRef.current = null;
+        lastLoadedAtRef.current = Date.now();
       }
-      return next;
-    } catch (error) {
-      console.error("Failed to load workspaces:", error);
-      if (requestId === latestLoadRequestRef.current) {
-        setWorkspaces([]);
-      }
-      return [];
-    } finally {
-      if (requestId === latestLoadRequestRef.current) {
-        setIsLoadingWorkspaces(false);
-      }
-    }
+    };
+
+    loadingPromiseRef.current = run();
+    return loadingPromiseRef.current;
   }, [fetchWorkspaces]);
 
   useEffect(() => {

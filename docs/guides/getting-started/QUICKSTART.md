@@ -50,7 +50,11 @@ cd ../..
 项目根目录提供统一开发启动入口：
 
 ```bash
+# Linux/macOS/WSL (Git Bash)
 ./dev.sh
+
+# Windows PowerShell
+.\dev.ps1
 ```
 
 它会同时启动：
@@ -61,10 +65,16 @@ cd ../..
 查看状态：
 
 ```bash
+# Linux/macOS/WSL (Git Bash)
 ./dev.sh status
+
+# Windows PowerShell
+.\dev.ps1 status
 ```
 
 停止前台运行的开发服务时，在启动命令所在终端按 `Ctrl+C`。
+
+Windows 命令提示符（cmd）不直接支持 `.ps1` 脚本，如需使用请先调用 PowerShell：`powershell -File dev.ps1`。日常开发推荐用 Windows PowerShell 或 Git Bash。
 
 ## 4. 常用配置
 
@@ -190,7 +200,7 @@ VITE_AUTH_MODE=local VITE_API_TARGET=http://localhost:13001 npm run dev -- --por
 AIASYS_FRONTEND_PORT=13010 ./dev.sh
 
 # Windows PowerShell
-$env:AIASYS_FRONTEND_PORT=13010; .\dev.sh
+$env:AIASYS_FRONTEND_PORT=13010; .\dev.ps1
 ```
 
 ## 5. 桌面版快速启动（可选）
@@ -229,13 +239,13 @@ npm run dev
 |:---|:---|:---|
 | 安装后端依赖 | `uv sync` | `apps/backend/` |
 | 安装前端依赖 | `npm ci` | `apps/web/` |
-| 启动开发环境 | `./dev.sh` | 项目根目录 |
-| 查看开发环境状态 | `./dev.sh status` | 项目根目录 |
+| 启动开发环境 | `./dev.sh`（Linux/macOS/WSL/Git Bash）<br>`.\dev.ps1`（Windows PowerShell） | 项目根目录 |
+| 查看开发环境状态 | `./dev.sh status`（Linux/macOS/WSL/Git Bash）<br>`.\dev.ps1 status`（Windows PowerShell） | 项目根目录 |
 | 后端启动 | `uv run uvicorn app.main:app --host 0.0.0.0 --port 13001` | `apps/backend/` |
 | 前端启动 | `npm run dev` | `apps/web/` |
 | 运行后端测试 | `uv run pytest` | `apps/backend/` |
 | 前端构建 | `npm run build` | `apps/web/` |
-| 校验视觉基线 | `./dev.sh design-lint` | 项目根目录 |
+| 校验视觉基线 | `./dev.sh design-lint`（Linux/macOS/WSL/Git Bash）<br>`.\dev.ps1 design-lint`（Windows PowerShell） | 项目根目录 |
 | 桌面版开发 | `npm run dev` | `apps/desktop/` |
 | 桌面版 Linux 打包 | `npm run dist:linux:dir` | `apps/desktop/` |
 | 桌面版 Windows 打包 | `npm run dist:win` | `apps/desktop/` |

@@ -26,6 +26,7 @@ import { Home, RefreshCw, TriangleAlert } from "lucide-react";
 interface WorkspacePageContentProps {
   userId: string;
   initialSessionId?: string | null;
+  initialWorkspaceId?: string | null;
 }
 
 function getOverlayFromRoute(): WorkspaceDialogOverlay {
@@ -79,10 +80,12 @@ function stripWorkspaceSettingsIntentFromRoute(): void {
 function WorkspacePageContent({
   userId,
   initialSessionId,
+  initialWorkspaceId,
 }: WorkspacePageContentProps) {
   const controller = useWorkspacePageController({
     userId,
     initialSessionId,
+    initialWorkspaceId,
   });
   const [routeOverlay, setRouteOverlay] =
     useState<WorkspaceDialogOverlay>(getOverlayFromRoute);
@@ -254,10 +257,12 @@ function WorkspaceAuthContextFallback({
 
 interface WorkspacePageProps {
   initialSessionId?: string | null;
+  initialWorkspaceId?: string | null;
 }
 
 export default function WorkspacePage({
   initialSessionId,
+  initialWorkspaceId,
 }: WorkspacePageProps) {
   const {
     user,
@@ -303,6 +308,7 @@ export default function WorkspacePage({
     <WorkspacePageContent
       userId={userId}
       initialSessionId={initialSessionId}
+      initialWorkspaceId={initialWorkspaceId}
     />
   );
 }

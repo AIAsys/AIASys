@@ -32,6 +32,19 @@ FileHistoryOperation = Literal[
     "before_restore",
 ]
 
+
+@dataclass(slots=True)
+class ChangeEvent:
+    """一次变更事件，由相近时间内的多个文件历史条目聚合而成。"""
+
+    id: str
+    timestamp: str
+    source: str
+    source_detail: str | None
+    operation: FileHistoryOperation
+    files: list[FileHistoryEntry]
+
+
 DEFAULT_MAX_FILE_SIZE = 2 * 1024 * 1024
 DEFAULT_MAX_ENTRIES_PER_FILE = 50
 HISTORY_DIR = Path(".aiasys/file-history")
@@ -110,6 +123,61 @@ class FileHistoryService:
             result.append((file_path, latest, len(entries)))
         result.sort(key=lambda item: item[1].timestamp, reverse=True)
         return result[:limit]
+
+    def list_change_events(
+        self,
+        workspace_root: Path,
+        *,
+        limit: int = 50,
+        time_window_seconds: int = 120,
+    ) -> list[ChangeEvent]:
+        """返回变更事件列表，按时间倒序排列。
+
+        将时间相近（默认 120 秒内）的历史条目聚合为一个事件，方便查看"同一批次"的变更。
+        """
+        with self._get_index_lock(workspace_root):
+            all_entries = self._read_entries(workspace_root)
+
+        if not all_entries:
+            return []
+
+        sorted_entries = sorted(all_entries, key=lambda e: e.timestamp, reverse=True)
+        events: list[ChangeEvent] = []
+        current_group: list[FileHistoryEntry] = []
+
+        def _flush_group() -> None:
+            if not current_group:
+                return
+            first = current_group[0]
+            events.append(
+                ChangeEvent(
+                    id=first.id,
+                    timestamp=first.timestamp,
+                    source=first.source,
+                    source_detail=first.source_detail,
+                    operation=first.operation,
+                    files=list(current_group),
+                )
+            )
+            current_group.clear()
+
+        for entry in sorted_entries:
+            if not current_group:
+                current_group.append(entry)
+                continue
+            last = current_group[-1]
+            last_dt = datetime.fromisoformat(last.timestamp.replace("Z", "+00:00"))
+            entry_dt = datetime.fromisoformat(entry.timestamp.replace("Z", "+00:00"))
+            delta = (last_dt - entry_dt).total_seconds()
+            if 0 <= delta <= time_window_seconds:
+                current_group.append(entry)
+            else:
+                _flush_group()
+                current_group.append(entry)
+        _flush_group()
+
+        events.sort(key=lambda e: e.timestamp, reverse=True)
+        return events[:limit]
 
     def get_entry(self, workspace_root: Path, entry_id: str) -> FileHistoryEntry:
         with self._get_index_lock(workspace_root):

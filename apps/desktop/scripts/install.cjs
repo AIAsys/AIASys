@@ -159,23 +159,27 @@ function extractArchive(archivePath, targetDir) {
   const isZip = ext === ".zip";
 
   if (PLATFORM === "win32") {
-    // Windows: PowerShell Expand-Archive
-    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "aiasys-install-"));
-    const psScript = path.join(tmpDir, "extract.ps1");
-    const scriptContent =
-      `param([string]$ZipPath, [string]$DestPath)\n` +
-      `Expand-Archive -Path $ZipPath -DestinationPath $DestPath -Force -ErrorAction Stop\n`;
-    fs.writeFileSync(psScript, scriptContent, "utf-8");
+    // Windows: 优先使用 7z（速度快），fallback 到 PowerShell Expand-Archive
+    let result = exec("7z", ["x", archivePath, `-o${targetDir}`, "-y", "-bso0", "-bsp0"]);
+    if (result.error && result.error.code === "ENOENT") {
+      log("INFO", "未找到 7z，回退到 PowerShell Expand-Archive...");
+      const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "aiasys-install-"));
+      const psScript = path.join(tmpDir, "extract.ps1");
+      const scriptContent =
+        `param([string]$ZipPath, [string]$DestPath)\n` +
+        `Expand-Archive -Path $ZipPath -DestinationPath $DestPath -Force -ErrorAction Stop\n`;
+      fs.writeFileSync(psScript, scriptContent, "utf-8");
 
-    const result = exec(
-      "powershell",
-      ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", psScript, "-ZipPath", archivePath, "-DestPath", targetDir]
-    );
+      result = exec(
+        "powershell",
+        ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", psScript, "-ZipPath", archivePath, "-DestPath", targetDir]
+      );
 
-    try {
-      fs.rmSync(tmpDir, { recursive: true, force: true });
-    } catch {
-      // ignore
+      try {
+        fs.rmSync(tmpDir, { recursive: true, force: true });
+      } catch {
+        // ignore
+      }
     }
 
     if (result.status !== 0) {

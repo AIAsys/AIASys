@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import os
@@ -1413,7 +1414,7 @@ class WorkspaceRegistryService:
         self._write_workspace_meta(user_id, workspace_id, meta)
         return _normalize_optional_model_id(meta.get("preferred_model_id"))
 
-    def delete_workspace(
+    async def delete_workspace(
         self,
         user_id: str,
         workspace_id: str,
@@ -1421,7 +1422,7 @@ class WorkspaceRegistryService:
         from app.services.auto_tasks.engine import AutoTaskStore
 
         self._read_workspace_meta(user_id, workspace_id)
-        AutoTaskStore.clear_workspace(user_id, workspace_id)
+        await asyncio.to_thread(AutoTaskStore.clear_workspace, user_id, workspace_id)
 
         workspace_dir = self._get_workspace_dir(user_id, workspace_id)
         payloads = self._read_conversation_payloads(user_id, workspace_id)
@@ -1437,23 +1438,32 @@ class WorkspaceRegistryService:
 
                 session_key = f"{user_id}/{session_id}"
                 if getattr(agent_service, "_active_sessions", {}).get(session_key):
-                    agent_service.interrupt_session(user_id, session_id)
+                    await agent_service.interrupt_session(user_id, session_id)
             except Exception:
                 logger.warning("中断会话运行态失败: %s/%s", user_id, session_id, exc_info=True)
 
             try:
                 from app.agents.tools.local_ipython_box import LocalIPythonBox
 
-                LocalIPythonBox.shutdown_kernel(session_id=session_id, user_id=user_id)
+                await asyncio.to_thread(
+                    LocalIPythonBox.shutdown_kernel,
+                    session_id,
+                    None,
+                    user_id,
+                )
             except Exception:
                 logger.warning("关闭本地运行态失败: %s/%s", user_id, session_id, exc_info=True)
 
-            detached_path = self.session_manager.detach_session_for_deletion(
+            detached_path = await asyncio.to_thread(
+                self.session_manager.detach_session_for_deletion,
                 session_id,
                 user_id,
             )
             if detached_path is not None:
-                self.session_manager.purge_detached_session(detached_path)
+                await asyncio.to_thread(
+                    self.session_manager.purge_detached_session,
+                    detached_path,
+                )
 
             # 清理反向索引
             self._delete_session_index(user_id, session_id)
@@ -1498,7 +1508,7 @@ class WorkspaceRegistryService:
         self._cleanup_workspace_graphrag_cache(workspace_dir)
 
         if os.path.exists(as_system_path(workspace_dir)):
-            shutil.rmtree(as_system_path(workspace_dir))
+            await asyncio.to_thread(shutil.rmtree, as_system_path(workspace_dir))
 
     def _cleanup_workspace_containers(
         self,
@@ -1512,7 +1522,7 @@ class WorkspaceRegistryService:
         try:
             from app.services.container_resource import ContainerResourceService
 
-            service = ContainerResourceService(self.workspace_root, workspace_registry=self)
+            service = ContainerResourceService(self.base_dir, workspace_registry=self)
             registry = service.list_workspace_containers(user_id, workspace_id)
             for container in registry.containers:
                 try:

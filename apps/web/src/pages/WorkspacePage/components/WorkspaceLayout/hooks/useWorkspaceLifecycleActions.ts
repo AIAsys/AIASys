@@ -253,8 +253,11 @@ export function useWorkspaceLifecycleActions({
       try {
         setIsDeletingWorkspace(true);
         setDeleteWorkspaceError(null);
-        await deleteWorkspace(apiBaseUrl, workspaceId);
+        // 先关闭对话框，让 Radix Dialog 在路由切换前完成 overlay 清理，
+        // 避免 body pointer-events: none 被残留。
         setWorkspacePendingDeletion(null);
+        await new Promise((resolve) => window.setTimeout(resolve, 300));
+        await deleteWorkspace(apiBaseUrl, workspaceId);
 
         // 清理被删除工作区下所有 session 的前端缓存
         const deletedWorkspace = workspaces.find(
@@ -300,6 +303,11 @@ export function useWorkspaceLifecycleActions({
         setDeleteWorkspaceError(message);
       } finally {
         setIsDeletingWorkspace(false);
+        // 兜底：Radix Dialog 在路由切换时可能未恢复 body pointer-events，
+        // 删除完成后强制清除，避免整个页面无法点击。
+        if (typeof document !== "undefined") {
+          document.body.style.pointerEvents = "";
+        }
       }
     })();
   }, [
@@ -322,8 +330,10 @@ export function useWorkspaceLifecycleActions({
       try {
         setIsDeletingWorkspace(true);
         setDeleteWorkspaceError(null);
-        const result = await deleteAllWorkspaces(apiBaseUrl, ids);
+        // 先关闭对话框，避免路由切换时 Radix overlay 未清理导致页面无法点击
         setBulkDeletePendingIds(null);
+        await new Promise((resolve) => window.setTimeout(resolve, 300));
+        const result = await deleteAllWorkspaces(apiBaseUrl, ids);
 
         // 清理被删除工作区下所有 session 的前端缓存
         const allSessionIds: string[] = [];
@@ -360,6 +370,9 @@ export function useWorkspaceLifecycleActions({
         setDeleteWorkspaceError(message);
       } finally {
         setIsDeletingWorkspace(false);
+        if (typeof document !== "undefined") {
+          document.body.style.pointerEvents = "";
+        }
       }
     })();
   }, [apiBaseUrl, bulkDeletePendingIds, executor, loadWorkspaces, workspaces]);

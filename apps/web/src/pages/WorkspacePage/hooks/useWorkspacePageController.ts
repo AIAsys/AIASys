@@ -21,6 +21,7 @@ import type { TaskWorkspaceSummary } from "../types";
 interface UseWorkspacePageControllerOptions {
   userId: string;
   initialSessionId?: string | null;
+  initialWorkspaceId?: string | null;
 }
 
 function workspaceHasSession(
@@ -44,6 +45,7 @@ function workspaceHasSession(
 export function useWorkspacePageController({
   userId,
   initialSessionId,
+  initialWorkspaceId,
 }: UseWorkspacePageControllerOptions) {
   const apiBaseUrl = API_BASE_URL || "";
   const overlayState = useWorkspaceOverlayState();
@@ -94,6 +96,7 @@ export function useWorkspacePageController({
   const executor = useCodeExecutor({
     apiBaseUrl,
     initialSessionId,
+    workspaceId: initialWorkspaceId,
     workspaceIdRef: currentWorkspaceIdRef,
     onAskUserRequest: (request, sessionId) => {
       handleAskUserRequestRef.current?.(request, sessionId);

@@ -1431,6 +1431,22 @@ class RecentChangesResponse(BaseModel):
     files: list[RecentChangeItem]
 
 
+class ChangeEventItem(BaseModel):
+    id: str
+    timestamp: str
+    source: str
+    source_detail: str | None = None
+    operation: str
+    file_count: int
+    files: list[FileHistoryEntryResponse]
+
+
+class ChangeEventsResponse(BaseModel):
+    scope: Literal["workspace", "global"]
+    workspace_id: str
+    events: list[ChangeEventItem]
+
+
 @router.get(
     "/{workspace_id}/files/history/recent-changes",
     response_model=RecentChangesResponse,
@@ -1487,6 +1503,78 @@ async def list_global_workspace_recent_changes(
         for file_path, latest_entry, total_versions in changes
     ]
     return RecentChangesResponse(scope="global", workspace_id=workspace_id, files=files)
+
+
+@router.get(
+    "/{workspace_id}/files/history/change-events",
+    response_model=ChangeEventsResponse,
+)
+async def list_workspace_change_events(
+    workspace_id: str,
+    limit: Annotated[int, Query(ge=1, le=200)] = 50,
+    current_user: UserInfo = Depends(require_auth()),
+):
+    """列出当前工作区的变更事件，按时间相近原则聚合。"""
+    service = get_workspace_registry_service()
+    try:
+        service.get_workspace(current_user.user_id, workspace_id, include_conversations=False)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="Operation failed") from exc
+
+    workspace_root = service.get_workspace_root(current_user.user_id, workspace_id)
+    events = file_history_service.list_change_events(workspace_root, limit=limit)
+    return ChangeEventsResponse(
+        scope="workspace",
+        workspace_id=workspace_id,
+        events=[
+            ChangeEventItem(
+                id=event.id,
+                timestamp=event.timestamp,
+                source=event.source,
+                source_detail=event.source_detail,
+                operation=event.operation,
+                file_count=len(event.files),
+                files=[_file_history_entry_response(entry) for entry in event.files],
+            )
+            for event in events
+        ],
+    )
+
+
+@router.get(
+    "/{workspace_id}/global-workspace/history/change-events",
+    response_model=ChangeEventsResponse,
+)
+async def list_global_workspace_change_events(
+    workspace_id: str,
+    limit: Annotated[int, Query(ge=1, le=200)] = 50,
+    current_user: UserInfo = Depends(require_auth()),
+):
+    """列出用户默认层全局工作区的变更事件。"""
+    service = get_workspace_registry_service()
+    try:
+        service.get_workspace(current_user.user_id, workspace_id, include_conversations=False)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="Operation failed") from exc
+
+    global_root = _resolve_user_global_workspace_root(current_user.user_id)
+    events = file_history_service.list_change_events(global_root, limit=limit)
+    return ChangeEventsResponse(
+        scope="global",
+        workspace_id=workspace_id,
+        events=[
+            ChangeEventItem(
+                id=event.id,
+                timestamp=event.timestamp,
+                source=event.source,
+                source_detail=event.source_detail,
+                operation=event.operation,
+                file_count=len(event.files),
+                files=[_file_history_entry_response(entry) for entry in event.files],
+            )
+            for event in events
+        ],
+    )
 
 
 @router.get(

@@ -135,7 +135,8 @@ async def test_delete_session_cleans_ghost_workspace_binding_when_session_dir_mi
     assert {item.session_id for item in updated.conversations} == {first.session_id}
 
 
-def test_delete_workspace_clears_auto_task_store(
+@pytest.mark.asyncio
+async def test_delete_workspace_clears_auto_task_store(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -170,7 +171,7 @@ def test_delete_workspace_clears_auto_task_store(
     )
     assert tasks_path.exists()
 
-    service.delete_workspace("local_default", "workspace-delete-auto-task")
+    await service.delete_workspace("local_default", "workspace-delete-auto-task")
 
     assert not tasks_path.exists()
 

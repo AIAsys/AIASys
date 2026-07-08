@@ -78,4 +78,8 @@ contextBridge.exposeInMainWorld("__AIASYS_DESKTOP__", {
   openExternal(url) {
     return ipcRenderer.invoke("aiasys:open-external", url);
   },
+  // 在新窗口打开指定工作区（桌面端多窗口能力）
+  openWorkspaceWindow(options) {
+    return ipcRenderer.invoke("aiasys:open-workspace-window", options);
+  },
 });

@@ -11,6 +11,11 @@ export interface SelectFolderResult {
   filePaths: string[];
 }
 
+export interface OpenWorkspaceWindowResult {
+  success: boolean;
+  error?: string;
+}
+
 declare global {
   interface Window {
     __AIASYS_DESKTOP__?: {
@@ -35,6 +40,11 @@ declare global {
       getVersion?(): Promise<string>;
       /** 用系统默认浏览器打开外部链接 */
       openExternal?(url: string): Promise<boolean>;
+      /** 在新窗口打开指定工作区（桌面端多窗口能力） */
+      openWorkspaceWindow?(options: {
+        workspaceId?: string;
+        sessionId?: string;
+      }): Promise<OpenWorkspaceWindowResult>;
     };
   }
 }

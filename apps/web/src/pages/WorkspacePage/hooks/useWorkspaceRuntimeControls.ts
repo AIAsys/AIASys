@@ -466,11 +466,18 @@ export function useWorkspaceRuntimeControls({
           console.log("[NewWorkspace] aborted");
           return;
         }
-        const message = error instanceof Error ? error.message : "新建工作区失败";
+        const rawMessage = error instanceof Error ? error.message : "新建工作区失败";
+        const isNodeError =
+          /fnm|node\.js|nodejs|node/i.test(rawMessage) &&
+          (/不可用|未找到|失败|install|failed|not found|cannot find/i.test(rawMessage) ||
+            rawMessage.includes("Node.js"));
+        const message = isNodeError
+          ? `Node.js 运行环境初始化失败：${rawMessage}。如需使用 Node.js，请先安装 fnm（https://fnm.vercel.app/）；若暂时不需要，可取消勾选“Node.js 环境”后重试。`
+          : rawMessage;
         console.error("[NewWorkspace] failed", error);
         setNewWorkspaceError(message);
         setNewWorkspaceStage("error");
-        showError(message);
+        showError(message, 8000);
       } finally {
         if (workspaceInitAbortControllerRef.current === abortController) {
           workspaceInitAbortControllerRef.current = null;

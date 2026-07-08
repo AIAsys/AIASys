@@ -82,6 +82,10 @@ function startMockServer(port) {
  * 简化版 readListeningProcess，用于测试验证
  */
 function readListeningProcess(port) {
+  if (process.platform === "win32") {
+    return readListeningProcessWindows(port);
+  }
+
   const lsofResult = spawnSync(
     "lsof",
     ["-nP", `-iTCP:${port}`, "-sTCP:LISTEN", "-Fp"],
@@ -115,6 +119,43 @@ function readListeningProcess(port) {
     pid,
     command: psResult.stdout.trim(),
   };
+}
+
+/**
+ * Windows 版 readListeningProcess，使用 PowerShell 查询监听端口进程。
+ */
+function readListeningProcessWindows(port) {
+  const psResult = spawnSync(
+    "powershell.exe",
+    [
+      "-NoProfile",
+      "-Command",
+      `try { $conn = Get-NetTCPConnection -LocalPort ${port} -State Listen -ErrorAction Stop; ` +
+        `$proc = Get-Process -Id $conn.OwningProcess -ErrorAction Stop; ` +
+        `Write-Output \"PID=$($conn.OwningProcess)\"; ` +
+        `Write-Output \"PATH=$($proc.Path)\" } catch { }`,
+    ],
+    { encoding: "utf-8", timeout: 2000, windowsHide: true },
+  );
+
+  if (psResult.status !== 0 || psResult.error || !psResult.stdout) {
+    return null;
+  }
+
+  const lines = psResult.stdout.split(/\r?\n/).map((line) => line.trim());
+  const pidLine = lines.find((line) => line.startsWith("PID="));
+  const pathLine = lines.find((line) => line.startsWith("PATH="));
+  if (!pidLine) {
+    return null;
+  }
+
+  const pid = pidLine.slice("PID=".length).trim();
+  const command = pathLine ? pathLine.slice("PATH=".length).trim() : "";
+  if (!pid) {
+    return null;
+  }
+
+  return { pid, command };
 }
 
 describe("probeFreePort", () => {

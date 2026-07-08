@@ -13,7 +13,8 @@ pre-commit:
     # --- Frontend ---
     frontend-lint:
       glob: "apps/web/src/**/*.{ts,tsx,js,jsx}"
-      run: cd apps/web && files=$(echo "{staged_files}" | sed 's|apps/web/||g') && existing=() && for f in $files; do [ -f "$f" ] && existing+=("$f"); done && [ ${#existing[@]} -gt 0 ] && npx eslint "${existing[@]}" || true
+      # 通过 git diff --cached 自行获取 staged files，并逐文件调用 eslint，避免 lefthook 在 Windows 下解析数组扩展时附加多余字符
+      run: cd apps/web && files=$(git diff --cached --name-only --diff-filter=ACM | grep '^apps/web/src/' | sed 's|apps/web/||g') && rc=0 && for f in $files; do [ -f "$f" ] && npx eslint "$f" || rc=$?; done; exit $rc || true
 
     frontend-type-check:
       glob: "apps/web/src/**/*.{ts,tsx}"

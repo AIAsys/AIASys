@@ -369,6 +369,10 @@ export const API_ENDPOINTS = {
     `/api/workspaces/${encodeURIComponent(workspaceId)}/files/history/recent-changes`,
   GLOBAL_WORKSPACE_RECENT_CHANGES: (workspaceId: string) =>
     `/api/workspaces/${encodeURIComponent(workspaceId)}/global-workspace/history/recent-changes`,
+  WORKSPACE_CHANGE_EVENTS: (workspaceId: string) =>
+    `/api/workspaces/${encodeURIComponent(workspaceId)}/files/history/change-events`,
+  GLOBAL_WORKSPACE_CHANGE_EVENTS: (workspaceId: string) =>
+    `/api/workspaces/${encodeURIComponent(workspaceId)}/global-workspace/history/change-events`,
   WORKSPACE_FILE_UPLOAD: (workspaceId: string) =>
     `/api/workspaces/${encodeURIComponent(workspaceId)}/files/upload`,
   WORKSPACE_FILE_CREATE: (workspaceId: string) =>

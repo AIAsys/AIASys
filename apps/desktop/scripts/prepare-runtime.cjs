@@ -25,6 +25,29 @@ function resetDir(targetPath) {
 function copyPath(sourcePath, targetPath, options = {}) {
   ensureExists(sourcePath, "source");
   fs.mkdirSync(path.dirname(targetPath), { recursive: true });
+
+  // Windows 上 node fs.cpSync 对包含数万个文件的大目录极慢（数分钟），
+  // 而 robocopy 的多线程复制可在十几秒内完成。
+  if (
+    process.platform === "win32" &&
+    fs.statSync(sourcePath).isDirectory()
+  ) {
+    const sourceWin = path.resolve(sourcePath);
+    const targetWin = path.resolve(targetPath);
+    fs.rmSync(targetWin, { recursive: true, force: true });
+    fs.mkdirSync(targetWin, { recursive: true });
+    const result = spawnSync(
+      "robocopy",
+      [sourceWin, targetWin, "/E", "/MT:8", "/NFL", "/NDL", "/NJH", "/NJS", "/R:2", "/W:1"],
+      { encoding: "utf-8", windowsHide: true }
+    );
+    // robocopy 退出码 0-7 通常表示成功完成（含文件被跳过/差异）
+    if (result.status !== null && result.status >= 8) {
+      throw new Error(`robocopy 复制失败: ${sourceWin} -> ${targetWin}, exit ${result.status}\n${result.stderr || ""}`);
+    }
+    return;
+  }
+
   fs.cpSync(sourcePath, targetPath, {
     recursive: true,
     preserveTimestamps: true,
@@ -700,7 +723,7 @@ function countVenvEntries(venvDir) {
 /**
  * 把 staged .venv 压缩为 .venv.tar.gz，并生成 .venv.manifest.json。
  * 压缩后删除原始 .venv 目录以减小安装包体积。
- * 如果压缩失败，保留原始目录作为运行时降级路径。
+ * 如果压缩失败或超时，保留原始目录作为运行时降级路径。
  */
 async function compressVenv(backendStageRoot) {
   const venvDir = path.join(backendStageRoot, ".venv");
@@ -712,22 +735,41 @@ async function compressVenv(backendStageRoot) {
     return;
   }
 
+  // Windows 上 node-tar 对大量小文件压缩极慢（数 GB .venv 可能超过 5 分钟），
+  // 且容易把构建/打包流程拖超时。保留原始 .venv 目录，安装包体积会大一些，
+  // 但能避免构建挂死，同时运行时也不需要解压，首次启动更快。
+  if (process.platform === "win32") {
+    console.log("[aiasys-desktop] Windows 上跳过 .venv 压缩，保留原始目录");
+    return;
+  }
+
   console.log("[aiasys-desktop] 正在统计 .venv 条目数...");
   const entries = countVenvEntries(venvDir);
 
   console.log(`[aiasys-desktop] 正在压缩 .venv (${entries} 个条目)...`);
   const start = Date.now();
+
+  // macOS/Linux 上设置 3 分钟超时；超时则保留原始目录。
+  const COMPRESS_TIMEOUT_MS = 180_000;
   try {
-    await tar.create(
-      {
-        gzip: true,
-        file: archivePath,
-        cwd: backendStageRoot,
-        portable: true,
-        // 保留符号链接，不要解引用；运行时解压再处理
-      },
-      [".venv"],
-    );
+    await Promise.race([
+      tar.create(
+        {
+          gzip: true,
+          file: archivePath,
+          cwd: backendStageRoot,
+          portable: true,
+          // 保留符号链接，不要解引用；运行时解压再处理
+        },
+        [".venv"],
+      ),
+      new Promise((_, reject) =>
+        setTimeout(
+          () => reject(new Error(`.venv 压缩超过 ${COMPRESS_TIMEOUT_MS / 1000}s 超时`)),
+          COMPRESS_TIMEOUT_MS,
+        ),
+      ),
+    ]);
 
     const archiveStat = fs.statSync(archivePath);
     const originalSize = dirSize(venvDir);
@@ -798,6 +840,10 @@ function formatBytes(bytes) {
   return `${(bytes / 1024 ** i).toFixed(1)} ${units[i]}`;
 }
 
+/**
+ * 清理 .venv 中不需要进入安装包的文件，重点减少 Windows 上的小文件数量
+ * （electron-builder 复制大量小文件极慢，且 NSIS/zip 解压也慢）。
+ */
 function pruneDevDependencies(backendStageRoot) {
   const venvRoot = path.join(backendStageRoot, ".venv");
   const sitePackagesPaths = [];
@@ -818,18 +864,26 @@ function pruneDevDependencies(backendStageRoot) {
   findSitePackages(path.join(venvRoot, "lib"));
   findSitePackages(path.join(venvRoot, "Lib"));
 
+  // 开发/构建/测试工具，运行时不需要
   const devPackages = [
     "pytest", "_pytest", "ruff", "mypy", "mypy_extensions",
-    "black", "coverage", "pre_commit",
+    "black", "blackd", "coverage", "pre_commit",
     "flake8", "pylint", "bandit", "isort", "autopep8",
     "pytest_xdist", "pytest_asyncio", "pytest_cov",
     "sphinx", "sphinx_rtd_theme", "mccabe", "pycodestyle",
-    "pyflakes",
-    // 注意：typing_extensions、ipython、ipykernel 是运行时依赖，不能删除
+    "pyflakes", "debugpy", "jedi", "parso", "astroid",
+    "lazy_object_proxy", "wrapt", "dill",
+    // pip 在运行时不应被使用，内嵌 Python 自带的 pip 也删除
+    "pip",
+    // 嵌入 Python 自带且不需要的包
+    "ensurepip",
+    // IDLE 与 turtledemo 等 GUI 示例
+    "idlelib", "turtledemo",
   ];
 
   let removed = 0;
   for (const sp of sitePackagesPaths) {
+    // 删除开发依赖包（同时兼容下划线/连字符命名）
     for (const pkg of devPackages) {
       for (const name of [pkg, pkg.replace(/_/g, "-")]) {
         const pkgPath = path.join(sp, name);
@@ -839,9 +893,70 @@ function pruneDevDependencies(backendStageRoot) {
         }
       }
     }
+
+    // 注意：*.dist-info 包含 importlib.metadata 所需的包元数据，
+    // 例如 pydantic 会读取 email-validator 的版本，不能整目录删除。
+    // 这里只删除已明确确认无需 dist-info 的开发依赖的元数据目录。
+    for (const pkg of devPackages) {
+      for (const name of [pkg, pkg.replace(/_/g, "-")]) {
+        const distInfoPath = path.join(sp, `${name}-*.dist-info`);
+        // glob 匹配删除开发依赖的 dist-info
+        for (const entry of fs.readdirSync(sp, { withFileTypes: true })) {
+          if (
+            entry.isDirectory() &&
+            entry.name.endsWith(".dist-info") &&
+            entry.name.toLowerCase().startsWith(`${name.toLowerCase()}-`)
+          ) {
+            fs.rmSync(path.join(sp, entry.name), { recursive: true, force: true });
+            removed++;
+          }
+        }
+      }
+    }
   }
+
   if (removed > 0) {
-    console.log(`[aiasys-desktop] 已清理 ${removed} 个开发依赖包`);
+    console.log(`[aiasys-desktop] 已清理 ${removed} 个开发依赖/元数据包`);
+  }
+
+  // 删除所有 __pycache__，避免 Windows 上数以万计的小文件拖慢打包/解压
+  let removedPycache = 0;
+  function removePycache(dir) {
+    if (!fs.existsSync(dir)) return;
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const fullPath = path.join(dir, entry.name);
+      if (entry.isSymbolicLink()) continue;
+      if (!entry.isDirectory()) continue;
+      if (entry.name === "__pycache__") {
+        fs.rmSync(fullPath, { recursive: true, force: true });
+        removedPycache++;
+      } else {
+        removePycache(fullPath);
+      }
+    }
+  }
+  removePycache(venvRoot);
+  if (removedPycache > 0) {
+    console.log(`[aiasys-desktop] 已清理 ${removedPycache} 个 __pycache__ 目录`);
+  }
+
+  // Windows 上 .venv/Scripts 会生成大量入口 exe，运行时只需要 uvicorn
+  if (process.platform === "win32") {
+    const scriptsDir = path.join(venvRoot, "Scripts");
+    const keepExes = new Set(["uvicorn.exe"]);
+    if (fs.existsSync(scriptsDir)) {
+      let removedScripts = 0;
+      for (const entry of fs.readdirSync(scriptsDir, { withFileTypes: true })) {
+        if (!entry.isFile()) continue;
+        if (entry.name.endsWith(".exe") && !keepExes.has(entry.name)) {
+          fs.rmSync(path.join(scriptsDir, entry.name), { force: true });
+          removedScripts++;
+        }
+      }
+      if (removedScripts > 0) {
+        console.log(`[aiasys-desktop] 已清理 ${removedScripts} 个 .venv/Scripts 入口 exe`);
+      }
+    }
   }
 
   for (const dir of ["docs", "tests"]) {

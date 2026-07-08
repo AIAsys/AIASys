@@ -82,6 +82,8 @@ export function useWorkspaceRouteSync({
   workspaces,
 }: UseWorkspaceRouteSyncParams): UseWorkspaceRouteSyncReturn {
   const handledWorkspaceRouteRef = useRef<string | null>(null);
+  const isSyncingRef = useRef(false);
+  const lastNavigatedUrlRef = useRef<string | null>(null);
   const analysisWorkspaceIdFromRoute =
     typeof window === "undefined" ||
     window.location.pathname.replace(/\/+$/, "") !== "/workspace"
@@ -116,6 +118,10 @@ export function useWorkspaceRouteSync({
     }
 
     if (window.location.pathname.replace(/\/+$/, "") !== "/workspace") {
+      return;
+    }
+
+    if (isSyncingRef.current) {
       return;
     }
 
@@ -211,10 +217,20 @@ export function useWorkspaceRouteSync({
     const nextUrl = nextSearch.toString()
       ? `/workspace?${nextSearch.toString()}`
       : "/workspace";
+    if (lastNavigatedUrlRef.current === nextUrl) {
+      return;
+    }
+
     const withAppNavigate = window as Window & {
       appNavigate?: (path: string, options?: { replace?: boolean }) => void;
     };
+    isSyncingRef.current = true;
+    lastNavigatedUrlRef.current = nextUrl;
     withAppNavigate.appNavigate?.(nextUrl, { replace: true });
+    // 导航是同步的 history 操作，下一帧即可释放锁
+    window.requestAnimationFrame(() => {
+      isSyncingRef.current = false;
+    });
   }, [
     analysisSessionIdFromRoute,
     analysisWorkspaceIdFromRoute,
@@ -232,6 +248,10 @@ export function useWorkspaceRouteSync({
     }
 
     if (isLoadingWorkspaces || workspaces.length === 0) {
+      return;
+    }
+
+    if (isSyncingRef.current) {
       return;
     }
 
@@ -274,6 +294,17 @@ export function useWorkspaceRouteSync({
       return;
     }
 
+    const selectAndLeave = (targetSessionId: string) => {
+      if (isSyncingRef.current) {
+        return;
+      }
+      isSyncingRef.current = true;
+      leaveProjectWorkspace();
+      void handleSelectSession(targetSessionId, { silent: true }).finally(() => {
+        isSyncingRef.current = false;
+      });
+    };
+
     if (
       targetWorkspace?.workspace_id &&
       targetSessionId &&
@@ -281,8 +312,7 @@ export function useWorkspaceRouteSync({
         (!activeSessionBelongsToWorkspace && !analysisSessionIdFromRoute)) &&
       analysisSessionIdFromRoute !== targetSessionId
     ) {
-      leaveProjectWorkspace();
-      void handleSelectSession(targetSessionId, { silent: true });
+      selectAndLeave(targetSessionId);
       return;
     }
 
@@ -290,8 +320,7 @@ export function useWorkspaceRouteSync({
       return;
     }
 
-    leaveProjectWorkspace();
-    void handleSelectSession(targetSessionId, { silent: true });
+    selectAndLeave(targetSessionId);
   }, [
     analysisSessionIdFromRoute,
     analysisWorkspaceIdFromRoute,

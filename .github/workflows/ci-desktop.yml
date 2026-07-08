@@ -39,7 +39,9 @@ jobs:
             files: |
               apps/desktop/dist/*.dmg
               apps/desktop/dist/*.zip
-          - os: macos-13
+          # macos-13 已于 2025-12-04 退役，x86_64 构建改用 macos-15-intel
+          # 详见 https://github.blog/changelog/2025-09-19-github-actions-macos-13-runner-image-is-closing-down/
+          - os: macos-15-intel
             target: mac-x64
             script: dist:ci:mac-x64
             files: |

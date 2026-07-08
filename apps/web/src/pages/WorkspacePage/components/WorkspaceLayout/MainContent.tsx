@@ -265,6 +265,7 @@ export function MainContent({
           <TopBar
             sessionId={showWorkspaceHome ? null : executorSessionId}
             workspaceTitle={currentWorkspace?.title ?? null}
+            workspaceId={currentWorkspaceId}
             sessionTitle={showWorkspaceHome ? "工作区首页" : sessionTitle}
             locked={false}
           />

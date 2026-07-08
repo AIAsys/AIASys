@@ -38,10 +38,13 @@ function App() {
 
   const isWorkspaceRoute =
     normalizedPathname === "/workspace" || normalizedPathname === "/analysis";
+  const workspaceSearchParams = isWorkspaceRoute
+    ? new URLSearchParams(locationState.search)
+    : null;
   const initialWorkspaceSessionId =
-    isWorkspaceRoute
-      ? new URLSearchParams(locationState.search).get("session_id")
-      : null;
+    workspaceSearchParams?.get("session_id") ?? null;
+  const initialWorkspaceId =
+    workspaceSearchParams?.get("workspace_id") ?? null;
 
   // 导航函数
   const navigate = useCallback((path: string, options?: { replace?: boolean }) => {
@@ -125,7 +128,10 @@ function App() {
       <ProtectedRoute fallbackUrl="/workspace">
         <ErrorBoundary fallback={(error, reset) => <RouteErrorFallback error={error} reset={reset} />}>
           <Suspense fallback={<RouteLoading />}>
-            <WorkspacePage initialSessionId={initialWorkspaceSessionId} />
+            <WorkspacePage
+              initialSessionId={initialWorkspaceSessionId}
+              initialWorkspaceId={initialWorkspaceId}
+            />
           </Suspense>
         </ErrorBoundary>
       </ProtectedRoute>

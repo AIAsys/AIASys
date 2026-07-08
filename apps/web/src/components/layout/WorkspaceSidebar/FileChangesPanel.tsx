@@ -1,34 +1,31 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  FolderClosed,
-  FolderOpen,
-  GitBranch,
   History,
-  List,
-  ListTree,
   Loader2,
   RefreshCw,
   RotateCcw,
-  ChevronRight,
+  GitBranch,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { DiffViewer } from "@/components/diff/DiffViewer";
 import {
-  type RecentChangeItem,
+  type ChangeEventItem,
   type FileChangesScope,
-  listRecentChanges,
+  listChangeEvents,
 } from "@/lib/api/fileChanges";
 import {
   getFileHistoryDiff,
   type FileHistoryDiffResponse,
   restoreFileHistoryEntry,
+  type FileHistoryEntry,
 } from "@/lib/api/fileHistory";
 import type { WorkspaceFile } from "@/types/task";
 import {
   FileHistoryDialog,
 } from "@/components/layout/WorkspaceSidebar/FileHistoryDialog";
+import { ChangeEventCard } from "./ChangeEventCard";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -39,16 +36,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-
-type ViewMode = "list" | "tree";
-
-const OPERATION_ICONS: Record<string, React.ReactNode> = {
-  before_update: <GitBranch className="h-3.5 w-3.5 text-warning" />,
-  before_overwrite: <GitBranch className="h-3.5 w-3.5 text-info" />,
-  before_delete: <GitBranch className="h-3.5 w-3.5 text-error" />,
-  before_move: <GitBranch className="h-3.5 w-3.5 text-tertiary" />,
-  before_restore: <GitBranch className="h-3.5 w-3.5 text-success" />,
-};
 
 const OPERATION_LABELS: Record<string, string> = {
   before_update: "修改",
@@ -69,39 +56,6 @@ function formatTime(value: string) {
   }).format(date);
 }
 
-interface TreeNode {
-  name: string;
-  path: string;
-  children: Map<string, TreeNode>;
-  item?: RecentChangeItem;
-}
-
-function buildTree(items: RecentChangeItem[]): TreeNode {
-  const root: TreeNode = { name: "", path: "", children: new Map() };
-  for (const item of items) {
-    const parts = item.file_path.split("/");
-    let current = root;
-    for (let i = 0; i < parts.length; i++) {
-      const part = parts[i];
-      const isLast = i === parts.length - 1;
-      if (!current.children.has(part)) {
-        current.children.set(part, {
-          name: part,
-          path: parts.slice(0, i + 1).join("/"),
-          children: new Map(),
-          item: isLast ? item : undefined,
-        });
-      }
-      const child = current.children.get(part)!;
-      if (isLast) {
-        child.item = item;
-      }
-      current = child;
-    }
-  }
-  return root;
-}
-
 interface FileChangesPanelProps {
   workspaceId: string | null;
   scope?: FileChangesScope;
@@ -113,12 +67,10 @@ export function FileChangesPanel({
   scope = "workspace",
   headers,
 }: FileChangesPanelProps) {
-  const [items, setItems] = useState<RecentChangeItem[]>([]);
-  const [viewMode, setViewMode] = useState<ViewMode>("list");
+  const [events, setEvents] = useState<ChangeEventItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [expandedDirs, setExpandedDirs] = useState<Set<string>>(new Set());
-  const [selectedFilePath, setSelectedFilePath] = useState<string | null>(null);
+  const [selectedEntryId, setSelectedEntryId] = useState<string | null>(null);
   const [diffDetail, setDiffDetail] = useState<FileHistoryDiffResponse | null>(null);
   const [isLoadingDiff, setIsLoadingDiff] = useState(false);
   const [diffError, setDiffError] = useState<string | null>(null);
@@ -135,16 +87,16 @@ export function FileChangesPanel({
     setIsLoading(true);
     setError(null);
     try {
-      const response = await listRecentChanges(scope, workspaceId, 50);
+      const response = await listChangeEvents(scope, workspaceId, 50);
       if (requestIdRef.current !== requestId) return;
-      setItems(response.files);
-      setSelectedFilePath(null);
+      setEvents(response.events);
+      setSelectedEntryId(null);
       setDiffDetail(null);
       setDiffError(null);
     } catch (err) {
       if (requestIdRef.current !== requestId) return;
-      setItems([]);
-      setError(err instanceof Error ? err.message : "加载文件变更失败");
+      setEvents([]);
+      setError(err instanceof Error ? err.message : "加载变更流失败");
     } finally {
       if (requestIdRef.current === requestId) {
         setIsLoading(false);
@@ -156,23 +108,24 @@ export function FileChangesPanel({
     void loadData();
   }, [loadData]);
 
-  const tree = useMemo(() => buildTree(items), [items]);
-
-  const selectedItem = useMemo(
-    () => items.find((item) => item.file_path === selectedFilePath) ?? null,
-    [items, selectedFilePath],
-  );
+  const selectedEntry = useMemo(() => {
+    for (const event of events) {
+      const entry = event.files.find((file) => file.id === selectedEntryId);
+      if (entry) return entry;
+    }
+    return null;
+  }, [events, selectedEntryId]);
 
   const loadDiff = useCallback(
     async () => {
-      if (!workspaceId || !selectedItem) return;
+      if (!workspaceId || !selectedEntry) return;
       setIsLoadingDiff(true);
       setDiffError(null);
       try {
         const response = await getFileHistoryDiff(
           scope,
           workspaceId,
-          selectedItem.latest_entry.id,
+          selectedEntry.id,
           { headers },
         );
         setDiffDetail(response);
@@ -182,46 +135,34 @@ export function FileChangesPanel({
         setIsLoadingDiff(false);
       }
     },
-    [workspaceId, scope, selectedItem, headers],
+    [workspaceId, scope, selectedEntry, headers],
   );
 
   useEffect(() => {
-    if (selectedFilePath && selectedItem) {
+    if (selectedEntryId && selectedEntry) {
       void loadDiff();
     }
-  }, [selectedFilePath, selectedItem, loadDiff]);
+  }, [selectedEntryId, selectedEntry, loadDiff]);
 
-  const toggleDir = useCallback((path: string) => {
-    setExpandedDirs((prev) => {
-      const next = new Set(prev);
-      if (next.has(path)) {
-        next.delete(path);
-      } else {
-        next.add(path);
-      }
-      return next;
-    });
-  }, []);
-
-  const handleSelectFile = useCallback(
-    (item: RecentChangeItem) => {
-      if (selectedFilePath === item.file_path) {
-        setSelectedFilePath(null);
+  const handleSelectEntry = useCallback(
+    (entry: FileHistoryEntry) => {
+      if (selectedEntryId === entry.id) {
+        setSelectedEntryId(null);
         setDiffDetail(null);
       } else {
-        setSelectedFilePath(item.file_path);
+        setSelectedEntryId(entry.id);
       }
     },
-    [selectedFilePath],
+    [selectedEntryId],
   );
 
   const handleOpenHistory = useCallback(
-    (item: RecentChangeItem) => {
+    (entry: FileHistoryEntry) => {
       setHistoryDialogFile({
-        name: item.file_path,
-        path: item.file_path,
-        size: item.latest_entry.size,
-        mtime: item.latest_entry.timestamp,
+        name: entry.file_path,
+        path: entry.file_path,
+        size: entry.size,
+        mtime: entry.timestamp,
         type: "file",
       } as WorkspaceFile);
       setHistoryDialogOpen(true);
@@ -234,12 +175,12 @@ export function FileChangesPanel({
   }, []);
 
   const handleRestore = useCallback(async () => {
-    if (!workspaceId || !selectedItem) return;
+    if (!workspaceId || !selectedEntry) return;
     setRestoreConfirmOpen(false);
     setIsRestoring(true);
     setDiffError(null);
     try {
-      await restoreFileHistoryEntry(scope, workspaceId, selectedItem.latest_entry.id, {
+      await restoreFileHistoryEntry(scope, workspaceId, selectedEntry.id, {
         headers,
       });
       await loadData();
@@ -248,101 +189,9 @@ export function FileChangesPanel({
     } finally {
       setIsRestoring(false);
     }
-  }, [workspaceId, scope, selectedItem, headers, loadData]);
+  }, [workspaceId, scope, selectedEntry, headers, loadData]);
 
   const canLoad = Boolean(workspaceId);
-
-  const renderFileRow = (item: RecentChangeItem, depth: number = 0) => {
-    const fileName = item.file_path.split("/").pop() || item.file_path;
-    const dirPath = item.file_path.includes("/")
-      ? item.file_path.substring(0, item.file_path.lastIndexOf("/"))
-      : "";
-    const isSelected = selectedFilePath === item.file_path;
-
-    return (
-      <div key={item.file_path}>
-        <button
-          type="button"
-          className={cn(
-            "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors",
-            isSelected
-              ? "bg-primary/10 text-primary"
-              : "text-foreground hover:bg-muted/50",
-          )}
-          style={{ paddingLeft: `${8 + depth * 16}px` }}
-          onClick={() => handleSelectFile(item)}
-        >
-          <span className="shrink-0">
-            {OPERATION_ICONS[item.latest_entry.operation] ?? (
-              <GitBranch className="h-3.5 w-3.5 text-muted-foreground" />
-            )}
-          </span>
-          <span className="min-w-0 flex-1">
-            <span className="block truncate font-mono text-xs">{fileName}</span>
-            {dirPath && (
-              <span className="block truncate text-[11px] text-muted-foreground">
-                {dirPath}
-              </span>
-            )}
-          </span>
-          <span className="shrink-0 text-[11px] text-muted-foreground">
-            {formatTime(item.latest_entry.timestamp)}
-          </span>
-        </button>
-      </div>
-    );
-  };
-
-  const renderTreeNode = (
-    treeNode: TreeNode,
-    depth: number,
-    flatIndex: number,
-  ) => {
-    const isDir = treeNode.children.size > 0;
-    const isExpanded = expandedDirs.has(treeNode.path);
-
-    if (isDir) {
-      return (
-        <div key={treeNode.path}>
-          <button
-            type="button"
-            className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-foreground hover:bg-muted/50 transition-colors"
-            style={{ paddingLeft: `${8 + depth * 16}px` }}
-            onClick={() => toggleDir(treeNode.path)}
-          >
-            <ChevronRight
-              className={cn(
-                "h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform",
-                isExpanded && "rotate-90",
-              )}
-            />
-            {isExpanded ? (
-              <FolderOpen className="h-3.5 w-3.5 shrink-0 text-warning" />
-            ) : (
-              <FolderClosed className="h-3.5 w-3.5 shrink-0 text-warning" />
-            )}
-            <span className="truncate font-mono text-xs">{treeNode.name}</span>
-          </button>
-          {isExpanded &&
-            Array.from(treeNode.children.values()).map((child) => {
-              if (child.children.size > 0) {
-                return renderTreeNode(child, depth + 1, flatIndex);
-              }
-              if (child.item) {
-                return renderFileRow(child.item, depth + 1);
-              }
-              return null;
-            })}
-        </div>
-      );
-    }
-
-    if (treeNode.item) {
-      return renderFileRow(treeNode.item, depth);
-    }
-
-    return null;
-  };
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-background">
@@ -351,36 +200,18 @@ export function FileChangesPanel({
         <span className="text-xs font-medium text-muted-foreground">
           {isLoading
             ? "加载中"
-            : items.length > 0
-              ? `${items.length} 个文件有变更`
-              : "文件变更"}
+            : events.length > 0
+              ? `${events.length} 个变更事件`
+              : "变更流"}
         </span>
         <div className="flex items-center gap-1">
-          <Button
-            type="button"
-            variant={viewMode === "list" ? "default" : "ghost"}
-            size="icon-sm"
-            onClick={() => setViewMode("list")}
-            aria-label="列表视图"
-          >
-            <List className="h-3.5 w-3.5" />
-          </Button>
-          <Button
-            type="button"
-            variant={viewMode === "tree" ? "default" : "ghost"}
-            size="icon-sm"
-            onClick={() => setViewMode("tree")}
-            aria-label="树形视图"
-          >
-            <ListTree className="h-3.5 w-3.5" />
-          </Button>
           <Button
             type="button"
             variant="ghost"
             size="icon-sm"
             onClick={() => void loadData()}
             disabled={!canLoad || isLoading}
-            aria-label="刷新文件变更"
+            aria-label="刷新变更流"
           >
             <RefreshCw
               className={cn("h-3.5 w-3.5", isLoading && "animate-spin")}
@@ -390,7 +221,7 @@ export function FileChangesPanel({
       </div>
 
       <div className="grid min-h-0 flex-1 grid-rows-[minmax(0,auto)_minmax(0,1fr)]">
-        {/* File list */}
+        {/* Event list */}
         <ScrollArea className="min-h-0 border-b border-border">
           {!canLoad ? (
             <div className="flex h-32 items-center justify-center px-6 text-sm text-muted-foreground">
@@ -398,43 +229,37 @@ export function FileChangesPanel({
             </div>
           ) : error ? (
             <div className="px-3 py-4 text-xs text-error">{error}</div>
-          ) : items.length === 0 && !isLoading ? (
+          ) : events.length === 0 && !isLoading ? (
             <div className="flex h-32 items-center justify-center px-6 text-center text-xs text-muted-foreground">
-              暂无文件变更记录。
-            </div>
-          ) : viewMode === "list" ? (
-            <div className="py-1">
-              {items.map((item) => renderFileRow(item))}
+              暂无变更记录。
             </div>
           ) : (
-            <div className="py-1">
-              {Array.from(tree.children.values()).map((child) => {
-                if (child.children.size > 0) {
-                  return renderTreeNode(child, 0, 0);
-                }
-                if (child.item) {
-                  return renderFileRow(child.item, 0);
-                }
-                return null;
-              })}
+            <div>
+              {events.map((event) => (
+                <ChangeEventCard
+                  key={event.id}
+                  event={event}
+                  selectedEntryId={selectedEntryId}
+                  onSelectEntry={handleSelectEntry}
+                />
+              ))}
             </div>
           )}
         </ScrollArea>
 
         {/* Diff preview */}
         <div className="min-h-0 flex flex-col">
-          {selectedItem ? (
+          {selectedEntry ? (
             <div className="flex min-h-0 flex-1 flex-col">
               <div className="flex h-9 items-center justify-between border-b border-border px-3">
                 <div className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
                   <span className="font-mono text-foreground">
-                    {selectedItem.file_path.split("/").pop()}
+                    {selectedEntry.file_path.split("/").pop()}
                   </span>
                   <span className="ml-2">
-                    {OPERATION_LABELS[selectedItem.latest_entry.operation] ??
-                      selectedItem.latest_entry.operation}{" "}
-                    · {formatTime(selectedItem.latest_entry.timestamp)}{" "}
-                    · {selectedItem.total_versions} 个版本
+                    {OPERATION_LABELS[selectedEntry.operation] ??
+                      selectedEntry.operation}{" "}
+                    · {formatTime(selectedEntry.timestamp)}
                   </span>
                 </div>
                 <div className="flex items-center gap-1">
@@ -458,7 +283,7 @@ export function FileChangesPanel({
                     variant="ghost"
                     size="sm"
                     className="h-7 text-xs"
-                    onClick={() => handleOpenHistory(selectedItem)}
+                    onClick={() => handleOpenHistory(selectedEntry)}
                   >
                     <History className="mr-1 h-3.5 w-3.5" />
                     完整历史
@@ -479,8 +304,8 @@ export function FileChangesPanel({
                   ) : diffDetail ? (
                     <DiffViewer
                       unifiedDiff={diffDetail.diff}
-                      leftLabel={diffDetail.left_label ?? `history/${selectedItem.file_path}`}
-                      rightLabel={diffDetail.right_label ?? `current/${selectedItem.file_path}`}
+                      leftLabel={diffDetail.left_label ?? `history/${selectedEntry.file_path}`}
+                      rightLabel={diffDetail.right_label ?? `current/${selectedEntry.file_path}`}
                       status={diffDetail.status}
                       canShowContent={diffDetail.can_show_content}
                       skipReason={diffDetail.skip_reason ?? undefined}
@@ -494,6 +319,7 @@ export function FileChangesPanel({
             </div>
           ) : (
             <div className="flex h-full items-center justify-center px-6 text-center text-xs text-muted-foreground">
+              <GitBranch className="mr-2 h-4 w-4 text-muted-foreground" />
               选择一个文件查看差异。
             </div>
           )}
@@ -517,8 +343,8 @@ export function FileChangesPanel({
           <AlertDialogHeader>
             <AlertDialogTitle>恢复文件</AlertDialogTitle>
             <AlertDialogDescription>
-              {selectedItem
-                ? `确认把 ${selectedItem.file_path.split("/").pop() || selectedItem.file_path} 恢复到 ${formatTime(selectedItem.latest_entry.timestamp)} 的内容吗？`
+              {selectedEntry
+                ? `确认把 ${selectedEntry.file_path.split("/").pop() || selectedEntry.file_path} 恢复到 ${formatTime(selectedEntry.timestamp)} 的内容吗？`
                 : "确认恢复当前文件吗？"}
             </AlertDialogDescription>
           </AlertDialogHeader>

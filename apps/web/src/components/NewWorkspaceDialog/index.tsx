@@ -1271,7 +1271,9 @@ export function NewWorkspaceDialog({
                     Node.js 环境
                   </span>
                   <span className="mt-0.5 block text-xs leading-5 text-muted-foreground">
-                    Node.js 环境，适合前端构建和 JS/TS 任务。
+                    {isDesktop
+                      ? "Node.js 环境，适合前端构建和 JS/TS 任务。桌面版已内置 fnm，首次使用需联网下载 Node.js 二进制。"
+                      : "Node.js 环境，适合前端构建和 JS/TS 任务。Web 版需要本地已安装 fnm。"}
                   </span>
                 </span>
               </label>

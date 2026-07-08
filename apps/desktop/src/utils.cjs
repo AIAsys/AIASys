@@ -272,6 +272,7 @@ async function resolveDesiredPort({
   canReuseService: canReuseServiceFn,
   readListeningProcess,
   probeUrl,
+  probeFreePort: probeFreePortFn = probeFreePort,
 }) {
   const inspection = await canReuseServiceFn({
     url: urlFactory(requestedPort),
@@ -291,7 +292,7 @@ async function resolveDesiredPort({
 
   if (inspection.reason === "not_running") {
     // 探测工具可能失效导致误判，用实际绑定再复核一次
-    const actuallyFree = await probeFreePort(host, requestedPort);
+    const actuallyFree = await probeFreePortFn(host, requestedPort);
     if (actuallyFree) {
       return {
         port: requestedPort,
@@ -331,7 +332,7 @@ async function resolveDesiredPort({
       );
       terminateProcessSync(pid);
       // 终止后再复核端口是否真的释放
-      const actuallyFree = await probeFreePort(host, requestedPort);
+      const actuallyFree = await probeFreePortFn(host, requestedPort);
       if (actuallyFree) {
         return {
           port: requestedPort,

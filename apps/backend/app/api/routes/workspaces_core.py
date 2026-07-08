@@ -1404,7 +1404,7 @@ async def delete_workspace(
                 )
 
     try:
-        service.delete_workspace(current_user.user_id, workspace_id)
+        await service.delete_workspace(current_user.user_id, workspace_id)
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail="Operation failed") from exc
 
