@@ -12,6 +12,7 @@ import pytest
 from app.agents.tools.shell_tool import Shell, ShellParams
 from app.services.history import current_workspace
 from app.services.runtime.runtime_execution import RuntimeExecutionPlan
+from app.services import shell_executor as shell_executor_module
 
 
 @pytest.fixture
@@ -178,6 +179,8 @@ async def test_shell_interpreter_cmd_degrades_to_powershell(
 ) -> None:
     """interpreter='cmd' 已禁用，统一降级到 PowerShell；PowerShell 不可用时返回错误。"""
     monkeypatch.setattr(os, "name", "nt")
+    # 重置全局单例，确保在 monkeypatch 之后重新创建 ShellExecutor
+    shell_executor_module._default_executor = None
     tool = Shell()
     result = await tool.invoke(
         **ShellParams(command="echo cmd_test", interpreter="cmd").model_dump()
