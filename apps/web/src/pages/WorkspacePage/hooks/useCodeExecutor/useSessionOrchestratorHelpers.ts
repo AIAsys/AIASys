@@ -38,9 +38,14 @@ export async function requestDraftCleanup(
 
 export async function requestAvailableDraftId(
   apiBaseUrl: string,
+  workspaceId?: string | null,
 ): Promise<string | null> {
   try {
-    const data = await apiRequest<AvailableDraftResponse>(`${apiBaseUrl}/api/sessions/available-draft`);
+    const url = new URL(`${apiBaseUrl}/api/sessions/available-draft`, globalThis.location.origin);
+    if (workspaceId) {
+      url.searchParams.set("workspace_id", workspaceId);
+    }
+    const data = await apiRequest<AvailableDraftResponse>(url.toString());
     if (data.available && data.session_id) {
       return data.session_id;
     }

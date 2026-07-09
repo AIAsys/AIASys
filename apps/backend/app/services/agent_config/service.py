@@ -13,8 +13,6 @@ import shutil
 import tomllib
 from datetime import datetime
 from pathlib import Path
-
-from app.utils.path_utils import as_system_path
 from typing import Dict, List, Literal, Optional, Tuple
 
 from app.core.config import WORKSPACE_DIR
@@ -44,6 +42,7 @@ from app.services.runtime_tooling import (
     canonicalize_runtime_tool_name,
     probe_runtime_tool,
 )
+from app.utils.path_utils import as_system_path
 
 logger = logging.getLogger(__name__)
 
@@ -347,7 +346,8 @@ class AgentConfigService:
                 if prompt_path.read_text(encoding="utf-8").strip():
                     return True
             except Exception:
-                return True
+                # 读取失败时保守判定为无覆盖，避免配置系统误用损坏的配置
+                return False
 
         tools_path = mode_dir / self.TOOLS_CONFIG_FILE
         if tools_path.exists():
@@ -356,7 +356,8 @@ class AgentConfigService:
                 if tools_data:
                     return True
             except Exception:
-                return True
+                # 读取失败时保守判定为无覆盖
+                return False
 
         runtime_path = mode_dir / self.RUNTIME_CONFIG_FILE
         if self._load_runtime_override_from_path(runtime_path) is not None:

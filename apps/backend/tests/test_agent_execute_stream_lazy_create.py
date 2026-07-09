@@ -29,9 +29,7 @@ def _build_client(monkeypatch, tmp_path):
 
     # 使用独立的 workspace registry
     registry = WorkspaceRegistryService(tmp_path)
-    monkeypatch.setattr(
-        agent_route, "get_workspace_registry_service", lambda: registry
-    )
+    monkeypatch.setattr(agent_route, "get_workspace_registry_service", lambda: registry)
 
     async def _fake_stream(*args, **kwargs):
         # 空的 SSE 流
@@ -75,14 +73,12 @@ def test_execute_stream_creates_conversation_when_session_missing_and_workspace_
             break
     # 验证 create_conversation 被调用（懒创建）
     conversations = registry._read_conversation_payloads("local_default", "ws-lazy-001")
-    assert any(
-        c.get("conversation_id") == "missing-session-001" for c in conversations
-    ), "懒创建 conversation 失败"
+    assert any(c.get("conversation_id") == "missing-session-001" for c in conversations), (
+        "懒创建 conversation 失败"
+    )
 
 
-def test_execute_stream_skips_creation_when_session_exists(
-    monkeypatch, tmp_path
-):
+def test_execute_stream_skips_creation_when_session_exists(monkeypatch, tmp_path):
     """session 已存在时，不应重复创建 conversation。"""
     client, registry, mock_agent_service = _build_client(monkeypatch, tmp_path)
 
@@ -114,9 +110,7 @@ def test_execute_stream_skips_creation_when_session_exists(
     assert len(conversations) == 1, "不应重复创建 conversation"
 
 
-def test_execute_stream_skips_creation_when_no_workspace_id(
-    monkeypatch, tmp_path
-):
+def test_execute_stream_skips_creation_when_no_workspace_id(monkeypatch, tmp_path):
     """session 不存在且未提供 workspace_id 时，保持原有行为（不创建）。"""
     client, registry, mock_agent_service = _build_client(monkeypatch, tmp_path)
 
@@ -139,3 +133,33 @@ def test_execute_stream_skips_creation_when_no_workspace_id(
     # registry 没有 workspaces，所以 conversations 应为空
     all_conversations = registry._read_conversation_payloads("local_default", "missing-no-ws-003")
     assert all_conversations == [], "未提供 workspace_id 时不应创建 conversation"
+
+
+def test_execute_stream_rejects_mismatched_workspace_binding(monkeypatch, tmp_path):
+    """session 已绑定到 workspace A，请求传 workspace B 时应返回 400。
+
+    这是 available-draft 跨工作区复用草稿导致 API Error: 400 的回归保护。
+    """
+    client, registry, mock_agent_service = _build_client(monkeypatch, tmp_path)
+
+    # 在 workspace-a 下创建一个会话
+    registry.create_workspace(
+        user_id="local_default",
+        title="Workspace A",
+        workspace_id="ws-mismatch-a",
+        initial_conversation_id="bound-session-001",
+    )
+
+    response = client.post(
+        "/agent/execute/stream",
+        json={
+            "prompt": "hello",
+            "session_id": "bound-session-001",
+            "workspace_id": "ws-mismatch-b",
+        },
+    )
+
+    assert response.status_code == 400
+    detail = response.json()["detail"]
+    assert detail["workspace_id"] == "ws-mismatch-b"
+    assert detail["resolved_workspace_id"] == "ws-mismatch-a"

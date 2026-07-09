@@ -217,12 +217,12 @@ export function useSessionOrchestrator({
   // 获取可用预热草稿（智能复用）
   const getAvailableDraft = useCallback(async (): Promise<string | null> => {
     try {
-      return await requestAvailableDraftId(apiBaseUrl);
+      return await requestAvailableDraftId(apiBaseUrl, getWorkspaceId?.());
     } catch (err) {
       console.warn("[Session] 获取可用草稿失败:", err);
     }
     return null;
-  }, [apiBaseUrl]);
+  }, [apiBaseUrl, getWorkspaceId]);
 
   const prepareNewSession = useCallback(async () => {
     const hasConversation = chatItems.length > 0;

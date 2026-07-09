@@ -37,9 +37,6 @@ jobs:
       - name: Install desktop deps
         run: cd apps/desktop && npm ci
 
-      - name: Run desktop unit tests
-        run: cd apps/desktop && npm run test:unit
-
       - name: Install uv
         uses: astral-sh/setup-uv@v8.2.0
         with:
@@ -51,6 +48,9 @@ jobs:
           cd apps/backend
           uv python install 3.12
           uv sync --frozen
+
+      - name: Run desktop unit tests
+        run: cd apps/desktop && npm run test:unit
 
       - name: Prepare runtime
         run: cd apps/desktop && npm run prepare:runtime

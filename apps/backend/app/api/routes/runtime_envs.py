@@ -362,8 +362,11 @@ async def install_node_version(
 ):
     """通过 fnm 安装指定 Node.js 版本。"""
     try:
-        result = _node_service().install_node_version(
-            current_user.user_id, workspace_id, version=request.node_version
+        result = await asyncio.to_thread(
+            _node_service().install_node_version,
+            current_user.user_id,
+            workspace_id,
+            version=request.node_version,
         )
         return NodeRuntimeActionResponse(workspace_id=workspace_id, result=result)
     except FileNotFoundError as exc:
@@ -385,8 +388,12 @@ async def use_node_version(
 ):
     """在工作区切换到指定 Node.js 版本。"""
     try:
-        result = _node_service().use_node_version(
-            current_user.user_id, workspace_id, request.env_id, request.node_version
+        result = await asyncio.to_thread(
+            _node_service().use_node_version,
+            current_user.user_id,
+            workspace_id,
+            request.env_id,
+            request.node_version,
         )
         return NodeRuntimeActionResponse(workspace_id=workspace_id, result=result)
     except FileNotFoundError as exc:
@@ -408,8 +415,11 @@ async def set_default_node_version(
 ):
     """设置全局默认 Node.js 版本。"""
     try:
-        result = _node_service().set_default_node_version(
-            current_user.user_id, workspace_id, request.node_version
+        result = await asyncio.to_thread(
+            _node_service().set_default_node_version,
+            current_user.user_id,
+            workspace_id,
+            request.node_version,
         )
         return NodeRuntimeActionResponse(workspace_id=workspace_id, result=result)
     except FileNotFoundError as exc:
@@ -451,8 +461,11 @@ async def uninstall_node_version(
 ):
     """卸载指定 Node.js 版本。"""
     try:
-        result = _node_service().uninstall_node_version(
-            current_user.user_id, workspace_id, request.node_version
+        result = await asyncio.to_thread(
+            _node_service().uninstall_node_version,
+            current_user.user_id,
+            workspace_id,
+            request.node_version,
         )
         return NodeRuntimeActionResponse(workspace_id=workspace_id, result=result)
     except FileNotFoundError as exc:
@@ -473,7 +486,11 @@ async def list_remote_node_versions(
 ):
     """查看可远程安装的 Node.js 版本列表。"""
     try:
-        result = _node_service().list_remote_versions(current_user.user_id, workspace_id)
+        result = await asyncio.to_thread(
+            _node_service().list_remote_versions,
+            current_user.user_id,
+            workspace_id,
+        )
         return NodeRuntimeActionResponse(workspace_id=workspace_id, result=result)
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc

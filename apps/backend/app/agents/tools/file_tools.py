@@ -28,7 +28,8 @@ def _is_binary_file(path: Path) -> bool:
         with open(as_system_path(path), "rb") as f:
             header = f.read(MEDIA_SNIFF_BYTES)
     except Exception:
-        return False
+        # 读取失败时保守判定为二进制，避免后续按文本读取导致乱码或崩溃
+        return True
     return b"\x00" in header
 
 

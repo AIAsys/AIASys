@@ -864,7 +864,10 @@ function pruneDevDependencies(backendStageRoot) {
   findSitePackages(path.join(venvRoot, "lib"));
   findSitePackages(path.join(venvRoot, "Lib"));
 
-  // 开发/构建/测试工具，运行时不需要
+  // 开发/构建/测试工具，运行时不需要。
+  // 注意：pip 和 wrapt 属于运行时依赖链，不能删除。
+  // - pip: code_execution_tool 支持 %pip install，runtime_envs/kernel_envs 也会调用 python -m pip。
+  // - wrapt: graph 可选依赖 graspologic -> gensim -> smart-open -> wrapt 的传递依赖。
   const devPackages = [
     "pytest", "_pytest", "ruff", "mypy", "mypy_extensions",
     "black", "blackd", "coverage", "pre_commit",
@@ -872,9 +875,7 @@ function pruneDevDependencies(backendStageRoot) {
     "pytest_xdist", "pytest_asyncio", "pytest_cov",
     "sphinx", "sphinx_rtd_theme", "mccabe", "pycodestyle",
     "pyflakes", "debugpy", "jedi", "parso", "astroid",
-    "lazy_object_proxy", "wrapt", "dill",
-    // pip 在运行时不应被使用，内嵌 Python 自带的 pip 也删除
-    "pip",
+    "lazy_object_proxy", "dill",
     // 嵌入 Python 自带且不需要的包
     "ensurepip",
     // IDLE 与 turtledemo 等 GUI 示例

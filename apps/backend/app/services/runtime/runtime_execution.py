@@ -518,7 +518,9 @@ def _docker_exec_env_args(plan: RuntimeExecutionPlan) -> str:
         key_text = str(key).strip()
         if not key_text or not re.match(r"^[A-Za-z_][A-Za-z0-9_]*$", key_text):
             continue
-        parts.append(f"-e {_shell_quote(key_text, shell_family='posix')}={_shell_quote(str(value), shell_family='posix')}")
+        parts.append(
+            f"-e {_shell_quote(key_text, shell_family='posix')}={_shell_quote(str(value), shell_family='posix')}"
+        )
     return "".join(f"{part} " for part in parts)
 
 
