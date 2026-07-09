@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from unittest.mock import AsyncMock
 
 import pytest
@@ -18,6 +19,7 @@ from app.models.user import UserInfo
 from app.services.agent_config import AgentConfigService, AgentMode
 from app.services.history import SessionExecutionJournal
 from app.services.session import SessionManager
+from app.services.workspace_registry import WorkspaceRegistryService
 
 CURRENT_USER = UserInfo(user_id="session-structure-user", role="user", auth_provider="none")
 
@@ -724,10 +726,69 @@ def test_available_draft_skips_cleared_session_with_archives(
     )
     isolated_session_manager.mark_context_cleared(cleared_session_id, user_id)
 
-    payload = sessions_module._find_available_draft_for_user(CURRENT_USER)
+    payload = sessions_branches_module._find_available_draft_for_user(CURRENT_USER)
 
     assert payload["available"] is True
     assert payload["session_id"] == reusable_session_id
+
+
+@pytest.mark.asyncio
+async def test_available_draft_is_isolated_by_workspace(
+    isolated_session_manager: SessionManager,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """available-draft 必须按工作区隔离，避免跨工作区复用草稿导致 workspace binding 失败。"""
+    user_id = CURRENT_USER.user_id
+
+    registry = WorkspaceRegistryService(tmp_path, session_manager=isolated_session_manager)
+    monkeypatch.setattr(
+        sessions_branches_module,
+        "get_workspace_registry_service",
+        lambda: registry,
+    )
+
+    # 创建两个工作区，各自产生一个空白草稿会话
+    detail_a = registry.create_workspace(
+        user_id=user_id,
+        workspace_id="ws-draft-a",
+        title="Workspace A",
+        initial_conversation_title="Draft A",
+    )
+    draft_a = detail_a.current_conversation
+    assert draft_a is not None
+
+    detail_b = registry.create_workspace(
+        user_id=user_id,
+        workspace_id="ws-draft-b",
+        title="Workspace B",
+        initial_conversation_title="Draft B",
+    )
+    draft_b = detail_b.current_conversation
+    assert draft_b is not None
+
+    # 查询 workspace A 时只能拿到属于 A 的草稿
+    payload_a = sessions_branches_module._find_available_draft_for_user(
+        CURRENT_USER,
+        workspace_id="ws-draft-a",
+    )
+    assert payload_a["available"] is True
+    assert payload_a["session_id"] == draft_a.session_id
+
+    # 查询 workspace B 时不能拿到 A 的草稿
+    payload_b = sessions_branches_module._find_available_draft_for_user(
+        CURRENT_USER,
+        workspace_id="ws-draft-b",
+    )
+    assert payload_b["available"] is True
+    assert payload_b["session_id"] == draft_b.session_id
+
+    # 查询一个不存在草稿的工作区应返回不可用
+    payload_c = sessions_branches_module._find_available_draft_for_user(
+        CURRENT_USER,
+        workspace_id="ws-draft-none",
+    )
+    assert payload_c["available"] is False
 
 
 def test_list_user_sessions_keeps_cleared_session_out_of_draft_filter(

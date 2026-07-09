@@ -387,7 +387,7 @@ async def upload_document(
                     "message": str(e),
                     "hint": "Please configure LLM provider in system settings (Settings > LLM Config)",
                 },
-            )
+            ) from e
         raise HTTPException(status_code=400, detail=str(e)) from e
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e

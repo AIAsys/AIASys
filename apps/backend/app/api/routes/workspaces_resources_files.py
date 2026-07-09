@@ -926,10 +926,15 @@ async def upload_workspace_file(
         operation="before_overwrite",
         current_user=current_user,
     )
-    with open(_sys_path(file_path), "wb") as f:
-        from .files_utils import _copyfileobj_with_limit
 
-        _copyfileobj_with_limit(file.file, f)
+    def _write_upload_file():
+        with open(_sys_path(file_path), "wb") as f:
+            from .files_utils import _copyfileobj_with_limit
+
+            _copyfileobj_with_limit(file.file, f)
+        return file_path.stat().st_size
+
+    uploaded_size = await asyncio.to_thread(_write_upload_file)
 
     logger.info(
         f"工作区文件上传: {current_user.user_id}/{workspace_id}/{normalized_path.as_posix()}"
@@ -939,7 +944,7 @@ async def upload_workspace_file(
         "success": True,
         "filename": normalized_path.as_posix(),
         "path": f"/workspace/{normalized_path.as_posix()}",
-        "size": file_path.stat().st_size,
+        "size": uploaded_size,
         "uploaded_by": current_user.user_id,
     }
 

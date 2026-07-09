@@ -6,7 +6,6 @@
 
 import json
 import logging
-from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Optional
 
@@ -182,67 +181,6 @@ def _read_subagent_control_excerpt(
     if not text:
         return None
     return text[:limit]
-
-
-def _find_available_draft_for_user(current_user: UserInfo):
-    user_dir = session_manager.base_dir / current_user.user_id
-    if not user_dir.exists():
-        return {"available": False, "reason": "no_user_dir"}
-
-    draft_sessions = []
-    now = datetime.now()
-    threshold = timedelta(minutes=30)
-
-    for session_dir in user_dir.iterdir():
-        if not session_dir.is_dir():
-            continue
-
-        meta_path = session_dir / "metadata.json"
-        if not meta_path.exists():
-            continue
-
-        try:
-            data = json.loads(meta_path.read_text(encoding="utf-8"))
-            created_at_str = data.get("created_at", "")
-
-            if not session_manager.is_blank_draft_session(
-                session_dir.name,
-                current_user.user_id,
-            ):
-                continue
-
-            created_at = datetime.fromisoformat(created_at_str)
-            age = now - created_at
-            if age > threshold:
-                continue
-
-            draft_sessions.append(
-                {
-                    "session_id": session_dir.name,
-                    "created_at": created_at,
-                    "age_seconds": age.total_seconds(),
-                }
-            )
-        except Exception as e:
-            logger.warning(f"读取会话元数据失败: {e}")
-            continue
-
-    if not draft_sessions:
-        return {"available": False, "reason": "no_draft"}
-
-    draft_sessions.sort(key=lambda x: x["created_at"], reverse=True)
-    best_draft = draft_sessions[0]
-
-    logger.info(
-        f"可用草稿: {current_user.user_id}/{best_draft['session_id']} (age={best_draft['age_seconds']:.0f}s)"
-    )
-
-    return {
-        "available": True,
-        "session_id": best_draft["session_id"],
-        "created_at": best_draft["created_at"].isoformat(),
-        "age_seconds": best_draft["age_seconds"],
-    }
 
 
 from app.services.tracking import (

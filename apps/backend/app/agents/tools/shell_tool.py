@@ -48,6 +48,7 @@ def _redirect_windows_workspace_path(command: str) -> str:
     if not workspace:
         return command
     workspace_str = str(workspace)
+
     # 保持末尾分隔符与原始一致
     def replacer(match: re.Match[str]) -> str:
         matched = match.group(0)
@@ -56,6 +57,7 @@ def _redirect_windows_workspace_path(command: str) -> str:
         if matched.endswith(sep):
             return workspace_str.rstrip("\\/") + sep
         return workspace_str.rstrip("\\/")
+
     return _WINDOWS_WORKSPACE_RE.sub(replacer, command)
 
 
