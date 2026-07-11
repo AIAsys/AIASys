@@ -21,12 +21,15 @@ class StatusMixin:
         existing_status: Optional[str] = None,
         completed_message_count: Optional[int] = None,
     ) -> str:
-        """根据消息数推导会话状态，必要时保留已完成标记。"""
+        """根据消息数推导会话状态，必要时保留已完成/活跃标记。"""
         if existing_status == "completed":
             if completed_message_count is None:
                 return "completed"
             if message_count <= completed_message_count:
                 return "completed"
+        # 显式标记为 active 的空会话不应被推导为 draft，否则前端新建会话会被列表过滤掉
+        if existing_status == "active":
+            return "active"
         return "active" if message_count > 0 else "draft"
 
     def mark_session_completed(self, session_id: str, user_id: str) -> bool:

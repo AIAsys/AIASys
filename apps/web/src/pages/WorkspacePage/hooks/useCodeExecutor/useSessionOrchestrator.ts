@@ -8,7 +8,6 @@ import type { UploadedFile } from "@/hooks/useAgentFileUpload";
 import type { WorkspaceFile, TaskEvent } from "@/types/task";
 import {
   navigateToAnalysisSession,
-  requestAvailableDraftId,
   requestCreateSession,
   requestDraftCleanup,
 } from "./useSessionOrchestratorHelpers";
@@ -215,16 +214,6 @@ export function useSessionOrchestrator({
     onSessionSelect: handleSessionLoaded,
   });
 
-  // 获取可用预热草稿（智能复用）
-  const getAvailableDraft = useCallback(async (): Promise<string | null> => {
-    try {
-      return await requestAvailableDraftId(apiBaseUrl, getWorkspaceId?.());
-    } catch (err) {
-      console.warn("[Session] 获取可用草稿失败:", err);
-    }
-    return null;
-  }, [apiBaseUrl, getWorkspaceId]);
-
   const prepareNewSession = useCallback(async () => {
     // 一旦用户显式开始“新任务”流程，任何旧的历史恢复回包都不应再接管前台。
     pendingRestoreSessionIdRef.current = null;
@@ -232,15 +221,9 @@ export function useSessionOrchestrator({
     cleanupDraftSessions();
 
     // 不再 resetAgentStream/resetMultiTask — 保留后台运行的流
-    // 只初始化新 session 的 slot
-    const availableDraftId = await getAvailableDraft();
-    let newId: string;
-
-    if (availableDraftId) {
-      newId = availableDraftId;
-    } else {
-      newId = generateShortId();
-    }
+    // 用户主动点击“新建对话”时总是创建全新 session，不复用可用草稿，
+    // 避免多次新建后仍然只有一个会话显示。
+    const newId = generateShortId();
 
     // 初始化新 session
     initChatSession(newId);
@@ -251,7 +234,6 @@ export function useSessionOrchestrator({
     initChatSession,
     initMultiTaskSession,
     cleanupDraftSessions,
-    getAvailableDraft,
   ]);
 
   const activatePreparedSession = useCallback(async (targetSessionId: string) => {

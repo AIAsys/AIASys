@@ -151,6 +151,8 @@ export function useWorkspaceLifecycleActions({
     void (async () => {
       try {
         await executor.handleNewSession();
+        // 新建会话已绑定到当前工作区，刷新工作区列表让对话计数和侧边栏同步
+        await loadWorkspaces();
       } catch (error) {
         console.error("Failed to create new session:", error);
       }
@@ -159,6 +161,7 @@ export function useWorkspaceLifecycleActions({
     currentWorkspaceId,
     executor,
     leaveProjectWorkspace,
+    loadWorkspaces,
     runtimeControls,
   ]);
 
