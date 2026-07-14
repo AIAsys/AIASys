@@ -154,22 +154,7 @@ cd ../..
 
 ## 社区与联系
 
-如果你在使用 AIASys 的过程中遇到问题，或希望参与交流、反馈建议，欢迎通过以下方式联系我们。
-
-<table align="center">
-  <tr>
-    <td width="50%" valign="top" align="center">
-      <img src="images/readme/group-QRcode.png" width="80%">
-      <br>
-      <p>欢迎您扫描二维码进入交流群，获取项目更新与使用讨论</p>
-    </td>
-    <td width="50%" valign="top" align="center">
-      <img src="images/readme/feedback-QRcode.png" width="80%">
-      <br>
-      <p>欢迎您扫码提交问题反馈</p>
-    </td>
-  </tr>
-</table>
+如果你在使用 AIASys 的过程中遇到问题，或希望参与交流、反馈建议，欢迎 [点击此处](https://ucnq7t3qewcp.feishu.cn/wiki/IBrOwwugBieZYgkIKVZchSimnQc?from=from_copylink) 加入交流群或提交问题反馈。
 
 如有其他问题，请通过邮箱联系：
 [aiasys@yeah.net](mailto:aiasys@yeah.net)
