@@ -133,19 +133,21 @@ function AlertDialogAction({
   className?: string
   asChild?: boolean
 }) {
-  const child = React.isValidElement(children)
-    ? children
-    : React.Children.only(children);
-  if (asChild && React.isValidElement(child)) {
-    return (
-      <BaseAlertDialogClose
-        className={cn(buttonVariants(), className)}
-        {...props}
-        render={(closeProps) =>
-          React.cloneElement(child as React.ReactElement, closeProps)
-        }
-      />
-    );
+  if (asChild) {
+    const child = React.isValidElement(children)
+      ? children
+      : React.Children.only(children);
+    if (React.isValidElement(child)) {
+      return (
+        <BaseAlertDialogClose
+          className={cn(buttonVariants(), className)}
+          {...props}
+          render={(closeProps) =>
+            React.cloneElement(child as React.ReactElement, closeProps)
+          }
+        />
+      );
+    }
   }
   return (
     <BaseAlertDialogClose

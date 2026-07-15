@@ -28,19 +28,21 @@ function DialogTrigger({
   children,
   ...props
 }: React.ComponentProps<typeof BaseDialogTrigger> & { asChild?: boolean }) {
-  const child = React.isValidElement(children)
-    ? children
-    : React.Children.only(children);
-  if (asChild && React.isValidElement(child)) {
-    return (
-      <BaseDialogTrigger
-        data-slot="dialog-trigger"
-        {...props}
-        render={(triggerProps) =>
-          React.cloneElement(child as React.ReactElement, triggerProps)
-        }
-      />
-    );
+  if (asChild) {
+    const child = React.isValidElement(children)
+      ? children
+      : React.Children.only(children);
+    if (React.isValidElement(child)) {
+      return (
+        <BaseDialogTrigger
+          data-slot="dialog-trigger"
+          {...props}
+          render={(triggerProps) =>
+            React.cloneElement(child as React.ReactElement, triggerProps)
+          }
+        />
+      );
+    }
   }
   return (
     <BaseDialogTrigger data-slot="dialog-trigger" {...props}>
@@ -54,19 +56,21 @@ function DialogClose({
   children,
   ...props
 }: React.ComponentProps<typeof BaseDialogClose> & { asChild?: boolean }) {
-  const child = React.isValidElement(children)
-    ? children
-    : React.Children.only(children);
-  if (asChild && React.isValidElement(child)) {
-    return (
-      <BaseDialogClose
-        data-slot="dialog-close"
-        {...props}
-        render={(closeProps) =>
-          React.cloneElement(child as React.ReactElement, closeProps)
-        }
-      />
-    );
+  if (asChild) {
+    const child = React.isValidElement(children)
+      ? children
+      : React.Children.only(children);
+    if (React.isValidElement(child)) {
+      return (
+        <BaseDialogClose
+          data-slot="dialog-close"
+          {...props}
+          render={(closeProps) =>
+            React.cloneElement(child as React.ReactElement, closeProps)
+          }
+        />
+      );
+    }
   }
   return (
     <BaseDialogClose data-slot="dialog-close" {...props}>
