@@ -46,7 +46,9 @@ class SnapshotListResponse(BaseModel):
 
 
 class ApplySnapshotRequest(BaseModel):
-    mode: SwitchMode = Field(default="soft", description="soft 只恢复快照中存在的文件；hard 完全对齐快照状态")
+    mode: SwitchMode = Field(
+        default="soft", description="soft 只恢复快照中存在的文件；hard 完全对齐快照状态"
+    )
 
 
 class ApplySnapshotResponse(BaseModel):
