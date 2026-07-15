@@ -75,6 +75,7 @@ apps/web/.vite/
 apps/web/playwright-report/
 apps/web/test-results/
 apps/desktop/.dist/
+apps/desktop/dist-*/
 
 # Root-level fallback: any artifact dir at repo root should be ignored
 /artifacts/
