@@ -490,6 +490,7 @@ export const API_ENDPOINTS = {
   STORAGE_SETTINGS_MIGRATION_START: "/api/system/storage-settings/migration/start",
   UV_MIRROR_CONFIG: "/api/system/uv/mirror-config",
   SHELL_ENVIRONMENT: "/api/system/shell-environment",
+  SHELL_ENVIRONMENT_POWERSHELL_TARGET: "/api/system/shell-environment/powershell-target",
   SHELL_ENVIRONMENT_INSTALL_BUSYBOX: "/api/system/shell-environment/install-busybox",
   SHELL_ENVIRONMENT_INSTALL_BUSYBOX_STREAM: "/api/system/shell-environment/install-busybox/stream",
 

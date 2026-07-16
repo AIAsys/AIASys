@@ -32,12 +32,24 @@ interface ShellComponent {
   optional: boolean;
 }
 
+interface PowerShellInfo {
+  pwsh_path: string | null;
+  pwsh_version: string | null;
+  powershell_path: string | null;
+  powershell_version: string | null;
+  active_path: string | null;
+  active_version: string | null;
+  prompt_target: "auto" | "5.1" | "7";
+  effective_version: string | null;
+}
+
 interface ShellEnvironmentData {
   platform: string;
   is_windows: boolean;
   recommended_family: string;
   components: ShellComponent[];
   guidance: string;
+  powershell?: PowerShellInfo | null;
 }
 
 const FAMILY_LABELS: Record<string, string> = {
@@ -123,6 +135,16 @@ export function ShellEnvironmentPanel() {
           </CardContent>
         </Card>
 
+        {/* PowerShell 提示词目标版本 */}
+        {data.powershell ? (
+          <PowerShellTargetCard
+            info={data.powershell}
+            onSaved={load}
+            onSuccess={showSuccess}
+            onError={showError}
+          />
+        ) : null}
+
         {/* 组件列表 */}
         <div className="space-y-3">
           <h3 className="text-sm font-medium text-main">组件状态</h3>
@@ -156,6 +178,121 @@ export function ShellEnvironmentPanel() {
         />
       ))}
     </div>
+  );
+}
+
+const TARGET_LABELS: Record<PowerShellInfo["prompt_target"], string> = {
+  auto: "自动检测",
+  "5.1": "强制兼容 5.1",
+  "7": "强制 7+",
+};
+
+function PowerShellTargetCard({
+  info,
+  onSaved,
+  onSuccess,
+  onError,
+}: {
+  info: PowerShellInfo;
+  onSaved: () => void;
+  onSuccess: (msg: string) => void;
+  onError: (msg: string) => void;
+}) {
+  const [target, setTarget] = useState<PowerShellInfo["prompt_target"]>(
+    info.prompt_target,
+  );
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    setTarget(info.prompt_target);
+  }, [info.prompt_target]);
+
+  const handleSave = useCallback(async () => {
+    setSaving(true);
+    try {
+      await apiRequest(API_ENDPOINTS.SHELL_ENVIRONMENT_POWERSHELL_TARGET, {
+        method: "PUT",
+        body: { target },
+      });
+      onSuccess("PowerShell 提示词目标版本已更新");
+      onSaved();
+    } catch (err) {
+      onError(err instanceof Error ? err.message : "保存失败");
+    } finally {
+      setSaving(false);
+    }
+  }, [target, onSaved, onSuccess, onError]);
+
+  const dirty = target !== info.prompt_target;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-sm">
+          <Terminal className="h-4 w-4" />
+          PowerShell 提示词目标版本
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="space-y-1 text-xs text-muted-fg">
+          <p>
+            pwsh（7+）：
+            {info.pwsh_version
+              ? `${info.pwsh_version}（${info.pwsh_path}）`
+              : "未安装"}
+          </p>
+          <p>
+            Windows PowerShell（5.1）：
+            {info.powershell_version
+              ? `${info.powershell_version}（${info.powershell_path}）`
+              : "未安装"}
+          </p>
+          <p>
+            Shell 工具实际使用：
+            {info.active_version
+              ? `${info.active_version}（${info.active_path}）`
+              : "未检测到"}
+          </p>
+        </div>
+        <p className="text-xs text-muted-fg">
+          决定注入 Agent 提示词的 PowerShell 兼容写法。若本机默认是 5.1，选「强制兼容
+          5.1」可显著减少 Agent 生成 7+ 语法（如 `&&`）导致的执行报错。
+        </p>
+        <div className="flex items-center gap-3">
+          <select
+            className="h-9 rounded-md border border-border bg-background px-3 text-sm text-foreground"
+            value={target}
+            onChange={(event) =>
+              setTarget(event.target.value as PowerShellInfo["prompt_target"])
+            }
+          >
+            {(
+              Object.entries(TARGET_LABELS) as [
+                PowerShellInfo["prompt_target"],
+                string,
+              ][]
+            ).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
+          <Button
+            size="sm"
+            disabled={!dirty || saving}
+            onClick={handleSave}
+          >
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+            保存
+          </Button>
+          {info.prompt_target !== "auto" ? (
+            <Badge variant="info">
+              当前目标：{TARGET_LABELS[info.prompt_target]}
+            </Badge>
+          ) : null}
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
