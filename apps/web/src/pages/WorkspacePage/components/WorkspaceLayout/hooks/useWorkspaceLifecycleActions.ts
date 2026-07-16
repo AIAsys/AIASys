@@ -13,14 +13,14 @@ import type {
   RuntimeControlsState,
 } from "../types";
 
-function navigateToHome() {
+function navigateToWorkspaceHome() {
   const withAppNavigate = window as Window & {
     appNavigate?: (path: string, options?: { replace?: boolean }) => void;
   };
   if (withAppNavigate.appNavigate) {
-    withAppNavigate.appNavigate("/", { replace: true });
+    withAppNavigate.appNavigate("/workspace", { replace: true });
   } else {
-    window.location.replace("/");
+    window.location.replace("/workspace");
   }
 }
 
@@ -329,7 +329,7 @@ export function useWorkspaceLifecycleActions({
               silent: true,
             });
           } else {
-            navigateToHome();
+            navigateToWorkspaceHome();
           }
         }
       } catch (error) {
@@ -398,7 +398,7 @@ export function useWorkspaceLifecycleActions({
           return;
         }
 
-        navigateToHome();
+        navigateToWorkspaceHome();
       } catch (error) {
         const message =
           error instanceof Error ? error.message : "批量删除工作区失败";
