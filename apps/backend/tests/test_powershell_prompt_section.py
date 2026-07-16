@@ -64,11 +64,22 @@ class TestPsMajor:
 
 
 class TestDetectPowerShellInfo:
-    def test_auto_prefers_pwsh(self, windows_env):
+    def test_auto_uses_common_denominator_51(self, windows_env):
+        """auto 模式下同时存在 7+ 和 5.1 时，effective_version 应取 5.1 兼容。"""
         info = detect_powershell_info(force=True)
         assert info.active_path == "C:/PS7/pwsh.exe"
         assert info.active_version == "7.4.17"
         assert info.prompt_target == "auto"
+        assert info.effective_version == "5.1.26100.8875"
+
+    def test_auto_prefers_pwsh_when_only_pwsh_installed(self, windows_env, monkeypatch):
+        """auto 模式下只有 pwsh 7+ 时，effective_version 取 7+。"""
+        monkeypatch.setattr(
+            she.shutil,
+            "which",
+            lambda name: "C:/PS7/pwsh.exe" if name == "pwsh" else None,
+        )
+        info = detect_powershell_info(force=True)
         assert info.effective_version == "7.4.17"
 
     def test_target_51_uses_windows_powershell(self, windows_env):
@@ -144,6 +155,23 @@ class TestBuildPromptSection:
         assert "pwsh" in section
         assert "WSL" in section
         assert "5.1 兼容写法" in section
+
+    def test_auto_ps51_section_when_both_installed(self, windows_env, monkeypatch):
+        """auto 同时有 7+ 和 5.1 时，提示词按 5.1 生成并指向 powershell.exe。"""
+        monkeypatch.setattr(
+            she,
+            "detect_powershell_info",
+            lambda force=False: self._fake_info(
+                effective_version="5.1.26100.8875",
+            ),
+        )
+        section = build_powershell_prompt_section()
+        assert "5.1.26100.8875" in section
+        assert "C:/PS51/powershell.exe" in section
+        assert "C:/PS7/pwsh.exe" not in section
+        assert "&&" in section
+        assert "三元运算符" in section
+        assert "用户已固定" not in section
 
     def test_ps51_section_with_user_target(self, windows_env, monkeypatch):
         monkeypatch.setattr(

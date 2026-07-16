@@ -380,7 +380,12 @@ def detect_powershell_info(force: bool = False) -> PowerShellInfo:
     elif prompt_target == "7":
         effective_version = pwsh_version or "7"
     else:
-        effective_version = active_version
+        # auto：采用最大公约数原则。若同时装有 pwsh 7+ 和 Windows PowerShell 5.1，
+        # 按 5.1 兼容写法生成命令，避免 WSL 互操作或回退到 powershell.exe 时 7+ 语法报错。
+        if pwsh_version and powershell_version:
+            effective_version = powershell_version
+        else:
+            effective_version = active_version
 
     info = PowerShellInfo(
         pwsh_path=pwsh_path,
@@ -408,10 +413,14 @@ def build_powershell_prompt_section() -> str:
         return ""
 
     version_label = info.effective_version or "未知版本"
+    effective_major = _ps_major(info.effective_version)
     if info.prompt_target == "5.1":
         path_label = info.powershell_path or "powershell.exe"
     elif info.prompt_target == "7":
         path_label = info.pwsh_path or "pwsh"
+    elif effective_major is not None and effective_major < 7:
+        # auto 模式下按 5.1 兼容时，路径也指向 5.1 解释器，避免提示词与实际语法口径不一致
+        path_label = info.powershell_path or "powershell.exe"
     else:
         path_label = info.active_path or "powershell"
     target_note = ""
