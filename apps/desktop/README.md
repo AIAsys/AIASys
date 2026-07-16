@@ -91,8 +91,7 @@ npm run dist:win
 ```
 
 产物：
-- `apps/desktop/dist/AIASys Setup x.x.x.exe` — NSIS 安装程序
-- `apps/desktop/dist/AIASys-x.x.x-win.zip` — 绿色版 zip（推荐 AI/自动化安装）
+- `apps/desktop/dist/AIASys Setup x.x.x.exe` — NSIS 安装程序（本地验证首选）
 
 Windows 安装包特性：
 - 允许用户选择安装目录（`oneClick: false`）

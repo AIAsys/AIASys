@@ -61,7 +61,7 @@ npm run dist:win
 ```bash
 npm run build:web      # 构建前端 dist
 npm run prepare:runtime # 准备 .dist/backend + .dist/web
-npx electron-builder --win nsis zip --publish=never
+npx electron-builder --win nsis --publish=never
 ```
 
 ### prepare-runtime 会自动完成
@@ -81,7 +81,7 @@ npx electron-builder --win nsis zip --publish=never
 | # | 验证项 | 合格标准 |
 |---|---|---|
 | 1 | NSIS 安装包体积 | `dist/AIASys Setup X.X.X.exe` ≥ 200 MB |
-| 2 | ZIP 便携包体积 | `dist/AIASys-X.X.X-win.zip` ≥ 300 MB |
+| 2 | ZIP 便携包体积（CI 产物） | `dist/AIASys-X.X.X-win.zip` ≥ 300 MB；本地构建可不产出 |
 | 3 | 安装程序可执行 | 双击 `.exe` 正常弹出安装向导 |
 | 4 | License 中文正常 | 安装向导许可协议页面显示正常中文 |
 | 5 | 安装路径可配置 | 安装向导出现目录选择步骤 |

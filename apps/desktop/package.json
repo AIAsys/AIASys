@@ -81,8 +81,7 @@
     },
     "win": {
       "target": [
-        "nsis",
-        "zip"
+        "nsis"
       ],
       "requestedExecutionLevel": "asInvoker",
       "icon": "build/icon.ico",
