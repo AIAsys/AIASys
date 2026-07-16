@@ -3,7 +3,7 @@
  * AIASys 跨平台安装辅助脚本
  *
  * 让 AI 和人都能安全、可预期地安装/升级 AIASys。
- * 使用绿色版 zip 包（Windows / macOS / Linux 均支持），避免安装程序在自动化环境中卡死。
+ * Windows 优先使用 NSIS 安装包（.exe），macOS / Linux 使用系统原生安装方式。
  *
  * 用法：
  *   node scripts/install.cjs <archivePath> [targetDir]
@@ -17,7 +17,7 @@
  *   1. 自动检测当前平台
  *   2. 检测并安全终止运行中的 AIASys 进程（按 PID）
  *   3. 备份旧版本
- *   4. 解压绿色版包到目标位置
+ *   4. 静默安装 NSIS 安装包（.exe）到目标目录
  *   5. 创建系统快捷方式 / .desktop / 应用图标
  *   6. 验证关键文件
  *   7. 输出结构化日志，便于 AI 读取
@@ -228,8 +228,72 @@ function copyDirRecursive(src, dest) {
   }
 }
 
+function runNsisInstaller(exePath, targetDir) {
+  log("INFO", `静默安装 ${exePath} ...`);
+  const args = ["/S", `/D=${targetDir}`];
+  const result = exec(exePath, args);
+
+  if (result.status !== 0) {
+    fail(`安装失败: ${result.stderr || result.error || "未知错误"}`);
+  }
+  log("INFO", "安装完成");
+}
+
 function installWindows(archivePath, targetDir) {
   killAiasysProcesses();
+
+  const ext = path.extname(archivePath).toLowerCase();
+  if (ext === ".exe") {
+    backupOldVersion(targetDir);
+    runNsisInstaller(archivePath, targetDir);
+
+    // 创建快捷方式
+    const exePath = path.join(targetDir, "AIASys.exe");
+    if (!fs.existsSync(exePath)) {
+      log("WARN", `未找到 ${exePath}，跳过创建快捷方式`);
+    } else {
+      const desktopPath = path.join(os.homedir(), "Desktop");
+      const startMenuPath = path.join(
+        os.homedir(),
+        "AppData",
+        "Roaming",
+        "Microsoft",
+        "Windows",
+        "Start Menu",
+        "Programs"
+      );
+
+      for (const dir of [desktopPath, startMenuPath]) {
+        fs.mkdirSync(dir, { recursive: true });
+        const shortcutPath = path.join(dir, "AIASys.lnk");
+        const psCommand =
+          "$WshShell = New-Object -ComObject WScript.Shell; " +
+          `$Shortcut = $WshShell.CreateShortcut('${shortcutPath.replace(/'/g, "''")}'); ` +
+          `$Shortcut.TargetPath = '${exePath.replace(/'/g, "''")}'; ` +
+          `$Shortcut.WorkingDirectory = '${targetDir.replace(/'/g, "''")}'; ` +
+          "$Shortcut.Save()";
+        const result = exec("powershell", ["-NoProfile", "-Command", psCommand]);
+        if (result.status !== 0) {
+          log("WARN", `创建快捷方式失败 ${shortcutPath}: ${result.stderr || result.error}`);
+        } else {
+          log("INFO", `已创建快捷方式: ${shortcutPath}`);
+        }
+      }
+    }
+
+    // 验证
+    for (const rel of ["AIASys.exe", "resources", "resources/app.asar"]) {
+      if (!fs.existsSync(path.join(targetDir, rel))) {
+        fail(`安装验证失败: 缺少 ${rel}`);
+      }
+    }
+    log("INFO", `安装验证通过: ${targetDir}`);
+    log("INFO", `启动方式: 双击桌面快捷方式 "AIASys" 或运行 ${exePath}`);
+    return;
+  }
+
+  // fallback: 绿色版 zip（保留兼容）
+  log("INFO", "未检测到 .exe 安装包，回退到绿色版 zip 安装...");
 
   // 为避免 zip 内含 wrapper 目录导致安装验证失败，先解压到临时目录，
   // 再根据实际内容决定是直接把 wrapper 内容搬到目标目录，还是整体搬到目标目录。
@@ -254,60 +318,29 @@ function installWindows(archivePath, targetDir) {
         } catch {
           // ignore cleanup error
         }
-
-        // 创建快捷方式
-        const exePath = path.join(targetDir, "AIASys.exe");
-        if (!fs.existsSync(exePath)) {
-          log("WARN", `未找到 ${exePath}，跳过创建快捷方式`);
-        } else {
-          const desktopPath = path.join(os.homedir(), "Desktop");
-          const startMenuPath = path.join(
-            os.homedir(),
-            "AppData",
-            "Roaming",
-            "Microsoft",
-            "Windows",
-            "Start Menu",
-            "Programs"
-          );
-
-          for (const dir of [desktopPath, startMenuPath]) {
-            fs.mkdirSync(dir, { recursive: true });
-            const shortcutPath = path.join(dir, "AIASys.lnk");
-            const psCommand =
-              "$WshShell = New-Object -ComObject WScript.Shell; " +
-              `$Shortcut = $WshShell.CreateShortcut('${shortcutPath.replace(/'/g, "''")}'); ` +
-              `$Shortcut.TargetPath = '${exePath.replace(/'/g, "''")}'; ` +
-              `$Shortcut.WorkingDirectory = '${targetDir.replace(/'/g, "''")}'; ` +
-              "$Shortcut.Save()";
-            const result = exec("powershell", ["-NoProfile", "-Command", psCommand]);
-            if (result.status !== 0) {
-              log("WARN", `创建快捷方式失败 ${shortcutPath}: ${result.stderr || result.error}`);
-            } else {
-              log("INFO", `已创建快捷方式: ${shortcutPath}`);
-            }
-          }
+      } else {
+        copyDirRecursive(tmpTarget, targetDir);
+        try {
+          fs.rmSync(tmpRoot, { recursive: true, force: true });
+        } catch {
+          // ignore cleanup error
         }
-
-        // 验证
-        for (const rel of ["AIASys.exe", "resources", "resources/app.asar"]) {
-          if (!fs.existsSync(path.join(targetDir, rel))) {
-            fail(`安装验证失败: 缺少 ${rel}`);
-          }
-        }
-        log("INFO", `安装验证通过: ${targetDir}`);
-        log("INFO", `启动方式: 双击桌面快捷方式 "AIASys" 或运行 ${exePath}`);
-        return;
+      }
+    } else {
+      copyDirRecursive(tmpTarget, targetDir);
+      try {
+        fs.rmSync(tmpRoot, { recursive: true, force: true });
+      } catch {
+        // ignore cleanup error
       }
     }
-  }
-
-  // 没有 wrapper 目录，把整个临时目录搬到目标目录
-  copyDirRecursive(tmpTarget, targetDir);
-  try {
-    fs.rmSync(tmpRoot, { recursive: true, force: true });
-  } catch {
-    // ignore cleanup error
+  } else {
+    copyDirRecursive(tmpTarget, targetDir);
+    try {
+      fs.rmSync(tmpRoot, { recursive: true, force: true });
+    } catch {
+      // ignore cleanup error
+    }
   }
 
   // 创建快捷方式
@@ -484,8 +517,8 @@ function printUsage() {
 用法: node scripts/install.cjs <archivePath> [targetDir]
 
 参数:
-  archivePath   AIASys 绿色版包路径
-                - Windows: dist/AIASys-x.x.x-win.zip
+  archivePath   AIASys 安装包路径
+                - Windows: dist/AIASys Setup x.x.x.exe（推荐）或 dist/AIASys-x.x.x-win.zip
                 - macOS:   dist/AIASys-x.x.x-mac.zip
                 - Linux:   dist/AIASys-x.x.x-linux.zip (推荐) 或 .tar.gz
   targetDir     安装目标目录（可选）
@@ -494,9 +527,10 @@ function printUsage() {
                 - Linux   默认: ~/.local/share/AIASys
 
 示例:
-  node scripts/install.cjs dist/AIASys-0.4.25-win.zip
-  node scripts/install.cjs dist/AIASys-0.4.25-mac.zip
-  node scripts/install.cjs dist/AIASys-0.4.25-linux.zip
+  node scripts/install.cjs "dist/AIASys Setup 0.4.34.exe"
+  node scripts/install.cjs dist/AIASys-0.4.34-win.zip
+  node scripts/install.cjs dist/AIASys-0.4.34-mac.zip
+  node scripts/install.cjs dist/AIASys-0.4.34-linux.zip
 
 环境变量:
   AIASYS_AGENT_MODE=1     Agent 模式，自动终止进程、跳过确认对话框

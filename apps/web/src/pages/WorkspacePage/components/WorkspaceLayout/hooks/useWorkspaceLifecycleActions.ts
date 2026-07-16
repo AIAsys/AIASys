@@ -6,7 +6,7 @@ import {
   getTaskWorkspace,
 } from "@/lib/api/workspaces";
 import { createAndActivateWorkspaceConversation } from "../../../hooks/workspaceConversationTransition";
-import { useFileUploadToast } from "@/components/file/FileUploadToast";
+import { DEFAULT_CONVERSATION_TITLE } from "@/lib/conversationTitles";
 import type { TaskWorkspaceSummary } from "../../../types";
 import type {
   WorkspaceLayoutProps,
@@ -107,7 +107,6 @@ export function useWorkspaceLifecycleActions({
   runtimeControls,
   workspaces,
 }: UseWorkspaceLifecycleActionsParams): UseWorkspaceLifecycleActionsReturn {
-  const { showError } = useFileUploadToast();
   const [workspacePendingDeletion, setWorkspacePendingDeletion] =
     useState<WorkspacePendingDeletion | null>(null);
   const [deleteWorkspaceError, setDeleteWorkspaceError] = useState<
@@ -144,21 +143,38 @@ export function useWorkspaceLifecycleActions({
   const handleNewSession = useCallback(() => {
     leaveProjectWorkspace();
     if (!currentWorkspaceId) {
-      runtimeControls.openNewWorkspaceDialog();
+      // 会话必须挂在工作区下，无工作区时给明确提示，不分叉成其他对话框
+      runtimeControls.showError("请先选择或创建一个工作区");
       return;
     }
 
     void (async () => {
       try {
-        await executor.handleNewSession();
+        const result = await executor.handleNewSession();
+        if (result.status === "already-empty") {
+          runtimeControls.showSuccess("当前已是空白会话，可直接输入");
+          return;
+        }
+        if (result.status === "failed") {
+          runtimeControls.showError("会话创建失败，请重试");
+          return;
+        }
+        if (result.status !== "created") {
+          // in-flight：上一次创建仍在进行，忽略本次点击
+          return;
+        }
+        // 新建会话已绑定到当前工作区，刷新工作区列表让对话计数和侧边栏同步
+        await loadWorkspaces();
       } catch (error) {
         console.error("Failed to create new session:", error);
+        runtimeControls.showError("会话创建失败，请重试");
       }
     })();
   }, [
     currentWorkspaceId,
     executor,
     leaveProjectWorkspace,
+    loadWorkspaces,
     runtimeControls,
   ]);
 
@@ -169,6 +185,24 @@ export function useWorkspaceLifecycleActions({
       );
       const targetSessionId = getPreferredWorkspaceSessionId(targetWorkspace);
       if (!targetSessionId) {
+        // 目标工作区没有任何会话：自动创建一条空白会话，
+        // 保证进入工作区必有可输入起点；失败可见提示，不静默 return
+        void (async () => {
+          try {
+            leaveProjectWorkspace();
+            const created = await createWorkspaceConversation(workspaceId, {
+              title: DEFAULT_CONVERSATION_TITLE,
+            });
+            navigateToWorkspaceConversation(workspaceId, created.session_id);
+            await loadWorkspaces();
+          } catch (error) {
+            console.error(
+              "Failed to auto-create conversation for empty workspace:",
+              error,
+            );
+            runtimeControls.showError("会话创建失败，请重试");
+          }
+        })();
         return;
       }
 
@@ -186,7 +220,9 @@ export function useWorkspaceLifecycleActions({
       currentWorkspaceId,
       executor.sessionId,
       leaveProjectWorkspace,
+      loadWorkspaces,
       navigateToWorkspaceConversation,
+      runtimeControls,
       workspaces,
     ],
   );
@@ -394,11 +430,11 @@ export function useWorkspaceLifecycleActions({
           });
         } catch (error) {
           console.error("Failed to fork workspace conversation:", error);
-          showError("Fork 会话失败，请重试");
+          runtimeControls.showError("Fork 会话失败，请重试");
         }
       })();
     },
-    [currentWorkspaceId, executor, loadWorkspaces, showError],
+    [currentWorkspaceId, executor, loadWorkspaces, runtimeControls],
   );
 
   const handleRenameConversation = useCallback(
@@ -487,8 +523,8 @@ export function useWorkspaceLifecycleActions({
             await executor.handleSelectSession(fallbackSessionId);
           }
         } else {
-          // 没有任何可回退会话时，创建新草稿并导航
-          await executor.handleNewSession();
+          // 没有任何可回退会话时，强制创建新会话并导航（跳过空白判定）
+          await executor.handleNewSession({ force: true });
         }
       }
     },

@@ -19,6 +19,10 @@ class CreateSessionRequest(BaseModel):
     user_id: Optional[str] = Field(None, description="用户 ID（可选，优先使用认证信息）")
     session_id: str = Field(..., description="会话 ID")
     title: str = Field(default="新会话", description="会话标题")
+    status: Optional[Literal["draft", "active", "completed"]] = Field(
+        default=None,
+        description="会话初始状态；为空时由服务端决定默认值",
+    )
     workspace_id: Optional[str] = Field(
         default=None,
         description="要绑定的工作区 ID；为空时自动创建一个同名工作区并绑定",

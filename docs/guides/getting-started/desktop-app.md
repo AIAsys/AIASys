@@ -91,24 +91,27 @@ npm run dist:mac
 | Linux | `dist/linux-unpacked/aiasys-desktop` | 目录版，直接运行 |
 | Linux | `dist/AIASys-x.x.x-linux.zip` | 绿色版 zip（推荐 AI/自动化安装） |
 | Linux | `dist/AIASys-x.x.x.AppImage` | 单文件可执行（CI 构建） |
-| Windows | `dist/AIASys-x.x.x-win.zip` | 绿色版 zip（推荐 AI/自动化安装） |
-| Windows | `dist/AIASys Setup x.x.x.exe` | NSIS 安装程序，可选安装目录 |
+| Windows | `dist/AIASys Setup x.x.x.exe` | NSIS 安装程序，可选安装目录（推荐 AI/自动化安装） |
+| Windows | `dist/AIASys-x.x.x-win.zip` | 绿色版 zip（fallback） |
 | macOS | `dist/AIASys-x.x.x-mac.zip` | 绿色版 zip（推荐 AI/自动化安装） |
 | macOS | `dist/AIASys-x.x.x.dmg` | 磁盘映像安装包 |
 
 ### 使用安装脚本（推荐）
 
-三端统一使用 `apps/desktop/scripts/install.cjs` 安装绿色版 zip：
+三端统一使用 `apps/desktop/scripts/install.cjs` 安装：
 
 ```bash
-# Windows
-node apps/desktop/scripts/install.cjs dist/AIASys-x.x.x-win.zip
+# Windows（优先 .exe NSIS 安装包）
+node apps/desktop/scripts/install.cjs "dist/AIASys Setup 0.4.34.exe"
+
+# Windows（fallback: 绿色版 zip）
+node apps/desktop/scripts/install.cjs dist/AIASys-0.4.34-win.zip
 
 # macOS
-node apps/desktop/scripts/install.cjs dist/AIASys-x.x.x-mac.zip
+node apps/desktop/scripts/install.cjs dist/AIASys-0.4.34-mac.zip
 
 # Linux
-node apps/desktop/scripts/install.cjs dist/AIASys-x.x.x-linux.zip
+node apps/desktop/scripts/install.cjs dist/AIASys-0.4.34-linux.zip
 ```
 
 脚本会自动完成：终止运行中的 AIASys、备份旧版本、解压、创建快捷方式 / `.desktop` 入口、验证关键文件。
@@ -124,7 +127,7 @@ node apps/desktop/scripts/install.cjs dist/AIASys-x.x.x-linux.zip
 指定自定义路径：
 
 ```bash
-node apps/desktop/scripts/install.cjs dist/AIASys-x.x.x-win.zip "C:\tools\AIASys"
+node apps/desktop/scripts/install.cjs "dist/AIASys Setup 0.4.34.exe" "C:\tools\AIASys"
 ```
 
 ### Windows 安装包特性

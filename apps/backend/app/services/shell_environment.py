@@ -6,9 +6,11 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 import platform
+import re
 import shutil
 import subprocess
 import time
@@ -18,8 +20,8 @@ from pathlib import Path
 import httpx
 
 from app.core.config import DATA_DIR, RUNTIME_ROOT
-from app.core.subprocess_utils import subprocess_kwargs
 from app.core.encoding_utils import smart_decode
+from app.core.subprocess_utils import subprocess_kwargs
 from app.core.uv_utils import find_uv_binary, get_uv_version
 from app.services.shell_executor import ShellExecutor, get_shell_executor
 from app.utils.path_utils import as_system_path
@@ -92,6 +94,21 @@ class ShellEnvironmentReport:
     recommended_family: str
     components: list[ShellComponentInfo] = field(default_factory=list)
     guidance: str = ""
+    powershell: "PowerShellInfo | None" = None
+
+
+@dataclass
+class PowerShellInfo:
+    """PowerShell 解释器检测与提示词目标版本。"""
+
+    pwsh_path: str | None = None
+    pwsh_version: str | None = None
+    powershell_path: str | None = None
+    powershell_version: str | None = None
+    active_path: str | None = None
+    active_version: str | None = None
+    prompt_target: str = "auto"
+    effective_version: str | None = None
 
 
 def _vendor_platform_dir() -> str:
@@ -257,6 +274,179 @@ def _detect_uv() -> ShellComponentInfo:
     )
 
 
+# ---------------------------------------------------------------------------
+# PowerShell 版本检测与提示词目标版本
+# ---------------------------------------------------------------------------
+
+# PowerShell 提示词目标版本偏好存储
+_PREFERENCES_PATH = Path(DATA_DIR) / "shell_preferences.json"
+_VALID_PROMPT_TARGETS = ("auto", "5.1", "7")
+
+# PowerShell 信息缓存：版本几乎不会变，每次渲染提示词都起两个子进程太贵
+_PS_INFO_CACHE_TTL = 300
+
+
+class _PowerShellInfoCache:
+    def __init__(self, ttl: float) -> None:
+        self._ttl = ttl
+        self._cached: PowerShellInfo | None = None
+        self._at = 0.0
+
+    def get(self) -> PowerShellInfo | None:
+        if self._cached and (time.monotonic() - self._at) < self._ttl:
+            return self._cached
+        return None
+
+    def set(self, info: PowerShellInfo) -> None:
+        self._cached = info
+        self._at = time.monotonic()
+
+    def clear(self) -> None:
+        self._cached = None
+        self._at = 0.0
+
+
+_ps_info_cache = _PowerShellInfoCache(_PS_INFO_CACHE_TTL)
+
+
+def get_powershell_prompt_target() -> str:
+    """读取用户指定的提示词目标版本，缺省为 auto。"""
+    try:
+        if _PREFERENCES_PATH.exists():
+            data = json.loads(_PREFERENCES_PATH.read_text(encoding="utf-8"))
+            target = str(data.get("powershell_prompt_target") or "auto")
+            if target in _VALID_PROMPT_TARGETS:
+                return target
+    except Exception as exc:
+        logger.debug("读取 PowerShell 提示词目标版本偏好失败: %s", exc)
+    return "auto"
+
+
+def set_powershell_prompt_target(target: str) -> None:
+    """保存提示词目标版本，并验证目标解释器在系统上可用。"""
+    target = str(target or "").strip()
+    if target not in _VALID_PROMPT_TARGETS:
+        raise ValueError(
+            f"无效的 PowerShell 目标版本: {target!r}，可选: {list(_VALID_PROMPT_TARGETS)}"
+        )
+    if os.name != "nt":
+        raise ValueError("PowerShell 目标版本仅在 Windows 上可配置")
+    if target == "5.1" and not shutil.which("powershell"):
+        raise ValueError("系统未找到 powershell.exe（Windows PowerShell 5.1）")
+    if target == "7" and not shutil.which("pwsh"):
+        raise ValueError("系统未找到 pwsh（PowerShell 7+）")
+
+    _PREFERENCES_PATH.parent.mkdir(parents=True, exist_ok=True)
+    _PREFERENCES_PATH.write_text(
+        json.dumps({"powershell_prompt_target": target}, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    _ps_info_cache.clear()
+    _report_cache.clear()
+
+
+def _query_ps_version(path: str) -> str | None:
+    return _get_version([path, "-NoProfile", "-Command", "$PSVersionTable.PSVersion.ToString()"])
+
+
+def _ps_major(version: str | None) -> int | None:
+    if not version:
+        return None
+    match = re.match(r"\s*(\d+)", version)
+    return int(match.group(1)) if match else None
+
+
+def detect_powershell_info(force: bool = False) -> PowerShellInfo:
+    """检测 pwsh / powershell 安装情况，并解析提示词实际目标版本。"""
+    if os.name != "nt":
+        return PowerShellInfo()
+    if not force:
+        cached = _ps_info_cache.get()
+        if cached is not None:
+            return cached
+
+    pwsh_path = shutil.which("pwsh")
+    powershell_path = shutil.which("powershell")
+    pwsh_version = _query_ps_version(pwsh_path) if pwsh_path else None
+    powershell_version = _query_ps_version(powershell_path) if powershell_path else None
+
+    # 与 ShellExecutor 保持一致：pwsh 优先，powershell.exe 兜底
+    active_path = pwsh_path or powershell_path
+    active_version = pwsh_version if pwsh_path else powershell_version
+
+    prompt_target = get_powershell_prompt_target()
+    if prompt_target == "5.1":
+        effective_version = powershell_version or "5.1"
+    elif prompt_target == "7":
+        effective_version = pwsh_version or "7"
+    else:
+        # auto：采用最大公约数原则。若同时装有 pwsh 7+ 和 Windows PowerShell 5.1，
+        # 按 5.1 兼容写法生成命令，避免 WSL 互操作或回退到 powershell.exe 时 7+ 语法报错。
+        if pwsh_version and powershell_version:
+            effective_version = powershell_version
+        else:
+            effective_version = active_version
+
+    info = PowerShellInfo(
+        pwsh_path=pwsh_path,
+        pwsh_version=pwsh_version,
+        powershell_path=powershell_path,
+        powershell_version=powershell_version,
+        active_path=active_path,
+        active_version=active_version,
+        prompt_target=prompt_target,
+        effective_version=effective_version,
+    )
+    _ps_info_cache.set(info)
+    return info
+
+
+def build_powershell_prompt_section() -> str:
+    """生成注入主控 system prompt 的 PowerShell 版本与兼容写法段落。
+
+    非 Windows 或未检测到 PowerShell 时返回空字符串。
+    """
+    if os.name != "nt":
+        return ""
+    info = detect_powershell_info()
+    if not info.active_path and not info.effective_version:
+        return ""
+
+    version_label = info.effective_version or "未知版本"
+    effective_major = _ps_major(info.effective_version)
+    if info.prompt_target == "5.1":
+        path_label = info.powershell_path or "powershell.exe"
+    elif info.prompt_target == "7":
+        path_label = info.pwsh_path or "pwsh"
+    elif effective_major is not None and effective_major < 7:
+        # auto 模式下按 5.1 兼容时，路径也指向 5.1 解释器，避免提示词与实际语法口径不一致
+        path_label = info.powershell_path or "powershell.exe"
+    else:
+        path_label = info.active_path or "powershell"
+    target_note = ""
+    if info.prompt_target != "auto":
+        target_note = f"（用户已固定提示词目标版本为 {info.prompt_target}）"
+
+    major = _ps_major(info.effective_version)
+    lines = [f"- PowerShell：{version_label}（{path_label}）{target_note}".rstrip()]
+    if major is not None and major >= 7:
+        lines.append(
+            "- 可以使用 PowerShell 7+ 语法；但通过 WSL 互操作调用 `powershell.exe` 时目标是 5.1，"
+            "需改用 5.1 兼容写法（不要用 `&&`、三元运算符、`??` 等）"
+        )
+    else:
+        lines.extend(
+            [
+                "- 生成 PowerShell 命令时必须兼容 Windows PowerShell 5.1：",
+                "  - 不要用 `&&` / `||` 连接命令（5.1 不支持），用 `;` 或拆成多次 Shell 调用",
+                "  - 不要用三元运算符、`??`、`?.`、`ForEach-Object -Parallel` 等 7+ 特性",
+                "  - 通过 WSL 调用 Windows 侧 PowerShell（`powershell.exe`）时同样是 5.1，保持相同写法约束",
+                '- 需要 bash 语法时用 `interpreter="bash"` 或 `interpreter="wsl"`，不要把 POSIX 语法混进 PowerShell 命令',
+            ]
+        )
+    return "\n".join(lines)
+
+
 def detect_shell_environment(force: bool = False) -> ShellEnvironmentReport:
     """检测当前系统可用的 shell 环境，返回给前端和 Agent prompt 使用。
 
@@ -309,6 +499,7 @@ def detect_shell_environment(force: bool = False) -> ShellEnvironmentReport:
         recommended_family=recommended_family,
         components=components,
         guidance=guidance,
+        powershell=detect_powershell_info() if is_windows else None,
     )
     _report_cache.set(report)
     return report

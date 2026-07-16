@@ -30,6 +30,9 @@ export interface UseWorkspaceRuntimeControlsProps {
 
 export interface UseWorkspaceRuntimeControlsReturn {
   toasts: Array<{ id: string; message: string; type: "success" | "error" }>;
+  /** 页面级提示（经 ToastContainer 渲染），供各生命周期动作复用 */
+  showError: (message: string, duration?: number) => void;
+  showSuccess: (message: string, duration?: number) => void;
   showNewWorkspaceDialog: boolean;
   showRestartRuntimeConfirmDialog: boolean;
   isRestartingRuntime: boolean;

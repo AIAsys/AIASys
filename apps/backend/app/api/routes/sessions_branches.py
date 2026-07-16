@@ -236,10 +236,12 @@ async def create_session(request: CreateSessionRequest, user: UserInfo = Depends
         agent_type = "analysis"
 
         # 创建会话，固定绑定到当前主线的本地执行运行态
+        # 前端主动新建会话时传入 status="active"，避免被列表 API 过滤为空白草稿
         metadata = session_manager.create_session(
             session_id=request.session_id,
             user_id=user_id,
             title=request.title,
+            status=request.status or "draft",
             env_id=env_id,
             sandbox_mode=sandbox_mode,
             recovery_policy=request.recovery_policy or "journal_only",

@@ -51,7 +51,7 @@ export const NEW_TASK_STAGE_LABELS: Record<NewTaskStage, string> = {
   binding_environment: "正在绑定运行环境",
   attaching_databases: "正在挂载数据库连接",
   waiting_runtime: "正在等待运行时就绪",
-  activating_session: "正在切换到新对话",
+  activating_session: "正在切换到新会话",
   error: "创建任务失败",
 };
 

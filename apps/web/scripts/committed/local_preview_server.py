@@ -109,7 +109,7 @@ class PreviewHandler(http.server.SimpleHTTPRequestHandler):
             self.end_headers()
             if self.command != "HEAD":
                 self._stream_response_body(exc)
-        except (BrokenPipeError, ConnectionResetError):
+        except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
             return
         except Exception as exc:  # pragma: no cover - local preview fallback
             self.send_response(502)
@@ -124,11 +124,19 @@ class PreviewHandler(http.server.SimpleHTTPRequestHandler):
 
         file_path = Path(self.translate_path(self.path))
         if file_path.is_file():
-            super().do_GET()
+            try:
+                super().do_GET()
+            except ConnectionError:
+                # Windows 上客户端可能在中途关闭连接（WinError 10053 / WSAECONNABORTED），
+                # 静默忽略，避免把正常的 chunk 加载中断当成致命错误。
+                pass
             return
 
         self.path = "/index.html"
-        super().do_GET()
+        try:
+            super().do_GET()
+        except ConnectionError:
+            pass
 
     def do_HEAD(self) -> None:  # noqa: N802
         if self.path.startswith("/api/") or self.path == "/health":

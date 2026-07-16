@@ -21,6 +21,7 @@ import type {
 } from "./workspaceRuntimeControlsTypes";
 import { emitWorkspaceListRefreshEvent } from "./workspaceListRefreshEvent";
 import { navigateToAnalysisSession } from "./useCodeExecutor/useSessionOrchestratorHelpers";
+import { DEFAULT_CONVERSATION_TITLE } from "@/lib/conversationTitles";
 
 export function useWorkspaceRuntimeControls({
   userId,
@@ -264,7 +265,8 @@ export function useWorkspaceRuntimeControls({
               description,
               workspaceKind: "task",
               initialConversationId: preparedSessionId,
-              initialConversationTitle: initialConversationTitle || "新对话",
+              initialConversationTitle:
+            initialConversationTitle || DEFAULT_CONVERSATION_TITLE,
               runtimeBinding,
               templateId,
               installCapabilities,
@@ -360,7 +362,8 @@ export function useWorkspaceRuntimeControls({
           description,
           workspaceKind: "task",
           initialConversationId: preparedSessionId,
-          initialConversationTitle: initialConversationTitle || "新对话",
+          initialConversationTitle:
+            initialConversationTitle || DEFAULT_CONVERSATION_TITLE,
           runtimeBinding,
           templateId,
           installCapabilities,
@@ -545,6 +548,8 @@ export function useWorkspaceRuntimeControls({
 
   return {
     toasts,
+    showError,
+    showSuccess,
     showNewWorkspaceDialog,
     showRestartRuntimeConfirmDialog,
     isRestartingRuntime,

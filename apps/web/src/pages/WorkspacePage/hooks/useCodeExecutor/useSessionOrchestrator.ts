@@ -8,14 +8,16 @@ import type { UploadedFile } from "@/hooks/useAgentFileUpload";
 import type { WorkspaceFile, TaskEvent } from "@/types/task";
 import {
   navigateToAnalysisSession,
-  requestAvailableDraftId,
+  requestCreateSession,
   requestDraftCleanup,
 } from "./useSessionOrchestratorHelpers";
 import {
   useSessionBootstrapEffects,
   useSessionPrewarmEffect,
 } from "./useSessionOrchestratorEffects";
+import { DEFAULT_CONVERSATION_TITLE } from "@/lib/conversationTitles";
 import type {
+  NewSessionResult,
   SessionDeletionOptions,
   SessionSelectionOptions,
 } from "./executorTypes";
@@ -103,6 +105,8 @@ export function useSessionOrchestrator({
     initialSessionId || null,
   );
   const lastCleanupTimeRef = useRef<number>(0);
+  // 新建会话串行创建的在途标记：在途期间忽略重复触发，避免产生孤儿空会话
+  const createInFlightRef = useRef(false);
 
   // 清理过期草稿会话（节流：最多每5分钟执行一次）
   const cleanupDraftSessions = useCallback(async () => {
@@ -214,38 +218,16 @@ export function useSessionOrchestrator({
     onSessionSelect: handleSessionLoaded,
   });
 
-  // 获取可用预热草稿（智能复用）
-  const getAvailableDraft = useCallback(async (): Promise<string | null> => {
-    try {
-      return await requestAvailableDraftId(apiBaseUrl, getWorkspaceId?.());
-    } catch (err) {
-      console.warn("[Session] 获取可用草稿失败:", err);
-    }
-    return null;
-  }, [apiBaseUrl, getWorkspaceId]);
-
   const prepareNewSession = useCallback(async () => {
-    const hasConversation = chatItems.length > 0;
-
     // 一旦用户显式开始“新任务”流程，任何旧的历史恢复回包都不应再接管前台。
     pendingRestoreSessionIdRef.current = null;
-
-    if (!hasConversation) {
-      return sessionId;
-    }
 
     cleanupDraftSessions();
 
     // 不再 resetAgentStream/resetMultiTask — 保留后台运行的流
-    // 只初始化新 session 的 slot
-    const availableDraftId = await getAvailableDraft();
-    let newId: string;
-
-    if (availableDraftId) {
-      newId = availableDraftId;
-    } else {
-      newId = generateShortId();
-    }
+    // 用户主动点击“新建会话”时总是创建全新 session，不复用可用草稿，
+    // 避免多次新建后仍然只有一个会话显示。
+    const newId = generateShortId();
 
     // 初始化新 session
     initChatSession(newId);
@@ -253,12 +235,9 @@ export function useSessionOrchestrator({
 
     return newId;
   }, [
-    chatItems.length,
-    sessionId,
     initChatSession,
     initMultiTaskSession,
     cleanupDraftSessions,
-    getAvailableDraft,
   ]);
 
   const activatePreparedSession = useCallback(async (targetSessionId: string) => {
@@ -279,7 +258,7 @@ export function useSessionOrchestrator({
     clearFiles();
     setSessionId(targetSessionId);
     updateWorkspaceFilesForSession(targetSessionId, []);
-    addOptimisticSession(targetSessionId, "新对话");
+    addOptimisticSession(targetSessionId, DEFAULT_CONVERSATION_TITLE);
 
     // 添加默认的 Host 任务到任务列表
     const hostTaskId = "host";
@@ -308,11 +287,57 @@ export function useSessionOrchestrator({
     addStreamEventsForSession,
   ]);
 
-  const handleNewSession = useCallback(async () => {
-    const targetSessionId = await prepareNewSession();
-    await activatePreparedSession(targetSessionId);
-    return targetSessionId;
-  }, [prepareNewSession, activatePreparedSession]);
+  const handleNewSession = useCallback(
+    async (options?: { force?: boolean }): Promise<NewSessionResult> => {
+      // 上一次创建仍在进行时忽略重复触发
+      if (createInFlightRef.current) {
+        return { status: "in-flight", sessionId };
+      }
+      // 当前已是空白会话时不重复新建；历史恢复进行中不判定为空。
+      // force 用于删除兜底等必须拿到新会话的场景，跳过空白判定。
+      if (
+        !options?.force &&
+        chatItems.length === 0 &&
+        !pendingRestoreSessionIdRef.current &&
+        !isRestoringSession
+      ) {
+        return { status: "already-empty", sessionId };
+      }
+      createInFlightRef.current = true;
+      try {
+        const targetSessionId = await prepareNewSession();
+        // 串行创建：后端元数据就绪后才切换前台，避免“前端已切换、后端无会话”
+        // 导致的 tokens/llm-selection 404、路由回退和刷新后丢失。
+        const created = await requestCreateSession(
+          apiBaseUrl,
+          targetSessionId,
+          getWorkspaceId?.(),
+          DEFAULT_CONVERSATION_TITLE,
+        );
+        if (!created) {
+          // 创建失败：清理未启用的本地 slot，停留在原会话
+          removeChatSession(targetSessionId);
+          removeMultiTaskSession(targetSessionId);
+          return { status: "failed", sessionId };
+        }
+        await activatePreparedSession(targetSessionId);
+        return { status: "created", sessionId: targetSessionId };
+      } finally {
+        createInFlightRef.current = false;
+      }
+    },
+    [
+      prepareNewSession,
+      activatePreparedSession,
+      apiBaseUrl,
+      getWorkspaceId,
+      sessionId,
+      chatItems.length,
+      isRestoringSession,
+      removeChatSession,
+      removeMultiTaskSession,
+    ],
+  );
 
   const activateReplacementDraft = useCallback(async () => {
     // 删除当前正在查看的会话时，总是先切到一个全新的空白草稿，

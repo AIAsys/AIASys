@@ -241,10 +241,13 @@ class SessionCompactionMixin:
 
             # 反增检测：当待压缩内容足够大时，要求压缩后比压缩前至少低 5%，
             # 否则视为无效压缩。小上下文下摘要本身可能长于原文，不做强制要求。
+            # 手动强制压缩（force=True）是用户的显式意图，且 LLM 摘要已生成，
+            # 跳过反增检测，避免摘要已产出却被静默丢弃（aiasys-eval cp-002 回归）。
             min_before_tokens = max(1000, loop_control.max_summary_tokens * 2)
             INCREASE_THRESHOLD = 0.95
             if (
-                before_tokens < min_before_tokens
+                force
+                or before_tokens < min_before_tokens
                 or after_tokens_est < before_tokens * INCREASE_THRESHOLD
             ):
                 apply_compaction = True

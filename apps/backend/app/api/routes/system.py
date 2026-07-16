@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -112,9 +113,11 @@ def get_runtime_storage_settings_service() -> RuntimeStorageSettingsService:
 
 from app.core.uv_utils import find_uv_binary, get_uv_version, install_uv
 from app.services.shell_environment import (
+    detect_powershell_info,
     detect_shell_environment,
     install_busybox_w32,
     install_busybox_w32_streamed,
+    set_powershell_prompt_target,
 )
 
 
@@ -342,12 +345,28 @@ class ShellComponentItem(BaseModel):
     optional: bool = False
 
 
+class PowerShellInfoResponse(BaseModel):
+    pwsh_path: str | None = None
+    pwsh_version: str | None = None
+    powershell_path: str | None = None
+    powershell_version: str | None = None
+    active_path: str | None = None
+    active_version: str | None = None
+    prompt_target: str = "auto"
+    effective_version: str | None = None
+
+
 class ShellEnvironmentResponse(BaseModel):
     platform: str
     is_windows: bool
     recommended_family: str
     components: list[ShellComponentItem]
     guidance: str
+    powershell: PowerShellInfoResponse | None = None
+
+
+class PowerShellTargetRequest(BaseModel):
+    target: str = Field(..., description="提示词目标版本：auto / 5.1 / 7")
 
 
 class InstallBusyboxResponse(BaseModel):
@@ -356,14 +375,18 @@ class InstallBusyboxResponse(BaseModel):
     message: str
 
 
+def _to_powershell_response(info) -> PowerShellInfoResponse | None:
+    if info is None:
+        return None
+    return PowerShellInfoResponse(**dataclasses.asdict(info))
+
+
 @router.get("/shell-environment", response_model=ShellEnvironmentResponse)
 async def get_shell_environment(
     current_user: UserInfo = Depends(require_auth()),
 ):
     """检测当前系统可用的 shell 环境及增强组件状态。"""
     _ = current_user
-    import dataclasses
-
     report = detect_shell_environment()
     return ShellEnvironmentResponse(
         platform=report.platform,
@@ -371,7 +394,25 @@ async def get_shell_environment(
         recommended_family=report.recommended_family,
         components=[ShellComponentItem(**dataclasses.asdict(c)) for c in report.components],
         guidance=report.guidance,
+        powershell=_to_powershell_response(report.powershell),
     )
+
+
+@router.put(
+    "/shell-environment/powershell-target",
+    response_model=PowerShellInfoResponse,
+)
+async def update_powershell_target(
+    request: PowerShellTargetRequest,
+    current_user: UserInfo = Depends(require_auth()),
+):
+    """设置 Agent 提示词的 PowerShell 目标版本（auto / 5.1 / 7）。"""
+    _ = current_user
+    try:
+        set_powershell_prompt_target(request.target)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return _to_powershell_response(detect_powershell_info(force=True))
 
 
 @router.post("/shell-environment/install-busybox", response_model=InstallBusyboxResponse)

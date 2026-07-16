@@ -150,6 +150,7 @@ export const API_ENDPOINTS = {
     `/api/skills/external-market/workspaces/${encodeURIComponent(workspaceId)}/install`,
 
   // Session
+  SESSIONS_CREATE: "/api/sessions/create",
   SESSIONS_LIST: (userId: string) => `/api/sessions/${userId}`,
   SESSION_DELETE: (userId: string, sessionId: string) =>
     `/api/sessions/${userId}/${sessionId}`,
@@ -489,6 +490,7 @@ export const API_ENDPOINTS = {
   STORAGE_SETTINGS_MIGRATION_START: "/api/system/storage-settings/migration/start",
   UV_MIRROR_CONFIG: "/api/system/uv/mirror-config",
   SHELL_ENVIRONMENT: "/api/system/shell-environment",
+  SHELL_ENVIRONMENT_POWERSHELL_TARGET: "/api/system/shell-environment/powershell-target",
   SHELL_ENVIRONMENT_INSTALL_BUSYBOX: "/api/system/shell-environment/install-busybox",
   SHELL_ENVIRONMENT_INSTALL_BUSYBOX_STREAM: "/api/system/shell-environment/install-busybox/stream",
 

@@ -245,7 +245,7 @@ const ConversationItem = React.memo(function ConversationItem({
             </DropdownMenuItem>
             <DropdownMenuItem onClick={handleForkClick}>
               <GitBranchPlus className="mr-2 h-4 w-4" />
-              Fork 为新对话
+              Fork 为新会话
             </DropdownMenuItem>
             {currentUserId ? (
               <DropdownMenuItem onClick={handleExportClick}>
@@ -599,7 +599,7 @@ export function WorkspaceConversationPanel({
               <button
                 type="button"
                 onClick={onNewConversation}
-                title="新建对话"
+                title="新建会话"
                 className={cn(
                   "rounded-lg border border-border bg-background font-medium text-foreground transition-colors hover:bg-accent",
                   isCollapsed
@@ -608,7 +608,7 @@ export function WorkspaceConversationPanel({
                 )}
               >
                 <MessageSquarePlus className="w-4 h-4" />
-                {!isCollapsed ? <span>新建对话</span> : null}
+                {!isCollapsed ? <span>新建会话</span> : null}
               </button>
               <input
                 ref={importInputRef}
@@ -675,8 +675,8 @@ export function WorkspaceConversationPanel({
             {conversations.length === 0 ? (
               <div className="rounded-lg border border-dashed border-border/80 bg-background/70 px-3 py-3 text-xs text-muted-foreground">
                 {isSyncingConversations
-                  ? "正在同步当前工作区的对话列表..."
-                  : "当前工作区还没有对话。你可以直接新建对话开始，或从左侧切到别的工作区。"}
+                  ? "正在同步当前工作区的会话列表..."
+                  : "当前工作区还没有会话。你可以直接新建会话开始，或从左侧切到别的工作区。"}
               </div>
             ) : filteredConversations.length === 0 ? (
               <div className="rounded-lg border border-dashed border-border/80 bg-background/70 px-3 py-3 text-xs text-muted-foreground">

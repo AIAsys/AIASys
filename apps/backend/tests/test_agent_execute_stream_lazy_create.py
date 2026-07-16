@@ -163,3 +163,51 @@ def test_execute_stream_rejects_mismatched_workspace_binding(monkeypatch, tmp_pa
     detail = response.json()["detail"]
     assert detail["workspace_id"] == "ws-mismatch-b"
     assert detail["resolved_workspace_id"] == "ws-mismatch-a"
+
+
+def test_execute_stream_binds_unbound_draft_to_workspace(monkeypatch, tmp_path):
+    """session 已存在但未绑定 workspace 时，请求传 workspace_id 应自动绑定并执行成功。
+
+    复现路径：前端进入工作区后 /status/{session_id} 自动创建了草稿，
+    用户在该草稿上发送首条消息，execute_stream 应将其绑定到当前工作区而不是 400。
+    """
+    client, registry, mock_agent_service = _build_client(monkeypatch, tmp_path)
+
+    registry.create_workspace(
+        user_id="local_default",
+        title="Workspace Draft",
+        workspace_id="ws-draft-binding",
+    )
+
+    # 模拟 /status/{session_id} 自动创建的未绑定草稿
+    registry.session_manager.create_session(
+        session_id="unbound-draft-001",
+        user_id="local_default",
+        title="新会话",
+    )
+    assert registry.find_workspace_id_by_session_id("local_default", "unbound-draft-001") is None
+
+    response = client.post(
+        "/agent/execute/stream",
+        json={
+            "prompt": "hello",
+            "session_id": "unbound-draft-001",
+            "workspace_id": "ws-draft-binding",
+        },
+    )
+
+    assert response.status_code == 200
+    for line in response.iter_lines():
+        if not line.startswith("data: "):
+            continue
+        payload = line[6:]
+        if payload == "[DONE]":
+            break
+
+    # 验证已绑定到目标工作区
+    assert (
+        registry.find_workspace_id_by_session_id("local_default", "unbound-draft-001")
+        == "ws-draft-binding"
+    )
+    conversations = registry._read_conversation_payloads("local_default", "ws-draft-binding")
+    assert any(c.get("conversation_id") == "unbound-draft-001" for c in conversations)

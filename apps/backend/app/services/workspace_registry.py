@@ -1728,6 +1728,47 @@ class WorkspaceRegistryService:
 
         return self._build_conversation_summary(user_id, workspace_id, payload)
 
+    def add_conversation_to_workspace(
+        self,
+        *,
+        user_id: str,
+        workspace_id: str,
+        conversation_id: str,
+        conversation_title: Optional[str] = None,
+        make_current: bool = True,
+    ) -> WorkspaceConversationSummary:
+        """把一个已存在的 session 作为对话加入工作区（不重新创建 session）。"""
+        meta = self._read_workspace_meta(user_id, workspace_id)
+        existing = self._read_conversation_payloads(user_id, workspace_id)
+        if any(item.get("conversation_id") == conversation_id for item in existing):
+            raise ValueError(f"对话已存在: {conversation_id}")
+
+        session_metadata = self.session_manager.get_session(conversation_id, user_id)
+        if session_metadata is None:
+            raise FileNotFoundError(f"会话不存在: {conversation_id}")
+
+        now = _now_iso()
+        payload = {
+            "conversation_id": conversation_id,
+            "session_id": conversation_id,
+            "title": conversation_title or session_metadata.title or "新对话",
+            "execution_policy": normalize_execution_policy(
+                meta.get("execution_policy"),
+            ).model_dump(mode="json"),
+            "created_at": session_metadata.created_at or now,
+            "updated_at": now,
+        }
+        existing.append(payload)
+        self._write_conversation_payloads(user_id, workspace_id, existing)
+        self._write_session_index(user_id, conversation_id, workspace_id)
+
+        if make_current:
+            meta["current_conversation_id"] = conversation_id
+        meta["updated_at"] = now
+        self._write_workspace_meta(user_id, workspace_id, meta)
+
+        return self._build_conversation_summary(user_id, workspace_id, payload)
+
     def get_conversation_runs(
         self,
         *,

@@ -1,7 +1,7 @@
 /**
  * EmptyConversationState - 空对话引导状态
  *
- * 新工作区/新对话的 empty state，引导用户开始第一次交互。
+ * 新工作区/新会话的 empty state，引导用户开始第一次交互。
  */
 import { FileText, Lightbulb, Sparkles, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";

@@ -255,12 +255,13 @@ class SessionManager(StatusMixin, HistoryMixin, FileSnapshotMixin):
         )
 
         workspace_id = kwargs.pop("workspace_id", None)
+        status = kwargs.pop("status", "draft")
         metadata = SessionMetadata(
             session_id=session_id,
             title=effective_title,
             created_at=now,
             updated_at=now,
-            status="draft",
+            status=status,
             workspace_id=workspace_id,
             **kwargs,
         )

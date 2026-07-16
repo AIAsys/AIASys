@@ -1,10 +1,6 @@
-export const DEFAULT_CONVERSATION_TITLE = "新对话";
-export const DEFAULT_BRANCH_TITLE = "新会话";
+// 产品文案统一使用“会话”口径（见 aiasys-runtime-semantics），默认标题只有一个
+export const DEFAULT_CONVERSATION_TITLE = "新会话";
 
-export function getDefaultConversationTitle(
-  branchedFromConversationId?: string | null,
-): string {
-  return branchedFromConversationId
-    ? DEFAULT_BRANCH_TITLE
-    : DEFAULT_CONVERSATION_TITLE;
+export function getDefaultConversationTitle(): string {
+  return DEFAULT_CONVERSATION_TITLE;
 }

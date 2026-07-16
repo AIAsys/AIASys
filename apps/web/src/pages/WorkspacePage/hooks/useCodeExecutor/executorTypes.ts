@@ -30,6 +30,20 @@ export interface SessionDeletionOptions {
   suppressActiveFallback?: boolean;
 }
 
+/** 新建会话结果状态：created 已创建并切换；already-empty 当前已是空白会话未新建；
+ * in-flight 上一次创建仍在进行；failed 后端创建失败，停留在原会话 */
+export type NewSessionStatus =
+  | "created"
+  | "already-empty"
+  | "in-flight"
+  | "failed";
+
+export interface NewSessionResult {
+  status: NewSessionStatus;
+  /** created 时为新会话 id，其余情况为当前会话 id */
+  sessionId: string;
+}
+
 export interface WorkspaceRefreshOptions {
   /** 用户手动刷新或文件变更后跳过短缓存，直接重新读取后端列表 */
   force?: boolean;
@@ -75,7 +89,10 @@ export interface UseCodeExecutorReturn {
   selectedTaskId: string | undefined;
   selectTask: (taskId: string) => void;
   sessionId: string;
-  handleNewSession: () => Promise<string>;
+  /** 新建会话。force 跳过空白会话判定（删除兜底等必须拿到新会话的场景） */
+  handleNewSession: (options?: {
+    force?: boolean;
+  }) => Promise<NewSessionResult>;
   prepareNewSession: () => Promise<string>;
   activatePreparedSession: (sessionId: string) => Promise<string>;
   refreshWorkspaceForSession: (

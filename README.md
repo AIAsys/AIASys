@@ -11,7 +11,7 @@
 </p>
 
 <p align="center">
-  <img alt="Version" src="https://img.shields.io/badge/version-v0.4.27-blue?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/github/v/release/AIAsys/AIASys?include_prereleases&style=flat-square&label=version&color=blue">
   <img alt="License" src="https://img.shields.io/badge/license-Apache%202.0-green?style=flat-square">
   <img alt="Python" src="https://img.shields.io/badge/Python-3.12+-yellow?style=flat-square&logo=python&logoColor=white">
   <img alt="React" src="https://img.shields.io/badge/React-19-61DAFB?style=flat-square&logo=react&logoColor=white">

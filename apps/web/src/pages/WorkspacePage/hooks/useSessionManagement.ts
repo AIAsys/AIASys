@@ -12,6 +12,7 @@ import {
   isHiddenSession,
 } from "./hiddenSessionRegistry";
 import { emitWorkspaceListRefreshEvent } from "./workspaceListRefreshEvent";
+import { DEFAULT_CONVERSATION_TITLE } from "@/lib/conversationTitles";
 import type {
   UseSessionManagementProps,
   UseSessionManagementReturn,
@@ -232,7 +233,7 @@ export function useSessionManagement({
 
       const nextSession: Conversation = {
         session_id: sessionId,
-        title: title || "新对话",
+        title: title || DEFAULT_CONVERSATION_TITLE,
         updated_at: new Date().toISOString(),
         message_count: 0,
         workspace_file_count: 0,

@@ -948,9 +948,7 @@ export async function createWorkspaceConversation(
       method: "POST",
       body: {
         conversation_id: payload.conversationId,
-        title:
-          payload.title ??
-          getDefaultConversationTitle(payload.branchedFromConversationId),
+        title: payload.title ?? getDefaultConversationTitle(),
         branched_from_conversation_id: payload.branchedFromConversationId,
         code_timeout: payload.codeTimeout,
       },

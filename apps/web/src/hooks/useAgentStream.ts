@@ -322,7 +322,28 @@ export function useAgentStream(): UseAgentStreamResult {
           });
 
           if (!response.ok) {
-            throw new Error(`API Error: ${response.status}`);
+            let detailMessage = "";
+            try {
+              const errorData = await response.json();
+              const detail = errorData?.detail;
+              if (typeof detail === "string") {
+                detailMessage = detail;
+              } else if (detail && typeof detail === "object") {
+                detailMessage =
+                  detail.message ||
+                  detail.error ||
+                  JSON.stringify(detail);
+              } else {
+                detailMessage = errorData?.message || "";
+              }
+            } catch {
+              // 非 JSON 错误体，忽略
+            }
+            throw new Error(
+              detailMessage
+                ? `API Error: ${response.status} - ${detailMessage}`
+                : `API Error: ${response.status}`,
+            );
           }
 
           if (entry.requestId !== requestId) {

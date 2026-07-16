@@ -1,13 +1,13 @@
 import { apiRequest } from "@/lib/api/httpClient";
+import { DEFAULT_CONVERSATION_TITLE } from "@/lib/conversationTitles";
 
 interface DraftCleanupResponse {
   total?: number;
 }
 
-interface AvailableDraftResponse {
-  available?: boolean;
+interface CreateSessionResponse {
   session_id?: string;
-  age_seconds?: number;
+  title?: string;
 }
 
 type AppNavigateWindow = typeof globalThis & {
@@ -36,21 +36,28 @@ export async function requestDraftCleanup(
   }
 }
 
-export async function requestAvailableDraftId(
+export async function requestCreateSession(
   apiBaseUrl: string,
+  sessionId: string,
   workspaceId?: string | null,
-): Promise<string | null> {
+  title?: string,
+): Promise<CreateSessionResponse | null> {
   try {
-    const url = new URL(`${apiBaseUrl}/api/sessions/available-draft`, globalThis.location.origin);
-    if (workspaceId) {
-      url.searchParams.set("workspace_id", workspaceId);
-    }
-    const data = await apiRequest<AvailableDraftResponse>(url.toString());
-    if (data.available && data.session_id) {
-      return data.session_id;
-    }
-    return null;
-  } catch {
+    const data = await apiRequest<CreateSessionResponse>(
+      `${apiBaseUrl}/api/sessions/create`,
+      {
+        method: "POST",
+        body: {
+          session_id: sessionId,
+          workspace_id: workspaceId || undefined,
+          title: title || DEFAULT_CONVERSATION_TITLE,
+          status: "active",
+        },
+      },
+    );
+    return data ?? null;
+  } catch (err) {
+    console.warn("[Session] 创建后端会话失败:", err);
     return null;
   }
 }

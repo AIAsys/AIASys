@@ -31,19 +31,21 @@ function DropdownMenuTrigger({
   children,
   ...props
 }: React.ComponentProps<typeof BaseMenuTrigger> & { asChild?: boolean }) {
-  const child = React.isValidElement(children)
-    ? children
-    : React.Children.only(children);
-  if (asChild && React.isValidElement(child)) {
-    return (
-      <BaseMenuTrigger
-        data-slot="dropdown-menu-trigger"
-        {...props}
-        render={(triggerProps) =>
-          React.cloneElement(child as React.ReactElement, triggerProps)
-        }
-      />
-    );
+  if (asChild) {
+    const child = React.isValidElement(children)
+      ? children
+      : React.Children.only(children);
+    if (React.isValidElement(child)) {
+      return (
+        <BaseMenuTrigger
+          data-slot="dropdown-menu-trigger"
+          {...props}
+          render={(triggerProps) =>
+            React.cloneElement(child as React.ReactElement, triggerProps)
+          }
+        />
+      );
+    }
   }
   return (
     <BaseMenuTrigger data-slot="dropdown-menu-trigger" {...props}>

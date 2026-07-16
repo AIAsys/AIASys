@@ -325,6 +325,17 @@ def _get_available_shells() -> List[str]:
     return shells
 
 
+def _get_powershell_section() -> str:
+    """生成提示词中的 PowerShell 版本与兼容写法段落（非 Windows 为空）。"""
+    try:
+        from app.services.shell_environment import build_powershell_prompt_section
+
+        return build_powershell_prompt_section()
+    except Exception as exc:
+        logger.debug("生成 PowerShell 提示词段落失败: %s", exc)
+        return ""
+
+
 def _get_execution_env_info(
     session_id: str | None = None,
     user_id: str | None = None,
@@ -338,6 +349,7 @@ def _get_execution_env_info(
         "PLATFORM": platform.system(),
         "PLATFORM_VERSION": platform.release(),
         "AVAILABLE_SHELLS": ", ".join(available_shells) if available_shells else "未检测到",
+        "POWERSHELL_SECTION": _get_powershell_section(),
         "WORKSPACE_PHYSICAL_PATH": workspace_physical_path,
         "WORKSPACE_REDIRECT_NOTE": (
             "当前工作区的真实物理路径是：${WORKSPACE_PHYSICAL_PATH}。\n"

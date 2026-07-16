@@ -3,17 +3,17 @@
  * AIASys Windows 安装辅助脚本
  *
  * 设计目标：让 AI 和人都能安全、可预期地安装/升级 Windows 版 AIASys。
- * 使用绿色版 zip 包进行安装，避免 NSIS 安装程序在自动化环境中无响应或被杀毒拦截。
+ * 优先使用 NSIS 安装包（.exe），绿色版 zip 作为 fallback。
  *
  * 用法：
- *   node scripts/install-windows.cjs <zipPath> [targetDir]
+ *   node scripts/install-windows.cjs <exePath> [targetDir]
  *
  * 默认安装到：C:\Users\<user>\AppData\Local\Programs\AIASys
  *
  * 行为：
  *   1. 检测并终止运行中的 AIASys 进程（按 PID，安全）
  *   2. 备份旧版本安装目录（重命名为 AIASys.bak.<timestamp>）
- *   3. 用 PowerShell Expand-Archive 解压 zip 到目标目录
+ *   3. 静默执行 NSIS 安装包
  *   4. 创建/更新桌面和开始菜单快捷方式
  *   5. 验证安装结果（检查关键文件是否存在）
  *   6. 输出结构化日志，便于 AI 读取
@@ -110,6 +110,22 @@ function extractZip(zipPath, targetDir) {
   log("INFO", "解压完成");
 }
 
+function runNsisInstaller(exePath, targetDir) {
+  log("INFO", `静默安装 ${exePath} ...`);
+  // NSIS 安装包支持 /S 静默安装，/D 指定目标目录
+  const args = ["/S", `/D=${targetDir}`];
+  const result = spawnSync(exePath, args, {
+    encoding: "utf-8",
+    stdio: "pipe",
+    windowsHide: true,
+  });
+
+  if (result.status !== 0) {
+    fail(`安装失败: ${result.stderr || result.error || "未知错误"}`);
+  }
+  log("INFO", "安装完成");
+}
+
 function createShortcuts(targetDir) {
   const exePath = path.join(targetDir, "AIASys.exe");
   if (!fs.existsSync(exePath)) {
@@ -169,15 +185,15 @@ function main() {
   const args = process.argv.slice(2);
   if (args.length < 1) {
     console.log(`
-用法: node scripts/install-windows.cjs <zipPath> [targetDir]
+用法: node scripts/install-windows.cjs <archivePath> [targetDir]
 
 参数:
-  zipPath     AIASys Windows 绿色版 zip 文件路径
+  archivePath  AIASys Windows 安装包路径（.exe NSIS 安装包优先，.zip 绿色版 fallback）
   targetDir   安装目标目录（默认: C:\\Users\\<user>\\AppData\\Local\\Programs\\AIASys）
 
 示例:
-  node scripts/install-windows.cjs dist/AIASys-0.4.25-win.zip
-  node scripts/install-windows.cjs dist/AIASys-0.4.25-win.zip "C:\\Program Files\\AIASys"
+  node scripts/install-windows.cjs "dist/AIASys Setup 0.4.34.exe"
+  node scripts/install-windows.cjs dist/AIASys-0.4.34-win.zip "C:\\Program Files\\AIASys"
 
 环境变量:
   AIASYS_AGENT_MODE=1     Agent 模式，自动终止进程、跳过确认对话框
@@ -185,17 +201,17 @@ function main() {
     process.exit(0);
   }
 
-  const zipPath = path.resolve(args[0]);
+  const archivePath = path.resolve(args[0]);
   const targetDir = args[1]
     ? path.resolve(args[1])
     : path.join(os.homedir(), "AppData", "Local", "Programs", "AIASys");
 
   log("INFO", `开始安装 AIASys`);
-  log("INFO", `安装包: ${zipPath}`);
+  log("INFO", `安装包: ${archivePath}`);
   log("INFO", `目标目录: ${targetDir}`);
 
-  if (!fs.existsSync(zipPath)) {
-    fail(`安装包不存在: ${zipPath}`);
+  if (!fs.existsSync(archivePath)) {
+    fail(`安装包不存在: ${archivePath}`);
   }
 
   killAiasysProcesses();
@@ -211,8 +227,14 @@ function main() {
     }
   }
 
-  // 解压新版本
-  extractZip(zipPath, targetDir);
+  const ext = path.extname(archivePath).toLowerCase();
+  if (ext === ".exe") {
+    runNsisInstaller(archivePath, targetDir);
+  } else if (ext === ".zip") {
+    extractZip(archivePath, targetDir);
+  } else {
+    fail(`不支持的安装包格式: ${ext}，请使用 .exe 或 .zip`);
+  }
 
   // 创建快捷方式
   createShortcuts(targetDir);

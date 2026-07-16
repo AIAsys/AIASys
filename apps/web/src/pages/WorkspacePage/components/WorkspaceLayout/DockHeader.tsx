@@ -186,7 +186,7 @@ export function DockHeader({
               size="icon"
               className="h-7 w-7 rounded-lg text-muted-foreground"
               onClick={onNewConversation}
-              title="新建对话"
+              title="新建会话"
             >
               <GitBranchPlusIcon className="h-4 w-4 text-tertiary" />
             </Button>
