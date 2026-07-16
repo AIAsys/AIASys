@@ -380,12 +380,9 @@ def detect_powershell_info(force: bool = False) -> PowerShellInfo:
     elif prompt_target == "7":
         effective_version = pwsh_version or "7"
     else:
-        # auto：采用最大公约数原则。若同时装有 pwsh 7+ 和 Windows PowerShell 5.1，
-        # 按 5.1 兼容写法生成命令，避免 WSL 互操作或回退到 powershell.exe 时 7+ 语法报错。
-        if pwsh_version and powershell_version:
-            effective_version = powershell_version
-        else:
-            effective_version = active_version
+        # auto：使用系统上可用的最新 PowerShell 版本（pwsh 7+ 优先于 Windows PowerShell 5.1）。
+        # 提示词中会额外提醒 WSL 互操作时可能回退到 5.1，需要保持兼容写法。
+        effective_version = active_version
 
     info = PowerShellInfo(
         pwsh_path=pwsh_path,

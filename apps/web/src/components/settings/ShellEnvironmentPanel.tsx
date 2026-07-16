@@ -255,10 +255,10 @@ function PowerShellTargetCard({
           </p>
         </div>
         <p className="text-xs text-muted-fg">
-          决定注入 Agent 提示词的 PowerShell 兼容写法。「自动检测」会同时扫描 pwsh 7+ 和
-          Windows PowerShell 5.1；若两者都安装，默认按 5.1 兼容生成命令，避免 WSL 互操作或
-          回退到 powershell.exe 时 7+ 语法（如 `&&`）报错。只有确认全程使用 7+ 时才选「强制
-          7+」。
+          决定注入 Agent 提示词的 PowerShell 兼容写法。「自动检测」默认使用系统上最新的
+          PowerShell 版本（pwsh 7+ 优先于 Windows PowerShell 5.1），并会在提示词中提醒
+          WSL 互操作时可能回退到 5.1 的兼容约束。若本机确实是 5.1 环境，选「强制兼容
+          5.1」可彻底禁用 7+ 语法。
         </p>
         <div className="flex items-center gap-3">
           <select
