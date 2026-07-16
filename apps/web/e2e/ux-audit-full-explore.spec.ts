@@ -121,8 +121,8 @@ test.describe("UX Full System Exploration", () => {
     }
 
     // ========== 9. 对话区域交互 ==========
-    // 点击"新建对话"
-    const newChatBtn = page.locator('button:has-text("新建对话")').first();
+    // 点击"新建会话"
+    const newChatBtn = page.locator('button:has-text("新建会话")').first();
     if (await newChatBtn.isVisible().catch(() => false)) {
       await newChatBtn.click();
       await page.waitForTimeout(2000);
