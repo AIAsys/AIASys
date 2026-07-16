@@ -714,6 +714,56 @@ class TestSessionCompactionMixin:
         assert any(msg.get("origin") == "compaction_summary" for msg in snapshot)
         assert any(msg.get("role") == "assistant" and msg.get("turn_n") == 2 for msg in snapshot)
 
+    @pytest.mark.asyncio
+    async def test_force_compaction_applies_despite_insignificant_reduction(self):
+        """手动强制压缩跳过反增检测。
+
+        system + 固定上下文占大头（不参与压缩）时，可压缩的 chat 很小，
+        压缩后总 token 降幅必然 < 5%，反增检测会拒绝；但 force=True 是用户
+        显式意图且 LLM 摘要已生成，结果不应被静默丢弃（aiasys-eval cp-002）。
+        """
+        system_msg = {"role": "system", "content": "s" * 8000}  # ~2000 tokens
+        chat_msgs = [
+            {"role": "user", "content": "u1"},
+            {"role": "assistant", "content": "a1", "turn_n": 1},
+            {"role": "user", "content": "u2"},
+            {"role": "assistant", "content": "a2", "turn_n": 2},
+        ]
+        all_msgs = [system_msg, *chat_msgs]
+        estimated_before = estimate_text_tokens(all_msgs)
+        # 前提：before 超过反增检测的小上下文豁免线（mock max_summary_tokens=500 → 1000），
+        # 且压缩后降幅必然 < 5%（固定开销占比极高），旧逻辑下会被丢弃。
+        assert estimated_before >= 1000
+
+        session = _TestSession(all_msgs, estimated_before)
+        async for _ in session._maybe_compact_context(force=True):
+            pass
+
+        assert any(msg.get("origin") == "compaction_summary" for msg in session.messages)
+
+    @pytest.mark.asyncio
+    async def test_auto_compaction_skipped_when_reduction_insignificant(self):
+        """自动触发（force=False）仍受反增检测保护，降幅不显著时放弃压缩。"""
+        system_msg = {"role": "system", "content": "s" * 8000}  # ~2000 tokens
+        chat_msgs = [
+            {"role": "user", "content": "u1"},
+            {"role": "assistant", "content": "a1", "turn_n": 1},
+            {"role": "user", "content": "u2"},
+            {"role": "assistant", "content": "a2", "turn_n": 2},
+        ]
+        all_msgs = [system_msg, *chat_msgs]
+        estimated_before = estimate_text_tokens(all_msgs)
+        assert estimated_before >= 1000
+
+        session = _TestSession(all_msgs, estimated_before)
+        # 默认阈值 0.01 * 10000 = 100 tokens，estimated_before 足以触发自动压缩
+        async for _ in session._maybe_compact_context(force=False):
+            pass
+
+        # 反增检测拒绝：消息保持原样，未产生摘要
+        assert not any(msg.get("origin") == "compaction_summary" for msg in session.messages)
+        assert len(session.messages) == len(all_msgs)
+
 
 # ---------------------------------------------------------------------------
 # Integration: Session-level compaction logic
