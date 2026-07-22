@@ -1301,6 +1301,7 @@ export const FileTreeView: React.FC<FileTreeViewProps> = ({
         </div>
       ) : (
         <div
+          className="shrink-0"
           style={{
             height: `${virtualizer.getTotalSize()}px`,
             width: "100%",
@@ -1429,9 +1430,13 @@ export const FileTreeView: React.FC<FileTreeViewProps> = ({
         </div>
       ) : null}
 
-      <div className="mt-4 px-4 py-2 text-[10px] text-muted-foreground/40 font-mono text-center border-t border-border/50 mx-4">
-        END OF FILES
-      </div>
+      {flatNodes.length > 0 ? (
+        <div
+          className="mt-4 px-4 py-2 text-[10px] text-muted-foreground/40 font-mono text-center border-t border-border/50 mx-4 shrink-0"
+        >
+          END OF FILES
+        </div>
+      ) : null}
 
       <FileContextMenu
         fileMenu={fileMenu}
