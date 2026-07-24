@@ -29,10 +29,7 @@
 - 命令与通用文件工具默认工作目录是当前会话的 session root
 - 当前操作系统: ${PLATFORM} (${PLATFORM_VERSION})
 - 可用 Shell: ${AVAILABLE_SHELLS}
-- 如果 bash 可用，优先使用 bash 执行命令（Agent 对 POSIX 语法更熟悉）
-- 不同平台的命令语法差异：
-  - Windows: 目录列表用 `dir`，空设备重定向用 `2>nul`，路径分隔符用 `\`
-  - Linux/macOS: 目录列表用 `ls`，空设备重定向用 `2>/dev/null`，路径分隔符用 `/`
+- 生成 Shell 命令前，先看下方「当前运行环境信息 → 平台信息」里探测到的默认解释器，严格按它的语法口径写命令，不要凭平台名猜测语法（同一台 Windows 上 auto 既可能解析到 Git Bash 的 POSIX，也可能回退到 PowerShell）
 - 逻辑工作区通过 `workspace/` 相对路径映射到当前会话
 - 当前工作区的真实物理路径：${WORKSPACE_PHYSICAL_PATH}
 - ${WORKSPACE_REDIRECT_NOTE}
@@ -170,9 +167,10 @@ Shell 更适合：系统命令、安装依赖、复杂管道操作、没有专�
 
 - 操作系统：${PLATFORM}（版本：${PLATFORM_VERSION}）
 - 可用 Shell：${AVAILABLE_SHELLS}
+${SHELL_GUIDANCE_SECTION}
 ${POWERSHELL_SECTION}
 
-请根据当前平台生成兼容的 Shell 命令。Windows 上优先使用 PowerShell 语法；如明确需要 bash 且系统可用，可在调用 Shell 工具时指定 `interpreter="bash"`。
+Shell 工具的 interpreter 默认为 auto，会按上述「默认 Shell 解释器」解析；请严格按该解释器的语法口径生成命令，不要混入其他 shell 的专有写法。确需换用其他解释器时，显式传 interpreter 参数（auto / bash / wsl / busybox / powershell）。
 
 ### Python 环境
 

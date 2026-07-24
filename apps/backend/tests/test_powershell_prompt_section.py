@@ -207,6 +207,27 @@ class TestExecutionEnvInfo:
         env = agent_config._get_execution_env_info()
         assert env["POWERSHELL_SECTION"] == "- PowerShell：5.1（测试注入）"
 
+    def test_env_info_contains_shell_guidance_section(self, monkeypatch):
+        from app.services.agent import config as agent_config
+
+        monkeypatch.setattr(
+            she,
+            "build_shell_prompt_section",
+            lambda: "- 默认 Shell 解释器：测试注入",
+        )
+        env = agent_config._get_execution_env_info()
+        assert env["SHELL_GUIDANCE_SECTION"] == "- 默认 Shell 解释器：测试注入"
+
+    def test_env_info_shell_guidance_degrades_when_detection_fails(self, monkeypatch):
+        from app.services.agent import config as agent_config
+
+        def _boom():
+            raise RuntimeError("detection failed")
+
+        monkeypatch.setattr(she, "build_shell_prompt_section", _boom)
+        env = agent_config._get_execution_env_info()
+        assert env["SHELL_GUIDANCE_SECTION"] == ""
+
     def test_env_info_degrades_when_detection_fails(self, monkeypatch):
         from app.services.agent import config as agent_config
 

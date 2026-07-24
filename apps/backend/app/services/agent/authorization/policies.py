@@ -12,7 +12,6 @@ from __future__ import annotations
 from typing import Callable
 
 from .constants import (
-    CREDENTIAL_EXFIL_PATTERNS,
     HARDLINE_SHELL_PATTERNS,
     READONLY_TOOL_ALLOWLIST,
     SAFE_SHELL_PATTERNS,
@@ -85,14 +84,6 @@ def hardline_shell(request: CapabilityAuthorizationRequest) -> CapabilityAuthori
                 "检测到破坏性/危险 Shell 命令",
                 denial="该命令涉及系统安全边界，已被拦截。如需执行，请使用受控的运行时环境或手动操作。",
                 pattern_key="shell_hardline",
-            )
-    for pattern in CREDENTIAL_EXFIL_PATTERNS:
-        if pattern.search(command):
-            return _result(
-                AuthorizationDecision.BLOCK,
-                "检测到凭证外传风险",
-                denial="该命令可能泄露敏感凭证，已被拦截。",
-                pattern_key="shell_credential_exfil",
             )
     return None
 

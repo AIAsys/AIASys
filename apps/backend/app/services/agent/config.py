@@ -5,6 +5,7 @@ Agent 配置管理模块
 """
 
 import logging
+import os
 import platform
 import shutil
 import tomllib
@@ -315,9 +316,35 @@ def _resolve_bound_python_env(
 
 
 def _get_available_shells() -> List[str]:
-    """检测当前系统可用的 shell 列表。"""
-    shells = []
+    """检测当前系统可用的 shell 列表。
+
+    与 ShellExecutor 的探测口径保持一致，避免提示词把 WSL 启动器
+    （``C:\\Windows\\System32\\bash.exe``）误报成可用的 POSIX bash：
+    ``shutil.which("bash")`` 会命中它，但 ``ShellExecutor._find_bash`` 会排除，
+    此处也走执行器口径。
+    """
     # cmd.exe 已禁用，不再列入候选
+    if os.name == "nt":
+        try:
+            from app.services.shell_executor import get_shell_executor
+
+            executor = get_shell_executor()
+            shells: List[str] = []
+            if executor.find_git_bash():
+                shells.append("bash (Git Bash)")
+            if executor.find_wsl_bash():
+                shells.append("wsl")
+            if executor.find_busybox():
+                shells.append("busybox")
+            if shutil.which("pwsh"):
+                shells.append("pwsh")
+            if shutil.which("powershell"):
+                shells.append("powershell")
+            return shells
+        except Exception as exc:
+            logger.debug("基于 ShellExecutor 探测可用 shell 失败，回退到 which: %s", exc)
+
+    shells = []
     candidates = ["bash", "sh", "powershell", "pwsh", "zsh", "fish"]
     for shell in candidates:
         if shutil.which(shell):
@@ -336,6 +363,21 @@ def _get_powershell_section() -> str:
         return ""
 
 
+def _get_shell_guidance_section() -> str:
+    """生成提示词中的「默认 Shell 解释器与语法口径」段落。
+
+    以执行层 auto 实际解析到的 shell family 为准，确保提示词教的语法与
+    真正执行命令的 shell 一致。检测失败时返回空串，不阻断提示词渲染。
+    """
+    try:
+        from app.services.shell_environment import build_shell_prompt_section
+
+        return build_shell_prompt_section()
+    except Exception as exc:
+        logger.debug("生成 Shell 语法口径提示词段落失败: %s", exc)
+        return ""
+
+
 def _get_execution_env_info(
     session_id: str | None = None,
     user_id: str | None = None,
@@ -350,6 +392,7 @@ def _get_execution_env_info(
         "PLATFORM_VERSION": platform.release(),
         "AVAILABLE_SHELLS": ", ".join(available_shells) if available_shells else "未检测到",
         "POWERSHELL_SECTION": _get_powershell_section(),
+        "SHELL_GUIDANCE_SECTION": _get_shell_guidance_section(),
         "WORKSPACE_PHYSICAL_PATH": workspace_physical_path,
         "WORKSPACE_REDIRECT_NOTE": (
             "当前工作区的真实物理路径是：${WORKSPACE_PHYSICAL_PATH}。\n"

@@ -444,6 +444,62 @@ def build_powershell_prompt_section() -> str:
     return "\n".join(lines)
 
 
+def build_shell_prompt_section() -> str:
+    """生成主控 system prompt 的「默认 Shell 解释器与语法口径」段落。
+
+    口径以 ``ShellExecutor.detect_interpreter("auto")`` 的实际解析结果为准
+    （``detect_shell_environment().recommended_family`` 与其同序：Windows 上
+    Git Bash → WSL → busybox → PowerShell）。这样提示词教模型的命令语法与
+    真正执行命令的 shell 保持一致，避免「auto 跑 Git Bash 却让模型写
+    PowerShell 语法」这类工具调用失误。
+
+    注意与 :func:`build_powershell_prompt_section` 的分工：本段负责「默认用
+    哪个解释器、写哪种语法」的主口径；PowerShell 段只补充 5.1/7 版本相关的
+    兼容写法，仅在实际会用到 PowerShell 时才相关。
+    """
+    report = detect_shell_environment()
+    family = report.recommended_family
+    is_windows = report.is_windows
+
+    if family == "posix":
+        interp = "Git Bash（POSIX）" if is_windows else "bash / sh（POSIX）"
+        lines = [
+            f"- 默认 Shell 解释器：{interp}。Shell 工具的 auto 会优先用它，请按 POSIX 语法写命令。",
+            "- POSIX 语法约定：目录列表用 `ls`，空设备重定向用 `2>/dev/null`，路径分隔符用 `/`。",
+            "- 不要用 PowerShell cmdlet（如 `Get-ChildItem`）或 PowerShell / cmd 专有的重定向写法。",
+        ]
+        if is_windows:
+            lines.append(
+                '- 确需 PowerShell 时，在 Shell 工具里显式传 `interpreter="powershell"`；'
+                "下方 PowerShell 说明仅在这种情况下适用。"
+            )
+    elif family == "wsl":
+        lines = [
+            "- 默认 Shell 解释器：WSL bash（POSIX）。Shell 工具的 auto 会用它，请按 POSIX 语法写命令。",
+            "- POSIX 语法约定：目录列表用 `ls`，空设备重定向用 `2>/dev/null`，路径分隔符用 `/`。",
+            '- 访问 Windows 侧文件时注意 `/mnt/c/` 挂载路径转换；确需 PowerShell 时显式传 `interpreter="powershell"`。',
+        ]
+    elif family == "busybox":
+        lines = [
+            "- 默认 Shell 解释器：busybox-w32（ash）。Shell 工具的 auto 会用它，仅支持基础 POSIX 命令。",
+            "- 语法约定：空设备重定向用 `2>/dev/null`，路径分隔符用 `/`；避免 GNU bash 扩展（数组、`[[ ]]` 高级特性等）。",
+            '- 确需 PowerShell 时，在 Shell 工具里显式传 `interpreter="powershell"`。',
+        ]
+    elif family == "powershell":
+        lines = [
+            "- 默认 Shell 解释器：PowerShell。系统未检测到 POSIX shell，Shell 工具的 auto 会回退到它，请按 PowerShell 语法写命令。",
+            "- PowerShell 语法约定：目录列表用 `Get-ChildItem`（别名 `ls` / `dir` 亦可），空设备重定向用 `2>$null`，路径分隔符用 `\\`。",
+            "- 不要把 POSIX 专有写法混进来（如 `2>/dev/null`）；版本相关的兼容约束见下方 PowerShell 说明。",
+            '- 确需 bash 时，先安装 Git Bash / WSL，再在 Shell 工具里显式传 `interpreter="bash"` 或 `"wsl"`。',
+        ]
+    else:
+        return ""
+
+    if report.guidance:
+        lines.append(f"- 环境提示：{report.guidance}")
+    return "\n".join(lines)
+
+
 def detect_shell_environment(force: bool = False) -> ShellEnvironmentReport:
     """检测当前系统可用的 shell 环境，返回给前端和 Agent prompt 使用。
 

@@ -76,6 +76,11 @@ def _build_shell_exec_env() -> dict[str, str] | None:
 
 # 危险命令模式（参考 Claude Code + Hermes）
 # re.search 匹配命令中任意位置的危险子命令
+#
+# 这一层没有"弹框确认"能力，只能拦或放，因此只保留"执行即不可逆系统破坏"的命令。
+# 高危但有合法用途的操作（curl|bash 装软件、sudo/su 提权、带 $TOKEN 的 curl 调 API 等）
+# 不在此拦截——它们由授权层 shell_policy 按模式改为"需确认"（见 authorization/constants.py），
+# 在这里硬拦只会误伤日常操作，且极易被"先下载再执行"绕过。
 _DANGEROUS_PATTERNS = [
     r"\brm\s+(?:-r(?:f)?|-f\s*-r|--recursive)\s+/(?:\s|$|\*|~)",  # rm -rf / 及其变体
     r"\brm\s+(?:-r(?:f)?|-f\s*-r|--recursive)\s+~(?:\s|$)",  # rm -rf ~
@@ -87,20 +92,11 @@ _DANGEROUS_PATTERNS = [
     r"\bmv\s+/\S+\s+/dev/null",
     r"\$\s*\(\s*rm\s+-rf\s+/",  # $(rm -rf /) command substitution
     r"`\s*rm\s+-rf\s+/",  # `rm -rf /` backtick command substitution
-    # 补充遗漏的危险模式
-    r"\bsudo\s+.*\brm\s+(?:-r(?:f)?|--recursive)\s+(?:/|~)",  # sudo rm -rf / 绕过
-    r"\bsudo\s+su\b",  # sudo su 提权
-    r"\b(?:sh|bash|zsh|dash)\s+-c\s+['\"].*\brm\b",  # sh -c "rm ..." 绕过
-    r"\bsh\s+-c\s+['\"].*curl\b.*\|.*\b(?:sh|bash)\b",  # sh -c "curl ... | bash"
-    r"\bcurl\b.*\|\s*(?:sh|bash|zsh|dash)\b",  # curl ... | bash
-    r"\bwget\b.*-O\s*-\s*\|\s*(?:sh|bash|zsh|dash)\b",  # wget -O - | sh
+    r"\bsudo\s+.*\brm\s+(?:-r(?:f)?|--recursive)\s+(?:/|~)",  # sudo rm -rf / 绕过（含 rm -rf / 破坏）
     # 十六进制/编码绕过
     r"(?:\\x[0-9a-fA-F]{2}){4,}",  # \x 十六进制编码序列（4+连续）
     r"(?:\\u[0-9a-fA-F]{4}){2,}",  # \u Unicode 编码序列（2+连续）
     r"\b(?:eval|exec)\s+.*(?:\\x|base64\s+-d|base64\s+--decode)",  # eval $(echo ...|base64 -d) 绕过
-    # === 凭证泄漏防护 ===
-    r"\$\{(?:API_KEY|TOKEN|SECRET|PASSWORD|AUTH|CREDENTIAL)\}",  # ${VAR} 凭证变量引用
-    r"\b(?:curl|wget)\b.*(?:\$|\$\{)(?:API_KEY|TOKEN|SECRET|PASSWORD|AUTH|CREDENTIAL)",  # curl/wget 引用凭证变量
 ]
 
 # Windows 危险命令模式

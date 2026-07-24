@@ -36,32 +36,25 @@ HIGH_RISK_TOOLS: set[str] = {
 }
 
 # ---------------------------------------------------------------------------
-# Hardline 模式：不可绕过的破坏性命令
+# Hardline 模式：不可绕过的纯破坏性命令
 # 任何模式下（包括 full_auto/YOLO）都直接 BLOCK
+#
+# 只收录"没有正当使用场景、执行即造成不可逆系统破坏"的命令。
+# 高危但有合法用途的操作——删普通子目录（rm -rf build）、装软件的 curl|bash、
+# sudo/su 提权、带 $TOKEN 的 curl 调 API、nmap/nc 网络诊断等——不放这里；
+# 它们会落到 shell_policy，按授权模式改为"需确认"（full_auto 放行），
+# 既不误伤日常操作，又保留一道人工确认闸。
 # ---------------------------------------------------------------------------
 HARDLINE_SHELL_PATTERNS: list[re.Pattern] = [
-    # 系统目录写入/删除
-    re.compile(r"\brm\s+.*-(?:[a-zA-Z]*[rf]|[rf][a-zA-Z]*)", re.IGNORECASE),
+    # 删除根目录 / 家目录：rm -rf / 、rm -rf /* 、rm -rf ~（不可逆、无正当理由）
+    re.compile(r"\brm\s+(?:-r(?:f)?|-fr|-f\s*-r|--recursive)\s+/(?:\s|$|\*|~)", re.IGNORECASE),
+    re.compile(r"\brm\s+(?:-r(?:f)?|-fr|-f\s*-r|--recursive)\s+~(?:\s|$)", re.IGNORECASE),
+    # 格式化文件系统
     re.compile(r"\bmkfs\b", re.IGNORECASE),
+    # 直接写裸磁盘设备
     re.compile(r"\bdd\s+if=.*of=/dev/", re.IGNORECASE),
-    # 提权
-    re.compile(r"\bsudo\s+", re.IGNORECASE),
-    re.compile(r"\bsu\s+-", re.IGNORECASE),
-    # 远程脚本执行
-    re.compile(r"\b(curl|wget)\b.*\|\s*(bash|sh|zsh)\b", re.IGNORECASE),
-    # 网络监听/端口扫描
-    re.compile(r"\bnc\s+-[lL]\b", re.IGNORECASE),
-    re.compile(r"\bnmap\b", re.IGNORECASE),
     # fork bomb
     re.compile(r":\s*\(\)\s*\{\s*.*\}\s*;\s*\b", re.IGNORECASE),
-]
-
-# ---------------------------------------------------------------------------
-# 凭证外传：直接 BLOCK
-# ---------------------------------------------------------------------------
-CREDENTIAL_EXFIL_PATTERNS: list[re.Pattern] = [
-    re.compile(r"\bcurl\b.*\$(?:SECRET|TOKEN|PWD|PASSWORD|API_KEY)", re.IGNORECASE),
-    re.compile(r"\bwget\b.*\$(?:SECRET|TOKEN|PWD|PASSWORD|API_KEY)", re.IGNORECASE),
 ]
 
 # ---------------------------------------------------------------------------
