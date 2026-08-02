@@ -4,7 +4,13 @@ import logging
 from collections.abc import AsyncGenerator
 from typing import Any
 
-from .base import BaseLlmClient, LlmChunk, LlmDelta, LlmRequestOptions
+from .base import (
+    BaseLlmClient,
+    FinishReason,
+    LlmChunk,
+    LlmDelta,
+    LlmRequestOptions,
+)
 from .message_protocol import InternalMessage, to_responses_input_messages
 from .thinking_mapper import apply_responses_thinking_options
 
@@ -20,6 +26,7 @@ class CodexChatClient(BaseLlmClient):
 
     def __init__(self, api_key: str, base_url: str | None, model: str):
         self.model = model.strip()
+        self._saw_tool_call = False
         try:
             from openai import AsyncOpenAI
         except ImportError as exc:
@@ -54,6 +61,10 @@ class CodexChatClient(BaseLlmClient):
             kwargs["max_output_tokens"] = max_tokens
         apply_responses_thinking_options(kwargs, request_options)
 
+        # Responses 在工具调用场景只报 response.completed，没有专门的停止值，
+        # 需要按本轮是否出现过 function_call 自行修正为 tool_calls。
+        self._saw_tool_call = False
+
         async for event in await self._client.responses.create(**kwargs):
             chunk = self._normalize_event(event)
             if chunk is not None:
@@ -71,6 +82,7 @@ class CodexChatClient(BaseLlmClient):
         if event_type == "response.output_item.added":
             item = getattr(event, "item", None)
             if item and getattr(item, "type", None) == "function_call":
+                self._saw_tool_call = True
                 return LlmChunk(
                     delta=LlmDelta(
                         tool_calls=[
@@ -89,18 +101,37 @@ class CodexChatClient(BaseLlmClient):
 
         if event_type == "response.completed":
             response = getattr(event, "response", None)
+            usage_payload: dict[str, Any] | None = None
             if response and getattr(response, "usage", None):
                 u = response.usage
-                return LlmChunk(
-                    delta=LlmDelta(),
-                    finish_reason="stop",
-                    usage={
-                        "input_tokens": getattr(u, "input_tokens", 0),
-                        "output_tokens": getattr(u, "output_tokens", 0),
-                        "prompt_tokens": getattr(u, "input_tokens", 0),
-                        "completion_tokens": getattr(u, "output_tokens", 0),
-                    },
-                )
+                usage_payload = {
+                    "input_tokens": getattr(u, "input_tokens", 0),
+                    "output_tokens": getattr(u, "output_tokens", 0),
+                    "prompt_tokens": getattr(u, "input_tokens", 0),
+                    "completion_tokens": getattr(u, "output_tokens", 0),
+                }
+            # completed + 本轮出现过 function_call ⇒ 实际语义是「等待工具结果」，
+            # 必须报 tool_calls，否则 ReAct 循环会在工具执行后直接终止。
+            finish_reason: FinishReason = (
+                "tool_calls" if getattr(self, "_saw_tool_call", False) else "completed"
+            )
+            return LlmChunk(
+                delta=LlmDelta(),
+                finish_reason=finish_reason,
+                raw_finish_reason="completed",
+                usage=usage_payload,
+            )
+
+        if event_type == "response.incomplete":
+            response = getattr(event, "response", None)
+            details = getattr(response, "incomplete_details", None)
+            raw_reason = getattr(details, "reason", None)
+            finish_reason = "truncated" if str(raw_reason) == "max_output_tokens" else "other"
+            return LlmChunk(
+                delta=LlmDelta(),
+                finish_reason=finish_reason,
+                raw_finish_reason=str(raw_reason) if raw_reason else "incomplete",
+            )
 
         return None
 

@@ -6,7 +6,14 @@ import re
 from collections.abc import AsyncGenerator
 from typing import Any
 
-from .base import BaseLlmClient, LlmChunk, LlmDelta, LlmRequestOptions
+from .base import (
+    BaseLlmClient,
+    FinishReason,
+    LlmChunk,
+    LlmDelta,
+    LlmRequestOptions,
+    normalize_anthropic_stop_reason,
+)
 from .message_protocol import (
     InternalMessage,
     to_anthropic_messages,
@@ -81,6 +88,10 @@ class AnthropicChatClient(BaseLlmClient):
         self.model = model.strip()
         self._base_url = (base_url or "").strip()
         self._tool_use_blocks: dict[int, dict[str, Any]] = {}
+        # 单次请求内的停止原因状态。message_delta 给出的 stop_reason 是唯一权威来源，
+        # message_stop 与末尾 usage chunk 只能复述它，不得覆盖。
+        self._finish_reason: FinishReason | None = None
+        self._raw_finish_reason: str | None = None
         try:
             import anthropic as _anthropic
         except ImportError as exc:
@@ -108,6 +119,8 @@ class AnthropicChatClient(BaseLlmClient):
         request_options: LlmRequestOptions | None = None,
     ) -> AsyncGenerator[LlmChunk, None]:
         self._tool_use_blocks = {}
+        self._finish_reason = None
+        self._raw_finish_reason = None
         system_msg, anthropic_messages = self._convert_messages(messages)
         anthropic_tools = self._convert_tools(tools) if tools else None
 
@@ -141,7 +154,9 @@ class AnthropicChatClient(BaseLlmClient):
             if final.usage is not None:
                 yield LlmChunk(
                     delta=LlmDelta(),
-                    finish_reason="stop",
+                    # 复述本轮已确定的停止原因，绝不用 "stop" 覆盖 tool_calls。
+                    finish_reason=self._finish_reason or "completed",
+                    raw_finish_reason=self._raw_finish_reason,
                     usage={
                         "input_tokens": getattr(final.usage, "input_tokens", 0),
                         "output_tokens": getattr(final.usage, "output_tokens", 0),
@@ -160,8 +175,22 @@ class AnthropicChatClient(BaseLlmClient):
             if block_type == "thinking":
                 # 捕获 thinking 块的初始内容（含 signature）
                 thinking_text = getattr(content_block, "thinking", "") or ""
+                signature = getattr(content_block, "signature", "") or ""
                 return LlmChunk(
-                    delta=LlmDelta(reasoning_content=thinking_text),
+                    delta=LlmDelta(
+                        reasoning_content=thinking_text,
+                        reasoning_signature=signature or None,
+                    ),
+                )
+            if block_type == "redacted_thinking":
+                # 加密推理块：内容不可读，但 data 必须原样回灌，否则后续轮次被拒。
+                # 走独立字段而非 reasoning_signature——后者是 thinking 块的签名，
+                # 混用会导致回灌时类型错位，且同一轮内两者会互相覆盖。
+                redacted_data = getattr(content_block, "data", "") or ""
+                if not redacted_data:
+                    return None
+                return LlmChunk(
+                    delta=LlmDelta(reasoning_redacted_data=redacted_data),
                 )
             if block_type == "tool_use":
                 index = int(getattr(event, "index", 0) or 0)
@@ -207,6 +236,14 @@ class AnthropicChatClient(BaseLlmClient):
                 return LlmChunk(
                     delta=LlmDelta(reasoning_content=getattr(delta, "thinking", None)),
                 )
+            if delta_type == "signature_delta":
+                # thinking 块的签名在推理结束时单独下发，必须捕获并随消息持久化。
+                signature = getattr(delta, "signature", None)
+                if not signature:
+                    return None
+                return LlmChunk(
+                    delta=LlmDelta(reasoning_signature=signature),
+                )
             if delta_type == "input_json_delta":
                 index = int(getattr(event, "index", 0) or 0)
                 tool_meta = self._tool_use_blocks.get(index, {})
@@ -232,22 +269,27 @@ class AnthropicChatClient(BaseLlmClient):
         if event_type == "message_delta":
             delta = getattr(event, "delta", None)
             stop_reason = getattr(delta, "stop_reason", None)
-            finish_map = {
-                "tool_use": "tool_calls",
-                "end_turn": "stop",
-                "max_tokens": "length",
-                "stop_sequence": "stop",
-            }
             if stop_reason:
+                normalized = normalize_anthropic_stop_reason(str(stop_reason))
+                if normalized == "other":
+                    logger.warning(
+                        "未识别的 Anthropic stop_reason=%s，归一化为 other",
+                        stop_reason,
+                    )
+                self._finish_reason = normalized
+                self._raw_finish_reason = str(stop_reason)
                 return LlmChunk(
                     delta=LlmDelta(),
-                    finish_reason=finish_map.get(str(stop_reason), str(stop_reason)),
+                    finish_reason=normalized,
+                    raw_finish_reason=str(stop_reason),
                 )
 
         if event_type == "message_stop":
+            # message_stop 不携带 stop_reason，只能复述 message_delta 已确定的结论。
             return LlmChunk(
                 delta=LlmDelta(),
-                finish_reason="stop",
+                finish_reason=self._finish_reason or "completed",
+                raw_finish_reason=self._raw_finish_reason,
             )
 
         return None
@@ -256,16 +298,20 @@ class AnthropicChatClient(BaseLlmClient):
         self, messages: list[dict[str, Any]]
     ) -> tuple[str | None, list[dict[str, Any]]]:
         """将内部统一消息协议转为 Anthropic Messages API 格式。"""
-        return to_anthropic_messages(messages)
+        return to_anthropic_messages(
+            messages,
+            is_native_anthropic=self._is_native_anthropic_endpoint(),
+        )
 
     def _convert_tools(self, tools: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """将 OpenAI function schema 转为 Anthropic tool schema。"""
         return to_anthropic_tools(tools)
 
     def _is_native_anthropic_endpoint(self) -> bool:
-        if not self._base_url:
+        base_url = getattr(self, "_base_url", None)
+        if not base_url:
             return True
-        return "anthropic.com" in self._base_url.rstrip("/").lower()
+        return "anthropic.com" in base_url.rstrip("/").lower()
 
     async def aclose(self) -> None:
         await self._client.close()

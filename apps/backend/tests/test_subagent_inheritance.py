@@ -25,7 +25,7 @@ class FakeLlmClient:
         del request_options
         yield MagicMock(
             delta=MagicMock(content="hello", reasoning_content="", tool_calls=[]),
-            finish_reason="stop",
+            finish_reason="completed",
             usage=None,
         )
 

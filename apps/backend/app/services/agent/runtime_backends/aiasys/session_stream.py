@@ -407,7 +407,12 @@ class SessionStreamMixin:
         infos: list[dict[str, Any]],
         tool_ctx: dict[str, Any],
     ) -> AsyncGenerator[AgentRuntimeEvent, None]:
-        """并发执行一批只读工具，结果按传入顺序输出。"""
+        """并发执行一批只读工具，结果按传入顺序输出。
+
+        无论工具执行还是收尾阶段是否抛异常，都必须保证批次内每个 tool_call
+        都落盘一条对应的 tool 消息，避免留下"有 tool_calls 无 tool_result"的
+        非法消息序列（provider 会 400）。
+        """
         if not infos:
             return
 
@@ -417,12 +422,68 @@ class SessionStreamMixin:
             events, tool_result = await self._execute_tool_stream(info["item"], info["item_ctx"])
             return info, events, tool_result
 
-        results = await asyncio.gather(*(asyncio.create_task(run_one(info)) for info in infos))
-        for info, events, tool_result in results:
+        # return_exceptions=True：即使某个 run_one 抛出未预期异常，也不会中断整批，
+        # 其余工具的结果照常回收，异常项在下方合成 error tool_result 占位。
+        results = await asyncio.gather(
+            *(asyncio.create_task(run_one(info)) for info in infos),
+            return_exceptions=True,
+        )
+        for info, result in zip(infos, results):
+            if isinstance(result, BaseException):
+                logger.exception(
+                    "只读工具并发执行异常: session=%s tool=%s",
+                    self.session_id,
+                    info["item"]["function"]["name"],
+                    exc_info=result,
+                )
+                error_result = ToolResult(content=f"工具执行异常: {result}", is_error=True)
+                async for event in self._finish_tool_execution_safe(info["item"], error_result):
+                    yield event
+                continue
+
+            _info, events, tool_result = result
             for event in events:
                 yield event
-            async for event in self._finish_tool_execution(info["item"], tool_result):
+            async for event in self._finish_tool_execution_safe(info["item"], tool_result):
                 yield event
+
+    async def _finish_tool_execution_safe(
+        self,
+        item: dict[str, Any],
+        tool_result: ToolResult,
+    ) -> AsyncGenerator[AgentRuntimeEvent, None]:
+        """_finish_tool_execution 的兜底包装：即使收尾逻辑抛异常，也保证该 tool_call
+        至少落盘一条 tool 消息，维持消息序列合法性。
+        """
+        try:
+            async for event in self._finish_tool_execution(item, tool_result):
+                yield event
+        except Exception as exc:  # noqa: BLE001 - 收尾异常不能破坏消息序列闭合
+            logger.exception(
+                "工具收尾阶段异常: session=%s tool=%s",
+                self.session_id,
+                item["function"]["name"],
+            )
+            # 确保该 tool_call 有对应 tool 回复：若尚未落盘则补一条。
+            already_replied = any(
+                m.get("role") == "tool" and m.get("tool_call_id") == item["id"]
+                for m in self.messages
+            )
+            if not already_replied:
+                self._append_message(
+                    {
+                        "role": "tool",
+                        "tool_call_id": item["id"],
+                        "content": f"工具收尾异常: {exc}",
+                    }
+                )
+                yield AgentRuntimeEvent(
+                    kind="tool_result",
+                    tool_call_id=item["id"],
+                    tool_name=item["function"]["name"],
+                    content=f"工具收尾异常: {exc}",
+                    is_error=True,
+                )
 
     async def _execute_write_tool(
         self,
@@ -513,8 +574,11 @@ class SessionStreamMixin:
 
             assistant_parts: list[str] = []
             assistant_reasoning = ""
+            assistant_reasoning_signature: str | None = None
+            assistant_reasoning_redacted: str | None = None
             aggregated_tool_calls: dict[int, dict[str, Any]] = {}
             latest_finish_reason: str | None = None
+            latest_raw_finish_reason: str | None = None
             latest_usage: dict[str, Any] | None = None
             request_options = self._resolve_request_options()
             suppress_reasoning_content = bool(request_options.thinking_disabled)
@@ -528,8 +592,11 @@ class SessionStreamMixin:
                 if retry_attempt > 0:
                     assistant_parts = []
                     assistant_reasoning = ""
+                    assistant_reasoning_signature = None
+                    assistant_reasoning_redacted = None
                     aggregated_tool_calls = {}
                     latest_finish_reason = None
+                    latest_raw_finish_reason = None
                     latest_usage = None
 
                 try:
@@ -549,8 +616,15 @@ class SessionStreamMixin:
 
                         if chunk.finish_reason:
                             latest_finish_reason = chunk.finish_reason
+                            latest_raw_finish_reason = chunk.raw_finish_reason
 
                         delta = chunk.delta
+                        if delta.reasoning_signature:
+                            # provider 私有推理签名：原样保留，随 assistant 消息回灌。
+                            assistant_reasoning_signature = delta.reasoning_signature
+                        if delta.reasoning_redacted_data:
+                            # 加密推理块 data：与签名分开累积，回灌时独立成块。
+                            assistant_reasoning_redacted = delta.reasoning_redacted_data
                         if delta.content:
                             assistant_parts.append(delta.content)
                             yield AgentRuntimeEvent(
@@ -649,6 +723,12 @@ class SessionStreamMixin:
                         fallback_message["content"] = fallback_content
                     if assistant_reasoning and not suppress_reasoning_content:
                         fallback_message["reasoning_content"] = assistant_reasoning
+                        if assistant_reasoning_signature:
+                            fallback_message["reasoning_signature"] = assistant_reasoning_signature
+                    # 加密推理块与可读 thinking 相互独立：只有 redacted 而无可读内容
+                    # 是合法形态，故不嵌在上面的 reasoning 分支内。
+                    if assistant_reasoning_redacted and not suppress_reasoning_content:
+                        fallback_message["reasoning_redacted_data"] = assistant_reasoning_redacted
                     self._append_message(fallback_message)
                     yield AgentRuntimeEvent(
                         kind="system_warning",
@@ -762,6 +842,10 @@ class SessionStreamMixin:
                     assistant_message["content"] = assistant_content
                 if assistant_reasoning_content is not None:
                     assistant_message["reasoning_content"] = assistant_reasoning_content
+                    if assistant_reasoning_signature:
+                        assistant_message["reasoning_signature"] = assistant_reasoning_signature
+                if assistant_reasoning_redacted:
+                    assistant_message["reasoning_redacted_data"] = assistant_reasoning_redacted
                 self._append_message(assistant_message)
 
                 tool_ctx = self._tool_context()
@@ -796,6 +880,8 @@ class SessionStreamMixin:
 
                 continue
 
+            # 记录本轮 assistant 文本内容是否已落盘，避免 length 续写分支重复追加。
+            assistant_content_appended = False
             if assistant_content is not None:
                 assistant_message = {
                     "role": "assistant",
@@ -803,7 +889,12 @@ class SessionStreamMixin:
                 }
                 if assistant_reasoning_content is not None:
                     assistant_message["reasoning_content"] = assistant_reasoning_content
+                    if assistant_reasoning_signature:
+                        assistant_message["reasoning_signature"] = assistant_reasoning_signature
+                if assistant_reasoning_redacted:
+                    assistant_message["reasoning_redacted_data"] = assistant_reasoning_redacted
                 self._append_message(assistant_message)
+                assistant_content_appended = True
 
             # Auto-Nudge: 用户消息可执行但 Agent 首回合只回复文字时，注入运行时纠正
             if (
@@ -848,7 +939,7 @@ class SessionStreamMixin:
                     self._append_message({"role": "system", "content": nudge})
                     continue
 
-            if latest_finish_reason == "length":
+            if latest_finish_reason == "truncated":
                 self._continuation_count += 1
                 if self._continuation_count > 3:
                     logger.warning("输出截断续写次数超过上限（3次），停止")
@@ -858,22 +949,44 @@ class SessionStreamMixin:
                     )
                     break
 
-                # 保存已收集的部分 assistant 消息
-                partial_message: dict[str, Any] = {"role": "assistant"}
-                if assistant_content is not None:
-                    partial_message["content"] = assistant_content
-                if assistant_reasoning_content is not None:
-                    partial_message["reasoning_content"] = assistant_reasoning_content
-                if tool_calls:
-                    partial_message["tool_calls"] = [
+                # 保存已收集的部分 assistant 消息。
+                # 若上文已落盘纯文本内容（assistant_content_appended），此处不再重复
+                # 追加 content，只在存在 tool_calls 时补一条带 tool_calls 的 assistant 消息。
+                if not assistant_content_appended:
+                    partial_message: dict[str, Any] = {"role": "assistant"}
+                    if assistant_content is not None:
+                        partial_message["content"] = assistant_content
+                    if assistant_reasoning_content is not None:
+                        partial_message["reasoning_content"] = assistant_reasoning_content
+                        if assistant_reasoning_signature:
+                            partial_message["reasoning_signature"] = assistant_reasoning_signature
+                    if assistant_reasoning_redacted:
+                        partial_message["reasoning_redacted_data"] = assistant_reasoning_redacted
+                    if tool_calls:
+                        partial_message["tool_calls"] = [
+                            {
+                                "id": item["id"],
+                                "type": item["type"],
+                                "function": item["function"],
+                            }
+                            for item in tool_calls
+                        ]
+                    self._append_message(partial_message)
+                elif tool_calls:
+                    # 内容已落盘但仍带 tool_calls（罕见）：补一条仅含 tool_calls 的消息。
+                    self._append_message(
                         {
-                            "id": item["id"],
-                            "type": item["type"],
-                            "function": item["function"],
+                            "role": "assistant",
+                            "tool_calls": [
+                                {
+                                    "id": item["id"],
+                                    "type": item["type"],
+                                    "function": item["function"],
+                                }
+                                for item in tool_calls
+                            ],
                         }
-                        for item in tool_calls
-                    ]
-                self._append_message(partial_message)
+                    )
 
                 # 注入续写提示
                 self._append_message(
@@ -884,12 +997,19 @@ class SessionStreamMixin:
                 )
 
                 logger.info(
-                    "检测到 finish_reason=length，触发第 %d 次自动续写",
+                    "检测到 finish_reason=truncated（provider 原始值=%s），触发第 %d 次自动续写",
+                    latest_raw_finish_reason,
                     self._continuation_count,
                 )
                 continue
 
             if latest_finish_reason != "tool_calls":
+                if latest_finish_reason in ("paused", "other"):
+                    logger.warning(
+                        "非常规停止原因导致本轮终止: finish_reason=%s provider 原始值=%s",
+                        latest_finish_reason,
+                        latest_raw_finish_reason,
+                    )
                 break
 
         # ReAct 循环结束，清除当前 turn 标记

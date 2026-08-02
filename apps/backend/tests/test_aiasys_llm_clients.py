@@ -726,15 +726,13 @@ def test_anthropic_client_converts_internal_tool_messages() -> None:
     system_msg, converted = client._convert_messages(_assistant_tool_call_messages())
 
     assert system_msg == "你是第一个系统提示\n\n你是第二个系统提示"
+    # 无 base_url ⇒ 视为 Claude 官方端点。该轮 reasoning 没有 signature，
+    # 只能丢弃 thinking 块（Claude 拒绝无签名 thinking），绝不伪造 signature=""。
+    # 带签名与兼容后端的三态行为见 tests/test_aiasys_message_ir.py。
     assert converted == [
         {
             "role": "assistant",
             "content": [
-                {
-                    "type": "thinking",
-                    "thinking": "内部推理不应直接下传给 provider",
-                    "signature": "",
-                },
                 {"type": "text", "text": "先调用天气工具"},
                 {
                     "type": "tool_use",

@@ -56,7 +56,7 @@ class _MalformedToolArgumentsClient:
             return
         yield LlmChunk(
             delta=LlmDelta(content="done"),
-            finish_reason="stop",
+            finish_reason="completed",
             usage={"prompt_tokens": 1, "completion_tokens": 1},
         )
 

@@ -47,7 +47,7 @@ class FakeLlmClient(BaseLlmClient):
         self.last_max_tokens = max_tokens
         # Yield the response in one chunk
         yield LlmChunk(delta=LlmDelta(content=self.response_text))
-        yield LlmChunk(delta=LlmDelta(), finish_reason="stop")
+        yield LlmChunk(delta=LlmDelta(), finish_reason="completed")
 
     async def aclose(self) -> None:
         pass
@@ -79,7 +79,7 @@ class FakeUsageLlmClient(BaseLlmClient):
     async def chat_stream(self, messages, tools, temperature, max_tokens, request_options=None):
         del request_options
         yield LlmChunk(delta=LlmDelta(content=self.response_text), usage=self.usage)
-        yield LlmChunk(delta=LlmDelta(), finish_reason="stop")
+        yield LlmChunk(delta=LlmDelta(), finish_reason="completed")
 
     async def aclose(self) -> None:
         pass

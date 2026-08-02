@@ -80,7 +80,7 @@ class _FakeStreamingClient:
         self.usages.append(usage)
         yield LlmChunk(
             delta=LlmDelta(content="最终答案"),
-            finish_reason="stop",
+            finish_reason="completed",
             usage=usage,
         )
 
@@ -99,7 +99,7 @@ class _SingleTurnClient:
         self.request_options.append(request_options)
         yield LlmChunk(
             delta=LlmDelta(content="ok"),
-            finish_reason="stop",
+            finish_reason="completed",
             usage={"prompt_tokens": 2, "completion_tokens": 1},
         )
 
@@ -121,7 +121,7 @@ class _ReasoningDespiteDisabledClient:
                 content="visible answer",
                 reasoning_content="hidden reasoning",
             ),
-            finish_reason="stop",
+            finish_reason="completed",
             usage={"prompt_tokens": 2, "completion_tokens": 1},
         )
 
@@ -142,7 +142,7 @@ class _CaptureToolsClient:
         ]
         yield LlmChunk(
             delta=LlmDelta(content="ok"),
-            finish_reason="stop",
+            finish_reason="completed",
             usage={"prompt_tokens": 2, "completion_tokens": 1},
         )
 
@@ -265,7 +265,7 @@ class _ConcurrentToolsClient:
         self.usages.append(usage)
         yield LlmChunk(
             delta=LlmDelta(content="完成"),
-            finish_reason="stop",
+            finish_reason="completed",
             usage=usage,
         )
 
@@ -327,7 +327,7 @@ class _ImageToolClient:
             return
         yield LlmChunk(
             delta=LlmDelta(content="看到了"),
-            finish_reason="stop",
+            finish_reason="completed",
             usage={"prompt_tokens": 2, "completion_tokens": 1},
         )
 
@@ -1208,7 +1208,7 @@ class _429ThenSuccessClient:
             raise exc
         yield LlmChunk(
             delta=LlmDelta(content="ok after retry"),
-            finish_reason="stop",
+            finish_reason="completed",
             usage={"prompt_tokens": 1, "completion_tokens": 1},
         )
 
@@ -1217,7 +1217,7 @@ class _429ThenSuccessClient:
 
 
 class _LengthTruncatedClient:
-    """第一次 finish_reason=length，第二次 finish_reason=stop。"""
+    """第一次 finish_reason=truncated（归一化值），第二次 completed。"""
 
     def __init__(self) -> None:
         self.calls = 0
@@ -1229,13 +1229,13 @@ class _LengthTruncatedClient:
         if self.calls == 1:
             yield LlmChunk(
                 delta=LlmDelta(content="第一部分"),
-                finish_reason="length",
+                finish_reason="truncated",
                 usage={"prompt_tokens": 2, "completion_tokens": 2},
             )
         else:
             yield LlmChunk(
                 delta=LlmDelta(content="第二部分"),
-                finish_reason="stop",
+                finish_reason="completed",
                 usage={"prompt_tokens": 2, "completion_tokens": 2},
             )
 
@@ -1315,7 +1315,7 @@ async def test_api_error_retry_with_backoff(tmp_path, monkeypatch):
 
 
 async def test_finish_reason_length_auto_continuation(tmp_path):
-    """任务 2：finish_reason=length 应自动续写，最多拼接内容。"""
+    """任务 2：finish_reason=truncated 应自动续写，最多拼接内容。"""
     agent_file = _write_agent_files(tmp_path)
     registry = ToolRegistry()
     client = _LengthTruncatedClient()
@@ -1514,4 +1514,229 @@ async def test_tool_result_image_downgraded_for_text_only_model(tmp_path):
     ]
     assert len(image_ref_parts) == 1
     assert image_ref_parts[0].get("source_path") == "/workspace/chart.png"
+    await session.close()
+
+
+# ---------------------------------------------------------------------------
+# 回归测试：Bug 复现
+# ---------------------------------------------------------------------------
+
+
+class _LengthNoToolClient:
+    """第一次 finish_reason=truncated（纯文本、无 tool_calls），第二次 completed。
+
+    用于复现 length 续写分支重复追加同一段 assistant 内容的 bug。
+    """
+
+    def __init__(self) -> None:
+        self.calls = 0
+
+    async def chat_stream(self, messages, tools, temperature, max_tokens, request_options=None):
+        del request_options, tools, temperature, max_tokens
+        self.calls += 1
+        if self.calls == 1:
+            yield LlmChunk(
+                delta=LlmDelta(content="前半段"),
+                finish_reason="truncated",
+                usage={"prompt_tokens": 2, "completion_tokens": 2},
+            )
+        else:
+            yield LlmChunk(
+                delta=LlmDelta(content="后半段"),
+                finish_reason="completed",
+                usage={"prompt_tokens": 2, "completion_tokens": 2},
+            )
+
+    async def aclose(self) -> None:
+        return None
+
+
+async def test_finish_reason_length_does_not_duplicate_assistant_message(tmp_path):
+    """回归：finish_reason=truncated 续写时，第一段 assistant 内容不应被追加两次。
+
+    Bug：session_stream 在 length 分支之前（无 tool_calls 分支）已 append 一次
+    assistant 消息，随后 length 分支又构造 partial_message 再 append 一次，
+    导致同一段 "前半段" 在 messages 里重复出现。
+    """
+    agent_file = _write_agent_files(tmp_path)
+    registry = ToolRegistry()
+    client = _LengthNoToolClient()
+
+    session = AiasysRuntimeSession(
+        RuntimeSessionCreateSpec(
+            work_dir=WorkspacePath(str(tmp_path)),
+            session_id="session-length-dup",
+            config=AiasysLlmConfig(
+                default_model="test-model",
+                providers={
+                    "provider-1": LlmProviderConfig(
+                        api_key="secret",
+                        base_url="https://example.com/v1",
+                    )
+                },
+                models={
+                    "test-model": LlmModelConfig(
+                        provider="provider-1",
+                        model="test-model-remote",
+                    )
+                },
+            ),
+            agent_file=agent_file,
+            skills_dir=None,
+            mcp_configs=None,
+            yolo=True,
+        ),
+        client,
+        registry,
+    )
+
+    _ = [event async for event in session.prompt("hello")]
+
+    assistant_msgs = [
+        m
+        for m in session.messages
+        if m.get("role") == "assistant" and "前半段" in str(m.get("content", ""))
+    ]
+    assert len(assistant_msgs) == 1, (
+        f"'前半段' assistant 消息重复了 {len(assistant_msgs)} 次，应只有 1 条。"
+        f" messages={[m.get('content') for m in session.messages if m.get('role') == 'assistant']}"
+    )
+    await session.close()
+
+
+class _FailingFinishReadTool(AiasysTool):
+    """只读工具，_finish_tool_execution 阶段（收尾）抛异常。
+
+    通过返回一个 content 为特殊 sentinel 的 ToolResult，配合 monkeypatch
+    让收尾阶段抛错，以复现 gather 后串行段异常导致整批 tool 消息缺失的问题。
+    这里直接在 invoke 里正常返回，异常由测试对 _finish_tool_execution 打桩注入。
+    """
+
+    name = "FailingFinishReadTool"
+    description = "read-only tool"
+    side_effect = False
+    parameters = {
+        "type": "object",
+        "properties": {"name": {"type": "string"}},
+        "required": ["name"],
+    }
+
+    async def invoke(self, ctx=None, **kwargs):
+        del ctx
+        return ToolResult(content=f"read {kwargs['name']}")
+
+
+class _TwoReadToolsClient:
+    """第一轮请求 2 个只读工具，第二轮 stop。"""
+
+    def __init__(self) -> None:
+        self.calls: list[list[dict]] = []
+
+    async def chat_stream(self, messages, tools, temperature, max_tokens, request_options=None):
+        del tools, temperature, max_tokens, request_options
+        self.calls.append([dict(m) for m in messages])
+        if len(self.calls) == 1:
+            yield LlmChunk(delta=LlmDelta(content="批量读取"), finish_reason=None, usage=None)
+            yield LlmChunk(
+                delta=LlmDelta(
+                    tool_calls=[
+                        {
+                            "index": 0,
+                            "id": "call-ro-1",
+                            "function": {"name": "FailingFinishReadTool", "arguments": '{"name":"a"}'},
+                        },
+                        {
+                            "index": 1,
+                            "id": "call-ro-2",
+                            "function": {"name": "FailingFinishReadTool", "arguments": '{"name":"b"}'},
+                        },
+                    ],
+                ),
+                finish_reason="tool_calls",
+                usage={"prompt_tokens": 3, "completion_tokens": 4},
+            )
+            return
+        yield LlmChunk(
+            delta=LlmDelta(content="完成"),
+            finish_reason="completed",
+            usage={"prompt_tokens": 2, "completion_tokens": 1},
+        )
+
+    async def aclose(self) -> None:
+        return None
+
+
+async def test_readonly_batch_exception_keeps_tool_call_sequence_closed(tmp_path):
+    """回归：只读批次收尾阶段抛异常时，assistant 的每个 tool_call 仍应配到 tool 回复。
+
+    Bug：_execute_readonly_batch 用 asyncio.gather 无 return_exceptions，
+    gather 之后串行的 _finish_tool_execution 若抛异常，会让已 append 的
+    assistant tool_calls 得不到对应 tool 消息 → 非法消息序列（provider 会 400）。
+    """
+    agent_file = _write_agent_files(tmp_path)
+    registry = ToolRegistry()
+    registry.register(_FailingFinishReadTool())
+    client = _TwoReadToolsClient()
+
+    session = AiasysRuntimeSession(
+        RuntimeSessionCreateSpec(
+            work_dir=WorkspacePath(str(tmp_path)),
+            session_id="session-batch-exc",
+            config=AiasysLlmConfig(
+                default_model="test-model",
+                providers={
+                    "provider-1": LlmProviderConfig(
+                        api_key="secret",
+                        base_url="https://example.com/v1",
+                    )
+                },
+                models={
+                    "test-model": LlmModelConfig(
+                        provider="provider-1",
+                        model="test-model-remote",
+                    )
+                },
+            ),
+            agent_file=agent_file,
+            skills_dir=None,
+            mcp_configs=None,
+            yolo=True,
+        ),
+        client,
+        registry,
+    )
+
+    # 让第二个工具的收尾阶段抛异常，模拟 gather 后串行段失败
+    original_finish = session._finish_tool_execution
+    call_counter = {"n": 0}
+
+    async def flaky_finish(item, tool_result):
+        call_counter["n"] += 1
+        if item["id"] == "call-ro-2":
+            raise RuntimeError("模拟收尾阶段异常")
+        async for ev in original_finish(item, tool_result):
+            yield ev
+
+    session._finish_tool_execution = flaky_finish  # type: ignore[assignment]
+
+    try:
+        _ = [event async for event in session.prompt("批量读取")]
+    except RuntimeError:
+        # 当前 bug 下异常会穿透；修复后不应穿透
+        pass
+
+    # 收集 assistant 声明的 tool_call id 与实际回复的 tool 消息 id
+    declared_ids: set[str] = set()
+    for m in session.messages:
+        if m.get("role") == "assistant" and m.get("tool_calls"):
+            for tc in m["tool_calls"]:
+                declared_ids.add(tc["id"])
+    replied_ids = {
+        m.get("tool_call_id") for m in session.messages if m.get("role") == "tool"
+    }
+
+    missing = declared_ids - replied_ids
+    assert not missing, (
+        f"以下 tool_call 缺少对应 tool 回复，消息序列非法（provider 会拒绝）：{missing}"
+    )
     await session.close()

@@ -11,7 +11,13 @@ from typing import Any
 from openai import AsyncOpenAI
 from openai.types.chat import ChatCompletionChunk
 
-from .base import BaseLlmClient, LlmChunk, LlmDelta, LlmRequestOptions
+from .base import (
+    BaseLlmClient,
+    LlmChunk,
+    LlmDelta,
+    LlmRequestOptions,
+    normalize_openai_finish_reason,
+)
 from .message_protocol import InternalMessage, to_openai_chat_messages
 from .thinking_mapper import apply_openai_chat_thinking_options
 
@@ -244,7 +250,8 @@ class OpenAIChatClient(BaseLlmClient):
                 reasoning_content=reasoning_content,
                 tool_calls=tool_calls,
             ),
-            finish_reason=choice.finish_reason,
+            finish_reason=normalize_openai_finish_reason(choice.finish_reason),
+            raw_finish_reason=choice.finish_reason,
             usage=None,
         )
 
