@@ -351,7 +351,7 @@ def main():
         created_dirs = []
         for d in dirs:
             d.mkdir(parents=True, exist_ok=True)
-            created_dirs.append(str(d.relative_to(workspace_root)))
+            created_dirs.append(d.relative_to(workspace_root).as_posix())
 
         now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
         date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
@@ -628,28 +628,28 @@ def main():
         agents_path.write_text(agents_md, encoding="utf-8")
 
         created_files = [
-            str(experiments_path.relative_to(workspace_root)),
-            str(references_path.relative_to(workspace_root)),
-            str(statement_readme_path.relative_to(workspace_root)),
-            str(statement_description_path.relative_to(workspace_root)),
-            str(data_readme_path.relative_to(workspace_root)),
-            str(raw_readme_path.relative_to(workspace_root)),
-            str(official_data_readme_path.relative_to(workspace_root)),
-            str(baselines_readme_path.relative_to(workspace_root)),
-            str(baseline_history_readme_path.relative_to(workspace_root)),
-            str(experiments_readme_path.relative_to(workspace_root)),
-            str(references_readme_path.relative_to(workspace_root)),
-            str(env_readme_path.relative_to(workspace_root)),
-            str(scripts_readme_path.relative_to(workspace_root)),
-            str(outputs_readme_path.relative_to(workspace_root)),
-            str(research_views_readme_path.relative_to(workspace_root)),
-            str(research_dashboard_path.relative_to(workspace_root)),
-            str(agents_path.relative_to(workspace_root)),
+            experiments_path.relative_to(workspace_root).as_posix(),
+            references_path.relative_to(workspace_root).as_posix(),
+            statement_readme_path.relative_to(workspace_root).as_posix(),
+            statement_description_path.relative_to(workspace_root).as_posix(),
+            data_readme_path.relative_to(workspace_root).as_posix(),
+            raw_readme_path.relative_to(workspace_root).as_posix(),
+            official_data_readme_path.relative_to(workspace_root).as_posix(),
+            baselines_readme_path.relative_to(workspace_root).as_posix(),
+            baseline_history_readme_path.relative_to(workspace_root).as_posix(),
+            experiments_readme_path.relative_to(workspace_root).as_posix(),
+            references_readme_path.relative_to(workspace_root).as_posix(),
+            env_readme_path.relative_to(workspace_root).as_posix(),
+            scripts_readme_path.relative_to(workspace_root).as_posix(),
+            outputs_readme_path.relative_to(workspace_root).as_posix(),
+            research_views_readme_path.relative_to(workspace_root).as_posix(),
+            research_dashboard_path.relative_to(workspace_root).as_posix(),
+            agents_path.relative_to(workspace_root).as_posix(),
         ]
 
         result = {
             "project_name": args.name,
-            "project_dir": str(project_dir.relative_to(workspace_root)),
+            "project_dir": project_dir.relative_to(workspace_root).as_posix(),
             "created_dirs": created_dirs,
             "created_files": created_files,
         }

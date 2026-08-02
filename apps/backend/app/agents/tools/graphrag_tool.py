@@ -26,6 +26,7 @@ from app.services.history import (
 from app.services.task_resource_context import (
     resolve_mounted_knowledge_graph_ids,
 )
+from app.utils.path_utils import as_system_path
 
 # 当前 capability catalog 和系统预设使用本模块路径注册知识图谱工具。
 from .graphrag_models import (  # noqa: F401
@@ -299,8 +300,11 @@ class DeleteKnowledgeGraph(AiasysTool):
             graph_path = _find_graph_db_path(user_id, graph_id)
             if graph_path is None:
                 return ToolResult(content=f"知识图谱不存在：{graph_id}", is_error=True)
-            graph_path.unlink()
+            # 先释放缓存的 service 再删文件：Windows 上被打开的文件无法 unlink
+            # （WinError 32），而 Linux 允许 unlink 已打开文件——顺序颠倒只会在
+            # Windows 暴露。这里与下方 unlink 的先后顺序是必需的，勿调换。
             _graphrag_services.pop((user_id, graph_id), None)
+            Path(as_system_path(graph_path)).unlink()
             return ToolResult(
                 content=f"知识图谱已删除：{graph_id}",
                 artifacts=[{"knowledge_graph_id": graph_id, "deleted": True}],

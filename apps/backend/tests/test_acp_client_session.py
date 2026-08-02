@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 
 from app.core.workspace_path import WorkspacePath
@@ -95,7 +96,9 @@ class TestAcpClientRuntimeSession:
         )
         session = AcpClientRuntimeSession(
             spec=spec,
-            acp_command="python3",
+            # 用 sys.executable 而非硬编码 "python3"：Windows 上通常只有
+            # python.exe / py.exe，没有 python3 可执行文件，会直接 WinError 2。
+            acp_command=sys.executable,
             acp_args=[str(script_path), str(capture_path)],
         )
 

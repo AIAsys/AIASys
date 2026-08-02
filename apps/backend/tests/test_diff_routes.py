@@ -52,8 +52,10 @@ async def test_file_diff_route_resolves_workspace_paths(
     )
 
     workspace_root = service.get_workspace_root("local_default", "diff-workspace")
-    (workspace_root / "left.md").write_text("old\n", encoding="utf-8")
-    (workspace_root / "right.md").write_text("new\n", encoding="utf-8")
+    # newline="\n" 显式禁用换行转换：Windows 上 write_text 默认把 \n 写成 \r\n，
+    # 会让下方按 LF 断言的 unified_diff 失败。测试期望的是纯 LF 文件。
+    (workspace_root / "left.md").write_text("old\n", encoding="utf-8", newline="\n")
+    (workspace_root / "right.md").write_text("new\n", encoding="utf-8", newline="\n")
 
     response = await diff_route.compare_file_diff(
         diff_route.FileDiffRequest(

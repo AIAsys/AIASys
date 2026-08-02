@@ -13,6 +13,7 @@ import mimetypes
 import os
 import re
 import shutil
+from contextlib import closing
 from pathlib import Path
 from typing import Annotated, Literal
 
@@ -427,7 +428,9 @@ def _create_graph_db_at_path(
     graph_desc = request.description or ""
 
     try:
-        with sqlite3.connect(_sys_path(file_path)) as conn:
+        # closing 保证连接关闭：`with sqlite3.connect(...)` 只管事务不管连接，
+        # 连接不关会在 Windows 上锁住 .db 文件，导致后续删除/重命名失败。
+        with closing(sqlite3.connect(_sys_path(file_path))) as conn:
             # 使用 DELETE journal，避免新建资源后文件树出现 -wal / -shm 临时文件。
             conn.execute("PRAGMA journal_mode = DELETE")
             conn.execute("""
@@ -522,7 +525,8 @@ def _write_knowledge_db_metadata(
     import sqlite3
 
     try:
-        with sqlite3.connect(_sys_path(file_path)) as conn:
+        # closing 保证连接关闭，理由同 _create_graph_db_at_path。
+        with closing(sqlite3.connect(_sys_path(file_path))) as conn:
             conn.execute("PRAGMA journal_mode = DELETE")
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS _aiasys_metadata (

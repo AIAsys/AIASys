@@ -15,6 +15,7 @@ from __future__ import annotations
 import logging
 import sqlite3
 from abc import ABC, abstractmethod
+from contextlib import closing
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -317,7 +318,9 @@ def _write_knowledge_db_metadata(
 ) -> None:
     """写入知识库 SQLite metadata。"""
     try:
-        with sqlite3.connect(as_system_path(str(file_path))) as conn:
+        # closing 保证连接关闭：`with sqlite3.connect(...)` 只管事务不管连接，
+        # 连接不关会在 Windows 上锁住 .db 文件，导致后续删除/重命名失败。
+        with closing(sqlite3.connect(as_system_path(str(file_path)))) as conn:
             conn.execute("PRAGMA journal_mode = DELETE")
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS _aiasys_metadata (
@@ -355,7 +358,8 @@ def _create_graph_db_tables(
 ) -> None:
     """创建知识图谱 SQLite 表结构并写入初始 metadata。"""
     try:
-        with sqlite3.connect(as_system_path(str(file_path))) as conn:
+        # closing 保证连接关闭，理由同 _write_knowledge_db_metadata。
+        with closing(sqlite3.connect(as_system_path(str(file_path)))) as conn:
             conn.execute("PRAGMA journal_mode = DELETE")
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS _aiasys_metadata (

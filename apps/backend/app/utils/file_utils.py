@@ -101,9 +101,11 @@ def _sync_scan_directory(workspace: Path) -> Dict[str, FileSnapshot]:
                     continue
 
                 stat = file_path.stat()
-                files[str(rel_path)] = FileSnapshot(
-                    path=str(rel_path), size=stat.st_size, mtime=stat.st_mtime
-                )
+                # 用 as_posix() 而非 str()：该 path 既进 API 响应又持久化到
+                # file_snapshots.json，若带平台原生分隔符，Windows 上建的工作区
+                # 在 Linux 打开会因 key 不匹配把全部文件误判为已变更。
+                rel_key = rel_path.as_posix()
+                files[rel_key] = FileSnapshot(path=rel_key, size=stat.st_size, mtime=stat.st_mtime)
             except (ValueError, OSError):
                 # 跳过无法访问的文件
                 continue
